@@ -209,6 +209,46 @@ const SI_EXTRA: &[&str] = &[
     "kilometrePerHour", "m2", "m3", "cm2", "cm3", "mm2", "mm3", "lbf", "ft", "in",
 ];
 
+use crate::stdlib_names::{ISQ_NAMES, SI_NAMES, SI_PREFIX_NAMES, US_CUSTOMARY_NAMES};
+
+/// Whether `m` is a package-level member of the ISQ quantities library: the complete
+/// inventory extracted from the standard library plus this build's curated tables
+/// (a superset, so a name the tool already recognised never starts being rejected).
+fn isq_member(m: &str) -> bool {
+    quantity_table(m).is_some() || ISQ_EXTRA.contains(&m) || ISQ_NAMES.contains(&m)
+}
+
+/// Whether `m` is a member of the `SI` package: its own units, plus the `ISQ::*` and
+/// `SIPrefixes::*` it publicly re-exports.
+fn si_member(m: &str) -> bool {
+    unit_table(m).is_some()
+        || SI_EXTRA.contains(&m)
+        || SI_NAMES.contains(&m)
+        || SI_PREFIX_NAMES.contains(&m)
+        || isq_member(m)
+}
+
+/// Whether `member` is declared by the library package `pkg` (GH #210). `Some(bool)` for
+/// a package whose full membership is known here (`ISQ` and its `ISQ*` sub-packages,
+/// `SI`, `SIPrefixes`, `USCustomaryUnits`, and the closed `ScalarValues`/`Base`);
+/// `None` for any other package, whose membership is not enumerated.
+pub fn library_member_known(pkg: &str, member: &str) -> Option<bool> {
+    use crate::resolver::BUILTIN_TYPE_PACKAGES;
+    if let Some((_, members)) = BUILTIN_TYPE_PACKAGES.iter().find(|(p, _)| *p == pkg) {
+        return Some(members.contains(&member));
+    }
+    Some(match pkg {
+        "ISQ" | "ISQBase" | "ISQSpaceTime" | "ISQMechanics" | "ISQThermodynamics"
+        | "ISQElectromagnetism" | "ISQLight" | "ISQAcoustics" | "ISQChemistryMolecular"
+        | "ISQAtomicNuclear" | "ISQCondensedMatter" | "ISQCharacteristicNumbers"
+        | "ISQInformation" => isq_member(member),
+        "SI" => si_member(member),
+        "SIPrefixes" => SI_PREFIX_NAMES.contains(&member),
+        "USCustomaryUnits" => US_CUSTOMARY_NAMES.contains(&member) || si_member(member),
+        _ => return None,
+    })
+}
+
 /// `Some(true)` when `ISQ::<member>` is a name this build knows, `Some(false)`
 /// when it is not; `None` when `s` is not an `ISQ::` reference.
 pub fn isq_name_known(s: &str) -> Option<bool> {
@@ -216,7 +256,7 @@ pub fn isq_name_known(s: &str) -> Option<bool> {
     if m.contains("::") {
         return None;
     }
-    Some(quantity_table(m).is_some() || ISQ_EXTRA.contains(&m))
+    Some(isq_member(m))
 }
 
 /// As [`isq_name_known`], for `SI::<unit>` (a bare unit symbol is not judged).
@@ -225,5 +265,5 @@ pub fn si_unit_known(s: &str) -> Option<bool> {
     if m.contains(['*', '/', '^', ' ']) || m.contains("::") {
         return None;
     }
-    Some(unit_table(m).is_some() || SI_EXTRA.contains(&m))
+    Some(si_member(m))
 }

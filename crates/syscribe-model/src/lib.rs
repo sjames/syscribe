@@ -33,6 +33,7 @@ pub mod suspect;
 pub mod sysmlv2;
 pub mod testplan;
 pub mod units;
+pub mod stdlib_names;
 pub mod validator;
 pub mod variability;
 pub mod view_exposure;

@@ -141,7 +141,7 @@ impl<'a> Ctx<'a> {
     /// A standard-library reference (item 5 of the module doc).
     fn is_library_ref(&self, r: &str) -> bool {
         if !matches!(builtin_type_kind(r), BuiltinType::NotBuiltin)
-            || crate::units::is_recognised_type_ref(r)
+            || (r.contains("::") && crate::units::is_recognised_type_ref(r))
         {
             return true;
         }
@@ -345,14 +345,32 @@ impl<'a> Ctx<'a> {
             .any(|e| e.qualified_name == head || e.qualified_name.starts_with(&prefix))
     }
 
+    /// Whether a wildcard import of the library package `pkg` makes `r` (first
+    /// segment `head`) visible. Where the package's full membership is known
+    /// (`ISQ`, `SI`, `ScalarValues`, … — [`crate::units::library_member_known`]) an
+    /// unknown first segment is *not* provided (GH #210); for any other library
+    /// package, whose members cannot be enumerated, the import stays lenient.
+    fn library_wildcard_provides(&self, pkg: &str, head: &str, r: &str, recursive: bool) -> bool {
+        if self.names_model_namespace(head) {
+            return false;
+        }
+        if !self.top_level.contains(pkg) {
+            match crate::units::library_member_known(pkg, head) {
+                Some(true) => return true,
+                // `pkg::**` also exposes the library's nested packages.
+                Some(false) => return recursive && STDLIB_PACKAGES.contains(&head),
+                None => {}
+            }
+        }
+        self.is_library_ref(&format!("{pkg}::{r}")) || self.is_library_ref(pkg)
+    }
+
     /// Whether one `imports:` entry `target`, declared in namespace `ns`, makes
     /// the reference `r` (whose first segment is `head`) visible.
     fn import_provides(&self, ns: &str, target: &str, head: &str, r: &str) -> bool {
         let target = target.trim();
         if let Some(pkg) = target.strip_suffix("::**") {
-            if !self.names_model_namespace(head)
-                && (self.is_library_ref(&format!("{pkg}::{r}")) || self.is_library_ref(pkg))
-            {
+            if self.library_wildcard_provides(pkg, head, r, true) {
                 return true;
             }
             let Some(p) = self.scoped(ns, pkg) else { return false };
@@ -365,9 +383,7 @@ impl<'a> Ctx<'a> {
         }
         if let Some(pkg) = target.strip_suffix("::*") {
             let full = format!("{pkg}::{r}");
-            if !self.names_model_namespace(head)
-                && (self.is_library_ref(&full) || self.is_library_ref(pkg))
-            {
+            if self.library_wildcard_provides(pkg, head, r, false) {
                 return true;
             }
             return self.scoped(ns, &full).is_some();
@@ -381,6 +397,14 @@ impl<'a> Ctx<'a> {
             Some((_, t)) => format!("{target}::{t}"),
             None => target.to_string(),
         };
+        // `import ISQ::Bogus;` — a member the complete library table lacks (GH #210).
+        if let Some((pkg, member)) = target.rsplit_once("::") {
+            if !self.top_level.contains(pkg.split("::").next().unwrap_or(pkg))
+                && crate::units::library_member_known(pkg, member) == Some(false)
+            {
+                return self.scoped(ns, &full).is_some();
+            }
+        }
         self.is_library_ref(&full) || self.is_library_ref(target) || self.scoped(ns, &full).is_some()
     }
 
@@ -567,7 +591,11 @@ pub fn unresolved_structural_ref_findings(
             };
             let Some(t) = target.map(str::trim) else { continue };
             let pkg = t.strip_suffix("::**").or_else(|| t.strip_suffix("::*")).unwrap_or(t);
-            if !pkg.is_empty() && !ctx.resolves(elem, pkg) {
+            let library_pkg = {
+                let head = pkg.split("::").next().unwrap_or(pkg);
+                STDLIB_PACKAGES.contains(&head) && !ctx.top_level.contains(head)
+            };
+            if !pkg.is_empty() && !library_pkg && !ctx.resolves(elem, pkg) {
                 report("E126", "imports", file, t, String::new());
             }
         }
@@ -915,6 +943,83 @@ mod tests {
             elem("P::B", "type: PartDef\nfeatures:\n  - name: m\n    typedBy: MassValue\n"),
         ];
         assert_eq!(codes(&els), vec!["E110"]);
+    }
+
+    fn typed_by_under_import(import: &str, name: &str) -> Vec<&'static str> {
+        let els = vec![
+            elem("P", &format!("type: Package\nimports:\n  - {import}\n")),
+            elem("P::A", &format!("type: PartDef\nfeatures:\n  - name: m\n    typedBy: {name}\n")),
+        ];
+        codes(&els)
+    }
+
+    #[test]
+    fn gh210_unknown_bare_name_under_complete_library_wildcard_is_reported() {
+        // Known members stay clean (real ISQ/SI/ScalarValues/Base names).
+        for (imp, n) in [
+            ("ISQ::*", "MassValue"),
+            ("ISQ::*", "TemperatureDifferenceValue"),
+            ("ISQ::*", "ElectricPotentialDifferenceValue"),
+            ("ISQ::**", "LengthValue"),
+            ("SI::*", "kilogram"),
+            ("SI::*", "MassValue"),
+            ("SI::*", "kilo"),
+            ("SIPrefixes::*", "milli"),
+            ("ScalarValues::*", "Positive"),
+            ("Base::*", "Anything"),
+            ("ISQMechanics::*", "ForceValue"),
+        ] {
+            let c = typed_by_under_import(imp, n);
+            assert!(c.is_empty(), "{imp} {n}: {c:?}");
+        }
+        // Unknown names are now E111.
+        for (imp, n) in [
+            ("ISQ::*", "NoSuchQuantityValue"),
+            ("ISQ::**", "NoSuchQuantityValue"),
+            ("SI::*", "furlongs"),
+            ("SIPrefixes::*", "MassValue"),
+            ("ScalarValues::*", "Floaty"),
+            ("Base::*", "Nothing"),
+        ] {
+            assert_eq!(typed_by_under_import(imp, n), vec!["E111"], "{imp} {n}");
+        }
+    }
+
+    #[test]
+    fn gh210_membership_import_of_unknown_library_member_is_reported() {
+        assert!(typed_by_under_import("ISQ::MassValue", "MassValue").is_empty());
+        assert_eq!(typed_by_under_import("ISQ::Bogus", "Bogus"), vec!["E111"]);
+    }
+
+    #[test]
+    fn gh210_unenumerated_library_wildcards_stay_lenient() {
+        // Packages whose membership is not tabulated keep the old leniency.
+        assert!(typed_by_under_import("Parts::*", "Part").is_empty());
+        assert!(typed_by_under_import("Parts::*", "Anything").is_empty());
+        assert!(typed_by_under_import("Actions::*", "Whatever").is_empty());
+    }
+
+    #[test]
+    fn gh210_model_package_named_isq_keeps_old_behaviour() {
+        let els = vec![
+            elem("ISQ", "type: Package"),
+            elem("ISQ::Mine", "type: PartDef"),
+            elem("P", "type: Package\nimports:\n  - ISQ::*\n"),
+            elem("P::A", "type: PartDef\nsupertype: Mine\n"),
+        ];
+        assert!(codes(&els).is_empty(), "{:?}", codes(&els));
+    }
+
+    #[test]
+    fn gh210_library_member_tables_cover_the_standard_library() {
+        use crate::units::library_member_known as k;
+        assert_eq!(k("ISQ", "MassValue"), Some(true));
+        assert_eq!(k("ISQ", "Zzz"), Some(false));
+        assert_eq!(k("SI", "N"), Some(true));
+        assert_eq!(k("SI", "Zzz"), Some(false));
+        assert_eq!(k("ScalarValues", "Positive"), Some(true));
+        assert_eq!(k("Parts", "Part"), None);
+        assert!(crate::units::isq_name_known("ISQ::ElectricPotentialDifferenceValue") == Some(true));
     }
 
     fn behavior_codes(elements: &[RawElement]) -> Vec<&'static str> {

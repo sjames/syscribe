@@ -306,10 +306,16 @@ pub const BUILTIN_TYPE_PACKAGES: &[(&str, &[&str])] = &[
         "ScalarValues",
         &[
             "Integer", "Real", "Natural", "Boolean", "String", "Rational", "Complex", "Number",
-            "NumericalValue", "ScalarValue",
+            "NumericalValue", "ScalarValue", "Positive",
         ],
     ),
-    ("Base", &["Anything", "DataValue"]),
+    (
+        "Base",
+        &[
+            "Anything", "DataValue", "things", "dataValues", "naturals", "exactlyOne",
+            "zeroOrOne", "oneToMany", "zeroToMany",
+        ],
+    ),
 ];
 
 /// Classification of a reference against the built-in type inventory.
