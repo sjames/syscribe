@@ -9,6 +9,8 @@
 - **New:** `W068` — a redefining feature's `multiplicity:` is not contained in the redefined feature's (#208).
 - **Changed:** `W057`/`W044` understand SI prefixes (`kN`, `mm`, `MHz`) and judge prefixed units by dimension (#209).
 - **Changed:** complete ISQ/SI/SIPrefixes/USCustomaryUnits/ScalarValues/Base name tables; an unknown bare name or membership import under a library wildcard (`import ISQ::*`) is now reported (#210).
+- **New:** ASIL decomposition validation (#214): `E878` illegal ISO 26262-9 pair (`D -> A+A`, `D -> B+A`, ...), `E879` bad `decomposedFrom:`; `asilLevel: QM` is accepted, the notation `asilLevel: B(D)` / `QM(D)` and a `decomposedFrom:` field are supported, `E010` now lists the valid values, and `E865`/`W860` apply at every integrity level (not only ASIL D / SIL 4).
+- **New:** HARA checks (#215): the ASIL is derived from S/E/C (ISO 26262-3 Table 4) and shown by `show` as `derivedASIL`; `W811` goal ASIL lower than derived, `W812` ASIL C/D or SIL 3/4 goal without `safeState`/`ftti`, `W813` partial S/E/C set, `W814` mixed ISO 26262 / IEC 61508 parameters, `E880` invalid `ftti` unit.
 
 ## 0.53.0 — 2026-10-09
 

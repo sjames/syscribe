@@ -818,6 +818,9 @@ pub struct ColdFrontmatter {
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
     /// Informational; surfaced in the safety-case report.
     pub decomposition_kind: Option<String>,
+    /// Original (pre-decomposition) ASIL of a decomposed requirement (ISO 26262-9 §5):
+    /// `decomposedFrom: D`, or implied by the `B(D)` notation in `asilLevel:`. Letter A–D.
+    pub decomposed_from: Option<String>,
     pub wcet: Option<String>,
     /// `configurations:` — scalar or list of `Configuration` references. Absent
     /// → config-agnostic (applies to every Configuration). Each must resolve to a
@@ -1343,6 +1346,9 @@ struct ColdWire {
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
     /// Informational; surfaced in the safety-case report.
     pub decomposition_kind: Option<String>,
+    /// Original (pre-decomposition) ASIL of a decomposed requirement (ISO 26262-9 §5):
+    /// `decomposedFrom: D`, or implied by the `B(D)` notation in `asilLevel:`. Letter A–D.
+    pub decomposed_from: Option<String>,
     pub wcet: Option<String>,
     /// `configurations:` — scalar or list of `Configuration` references. Absent
     /// → config-agnostic (applies to every Configuration). Each must resolve to a
@@ -1815,6 +1821,7 @@ struct ColdWire {
 impl ColdWire {
     fn into_tiers(self) -> ColdFrontmatter {
         let w = self;
+        let (asil_eff, asil_orig) = crate::asil::split_notation(w.asil_level);
         ColdFrontmatter {
             is_variation: w.is_variation,
             expression: w.expression,
@@ -1842,8 +1849,9 @@ impl ColdWire {
             about: w.about,
             locale: w.locale,
             sil_level: w.sil_level,
-            asil_level: w.asil_level,
+            asil_level: asil_eff,
             decomposition_kind: w.decomposition_kind,
+            decomposed_from: w.decomposed_from.or(asil_orig),
             wcet: w.wcet,
             configurations: w.configurations,
             demonstrates: w.demonstrates,

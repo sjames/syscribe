@@ -14,7 +14,7 @@
 | `E007` | `status:` value is not in the allowed enum for the element type |
 | `E008` | `testLevel:` is not in `L1`–`L5` |
 | `E009` | `silLevel:` is not an integer in 1–4 |
-| `E010` | `asilLevel:` is not in `A`–`D` |
+| `E010` | `asilLevel:` is not `QM`, `A`–`D` (or decomposition notation such as `B(D)`); the message lists the valid values |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text before the first `##` heading |
 | `E013` | `verifies:` is absent or empty on a `TestCase` |
@@ -228,12 +228,19 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W034` | For an allocation target with ≥2 sources (edges from the §12.9 unified allocation-edge set), a mixed-criticality source pair has no freedom-from-interference argument (`ffiRationale:` or `accepted` `breakdownAdr:`). Opt-in; gate with `--deny W034` |
 
-## Integrity-level propagation — ASIL/SIL decomposition (E865, W860)
+## Integrity-level propagation — ASIL/SIL decomposition and HARA (E865, E878–E880, W811–W814, W860)
 
 | Code | Condition |
 |---|---|
-| `E865` | ASIL D / SIL 4 decomposition siblings (uniformly-lower children) share a `satisfies:` target — channels must be architecturally independent (§22.3) |
-| `W860` | An ASIL D / SIL 4 requirement has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| `E865` | ASIL/SIL decomposition siblings (uniformly-lower children, or a QM channel / `decomposedFrom:`) at any integrity level share a `satisfies:` target — channels must be architecturally independent (§22.3) |
+| `W860` | An ASIL/SIL requirement (any level) has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| `E878` | ASIL decomposition children of a parent at ASIL A–D do not form an allowed ISO 26262-9 pair (D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM); fires when the children claim a decomposition (all lower, a QM channel, or `decomposedFrom:`) (#214) |
+| `E879` | `decomposedFrom:` is not an original ASIL A–D, or is lower than the element's own `asilLevel` (#214) |
+| `E880` | `ftti:` is not `<number><unit>` with unit `ns`, `us`, `ms`, `s`, `min` or `h` (#215) |
+| `W811` | `SafetyGoal` `asilLevel` is lower than the ASIL derived from the S/E/C of its linked `HazardousEvent`s (ISO 26262-3 Table 4) (#215) |
+| `W812` | `SafetyGoal` at ASIL C/D or SIL 3/4 has no `safeState:` or `ftti:` (draft-suppressed) (#215) |
+| `W813` | `HazardousEvent` has a partial ISO 26262 S/E/C set (some but not all of `severity`/`exposure`/`controllability`; draft-suppressed) (#215) |
+| `W814` | `HazardousEvent` mixes ISO 26262 S/E/C parameters with IEC 61508 risk-graph parameters (#215) |
 
 ## GSN safety-argument layer (E852–E860, W040)
 

@@ -824,13 +824,7 @@ fn constraint_simple_bound(expr: &str) -> Option<(&'static str, f64)> {
 
 /// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
 fn asil_rank(level: &str) -> Option<u8> {
-    match level.to_ascii_uppercase().as_str() {
-        "A" => Some(1),
-        "B" => Some(2),
-        "C" => Some(3),
-        "D" => Some(4),
-        _ => None,
-    }
+    crate::asil::rank(level)
 }
 
 /// Returns true when the child's integrity level is strictly lower than the source's.
@@ -1910,11 +1904,34 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // E010: asilLevel A–D
+        // E010: asilLevel QM, A–D (the `B(D)` decomposition notation is split at parse time)
         if let Some(ref asil) = fm.asil_level {
-            const ASIL: &[&str] = &["A", "B", "C", "D"];
-            if !ASIL.contains(&asil.as_str()) {
-                findings.push(error("E010", &file, &format!("unknown asilLevel '{}'", asil)));
+            if !crate::asil::ASIL_VALUES.contains(&asil.as_str()) {
+                findings.push(error("E010", &file, &format!(
+                    "unknown asilLevel '{}' — valid values are QM, A, B, C, D (decomposition notation such as 'B(D)' is also accepted)",
+                    asil
+                )));
+            }
+        }
+
+        // E879 (GH #214): decomposedFrom must name an original ASIL A–D that is not
+        // lower than the element's own (decomposed) level.
+        if let Some(ref df) = fm.decomposed_from {
+            match crate::asil::rank(df) {
+                Some(r @ 1..=4) => {
+                    if let Some(own) = fm.asil_level.as_deref().and_then(crate::asil::rank) {
+                        if own > r {
+                            findings.push(error("E879", &file, &format!(
+                                "decomposedFrom '{}' is lower than the element's own asilLevel '{}' — a decomposition lowers the level, it cannot raise it",
+                                df, fm.asil_level.as_deref().unwrap_or("")
+                            )));
+                        }
+                    }
+                }
+                _ => findings.push(error("E879", &file, &format!(
+                    "decomposedFrom '{}' must be an original ASIL: A, B, C, or D",
+                    df
+                ))),
             }
         }
 
@@ -2029,6 +2046,34 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E803", &file, &format!("HazardousEvent.controllability '{}' must be C0, C1, C2, or C3", c)));
                 }
             }
+            // W813 / W814 (GH #215): partial or mixed risk-parameter sets.
+            {
+                let iso = [&fm.severity, &fm.exposure, &fm.controllability];
+                let iso_n = iso.iter().filter(|v| v.is_some()).count();
+                let iec_n = [&fm.consequence, &fm.freq_exposure, &fm.avoidance, &fm.demand_rate]
+                    .iter()
+                    .filter(|v| v.is_some())
+                    .count();
+                if iso_n > 0 && iso_n < 3 && fm.status.as_deref() != Some("draft") {
+                    let missing: Vec<&str> = [
+                        ("severity", fm.severity.is_none()),
+                        ("exposure", fm.exposure.is_none()),
+                        ("controllability", fm.controllability.is_none()),
+                    ]
+                    .iter()
+                    .filter(|(_, m)| *m)
+                    .map(|(n, _)| *n)
+                    .collect();
+                    findings.push(warning("W813", &file, &format!(
+                        "HazardousEvent has a partial ISO 26262 S/E/C set — missing {}; the ASIL cannot be derived",
+                        missing.join(", ")
+                    )));
+                }
+                if iso_n > 0 && iec_n > 0 {
+                    findings.push(warning("W814", &file,
+                        "HazardousEvent mixes ISO 26262 parameters (severity/exposure/controllability) with IEC 61508 risk-graph parameters (consequence/freqExposure/avoidance/demandRate) — use one standard"));
+                }
+            }
             // E833: IEC 61508 consequence Ca-Cd
             if let Some(ref c) = fm.consequence {
                 if !["Ca","Cb","Cc","Cd"].contains(&c.as_str()) {
@@ -2055,6 +2100,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E880 (GH #215): ftti must be `<number><unit>` with unit ns|us|ms|s|min|h.
+        if let Some(ref ft) = fm.ftti {
+            if crate::asil::ftti_millis(ft).is_none() {
+                findings.push(error("E880", &file, &format!(
+                    "ftti '{}' is not a time interval — use a number and a unit, e.g. '50ms' (units: ns, us, ms, s, min, h)",
+                    ft
+                )));
+            }
+        }
+
         // ── Tier 2: SafetyGoal (E805-E806, E837) ─────────────────────────────
         if matches!(fm.element_type, Some(ElementType::SafetyGoal)) {
             if fm.id.is_none() { findings.push(error("E805", &file, "`id` is required on SafetyGoal")); }
@@ -2069,6 +2124,57 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref pl) = fm.pl_level {
                 if !["a","b","c","d","e"].contains(&pl.as_str()) {
                     findings.push(error("E837", &file, &format!("SafetyGoal.plLevel '{}' must be a, b, c, d, or e (ISO 13849-1)", pl)));
+                }
+            }
+            // W811 / W812 (GH #215): HARA consistency.
+            {
+                // Highest ASIL derivable from the goal's linked HazardousEvents.
+                let mut derived: Option<(u8, String)> = None;
+                if let Some(ref hes) = fm.hazardous_events {
+                    for r in hes {
+                        let Some(he) = resolver.resolve_ref(elements, r) else { continue };
+                        let hf = &he.frontmatter;
+                        if !matches!(hf.element_type, Some(ElementType::HazardousEvent)) {
+                            continue;
+                        }
+                        if let (Some(sv), Some(ex), Some(co)) =
+                            (hf.severity.as_deref(), hf.exposure.as_deref(), hf.controllability.as_deref())
+                        {
+                            if let Some(a) = crate::asil::derive(sv, ex, co) {
+                                let rk = crate::asil::rank(a).unwrap_or(0);
+                                if derived.as_ref().is_none_or(|(d, _)| rk > *d) {
+                                    derived = Some((rk, r.clone()));
+                                }
+                            }
+                        }
+                    }
+                }
+                if let (Some((drank, he_ref)), Some(goal_rank)) =
+                    (&derived, fm.asil_level.as_deref().and_then(crate::asil::rank))
+                {
+                    if goal_rank < *drank {
+                        findings.push(warning("W811", &file, &format!(
+                            "SafetyGoal asilLevel {} is lower than ASIL {} derived from the S/E/C of HazardousEvent '{}' (ISO 26262-3 Table 4)",
+                            fm.asil_level.as_deref().unwrap_or(""), crate::asil::name(*drank), he_ref
+                        )));
+                    }
+                }
+                let high = fm.asil_level.as_deref().and_then(crate::asil::rank).is_some_and(|r| r >= 3)
+                    || fm.sil_level.is_some_and(|n| n >= 3);
+                if high && fm.status.as_deref() != Some("draft") {
+                    let mut missing = Vec::new();
+                    if fm.safe_state.as_deref().is_none_or(|v| v.trim().is_empty()) {
+                        missing.push("safeState");
+                    }
+                    if fm.ftti.as_deref().is_none_or(|v| v.trim().is_empty()) {
+                        missing.push("ftti");
+                    }
+                    if !missing.is_empty() {
+                        findings.push(warning("W812", &file, &format!(
+                            "high-integrity SafetyGoal (ASIL C/D or SIL 3/4) has no {} — ISO 26262-3 §6 requires a safe state and fault-tolerant time interval",
+                            missing.join(" or ")
+                        )));
+                    }
                 }
             }
             // W801: SafetyGoal should carry an integrity level (asilLevel, silLevel, or plLevel)
@@ -4793,8 +4899,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // the channels must be ≥2 and satisfy architecturally distinct elements.
         {
             let pfm = &elem.frontmatter;
-            let parent_is_d4 =
-                pfm.asil_level.as_deref() == Some("D") || pfm.sil_level == Some(4);
+            // GH #214: extended from ASIL D / SIL 4 to every integrity level
+            // (QM is never decomposed further).
+            let parent_is_d4 = pfm
+                .asil_level
+                .as_deref()
+                .and_then(crate::asil::rank)
+                .is_some_and(|r| r >= 1)
+                || pfm.sil_level.is_some_and(|n| n >= 1);
             if parent_is_d4 {
                 let leveled: Vec<&RawElement> = derived_children
                     .get(req_id)
@@ -4817,14 +4929,59 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             pfm.sil_level,
                         )
                     });
-                if all_lower {
+                // A decomposition claim: every channel strictly lower, a QM channel
+                // beside a full-level one (D + QM(D)), or an explicit `decomposedFrom`.
+                let parent_asil_rank = pfm.asil_level.as_deref().and_then(crate::asil::rank);
+                let claim = all_lower
+                    || leveled.iter().any(|c| c.frontmatter.decomposed_from.is_some())
+                    || (parent_asil_rank.is_some()
+                        && leveled.iter().any(|c| c.frontmatter.asil_level.as_deref() == Some("QM")));
+                if claim {
+                    // E878 (GH #214): the channel levels must form an allowed ISO 26262-9 pair.
+                    if let (Some(pr), true) = (parent_asil_rank, leveled.len() >= 2) {
+                        let ranks: Vec<Option<u8>> = leveled
+                            .iter()
+                            .map(|c| c.frontmatter.asil_level.as_deref().and_then(crate::asil::rank))
+                            .collect();
+                        if ranks.iter().all(|r| r.is_some()) {
+                            let ranks: Vec<u8> = ranks.into_iter().flatten().collect();
+                            let mut any_legal = false;
+                            for i in 0..ranks.len() {
+                                for j in (i + 1)..ranks.len() {
+                                    any_legal |= crate::asil::pair_legal(pr, ranks[i], ranks[j]);
+                                }
+                            }
+                            if !any_legal {
+                                let names: Vec<String> = leveled
+                                    .iter()
+                                    .map(|c| {
+                                        format!(
+                                            "{} ({})",
+                                            c.frontmatter.id.as_deref().unwrap_or(&c.qualified_name),
+                                            c.frontmatter.asil_level.as_deref().unwrap_or("")
+                                        )
+                                    })
+                                    .collect();
+                                findings.push(error(
+                                    "E878",
+                                    &elem.file_path,
+                                    &format!(
+                                        "illegal ASIL decomposition of '{}' (ASIL {}) into {} — ISO 26262-9 allows D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM",
+                                        req_id,
+                                        pfm.asil_level.as_deref().unwrap_or(""),
+                                        names.join(" + ")
+                                    ),
+                                ));
+                            }
+                        }
+                    }
                     if leveled.len() < 2 {
                         // W860 — single-channel decomposition (draft-suppressed).
                         if pfm.status.as_deref() != Some("draft") {
                             findings.push(warning(
                                 "W860",
                                 &elem.file_path,
-                                &format!("ASIL D / SIL 4 requirement '{}' has a single lower-level decomposition child — a decomposition needs at least two independent channels", req_id),
+                                &format!("ASIL/SIL requirement '{}' has a single lower-level decomposition child — a decomposition needs at least two independent channels", req_id),
                             ));
                         }
                     } else {
@@ -12650,6 +12807,101 @@ mod link_type_tests {
         let f = run(&elements, toml_text);
         assert!(!f.iter().any(|x| x.code == "E865"), "{f:?}");
         assert!(f.iter().any(|x| x.code == "W860"), "{f:?}");
+    }
+
+    fn decomp(parent: &str, kids: &[(&str, &str, &str)]) -> Vec<RawElement> {
+        let mut v = vec![
+            req("REQ-001", &format!("asilLevel: {parent}\n")),
+            make_elem("Dec::ADR-001", "type: ADR\nid: ADR-001\nname: a\nstatus: accepted\n"),
+        ];
+        for (i, (asil, extra, _)) in kids.iter().enumerate() {
+            let n = i + 2;
+            v.push(req(
+                &format!("REQ-00{n}"),
+                &format!("asilLevel: \"{asil}\"\nderivedFrom: [REQ-001]\nbreakdownAdr: ADR-001\nsatisfies: [Arch::X{n}]\n{extra}"),
+            ));
+            v.push(make_elem(
+                &format!("Arch::X{n}"),
+                "type: PartDef\nname: X\ndomain: software\nasilLevel: D\n",
+            ));
+        }
+        v
+    }
+
+    fn has(f: &[Finding], code: &str) -> bool {
+        f.iter().any(|x| x.code == code)
+    }
+
+    #[test]
+    fn asil_decomposition_pairs_are_checked_at_every_level() {
+        let d = |kids: &[(&str, &str, &str)], p: &str| run(&decomp(p, kids), "");
+        // D -> A+A illegal, D -> B+A illegal; legal: C+A, B+B, D+QM, and notation.
+        assert!(has(&d(&[("A", "", ""), ("A", "", "")], "D"), "E878"));
+        assert!(has(&d(&[("B", "", ""), ("A", "", "")], "D"), "E878"));
+        assert!(!has(&d(&[("C", "", ""), ("A", "", "")], "D"), "E878"));
+        assert!(!has(&d(&[("B", "", ""), ("B", "", "")], "D"), "E878"));
+        let dqm = d(&[("D", "decomposedFrom: D\n", ""), ("QM", "", "")], "D");
+        assert!(!has(&dqm, "E878") && !has(&dqm, "E010"), "{dqm:?}");
+        let nota = d(&[("D(D)", "", ""), ("QM(D)", "", "")], "D");
+        assert!(!has(&nota, "E878") && !has(&nota, "E010"), "{nota:?}");
+        // lower levels
+        assert!(!has(&d(&[("A", "", ""), ("A", "", "")], "B"), "E878"));
+        assert!(has(&d(&[("A", "", ""), ("QM", "", "")], "B"), "E878"));
+        assert!(!has(&d(&[("B", "", ""), ("A", "", "")], "C"), "E878"));
+        assert!(!has(&d(&[("A", "", ""), ("QM", "", "")], "A"), "E878"));
+        // E865 / W860 now apply below D
+        assert!(has(&d(&[("A", "", "")], "B"), "W860"));
+        let shared = vec![
+            req("REQ-001", "asilLevel: B\n"),
+            make_elem("Dec::ADR-001", "type: ADR\nid: ADR-001\nname: a\nstatus: accepted\n"),
+            req("REQ-002", "asilLevel: A\nderivedFrom: [REQ-001]\nbreakdownAdr: ADR-001\nsatisfies: [Arch::X]\n"),
+            req("REQ-003", "asilLevel: A\nderivedFrom: [REQ-001]\nbreakdownAdr: ADR-001\nsatisfies: [Arch::X]\n"),
+            make_elem("Arch::X", "type: PartDef\nname: X\ndomain: software\nasilLevel: B\n"),
+        ];
+        assert!(has(&run(&shared, ""), "E865"));
+    }
+
+    #[test]
+    fn e010_lists_valid_values_and_decomposed_from_is_checked() {
+        let f = run(&[req("REQ-001", "asilLevel: E\n")], "");
+        let e = f.iter().find(|x| x.code == "E010").expect("E010");
+        assert!(e.message.contains("QM, A, B, C, D"), "{}", e.message);
+        assert!(!has(&run(&[req("REQ-001", "asilLevel: QM\n")], ""), "E010"));
+        assert!(has(&run(&[req("REQ-001", "asilLevel: B\ndecomposedFrom: Z\n")], ""), "E879"));
+        assert!(has(&run(&[req("REQ-001", "asilLevel: D\ndecomposedFrom: B\n")], ""), "E879"));
+        assert!(!has(&run(&[req("REQ-001", "asilLevel: B\ndecomposedFrom: D\n")], ""), "E879"));
+    }
+
+    fn he(id: &str, extra: &str) -> RawElement {
+        make_elem(
+            &format!("HARA::{id}"),
+            &format!("type: HazardousEvent\nid: {id}\nname: h\nstatus: approved\n{extra}"),
+        )
+    }
+
+    fn sg(id: &str, extra: &str) -> RawElement {
+        make_elem(
+            &format!("HARA::{id}"),
+            &format!("type: SafetyGoal\nid: {id}\nname: g\nstatus: approved\n{extra}"),
+        )
+    }
+
+    #[test]
+    fn hara_asil_derivation_and_completeness_checks() {
+        let h = he("HE-TST-001", "severity: S3\nexposure: E4\ncontrollability: C3\n");
+        let low = run(&[h.clone(), sg("SG-TST-001", "asilLevel: B\nhazardousEvents: [HE-TST-001]\n")], "");
+        assert!(has(&low, "W811"), "{low:?}");
+        let ok = run(
+            &[h.clone(), sg("SG-TST-001", "asilLevel: D\nsafeState: stop\nftti: 50ms\nhazardousEvents: [HE-TST-001]\n")],
+            "",
+        );
+        assert!(!has(&ok, "W811") && !has(&ok, "W812") && !has(&ok, "E880"), "{ok:?}");
+        let nosafe = run(&[sg("SG-TST-001", "asilLevel: D\n")], "");
+        assert!(has(&nosafe, "W812"));
+        assert!(has(&run(&[sg("SG-TST-001", "asilLevel: A\nftti: banana\n")], ""), "E880"));
+        assert!(has(&run(&[he("HE-TST-002", "severity: S3\n")], ""), "W813"));
+        let mixed = run(&[he("HE-TST-003", "severity: S0\nconsequence: Cd\n")], "");
+        assert!(has(&mixed, "W814"));
     }
 
     #[test]

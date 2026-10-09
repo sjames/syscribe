@@ -5947,7 +5947,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E007` | `status:` value is not in the allowed enum for the element type |
 | `E008` | `testLevel:` value is not in `L1`–`L5` |
 | `E009` | `silLevel:` value is not an integer in 1–4 |
-| `E010` | `asilLevel:` value is not in `A`–`D` |
+| `E010` | `asilLevel:` value is not `QM`, `A`–`D` (or decomposition notation `B(D)`); the message lists the valid values |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text (text before the first `##` heading is empty or whitespace only) |
 | `E013` | A native `TestCase` has no `verifies:` entry (the field is absent or an empty list) |
@@ -6100,7 +6100,14 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | Code | Condition |
 |---|---|
 | `E865` | ASIL/SIL decomposition siblings share a `satisfies:` target — decomposed channels must satisfy distinct elements (drafted as `E860`, which is already in use) |
-| `W860` | Requirement at ASIL D / SIL 4 has children at uniformly lower levels but fewer than two children |
+| `W860` | Requirement at any ASIL/SIL level has children at uniformly lower levels (or a QM / `decomposedFrom:` channel) but fewer than two children |
+| `E878` | ASIL decomposition children of a parent at ASIL A–D do not form an allowed ISO 26262-9 pair (D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM); fires when the children claim a decomposition (all lower, a QM channel, or `decomposedFrom:`) (#214) |
+| `E879` | `decomposedFrom:` is not an original ASIL A–D, or is lower than the element's own `asilLevel` (#214) |
+| `E880` | `ftti:` is not `<number><unit>` with unit `ns`, `us`, `ms`, `s`, `min` or `h` (#215) |
+| `W811` | `SafetyGoal` `asilLevel` is lower than the ASIL derived from the S/E/C of its linked `HazardousEvent`s (ISO 26262-3 Table 4) (#215) |
+| `W812` | `SafetyGoal` at ASIL C/D or SIL 3/4 has no `safeState:` or `ftti:` (draft-suppressed) (#215) |
+| `W813` | `HazardousEvent` has a partial ISO 26262 S/E/C set (some but not all of `severity`/`exposure`/`controllability`; draft-suppressed) (#215) |
+| `W814` | `HazardousEvent` mixes ISO 26262 S/E/C parameters with IEC 61508 risk-graph parameters (#215) |
 
 #### Trade study validation (E869–E877, W061–W064, §15.5)
 
@@ -7902,7 +7909,7 @@ IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
 
 The following extends Section 12.7 Rule R-007 with an additional structural check for decomposition claims.
 
-**Rule R-007b — Decomposition pair completeness.** When a `Requirement` with `asilLevel: D` (or `silLevel: 4`) has two or more `derivedChildren` all carrying strictly lower integrity levels (forming a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9), the following structural conditions must hold:
+**Rule R-007b — Decomposition pair completeness.** When a `Requirement` at any integrity level (`asilLevel: A`–`D`, or any `silLevel`) has `derivedChildren` that all carry strictly lower integrity levels, include a `QM` channel, or declare `decomposedFrom:` (a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9), the following structural conditions must hold:
 
 1. **Distinct satisfaction targets.** No two decomposition sibling requirements (children with lower integrity levels) may name the same element — structural or behavioral (§12.3) — in their `satisfies:` list. Sharing a satisfying element means the decomposition is not architecturally independent.
 2. **Breakdown ADR required.** Each sibling must carry `breakdownAdr:` referencing the same `accepted` ADR as the parent (or its own accepted ADR), containing the freedom-from-interference argument.
@@ -7913,12 +7920,18 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 |---|---|---|---|
 | `decompositionKind` | enum | absent | Documents the decomposition argument type: `independent` (each path independent by design), `redundant` (both paths active concurrently), or `diverse` (different implementation technologies). Informational — propagated to the `safety-case` report. |
 
+3. **Allowed pair (ASIL, `E878`).** The channel levels must form an allowed ISO 26262-9 Table 1 pair: D = C+A, B+B or D+QM; C = B+A or C+QM; B = A+A or B+QM; A = A+QM. `D -> A+A` and `D -> B+A` are `E878`. `asilLevel: QM` is a valid level.
+
+**Notation.** The ISO decomposition notation `asilLevel: B(D)` (decomposed level, original level in parentheses) is accepted; it is split at parse time into `asilLevel: B` plus `decomposedFrom: D`. `decomposedFrom: D` may also be written explicitly. It must name an original level A–D that is not lower than the element's own level (`E879`).
+
 **New validation rules:**
 
 | Code | Condition |
 |---|---|
 | `E865` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct elements. (Drafted as `E860`; reassigned to `E865` because `E860` is already in use.) |
-| `W860` | A `Requirement` at `asilLevel: D` or `silLevel: 4` has `derivedChildren` at a uniformly lower level but fewer than two children — a single-child ASIL D decomposition is structurally incomplete |
+| `W860` | A `Requirement` carrying an integrity level has `derivedChildren` forming a decomposition claim but fewer than two children — a single-child decomposition is structurally incomplete |
+| `E878` | Decomposition children do not form an allowed ISO 26262-9 pair (see above) |
+| `E879` | `decomposedFrom:` is not an original ASIL A–D or is lower than the element's own `asilLevel` |
 
 ### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)
 

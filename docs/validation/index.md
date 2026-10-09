@@ -64,7 +64,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E706–E723 | PlanningItem (§23) | ID/fields/status/itemType, parent resolution and cycle, top-level `achieves`, evidence, leaf-done-needs-evidence, `blockedBy`, `assignedTo`; E718 is a non-scalar `Argument.evidence` entry |
 | W701–W703 | Safety / ASPICE | verificationMethod on high-ASIL requirements, L5 test for ASIL D, mixed standards |
 | E800–E837, W800–W810 | Tier 2 safety and security | HARA/TARA element fields, ID patterns, enums, cross-references; coverage and traceability gaps, security test methods, assets |
-| E841–E865, E924, W860 | Integrity and assurance | Integrity-level propagation, safety↔security links, risk treatment, diagnostic coverage, confirmation measures (E924: status enum), GSN arguments and assumptions, assets, decomposition pairs |
+| E841–E865, E878–E880, E924, W811–W814, W860 | Integrity and assurance | Integrity-level propagation, safety↔security links, risk treatment, diagnostic coverage, confirmation measures (E924: status enum), GSN arguments and assumptions, assets, decomposition pairs |
 | E866–E877, W060–W064 | Budgets and trade studies (§22.2, §15) | Budget expressions and bounds; TradeStudy fields, criteria, scores, decision |
 | E900–E923, E927, W900–W905, W926–W928 | Tier 4 FTA / FMEA / attack trees | FaultTree, FMEA, TARA sheet and attack-tree fields, IDs, enums, inputs, RPN, cross-links |
 | E940–E941 | Tier 4 TARA container | TARASheet fields and ID pattern |

@@ -23,7 +23,7 @@ This page groups every finding code by feature area, with context. The same code
 | E007 | TestCase | `status` is not one of `draft · review · approved · active · retired` |
 | E008 | TestCase | `testLevel` is not one of `L1 · L2 · L3 · L4 · L5` |
 | E009 | Any | `silLevel` is not in range 1–4 |
-| E010 | Any | `asilLevel` is not one of `A · B · C · D` |
+| E010 | Any | `asilLevel` is not one of `QM · A · B · C · D` (or notation `B(D)`); the message lists the valid values |
 | E011 | TestCase | Body has no ` ```gherkin ` fenced block |
 | E012 | Requirement | Normative text (before first `##`) is empty |
 | E013 | TestCase | `verifies:` is absent or empty |
@@ -940,8 +940,15 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E842 | Error | Element with `derivedFrom` is missing `asilLevel`/`silLevel` when the parent element carries one |
 | E843 | Error | Element with `satisfies` is missing `asilLevel`/`silLevel` when the satisfied requirement carries one |
 | W808 | Warning | Element's integrity level is strictly lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
-| E865 | Error | ASIL D / SIL 4 decomposition siblings (uniformly-lower children) share a `satisfies:` target — channels must be architecturally independent (§22.3) |
-| W860 | Warning | An ASIL D / SIL 4 requirement has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| E865 | Error | ASIL/SIL decomposition siblings (uniformly-lower children, or a QM channel / `decomposedFrom:`) at any integrity level share a `satisfies:` target — channels must be architecturally independent (§22.3) |
+| W860 | Warning | An ASIL/SIL requirement (any level) has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| E878 | Error | ASIL decomposition children of a parent at ASIL A–D do not form an allowed ISO 26262-9 pair (D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM); fires when the children claim a decomposition (all lower, a QM channel, or `decomposedFrom:`) (#214) |
+| E879 | Error | `decomposedFrom:` is not an original ASIL A–D, or is lower than the element's own `asilLevel` (#214) |
+| E880 | Error | `ftti:` is not `<number><unit>` with unit `ns`, `us`, `ms`, `s`, `min` or `h` (#215) |
+| W811 | Warning | `SafetyGoal` `asilLevel` is lower than the ASIL derived from the S/E/C of its linked `HazardousEvent`s (ISO 26262-3 Table 4) (#215) |
+| W812 | Warning | `SafetyGoal` at ASIL C/D or SIL 3/4 has no `safeState:` or `ftti:` (draft-suppressed) (#215) |
+| W813 | Warning | `HazardousEvent` has a partial ISO 26262 S/E/C set (some but not all of `severity`/`exposure`/`controllability`; draft-suppressed) (#215) |
+| W814 | Warning | `HazardousEvent` mixes ISO 26262 S/E/C parameters with IEC 61508 risk-graph parameters (#215) |
 
 ## Tier 4 — Fault Tree Analysis (E900–E909, E927, W900–W901)
 

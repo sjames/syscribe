@@ -35,6 +35,12 @@ Syscribe supports three functional safety standards on the same `HazardousEvent`
 
 All parameters are optional and independent — use the set that matches your domain. W801 fires when a `SafetyGoal` has none of `asilLevel`, `silLevel`, or `plLevel` set.
 
+**ASIL derivation.** For ISO 26262 the ASIL is computed from `severity`/`exposure`/`controllability` with the ISO 26262-3 Table 4 (S0, E0 or C0 gives QM; otherwise the sum S+E+C of 10/9/8/7 gives D/C/B/A, lower is QM). `syscribe show` prints it as `derivedASIL` on a `HazardousEvent` and, as the maximum over its `hazardousEvents:`, on a `SafetyGoal`. A `SafetyGoal` whose `asilLevel` is lower than the derived value raises W811. A `HazardousEvent` with only some of S/E/C raises W813 (cannot derive), and one mixing ISO 26262 and IEC 61508 parameters raises W814. A `SafetyGoal` at ASIL C/D or SIL 3/4 without `safeState:` or `ftti:` raises W812; `ftti:` must be a number plus unit (`ns`, `us`, `ms`, `s`, `min`, `h`), else E880.
+
+### ASIL decomposition
+
+`asilLevel` accepts `QM`, `A`, `B`, `C`, `D`. When requirements derived from one parent form a decomposition (every child lower, a `QM` channel, or `decomposedFrom:`), the channels must be an allowed ISO 26262-9 pair: D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM (E878), must be at least two (W860) and must satisfy distinct elements (E865) — at every level, not only D. Write the ISO notation directly: `asilLevel: D(D)` and `asilLevel: QM(D)` (quote the value if your editor objects), or the explicit field `decomposedFrom: D`; E879 flags an invalid original level.
+
 ### HazardousEvent
 
 ```yaml
@@ -778,3 +784,10 @@ syscribe -m model/ refs CSG-SYS-001
 | W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` |
 | W805 | Warning | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` |
 | W808 | Warning | Element's integrity level is lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
+| E878 | Error | Decomposition children are not an allowed ISO 26262-9 ASIL pair |
+| E879 | Error | `decomposedFrom:` is not A–D or is lower than the element's own `asilLevel` |
+| E880 | Error | `ftti:` is not a number with unit ns/us/ms/s/min/h |
+| W811 | Warning | SafetyGoal `asilLevel` is lower than the ASIL derived from its HazardousEvents |
+| W812 | Warning | SafetyGoal at ASIL C/D or SIL 3/4 lacks `safeState:` or `ftti:` |
+| W813 | Warning | HazardousEvent has a partial S/E/C set |
+| W814 | Warning | HazardousEvent mixes ISO 26262 and IEC 61508 parameters |

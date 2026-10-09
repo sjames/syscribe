@@ -130,7 +130,7 @@ computed by the tool and never authored.
 |---|---|---|
 | `reqDomain` | string | `system` · `hardware` · `software` |
 | `silLevel` | integer | 1–4 (IEC 61508); mutually exclusive with `asilLevel` (W006) |
-| `asilLevel` | string | `A`–`D` (ISO 26262); mutually exclusive with `silLevel` (W006) |
+| `asilLevel` | string | `QM`, `A`–`D` (ISO 26262; `E010` lists them; notation `B(D)` accepted); mutually exclusive with `silLevel` (W006) |
 | `plLevel` | string | `a`–`e` (ISO 13849-1) |
 | `verificationMethod` | string | `test` · `inspection` · `analysis` · `demonstration` |
 | `wcet` | string | Worst-case execution time budget |
@@ -141,6 +141,7 @@ computed by the tool and never authored.
 | `requirementKind` | string | `stakeholder` · `system` · `software` · `hardware` (`E022` if other) |
 | `dalLevel` | string | `A`–`E` (DO-178C, `E019`); with `asilLevel` warns `W703` |
 | `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
+| `decomposedFrom` | string | Original ASIL (A–D) before decomposition; the notation `asilLevel: B(D)` sets it implicitly. `asilLevel` also accepts `QM` (E878, E879) |
 | `tags` | list | Free-form tags |
 
 ## Native TestCase extra fields
@@ -341,7 +342,7 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A�
 | `avoidance` | HazardousEvent | string | IEC 61508 risk graph `Pa`/`Pb` |
 | `demandRate` | HazardousEvent | string | IEC 61508 risk graph `W1`–`W3` |
 | `safeState` | SafetyGoal | string | Description of the safe state |
-| `ftti` | SafetyGoal | string | Fault-tolerant time interval, e.g. `"20ms"` |
+| `ftti` | SafetyGoal | string | Fault-tolerant time interval, number + unit (`ns` `us` `ms` `s` `min` `h`), e.g. `"20ms"` (`E880` otherwise) |
 | `hazardousEvents` | SafetyGoal | list | `HazardousEvent` id/QName refs |
 | `topEvent` | FaultTree | string | `SafetyGoal` ref (the top event) |
 | `missionTime` | FaultTree | string | e.g. `"1e9 h"` |

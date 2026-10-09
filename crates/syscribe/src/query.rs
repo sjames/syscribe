@@ -681,6 +681,7 @@ pub fn cmd_show(
     if let Some(ref rd) = fm.req_domain { println!("| **reqDomain** | {} |", rd); }
     if let Some(sil) = fm.sil_level { println!("| **SIL** | {} |", sil); }
     if let Some(ref asil) = fm.asil_level { println!("| **ASIL** | {} |", asil); }
+    if let Some(ref df) = fm.decomposed_from { println!("| **decomposedFrom** | {} |", df); }
     if let Some(ref dal) = fm.dal_level { println!("| **DAL** | {} |", dal); }
     if let Some(ref vm) = fm.verification_method { println!("| **verificationMethod** | {} |", vm); }
     if let Some(ref tl_) = fm.test_level { println!("| **testLevel** | {} |", tl_); }
@@ -806,6 +807,35 @@ pub fn cmd_show(
     if let Some(ref fe) = fm.freq_exposure { println!("| **freqExposure** | {} |", fe); }
     if let Some(ref av) = fm.avoidance { println!("| **avoidance** | {} |", av); }
     if let Some(ref dr) = fm.demand_rate { println!("| **demandRate** | {} |", dr); }
+    // ASIL derived from S/E/C (ISO 26262-3 Table 4); a SafetyGoal shows the
+    // highest ASIL over its linked HazardousEvents (GH #215).
+    if let (Some(sv), Some(ex), Some(co)) =
+        (fm.severity.as_deref(), fm.exposure.as_deref(), fm.controllability.as_deref())
+    {
+        if let Some(a) = syscribe_model::asil::derive(sv, ex, co) {
+            println!("| **derivedASIL** | {} |", a);
+        }
+    }
+    if matches!(fm.element_type, Some(syscribe_model::element::ElementType::SafetyGoal)) {
+        let mut best: Option<u8> = None;
+        for r in fm.hazardous_events.iter().flatten() {
+            if let Some(he) = resolver.resolve_ref(elements, r) {
+                let hf = &he.frontmatter;
+                if let (Some(sv), Some(ex), Some(co)) =
+                    (hf.severity.as_deref(), hf.exposure.as_deref(), hf.controllability.as_deref())
+                {
+                    if let Some(rk) = syscribe_model::asil::derive(sv, ex, co)
+                        .and_then(syscribe_model::asil::rank)
+                    {
+                        best = Some(best.map_or(rk, |b| b.max(rk)));
+                    }
+                }
+            }
+        }
+        if let Some(b) = best {
+            println!("| **derivedASIL** | {} |", syscribe_model::asil::name(b));
+        }
+    }
     if let Some(ref ss) = fm.safe_state { println!("| **safeState** | {} |", ss); }
     if let Some(ref ft) = fm.ftti { println!("| **ftti** | {} |", ft); }
     if let Some(ref pl) = fm.pl_level { println!("| **plLevel** | {} |", pl); }
