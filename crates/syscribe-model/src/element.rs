@@ -32,6 +32,41 @@ mod string_or_vec {
     }
 }
 
+/// Serde helpers for the two cybersecurity single-ref fields that historically
+/// took one string only: accept a string or a list, and on a type mismatch name
+/// the offending field instead of the generic serde message (which surfaced as
+/// a misleading `E002` "not valid YAML").
+mod named_string_or_vec {
+    use serde::{Deserialize, Deserializer};
+    fn de<'de, D: Deserializer<'de>>(d: D, field: &str) -> Result<Option<Vec<String>>, D::Error> {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        let bad = |what: &str| serde::de::Error::custom(format!(
+            "`{field}` must be a string or a list of strings, got {what}"));
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::String(s)) => Ok(Some(vec![s])),
+            Some(serde_yaml::Value::Sequence(seq)) => {
+                let mut out = Vec::with_capacity(seq.len());
+                for item in seq {
+                    match item {
+                        serde_yaml::Value::String(s) => out.push(s),
+                        _ => return Err(bad("a non-string list entry")),
+                    }
+                }
+                Ok(Some(out))
+            }
+            Some(serde_yaml::Value::Mapping(_)) => Err(bad("a mapping")),
+            Some(_) => Err(bad("a non-string scalar")),
+        }
+    }
+    pub fn security_property<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "securityProperty")
+    }
+    pub fn derived_from_cybersecurity_goal<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "derivedFromCybersecurityGoal")
+    }
+}
+
 /// Serde helper: accept either a single YAML value or a sequence of values,
 /// normalizing to `Vec<serde_yaml::Value>`. Used by fields whose entries may be
 /// heterogeneous by design — e.g. `evidence:`, shared between GSN `Argument`
@@ -1034,7 +1069,8 @@ pub struct ColdFrontmatter {
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4
-    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    #[serde(default, deserialize_with = "named_string_or_vec::security_property")]
+    pub security_property: Option<Vec<String>>, // confidentiality|integrity|availability|authenticity (string or list)
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -1189,8 +1225,8 @@ pub struct ColdFrontmatter2 {
 
     // §T2 — upstream goal links for native Requirement
     // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
-    #[serde(alias = "derivedFromSecurityGoal")]
-    pub derived_from_cybersecurity_goal: Option<String>,
+    #[serde(alias = "derivedFromSecurityGoal", default, deserialize_with = "named_string_or_vec::derived_from_cybersecurity_goal")]
+    pub derived_from_cybersecurity_goal: Option<Vec<String>>,
 
     // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
     // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
@@ -1301,6 +1337,14 @@ pub struct ColdFrontmatter3 {
     pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
     pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
     pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
+    /// TARASheet `assetTable:` rows → Asset elements (YAML: assetTable)
+    pub asset_table: Option<Vec<serde_yaml::Value>>,
+    /// VulnerabilityReport CVSS vector string (YAML: cvssVector)
+    pub cvss_vector: Option<String>,
+    /// VulnerabilityReport declared severity bucket none|low|medium|high|critical (YAML: cvssSeverity)
+    pub cvss_severity: Option<String>,
+    /// VulnerabilityReport fixed-in version (YAML: fixedIn)
+    pub fixed_in: Option<String>,
 }
 
 /// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`
@@ -1559,7 +1603,8 @@ struct ColdWire {
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4
-    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    #[serde(default, deserialize_with = "named_string_or_vec::security_property")]
+    pub security_property: Option<Vec<String>>, // confidentiality|integrity|availability|authenticity (string or list)
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -1706,8 +1751,8 @@ struct ColdWire {
 
     // §T2 — upstream goal links for native Requirement
     // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
-    #[serde(alias = "derivedFromSecurityGoal")]
-    pub derived_from_cybersecurity_goal: Option<String>,
+    #[serde(alias = "derivedFromSecurityGoal", default, deserialize_with = "named_string_or_vec::derived_from_cybersecurity_goal")]
+    pub derived_from_cybersecurity_goal: Option<Vec<String>>,
 
     // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
     // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
@@ -1810,6 +1855,14 @@ struct ColdWire {
     pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
     pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
     pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
+    /// TARASheet `assetTable:` rows → Asset elements (YAML: assetTable)
+    pub asset_table: Option<Vec<serde_yaml::Value>>,
+    /// VulnerabilityReport CVSS vector string (YAML: cvssVector)
+    pub cvss_vector: Option<String>,
+    /// VulnerabilityReport declared severity bucket none|low|medium|high|critical (YAML: cvssSeverity)
+    pub cvss_severity: Option<String>,
+    /// VulnerabilityReport fixed-in version (YAML: fixedIn)
+    pub fixed_in: Option<String>,
 }
 
 impl ColdWire {
@@ -2034,6 +2087,10 @@ impl ColdWire {
                     cve_id: w.cve_id,
                     asset_owner: w.asset_owner,
                     related_safety_goal: w.related_safety_goal,
+                    asset_table: w.asset_table,
+                    cvss_vector: w.cvss_vector,
+                    cvss_severity: w.cvss_severity,
+                    fixed_in: w.fixed_in,
                 }),
             }),
         }

@@ -85,9 +85,11 @@ pub fn cmd_conduits(elements: &[RawElement], json: bool) {
             .map(|c| {
                 let fm = &c.frontmatter;
                 let req = required_sl(c);
-                let pass = match (fm.achieved_sl, req) {
-                    (Some(a), Some(r)) => a >= r,
-                    _ => true,
+                // `null` = unknown (achievedSL or a zone targetSL is missing); never a
+                // silent pass on missing data (GH #220).
+                let pass: Option<bool> = match (fm.achieved_sl, req) {
+                    (Some(a), Some(r)) => Some(a >= r),
+                    _ => None,
                 };
                 serde_json::json!({
                     "id": id_of(c), "name": fm.name, "fromZone": fm.from_zone, "toZone": fm.to_zone,

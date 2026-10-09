@@ -1192,3 +1192,37 @@ SysMLv2 has no UML stereotypes; a stereotype is a `MetadataDef` applied to an el
 | E317 | A `metadata:` application does not resolve to a `MetadataDef` (unresolved stereotype). The root-name hint applies. |
 | E318 | A `metadata:` application names a `MetadataDef` whose `annotates:` does not include the annotated element's type (directly or via the abstract `Element`/`Definition`/`Usage` metaclasses) — stereotype not applicable to this element kind. Standard-library metadata (`ModelingMetadata`, `RiskMetadata`) is recognised (no `E317`). |
 | W045 | A tagged-value key in a `metadata:` application is not a declared `features:` attribute of the referenced `MetadataDef` (likely typo / undeclared attribute). |
+
+## Security-analysis completeness (E960-E967, W960-W979)
+
+Completeness and consistency checks for the ISO/SAE 21434 / IEC 62443 analysis elements (GH #219, #220, #221). Weakest-link note: an `AND` attack-tree gate rolls up as the MIN of its inputs' feasibility and an `OR` gate as the MAX; there is no attack-potential sum mode.
+
+| Code | Condition |
+|---|---|
+| E960 | A typed security field has the wrong YAML shape — `securityProperty` / `derivedFromCybersecurityGoal` is neither a string nor a list of strings (a mapping, number, ...); the message names the field (previously a misleading E002 "not valid YAML"). Both fields now accept a string or a list. |
+| E961 | A `TARASheet` section-table row (`assetTable`/`damageTable`/`threatTable`/`goalTable`/`controlTable`) is not a mapping or has no `id:` — it is silently dropped from validation and the risk views (mirrors FMEA `E923`). |
+| E962 | A `TARASheet` row has an unknown key or does not deserialize as an element — the field would be silently ignored (mirrors FMEA `E922`). |
+| E963 | `Asset.assetOwner` does not resolve to a model element. |
+| E964 | `Asset.relatedSafetyGoal` does not resolve, or resolves to something other than a `SafetyGoal`. |
+| E965 | Cycle (including a gate listing itself) in an attack tree's `AttackTreeGate.inputs` — the feasibility roll-up is undefined. |
+| E967 | `VulnerabilityReport.threatScenarios` does not resolve to a `ThreatScenario`. |
+| W960 | Non-draft `ThreatScenario` whose risk cannot be determined (no resolvable `damageScenarios`, no linked `damageSeverity`, or no `attackFeasibility`) — `cyber-risk` reports risk=unknown. |
+| W961 | Non-draft `DamageScenario` listed in no `ThreatScenario.damageScenarios` (orphan; contributes to no risk). |
+| W962 | Non-draft `DamageScenario` with no `assets` (ISO/SAE 21434 §15.3). |
+| W963 | `ThreatScenario` with `riskTreatment: reduce` that no `CybersecurityGoal.threatScenarios` lists — the reduction is realised by no goal/control. |
+| W964 | `ThreatScenario` with `riskTreatment: retain` on a computed high/critical risk and no `residualRisk` rationale. |
+| W965 | `ThreatScenario` declares `residualRisk` but no `riskTreatment`. |
+| W966 | An attack tree has more than one root node (no single top gate/step) — its feasibility is not computed. |
+| W967 | An `AttackStep` has no `attackFeasibility` — the tree cannot be rolled up and `W035` is silently skipped. |
+| W968 | An `AttackTreeGate` lists the same input more than once. |
+| W969 | Non-draft `SecurityControl` with no `implementsGoals`. |
+| W970 | Non-draft `CybersecurityGoal` with no `threatScenarios`. |
+| W971 | A `PartDef`/`Part` belongs to more than one `Zone` (`Zone.members` / `inZone`). |
+| W972 | A `Conduit` has `fromZone` and `toZone` naming the same zone. |
+| W973 | An `approved` `Zone` or `Conduit` declares no `achievedSL`. |
+| W974 | `VulnerabilityReport.cveId` is not of the form `CVE-YYYY-NNNN...`. |
+| W975 | `VulnerabilityReport.status` is not in the documented vocabulary (`draft`, `open`, `triaged`, `investigating`, `in_progress`, `mitigated`, `resolved`, `fixed`, `accepted`, `wont_fix`, `closed`, `not_affected`, `false_positive`, `deprecated`). |
+| W976 | `VulnerabilityReport` is `mitigated`/`resolved`/`fixed`/`closed` but names neither `mitigatedBy` nor `fixedIn`. |
+| W977 | `VulnerabilityReport` is `accepted`/`wont_fix` with no `rationale:` (frontmatter or a Rationale section). |
+| W978 | `VulnerabilityReport.cvssVector` is not a CVSS vector string, `cvssSeverity` is not `none`/`low`/`medium`/`high`/`critical`, or it disagrees with the bucket of `cvssScore` (0 none, <4 low, <7 medium, <9 high, else critical). |
+| W979 | Unresolved `VulnerabilityReport` (open/triaged/investigating/in_progress) with `cvssScore >= 7.0` and no `threatScenarios` link. |

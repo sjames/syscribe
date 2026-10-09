@@ -517,7 +517,7 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         }
     }
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
-    if let Some(ref g) = fm.derived_from_cybersecurity_goal { out.push(("derivedFromCybersecurityGoal".into(), g.clone())); }
+    for g in fm.derived_from_cybersecurity_goal.iter().flatten() { out.push(("derivedFromCybersecurityGoal".into(), g.clone())); }
     if let Some(ref g) = fm.derived_from_safety_goal { out.push(("derivedFromSafetyGoal".into(), g.clone())); }
     if let Some(ref ss) = fm.supports {
         for s in ss { out.push(("supports".into(), s.clone())); }
@@ -710,7 +710,7 @@ pub fn cmd_show(
     // multi-agent work, written/cleared by `syscribe claim`/`syscribe release`.
     if let Some(ref who) = fm.claimed_by { println!("| **claimedBy** | {} |", who); }
     if let Some(ref at) = fm.claimed_at { println!("| **claimedAt** | {} |", at); }
-    if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
+    if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g.join(", ")); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
     if let Some(ref ss) = fm.supports { if !ss.is_empty() { println!("| **supports** | {} |", ss.join(", ")); } }
@@ -824,7 +824,7 @@ pub fn cmd_show(
         if !dsc.is_empty() { println!("| **damageScenarios** | {} |", dsc.join(", ")); }
     }
     if let Some(ref cl) = fm.cal_level { println!("| **calLevel** | {} |", cl); }
-    if let Some(ref sp) = fm.security_property { println!("| **securityProperty** | {} |", sp); }
+    if let Some(ref sp) = fm.security_property { println!("| **securityProperty** | {} |", sp.join(", ")); }
     if let Some(ref ts) = fm.threat_scenarios {
         if !ts.is_empty() { println!("| **threatScenarios** | {} |", ts.join(", ")); }
     }
@@ -1729,17 +1729,19 @@ pub fn cmd_trace(
     }
 
     // ── Security Goal (derivedFromCybersecurityGoal) ──────────────────────
-    if let Some(ref csg_ref) = fm.derived_from_cybersecurity_goal {
+    if let Some(ref csg_refs) = fm.derived_from_cybersecurity_goal {
         println!("## Security Goal (`derivedFromCybersecurityGoal`)");
         println!();
-        if let Some(csg) = resolve(elements, resolver, csg_ref) {
-            let csg_id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);
-            let csg_title = csg.frontmatter.name.as_deref().unwrap_or("—");
-            let cal = csg.frontmatter.cal_level.as_deref().unwrap_or("—");
-            let prop = csg.frontmatter.security_property.as_deref().unwrap_or("—");
-            println!("- **{}** — {} (`{}` · {})", csg_id, csg_title, cal, prop);
-        } else {
-            println!("- {} (not found)", csg_ref);
+        for csg_ref in csg_refs {
+            if let Some(csg) = resolve(elements, resolver, csg_ref) {
+                let csg_id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);
+                let csg_title = csg.frontmatter.name.as_deref().unwrap_or("—");
+                let cal = csg.frontmatter.cal_level.as_deref().unwrap_or("—");
+                let prop = csg.frontmatter.security_property.as_ref().map(|p| p.join(", ")).unwrap_or_else(|| "—".to_string());
+                println!("- **{}** — {} (`{}` · {})", csg_id, csg_title, cal, prop);
+            } else {
+                println!("- {} (not found)", csg_ref);
+            }
         }
         println!();
     }
@@ -3203,7 +3205,7 @@ id: ZN-PREFIX-001
 name: "Control Zone"
 status: approved          # draft | review | approved | deprecated
 targetSL: 3               # required Security Level 1-4 (IEC 62443-3-3)
-# achievedSL: 2           # assessed SL (W950 if below targetSL)
+achievedSL: 3             # assessed SL (W950 if below targetSL; W973 if absent on an approved zone)
 members:                  # PartDef/Part qnames or stable IDs in this zone
   - Logical::PLCController
 # rationale: "SL 3 due to potential for significant process disruption."
@@ -3218,7 +3220,7 @@ name: "ControlToField"
 status: approved          # draft | review | approved | deprecated
 fromZone: ZN-PREFIX-001
 toZone: ZN-PREFIX-002
-# achievedSL: 3           # SL of the conduit's boundary controls (W951 if below either zone)
+achievedSL: 3             # SL of the conduit boundary controls (W951 if below either zone; W973 if absent when approved)
 # protocols: [Modbus/TCP, OPC-UA]
 # implementedBy: [SC-FIREWALL-001]   # SecurityControl ids / architecture qnames
 ---

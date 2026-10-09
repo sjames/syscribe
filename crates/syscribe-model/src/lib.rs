@@ -28,6 +28,7 @@ pub mod results;
 pub mod risk;
 pub mod solver;
 pub mod structural_refs;
+pub mod security_checks;
 pub mod structure_checks;
 pub mod suspect;
 pub mod sysmlv2;
