@@ -243,7 +243,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 
 | Field | Applies to | Type | Notes |
 |---|---|---|---|
-| `diagramKind` | Diagram | string | `BDD` · `IBD` · `StateMachine` · `Sequence` · `Requirement` · `Mermaid` · `PlantUML` |
+| `diagramKind` | Diagram | string | `BDD` · `IBD` · `StateMachine` · `Sequence` · `Requirement` · `FeatureModel` · `FaultTree` · `AttackTree` · `SafetyCase` · `Traceability` · `ZoneConduit` · `ThreatGraph` · `Mermaid` · `PlantUML` |
 | `subject` | Diagram | string | QName of the element the diagram depicts (W401 if unresolved) |
 | `pumlMode` | Diagram | string | Only value: `companion` (E403 otherwise). Generates a `.puml` via `syscribe plantuml`, rendered to SVG by `syscribe plantuml render`. Requires `diagramKind` (E404) and an `<img>` tag in the body (W413); `.puml` must exist (W414). |
 | `pumlFile` | Diagram | string | Path to the `.puml` companion source |

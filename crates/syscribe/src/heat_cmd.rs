@@ -48,6 +48,7 @@ pub fn cmd_hara(elements: &[RawElement], sub: &str, rest: &[String]) -> i32 {
         }
         _ => {
             eprintln!("Usage: syscribe -m <model> hara matrix [--format md|html|json]");
+            eprintln!("       {}", crate::analysis_cmd::TRACE_USAGE.trim_start_matches("Usage: "));
             1
         }
     }

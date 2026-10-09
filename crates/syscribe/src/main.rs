@@ -57,6 +57,7 @@ mod trace_export;
 mod tradestudy;
 mod repos;
 mod plugins;
+mod analysis_cmd;
 mod zones;
 mod vdepth;
 mod spec;
@@ -1399,7 +1400,13 @@ fn main() {
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let view = projected_elements(&elems, config);
                 let cfg = syscribe_model::cyber_config::CyberConfig::load(model_root);
-                if let Some(fmt) = heat_cmd::parse_format("cyber-risk", rest) {
+                if let Some(fmt) = analysis_cmd::format_arg(rest).filter(|f| analysis_cmd::is_graph_format(f)) {
+                    // GH #223: the threat graph (threat, damage, asset, goal, control) with risk tones.
+                    let code = analysis_cmd::cmd_model_graph("cyber-risk", syscribe_model::vis::DiagramKind::ThreatGraph, &view, &cfg, None, fmt);
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                } else if let Some(fmt) = heat_cmd::parse_format("cyber-risk", rest) {
                     heat_cmd::cyber_heat(&view, &cfg, fmt);
                 } else {
                     cyberrisk::cmd_cyber_risk(&view, &cfg, json);
@@ -1493,7 +1500,19 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 let coverage = rest.iter().any(|a| a == "--coverage");
-                zones::cmd_zones(&elems, coverage, json);
+                // `--format dot|mermaid|plantuml|svg` (GH #223): the zones and conduits as a diagram.
+                if let Some(fmt) = analysis_cmd::format_arg(rest) {
+                    if !analysis_cmd::is_graph_format(fmt) {
+                        eprintln!("Error: invalid value '{fmt}' for --format; valid values: {}", analysis_cmd::GRAPH_FORMATS.join(", "));
+                        std::process::exit(1);
+                    }
+                    let code = analysis_cmd::cmd_model_graph("zones", syscribe_model::vis::DiagramKind::ZoneConduit, &elems, &Default::default(), None, fmt);
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                } else {
+                    zones::cmd_zones(&elems, coverage, json);
+                }
             }
             "conduits" => {
                 // IEC 62443 conduits (§13, GH #61). Read-only.
@@ -1943,7 +1962,14 @@ fn main() {
             "hara" => {
                 let sub = subcommand_args.get(1).map(String::as_str).unwrap_or("");
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
-                let code = heat_cmd::cmd_hara(&elems, sub, rest);
+                let code = if sub == "trace" {
+                    // GH #223: the hazard-to-test graph with the ingested test verdicts.
+                    let results = ResultsData::load_sidecar(model_root);
+                    let cyber = syscribe_model::cyber_config::CyberConfig::load(model_root);
+                    analysis_cmd::cmd_hara_trace(&elems, &cyber, results.as_ref(), rest)
+                } else {
+                    heat_cmd::cmd_hara(&elems, sub, rest)
+                };
                 if code != 0 {
                     std::process::exit(code);
                 }

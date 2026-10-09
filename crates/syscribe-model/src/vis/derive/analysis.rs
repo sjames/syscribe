@@ -2,10 +2,27 @@
 //! `ZoneConduit`, `ThreatGraph`; GH #223): node and edge construction, the
 //! display name of an element and the tone roll-up.
 
-use crate::element::RawElement;
+use crate::element::{ElementType, RawElement, RawFrontmatter};
 
 use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, Node, NodeKind, NodeMark, Tone};
 use super::short_name;
+
+/// A stand-in `Package` for the whole model (its root, qualified name empty), the
+/// subject of a model-wide analysis graph (`zones --format`, `cyber-risk --format`,
+/// `hara trace`): every element is under it.
+pub fn model_root_subject() -> RawElement {
+    RawElement {
+        qualified_name: String::new(),
+        file_path: String::new(),
+        frontmatter: RawFrontmatter { element_type: Some(ElementType::Package), ..Default::default() },
+        doc: String::new(),
+        parse_issue: None,
+        derived: Default::default(),
+        derive_findings: Vec::new(),
+        locale_docs: Default::default(),
+        about_notes: Vec::new(),
+    }
+}
 
 /// An element's label: its `name`, else its stable `id`, else its short name.
 pub(crate) fn display_name(e: &RawElement) -> String {

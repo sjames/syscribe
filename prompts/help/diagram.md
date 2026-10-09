@@ -23,7 +23,9 @@ is ELK, in the browser and embedded in this executable alike.
     dot        Graphviz DOT (a node per shape coloured by its tone, an edge per
                edge), written for the FaultTree / AttackTree / SafetyCase
                diagrams (`diagramKind:` of the safety analyses, derived from
-               their `subject:`) but total over every kind.
+               their `subject:`) and the Traceability / ZoneConduit /
+               ThreatGraph analysis graphs (zones are clusters) but total
+               over every kind.
     svg        A standalone SVG per spec §8.16.5 (`sysml:ref` on every shape,
                `sysml:ref`/`sysml:source`/`sysml:target` on every edge) for
                any diagram with an IR. A fully pinned diagram is drawn from
@@ -54,6 +56,16 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
     syscribe -m model/ diagram export Diagrams::PowerSystemDerivedIBD --format mermaid
     syscribe -m model/ diagram export Diagrams::SafetyRequirementsD --format svg --out site/SafetyRequirementsD.svg
     syscribe -m model/ diagram export Diagrams::UAVSystemBDD > UAVSystemBDD.puml
+    syscribe -m model_auto/ diagram export Diagrams::ZoneConduitEngine --format dot
+    syscribe -m model_auto/ diagram export Diagrams::TraceabilityEngine --format mermaid
+    syscribe -m model_auto/ diagram export Diagrams::ThreatGraphEngine --format svg --out threats.svg
+
+## NOTES
+The `Traceability`, `ZoneConduit` and `ThreatGraph` kinds (GH #223) are derived from
+a `subject:` like the safety kinds: a hazard-to-test graph (HazardousEvent, SafetyGoal,
+Requirements, TestCases), the IEC 62443 zones (compound nodes) and conduits (edges), and
+the TARA chain (threat, damage, asset, goal, control). The threat graph's risk colours
+follow the `[cyber]` method of `.syscribe.toml`.
 
 ## SEE ALSO
-    plantuml, render, export-html
+    plantuml, render, export-html, zones, hara, cyber-risk

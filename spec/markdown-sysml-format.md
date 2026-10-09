@@ -3235,7 +3235,7 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 
 A `shapes:` key with a null value does not select the manifest. Only kinds that build an IR (everything but `Mermaid` and `PlantUML`) have a source at all.
 
-**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6), `Action` (§8.16.8.8), `FeatureModel` (§8.16.8.9) and the safety diagrams `FaultTree`, `AttackTree` and `SafetyCase` (§8.16.8.10); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
+**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6), `Action` (§8.16.8.8), `FeatureModel` (§8.16.8.9), the safety diagrams `FaultTree`, `AttackTree` and `SafetyCase` (§8.16.8.10) and the analysis graphs `Traceability`, `ZoneConduit` and `ThreatGraph` (§8.16.8.11); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
 
 The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
 
@@ -3256,7 +3256,7 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `FeatureModel`, `FaultTree`, `AttackTree`, `SafetyCase` (alias `GSN`), `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `FeatureModel`, `FaultTree`, `AttackTree`, `SafetyCase` (alias `GSN`), `Traceability` (alias `HazardTrace`), `ZoneConduit` (alias `Zones`), `ThreatGraph` (alias `TARA`), `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
 | `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
@@ -4292,6 +4292,39 @@ subject: Safety::FTA::FT-ENG-001
 ```
 
 The web detail panel of a `FaultTree`, `AttackTree`, `SafetyGoal`, `Argument` or `ThreatScenario` embeds the same diagram, each node linking to its element; `GET /api/diagrams/model/<qname>[?kind=…]` serves it to the editor without a `Diagram` element.
+
+##### 8.16.8.11 Traceability, ZoneConduit and ThreatGraph (GH #223)
+
+Three more **derive-only** kinds draw the cross-analysis graphs: the hazard-to-test spine, the IEC 62443 zone model and the ISO/SAE 21434 threat chain. Like §8.16.8.10 they reuse the generic **mark** (status, value, badges, tone, emphasis) and add no validation codes beyond `W417`/`W418`.
+
+**Valid `subject:` types (otherwise `W418`):**
+
+| `diagramKind` | Subject |
+|---|---|
+| `Traceability` (alias `HazardTrace`) | a `SafetyGoal`, a `HazardousEvent` (the goals that answer it), a `Requirement` (its lineage: ancestors, descendants and the goals they trace to) or a `Package` (every goal and every unanswered hazardous event under it) |
+| `ZoneConduit` (alias `Zones`) | a `Package` (every `Zone` under it and the conduits touching them), a `Zone` (it, its conduits and the zones at their far ends) or a `Conduit` (it and its two zones) |
+| `ThreatGraph` (alias `TARA`) | a `Package` or `TARASheet` (every chain under it) or one `ThreatScenario`, `DamageScenario`, `Asset`, `CybersecurityGoal` or `SecurityControl` (the chains through it) |
+
+**Shape kinds added:** `zone` (a compound node; a container). Every other node reuses an existing kind — `goal` (a safety goal, an argument), `requirement`, `testCase`, `block` (a hazardous event, fault tree, threat, damage scenario, asset, control, member part).
+
+**Edge kinds added:** `impacts` (threat to damage), `affects` (damage to asset), `protectedBy` (asset, or the last link that exists, to the goal that protects it), `implementedBy` (goal to the control that implements it), `conduit` and `weakConduit` (between zones, undirected). `Traceability` reuses `trace`, `derive` and `verify`, drawn the way the links are held (a derived or verifying artifact points upstream, §12.1), reversed for layout so the hazards read first; its layout is left to right, as are the other two.
+
+**Derived content.**
+
+*Traceability:* the goal and its `hazardousEvents:`; its `FaultTree`s (`topEvent:`) and the `Argument`s that `supports:` it; the requirements with `derivedFromSafetyGoal:` naming it and, below each, the requirements `derivedFrom:` it; the test cases that `verifies:` each requirement. A test case shows its verdict (`unknown` in a derived diagram, which has no results sidecar; `hara trace` uses the ingested ones) and its level; a requirement its lifecycle status and `ASIL`; a goal and a hazard their `ASIL` (a hazardous event's from `asilLevel:` or the S/E/C determination). The tone is the roll-up of everything below the node — `bad` for a failing test or a gap, `warn` for an unverified or draft branch, `ok` for a fully passing one. **Gaps are red badges naming the validator's finding:** `W002`/`W003 no test` (a leaf with no active test case), `W305 no integration test` (a parent with no active L3–L5 test case), `W300 unsatisfied` (an approved leaf nothing satisfies), `no requirement` on a goal and `no goal` on a hazardous event nothing answers.
+
+*ZoneConduit:* each zone a compound node holding its member parts (`members:` and every part whose `inZone:` names it; an unresolved member is drawn dashed) and the `SecurityControl`s that contribute to it (those allocated, in any §12.9 form, to a member, the zone or a conduit touching it, and the controls a touching conduit lists in `implementedBy:`), labelled `SL target <targetSL> / achieved <achievedSL>`. A zone is `bad` with an `SL gap` badge when `achievedSL < targetSL` (`W950`), `ok` when it meets its target and `warn` when either is missing; `no controls` is a badge. A conduit is an edge labelled `CD-… · SL <achievedSL>/<required>` with its protocols, where the required level is the highest `targetSL` of the zones it joins; it is a `weakConduit` (red, heavy, dashed) when `achievedSL` is below that (`W951`). The levels are those of `syscribe zones` and `syscribe conduits`.
+
+*ThreatGraph:* the chain `ThreatScenario → DamageScenario → Asset → CybersecurityGoal → SecurityControl`: a goal protects an asset when one of its `threatScenarios:` leads, through `damageScenarios:`, to a damage scenario whose `assets:` names it (a damage scenario with no `assets:` links straight to the goal). A threat shows its **risk under the configured `[cyber]` method** (§15, `risk::threat_risk`: the impact of its damage scenarios against its attack feasibility, explicit or computed from the attack-potential factors; `critical` is drawn heavier) with `low` `ok`, `medium` `warn`, `high`/`critical` `bad`; a damage scenario its impact; a goal its `calLevel` and `bad` with a `W802 no control` badge when no control implements it; a threat no goal treats a `no goal` badge. `include:`/`exclude:` match by qualified name, stable id or short name; an entry matching nothing is `W417`.
+
+```yaml
+type: Diagram
+diagramKind: ZoneConduit
+name: ZoneConduitEngine
+subject: Security::Zones
+```
+
+The web detail panel of a hazardous event, safety goal (and a requirement that traces to one), zone, conduit, threat, damage scenario, asset, cybersecurity goal or security control embeds the same diagram, each node linking to its element; `GET /api/diagrams/model/<qname>[?kind=…]` serves it to the editor without a `Diagram` element. `syscribe zones --format`, `cyber-risk --format dot|mermaid|plantuml|svg` and `hara trace` draw the whole-model graphs without one.
 
 ### 8.17 Architecture Decision Records (ADR)
 

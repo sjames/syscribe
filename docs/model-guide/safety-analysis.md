@@ -895,3 +895,39 @@ syscribe -m model/ safety-case SG-ENG-001 --format dot|mermaid     # with the in
 ```
 
 `fault-tree render` without `--format` and `safety-case` without `--format` keep their original text output.
+
+### Hazard-to-test traceability, zones and the threat graph
+
+Three more derive-only kinds draw how the analyses connect (GH #223). Same two lines of frontmatter, same
+node overlay, same writers.
+
+```yaml
+---
+type: Diagram
+name: TraceabilityEngine
+diagramKind: Traceability       # Traceability | ZoneConduit | ThreatGraph
+subject: Safety::HARA::SG-ENG-001
+---
+```
+
+| Kind | Subject | What it shows |
+|---|---|---|
+| `Traceability` | a `SafetyGoal`, `HazardousEvent`, `Requirement` or package | `HazardousEvent ← SafetyGoal ← Requirement ← … ← TestCase`, with each goal's fault tree and arguments alongside. Colour is the roll-up of what is below a node (a failing test or a gap red, an unverified branch amber, a passing one green), the label shows its `ASIL` and status, and **gaps are red badges** that name the finding: `W002`/`W003 no test`, `W305 no integration test`, `W300 unsatisfied`, `no requirement`, `no goal`. |
+| `ZoneConduit` | a package of zones, a `Zone` or a `Conduit` | each IEC 62443 zone a compound node holding its parts and the security controls allocated to them, labelled `SL target / achieved` (red with an `SL gap` badge when short, `W950`); each conduit an edge labelled `CD-… · SL achieved/required`, red, heavy and dashed when weak (`W951`). |
+| `ThreatGraph` | a package or `TARASheet`, or one threat, damage scenario, asset, goal or control | `ThreatScenario → DamageScenario → Asset → CybersecurityGoal → SecurityControl`. Threats are coloured by their risk under the configured `[cyber]` method; a goal no control implements carries `W802`, a threat no goal treats `no goal`. |
+
+The detail panel of a hazardous event, goal, zone, conduit, threat, damage scenario, asset, cybersecurity goal or
+control embeds the diagram, and the *New diagram* dialog offers all three. From the command line:
+
+```bash
+syscribe -m model/ hara trace [SG-ENG-001] --format dot|mermaid|plantuml|svg   # with the ingested test verdicts
+syscribe -m model/ zones --format dot|mermaid|plantuml|svg                     # the whole model's zones and conduits
+syscribe -m model/ cyber-risk --format dot|mermaid|plantuml|svg                # the threat graph (md|html|json keep the heat table)
+syscribe -m model/ diagram export Diagrams::ZoneConduitEngine --format svg|mermaid|plantuml|dot
+syscribe -m model/ connectivity SG-ENG-001                                     # walks hazardousEvents, topEvent, threatRef, gate inputs, ...
+```
+
+`zones --coverage` lists a control against a zone when the control is allocated (an `Allocation` element,
+`allocatedTo:`) to one of the zone's parts, to the zone or to a conduit touching it, or a touching conduit names it in
+`implementedBy:`. A zone's `members:` can only be parts (`E955`), so the earlier rule that looked for a
+`SecurityControl` among the members never matched and every control column read `—`.

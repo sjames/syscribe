@@ -204,6 +204,31 @@ pub fn build_subject_graph_with(
     (graph, issues)
 }
 
+/// The analysis graph of `kind` (`Traceability`, `ZoneConduit`, `ThreatGraph`)
+/// over the whole model, without a `Diagram` element behind it: what the
+/// `zones`, `cyber-risk` and `hara trace` reports draw with `--format`.
+/// `verdict_of` gives the test verdicts of a traceability graph (a results
+/// sidecar's, or `unknown`); any other kind is empty.
+pub fn build_model_graph(
+    kind: DiagramKind,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cyber: &crate::cyber_config::CyberConfig,
+    verdict_of: &dyn Fn(&RawElement) -> crate::safety_case::Verdict,
+) -> (DiagramGraph, Vec<Issue>) {
+    let subject = derive::analysis::model_root_subject();
+    let mut graph = DiagramGraph::empty(kind, "", "Model", None);
+    graph.derived = true;
+    let mut issues = Vec::new();
+    let filters = derive::Filters { cyber: cyber.clone(), ..Default::default() };
+    match kind {
+        DiagramKind::Traceability => derive::traceability::generate_with(&mut graph, &subject, elements, resolver, &filters, &mut issues, verdict_of),
+        DiagramKind::ZoneConduit | DiagramKind::ThreatGraph => derive::generate_into(&mut graph, &subject, kind, elements, resolver, &filters, &mut issues),
+        _ => {}
+    }
+    (graph, issues)
+}
+
 /// Every diagram the web detail panel can embed for an element without a
 /// `Diagram` element behind it: [`safety_kinds_of`] (fault tree, attack tree,
 /// GSN argument) followed by the analysis graphs (GH #223) — `Traceability` for

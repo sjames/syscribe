@@ -1,7 +1,7 @@
 # cyber-risk — ISO/SAE 21434 risk determination
 
 ## SYNOPSIS
-    syscribe -m <root> cyber-risk [--config <C>] [--json | --format md|html|json]
+    syscribe -m <root> cyber-risk [--config <C>] [--json | --format md|html|json|dot|mermaid|plantuml|svg]
 
 ## DESCRIPTION
 Lists each ThreatScenario with its computed risk: severity (max damageSeverity
@@ -17,11 +17,17 @@ riskTreatment, whether it is addressed by a CybersecurityGoal, and a flag
                    Render the impact x feasibility risk matrix (heat table) with the
                    threats placed in their cells, using the configured [cyber] method;
                    html is a standalone page. The default output is unchanged.
+    --format dot|mermaid|plantuml|svg
+                   Draw the threat graph instead (the ThreatGraph diagram kind):
+                   threat -> damage -> asset -> goal -> control, threats coloured
+                   by their risk under the configured method, a goal no control
+                   implements badged W802.
 
 ## EXAMPLES
     syscribe -m model_auto/ cyber-risk
     syscribe -m model_auto/ cyber-risk --json
     syscribe -m model_auto/ cyber-risk --format html
+    syscribe -m model_auto/ cyber-risk --format mermaid
     syscribe -m <root> cyber-risk --config <CONF-id>   # variant-scoped (needs a product line)
 
 ## NOTES
