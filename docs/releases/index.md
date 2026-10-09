@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.52.0 — 2026-10-09
 
 ### SysMLv2 modelling gaps (GH #198–#205)
 
