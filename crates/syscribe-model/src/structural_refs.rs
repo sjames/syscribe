@@ -191,6 +191,75 @@ impl<'a> Ctx<'a> {
         false
     }
 
+    /// The member `name` of `owner` — a child element, an inline entry, or one
+    /// inherited through `supertype:`/`typedBy:`. `None`: no such member.
+    /// `Some(None)`: it exists but its type cannot be followed (untyped, library
+    /// or unresolved). `Some(Some(e))`: the element whose members the next
+    /// chain segment is looked up in.
+    fn member_type(
+        &self,
+        owner: &'a RawElement,
+        name: &str,
+        seen: &mut HashSet<String>,
+    ) -> Option<Option<&'a RawElement>> {
+        if !seen.insert(owner.qualified_name.clone()) {
+            return None;
+        }
+        let child = if owner.qualified_name.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}::{}", owner.qualified_name, name)
+        };
+        if let Some(c) = self.resolver.get(self.elements, &child) {
+            return Some(Some(c));
+        }
+        for v in inline_member_lists(owner) {
+            let serde_yaml::Value::Mapping(m) = v else { continue };
+            if map_str(m, "name") != Some(name) {
+                continue;
+            }
+            return Some(map_str(m, "typedBy").and_then(|tb| self.scoped(&owner.qualified_name, tb)));
+        }
+        let fm = &owner.frontmatter;
+        for field in [fm.supertype.as_ref(), fm.typed_by.as_ref()].into_iter().flatten() {
+            for t in yaml_strings(field) {
+                match self.scoped(&owner.qualified_name, t) {
+                    Some(target) => {
+                        if let Some(r) = self.member_type(target, name, seen) {
+                            return Some(r);
+                        }
+                    }
+                    // A library or unresolved supertype may supply any member.
+                    None => return Some(None),
+                }
+            }
+        }
+        None
+    }
+
+    /// Walk a dotted feature chain from `start`; `Err(segment)` names the first
+    /// segment that is not a member of the element reached so far.
+    fn walk_chain(&self, start: &'a RawElement, chain: &str) -> Result<(), String> {
+        let norm = chain.replace("::", ".");
+        let mut owner = Some(start);
+        for seg in norm.split('.').map(str::trim).filter(|s| !s.is_empty()) {
+            let Some(o) = owner else { return Ok(()) };
+            match self.member_type(o, seg, &mut HashSet::new()) {
+                None => return Err(seg.to_string()),
+                Some(next) => owner = next,
+            }
+        }
+        Ok(())
+    }
+
+    /// `r` names a feature the element itself inherits through its `supertype:`/
+    /// `typedBy:` chain or declares inline — what an inline feature may redefine
+    /// or subset.
+    fn inherited_by_element(&self, elem: &RawElement, r: &str) -> bool {
+        let name = r.rsplit("::").next().unwrap_or(r);
+        self.has_member(elem, name, &mut HashSet::new())
+    }
+
     /// `r` resolves to an inline (or inherited) feature: `Owner::feat` with a
     /// resolvable `Owner`, or — for a bare name — a member of the referencing
     /// element's owner.
@@ -373,6 +442,7 @@ pub fn unresolved_structural_ref_findings(
             out.push(error(code, file, format!("unresolved {field} reference '{r}'{suffix}")));
         }
     };
+    let mut warns: Vec<Finding> = Vec::new();
     for elem in elements {
         let fm = &elem.frontmatter;
         let file = elem.file_path.as_str();
@@ -409,6 +479,94 @@ pub fn unresolved_structural_ref_findings(
                 report("E113", "redefines", file, s, String::new());
             }
         }
+        // GH #201 — inline-feature `redefines:`/`subsets:`, `dependsOn:`, `imports:`
+        // and `aliases:` targets.
+        for feat in fm.features.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = feat else { continue };
+            let fname = map_str(m, "name").unwrap_or("?");
+            for (key, code) in [("redefines", "E113"), ("subsets", "E112")] {
+                let Some(v) = m.get(serde_yaml::Value::String(key.into())) else { continue };
+                for s in yaml_strings(v) {
+                    if !ctx.resolves(elem, s) && !ctx.inherited_by_element(elem, s) {
+                        report(code, key, file, s, format!(" on inline feature '{fname}'"));
+                    }
+                }
+            }
+        }
+        for entry in fm.connections.iter().flatten().filter(|_| file.ends_with(".md")) {
+            let Some(parsed) = crate::connections::parse_entry(entry) else { continue };
+            for ep in parsed.endpoints {
+                let c = ep.chain.trim();
+                if c.is_empty() || ctx.resolves(elem, c) {
+                    continue;
+                }
+                if let Err(seg) = ctx.walk_chain(elem, c) {
+                    report(
+                        "E127",
+                        "connection endpoint",
+                        file,
+                        c,
+                        format!(": '{seg}' is not a member of the element it is looked up in"),
+                    );
+                }
+            }
+        }
+        // W059 — a `visibility: private` element referenced from outside the
+        // namespace that owns it.
+        {
+            let mut private_refs: Vec<&str> = fm.supertype.iter().flat_map(yaml_strings).collect();
+            private_refs.extend(fm.typed_by.iter().flat_map(yaml_strings));
+            for feat in fm.features.iter().flatten() {
+                if let serde_yaml::Value::Mapping(m) = feat {
+                    if let Some(tb) = map_str(m, "typedBy") {
+                        private_refs.push(tb);
+                    }
+                }
+            }
+            for r in private_refs {
+                let Some(t) = ctx.scoped(&elem.qualified_name, r) else { continue };
+                if t.frontmatter.visibility.as_deref() != Some("private") {
+                    continue;
+                }
+                let owner = parent_qname(&t.qualified_name).unwrap_or("");
+                let inside = owner.is_empty()
+                    || elem.qualified_name == owner
+                    || elem.qualified_name.starts_with(&format!("{owner}::"));
+                if !inside {
+                    warns.push(Finding {
+                        code: "W059",
+                        file: file.to_string(),
+                        message: format!("'{r}' is `visibility: private` in '{owner}' and is referenced from outside it"),
+                        severity: Severity::Warning,
+                    });
+                }
+            }
+        }
+        for s in fm.depends_on.iter().flatten() {
+            if !ctx.resolves(elem, s) {
+                report("E126", "dependsOn", file, s, String::new());
+            }
+        }
+        for imp in fm.imports.iter().flatten() {
+            let target = match imp {
+                serde_yaml::Value::String(s) => Some(s.as_str()),
+                serde_yaml::Value::Mapping(m) => map_str(m, "target"),
+                _ => None,
+            };
+            let Some(t) = target.map(str::trim) else { continue };
+            let pkg = t.strip_suffix("::**").or_else(|| t.strip_suffix("::*")).unwrap_or(t);
+            if !pkg.is_empty() && !ctx.resolves(elem, pkg) {
+                report("E126", "imports", file, t, String::new());
+            }
+        }
+        for a in fm.aliases.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = a else { continue };
+            if let Some(t) = map_str(m, "for") {
+                if !ctx.resolves(elem, t) {
+                    report("E126", "aliases", file, t, format!(" (alias '{}')", map_str(m, "name").unwrap_or("?")));
+                }
+            }
+        }
         // satisfies: resolved exactly as the satisfiedBy index resolves it. In a
         // `[repos]` model the existing satisfies check already reports E512.
         if !config.has_repos() {
@@ -419,6 +577,7 @@ pub fn unresolved_structural_ref_findings(
             }
         }
     }
+    out.extend(warns);
     out
 }
 
@@ -799,5 +958,50 @@ mod tests {
     fn part_binding_connections_are_not_behavior_endpoints() {
         let els = vec![elem("P", "type: PartDef\nbindingConnections:\n  - {left: a.x, right: y}\n")];
         assert!(behavior_codes(&els).is_empty());
+    }
+
+    #[test]
+    fn imports_aliases_depends_on_and_inline_redefinitions_are_checked() {
+        // GH #201.
+        let els = vec![
+            elem("P", "type: Package\nimports:\n  - Nowhere::*\n  - P::Q\naliases:\n  - {name: Z, for: P::Nothing}\n  - {name: Y, for: P::Q}\n"),
+            elem("P::Q", "type: PartDef\nfeatures:\n  - {name: mass}\n"),
+            elem(
+                "P::R",
+                "type: PartDef\nsupertype: P::Q\ndependsOn: [P::Missing, P::Q]\nfeatures:\n  - {name: mass, redefines: mass}\n  - {name: bad, redefines: nope}\n  - {name: s, subsets: ghost}\n",
+            ),
+        ];
+        assert_eq!(codes(&els), vec!["E112", "E113", "E126", "E126", "E126"]);
+    }
+
+    #[test]
+    fn connection_endpoint_chains_are_walked() {
+        let els = vec![
+            elem("PD", "type: PortDef\nfeatures:\n  - {name: tx}\n"),
+            elem("Eng", "type: PartDef\nfeatures:\n  - {name: out, type: Port, typedBy: PD}\n"),
+            elem(
+                "Sys",
+                "type: PartDef\nfeatures:\n  - {name: e, type: Part, typedBy: Eng}\nconnections:\n  - {from: e.out.tx, to: e.out}\n  - {from: e.nope, to: e.out}\n  - {from: ghost.p, to: e.out}\n  - {from: e.out.zz, to: e.out}\n",
+            ),
+        ];
+        assert_eq!(codes(&els), vec!["E127", "E127", "E127"]);
+    }
+
+    #[test]
+    fn private_elements_are_not_referenced_from_outside_their_package() {
+        let els = vec![
+            elem("A", "type: Package"),
+            elem("A::Hidden", "type: PartDef\nvisibility: private"),
+            elem("A::Inside", "type: PartDef\nsupertype: A::Hidden"),
+            elem("B", "type: Package"),
+            elem("B::Outside", "type: PartDef\nsupertype: A::Hidden"),
+        ];
+        let resolver = Resolver::new(&els);
+        let w: Vec<_> = unresolved_structural_ref_findings(&els, &resolver, &ValidateConfig::default())
+            .into_iter()
+            .filter(|f| f.code == "W059")
+            .collect();
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].file.contains("Outside"));
     }
 }

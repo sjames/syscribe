@@ -19,6 +19,10 @@ use crate::element::{ElementType as T, RawElement};
 use crate::resolver::Resolver;
 use crate::validator::{Finding, Severity};
 
+fn warning(code: &'static str, file: &str, msg: String) -> Finding {
+    Finding { code, file: file.to_string(), message: msg, severity: Severity::Warning }
+}
+
 fn error(code: &'static str, file: &str, msg: String) -> Finding {
     Finding { code, file: file.to_string(), message: msg, severity: Severity::Error }
 }
@@ -115,6 +119,20 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
         let q = elem.qualified_name.as_str();
         let Some(ty) = fm.element_type.as_ref() else { continue };
 
+        // W058 — a name-identified element's qualified name is its path, so a
+        // `name:` that differs from the file stem (or directory) is never what
+        // references must use; flag the silent mismatch (GH #201).
+        if !ty.is_id_identified() && !matches!(ty, T::FeatureModel | T::FMEASheet) {
+            if let (Some(n), Some(seg)) = (fm.name.as_deref(), q.rsplit("::").next()) {
+                if !seg.is_empty() && n != seg && !n.contains(' ') && !n.starts_with('<') {
+                    out.push(warning(
+                        "W058",
+                        file,
+                        format!("`name: {n}` differs from the file name '{seg}' that forms the qualified name '{q}' — references must use '{seg}'; rename the file or the `name:`"),
+                    ));
+                }
+            }
+        }
         if let Some(m) = &fm.multiplicity {
             if let Some(why) = multiplicity_problem(m) {
                 out.push(error("E118", file, format!("multiplicity '{m}' {why}")));
@@ -322,5 +340,19 @@ mod tests {
         let mut e = elem("S", "type: PartDef\nmultiplicity: \"3..1\"");
         e.file_path = "S.sysml".into();
         assert!(codes(&[e]).is_empty());
+    }
+
+    #[test]
+    fn name_differing_from_the_file_stem_is_w058() {
+        let els = vec![
+            elem("Cases::ServeUC", "type: UseCaseDef\nname: RideUC"),
+            elem("Cases::Ok", "type: UseCaseDef\nname: Ok"),
+            elem("Cases::Prose", "type: UseCaseDef\nname: A free label"),
+            elem("Reqs::REQ-001", "type: Requirement\nid: REQ-001\nname: Anything goes"),
+        ];
+        let resolver = Resolver::new(&els);
+        let w: Vec<_> = structure_findings(&els, &resolver).into_iter().filter(|f| f.code == "W058").collect();
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].file.contains("ServeUC"));
     }
 }

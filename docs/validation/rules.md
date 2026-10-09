@@ -52,7 +52,7 @@ This page groups every finding code by feature area, with context. The same code
 | W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 
-## Cross-reference errors (E101–E106, E110–E125)
+## Cross-reference errors (E101–E106, E110–E127)
 
 | Code | Condition |
 |---|---|
@@ -78,6 +78,8 @@ This page groups every finding code by feature area, with context. The same code
 | E123 | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
 | E124 | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | E125 | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
+| E126 | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
+| E127 | A `connections:` endpoint feature chain names a first or later segment that is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 
 `E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
 then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
@@ -1089,6 +1091,8 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 | W047 | A top-level frontmatter key is not a recognized schema field and is not `custom_fields`. One finding per key, naming the key and file, pointing to `custom_fields:`. Keys under `custom_fields:` and all recognized fields are exempt. |
 | W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is silently inert there, so this names the mistake |
 | W049 | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
+| W058 | A name-identified element's `name:` differs from the file (or directory) name that forms its qualified name, so references written with the `name:` do not resolve |
+| W059 | A `visibility: private` element is referenced (`supertype:`/`typedBy:`) from outside the namespace that owns it |
 | W051 | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | W052 | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 

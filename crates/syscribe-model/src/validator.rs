@@ -4151,7 +4151,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         // gated on `sysmlv2_qnames`/`plugin_qnames`/`annotation_qnames`, not
                         // kind alone, so a hand-authored native Part/etc. is never rescued by
                         // this widening.
+                        // A SysML `VerificationCase(Def)` verifies the SysML requirement
+                        // usages/definitions of the model directly (GH #201).
+                        let sysml_verifier = matches!(
+                            fm.element_type,
+                            Some(ElementType::VerificationCaseDef) | Some(ElementType::VerificationCase)
+                        ) && matches!(
+                            target.frontmatter.element_type,
+                            Some(ElementType::RequirementDef) | Some(ElementType::Requirement)
+                        );
                         if !e104_relaxed
+                            && !sysml_verifier
                             && !Resolver::is_verify_target(target, &sysmlv2_qnames, &plugin_qnames, &annotation_qnames)
                         {
                             findings.push(error(
@@ -12419,6 +12429,23 @@ mod link_type_tests {
         let result = validate_with_config(&elements, &cfg(toml_text));
         assert!(!result.derived_children.contains_key("REQ-001"));
         assert!(hits(&result.findings, "E312", "REQ-001").is_empty(), "not a parent ⇒ no E312");
+    }
+
+    #[test]
+    fn sysml_verification_case_may_verify_a_sysml_requirement_usage() {
+        // GH #201: E104 must not reject a VerificationCaseDef verifying a
+        // hand-authored SysML Requirement/RequirementDef.
+        let elements = vec![
+            make_elem("Reqs::speed", "type: Requirement\nname: speed"),
+            make_elem("Reqs::SpeedDef", "type: RequirementDef\nname: SpeedDef"),
+            make_elem("Cases::V", "type: VerificationCaseDef\nname: V\nverifies: [Reqs::speed, Reqs::SpeedDef]"),
+            make_elem("Arch::Ctl", "type: Part\nname: Ctl"),
+            make_elem("Cases::W", "type: VerificationCaseDef\nname: W\nverifies: [Arch::Ctl]"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let e104: Vec<_> = result.findings.iter().filter(|f| f.code == "E104").collect();
+        assert_eq!(e104.len(), 1, "{e104:?}");
+        assert!(e104[0].message.contains("Arch::Ctl"));
     }
 
     #[test]

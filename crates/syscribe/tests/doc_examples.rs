@@ -78,6 +78,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E111", "unresolved typedBy target"),
     ("E114", "unresolved satisfies target"),
     ("E115", "unresolved behavior-field target"),
+    ("E127", "unresolved connection endpoint (a sub-part declared outside the snippet)"),
     ("E027", "unresolved about: comment entry"),
     ("E209", "unresolved appliesWhen feature"),
     ("E234", "Configuration derivedFrom base not in the snippet"),

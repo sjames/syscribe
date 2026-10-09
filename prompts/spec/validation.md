@@ -67,6 +67,8 @@
 | `E123` | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
 | `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
+| `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
+| `E127` | A `connections:` endpoint feature chain names a first or later segment that is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |
@@ -679,6 +681,8 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed: the key is not an id-identified element type, or a prefix does not match `^[A-Z][A-Z0-9]{1,11}$`. The offending entry/prefix is ignored; well-formed siblings still apply |
 | `W047` | A top-level frontmatter key is not a recognised schema field (and is not `custom_fields:`) — likely a typo (`reqDomian`, `verifis`). One finding per key; move author-defined data under `custom_fields:` (§3.15). Gate with `--deny W047` |
 | `W049` | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
+| `W058` | A name-identified element's `name:` differs from the file (or directory) name that forms its qualified name, so references written with the `name:` do not resolve |
+| `W059` | A `visibility: private` element is referenced (`supertype:`/`typedBy:`) from outside the namespace that owns it |
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 

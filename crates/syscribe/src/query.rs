@@ -4619,7 +4619,7 @@ mod every_template_tests {
     /// Coverage warnings whose satisfying element is deliberately outside the
     /// skeleton set (a Requirement deriving from each goal, a cybersecurity
     /// assessment, an active TestCase, a mitigated vulnerability).
-    const ALLOWED: &[&str] = &["W005", "W007", "W039", "W613", "W803", "W804", "W805"];
+    const ALLOWED: &[&str] = &["W005", "W007", "W039", "W058", "W613", "W803", "W804", "W805"];
 
     fn field(out: &str, key: &str) -> Option<String> {
         let fm = out.split("---").nth(1)?;
