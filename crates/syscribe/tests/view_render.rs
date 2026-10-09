@@ -73,3 +73,21 @@ fn errors_are_reported() {
     assert_eq!(run(&root, &["view"]).0, 2);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn ingested_sysml_view_filter_becomes_filter_condition() {
+    let root = std::env::temp_dir().join(format!("syscribe-view-{}-ingest", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("Sys")).unwrap();
+    std::fs::write(root.join("_index.md"), "---\ntype: Package\n---\n").unwrap();
+    std::fs::write(root.join("Sys/_index.md"), "---\ntype: Package\nsysmlSubmodel: true\n---\n").unwrap();
+    std::fs::write(
+        root.join("Sys/v.sysml"),
+        "package V {\n  metadata def SafetyTag;\n  part def Eng { @SafetyTag; }\n  part def Plain;\n  view def ArchView { filter @SafetyTag; }\n  view arch : ArchView { expose V::*; render asTreeDiagram; }\n}\n",
+    )
+    .unwrap();
+    let (c, out, _) = run(&root, &["view", "render", "Sys::V::arch", "--format", "table"]);
+    assert_eq!(c, 0);
+    assert!(out.contains("Sys::V::Eng") && !out.contains("Sys::V::Plain"), "{out}");
+    let _ = std::fs::remove_dir_all(&root);
+}

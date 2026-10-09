@@ -2,6 +2,22 @@
 
 `RELEASES`
 
+## Unreleased
+
+### SysMLv2 modelling gaps (GH #198–#205)
+
+A probe that modelled a UAV, an elevator controller and a textual `.sysml` round trip found validation too lenient and ingest/export lossy. Fixed:
+
+- **Fixed:** `imports: [ISQ::*]` (or any library wildcard) on a package silenced every unresolved-reference check below it (#198).
+- **New validation (errors):** `E115` unresolved behavior-field reference (sub-action/parameter `typedBy`, `payload`, `includes`, `extends`, `subject`, `result`, `returnType`), `E116` succession/binding/flow endpoint that names nothing the element declares, `E117` value outside a closed vocabulary (sub-action/control-node `kind`, `loopKind`, parameter `direction`) (#199). `E118` malformed or reversed multiplicity, `E119` bad `visibility`, `E120` `supertype:` on a usage, `E121` `isVariant` outside a variation, `E122` enumeration without literals or specializing another, `E123` usage typed by the wrong kind of definition (and `conjugates:` of a non-`PortDef`), `E124` unknown enumeration literal, `E125` interface/connection with fewer than two ends (#200). `E126` unresolved `imports:`/`aliases:`/`dependsOn:`, `E127` connection endpoint whose owning part does not exist (#201).
+- **New validation (warnings):** `W056` connection endpoint port not found on its part, `W057` unknown `ISQ::`/`SI::` name, `W058` `name:` differs from the file name, `W059` private element referenced from outside its package.
+- **Fixed:** inline-feature `redefines:`/`subsets:` are resolved; a `VerificationCase` may verify a SysML requirement (`E104`); `W007` counts a type used only by a sub-action or parameter; `W502` understands `Pkg::*`/`Pkg::**`, `{target, filter}` entries and `ViewDef`.
+- **Views:** `syscribe view render <View>` materialises what a view exposes (tree/table/json/mermaid), with `filterCondition:` / per-entry `filter:` (`@Metadata`, `not`, `and`, `or`). PlantUML now renders Action, Allocation and UseCase diagrams. `show` prints ends, connections, parameters, sub-actions, time slices, imports, aliases and `expose`.
+- **SysML v2 ingest:** package `import`s are kept (bare imported library names no longer raise `E111`); anonymous `connect`, `bind`, `perform`, `exhibit`, `interface … connect`, `interface def` ends, port directions, `~PP` conjugation and `ref` are mapped; one bad member no longer discards the whole file (`W541` per member); dropped body members are counted in `W543`; a view's `filter` becomes `filterCondition:`. Dotted `connect` endpoints (`eng.pwr`) still collapse to the head part with `W542`.
+- **SysML v2 export:** exports enumerations, library packages, allocations, use/analysis/verification cases, views, viewpoints, concerns, flows, individuals; imports/aliases, interface and connection ends, conjugation, bindings, flows, performs/exhibits, time slices, variation, `parallel`, action parameters, assert/negation, requirement subject/actors/requires/assume. Output is valid SysML v2 (per-segment quoting, relative feature chains, unquoted expressions, no duplicate anonymous connection) and every field it cannot write becomes a `// dropped:` comment counted in the summary.
+- **Fixed:** an unreadable directory now fails the model walk instead of silently dropping its subtree (this also stabilises the LSP failed-reload test).
+
+
 ## 0.51.0 — 2026-10-09
 
 ### Review fixes

@@ -761,6 +761,8 @@ struct Spec {
     aliases: Option<Vec<serde_yaml::Value>>,
     /// A package's `import` members as `imports:` strings (`::*`/`::**` suffixes kept).
     imports: Option<Vec<serde_yaml::Value>>,
+    /// A view's `filter` members (`filterCondition:`), joined with ` and `.
+    filter_condition: Option<String>,
     /// `REQ-TRS-SYSMLV2-048` -- a usage's multiplicity text, `subsets`, `redefines`.
     multiplicity: Option<String>,
     subsets: Option<Vec<String>>,
@@ -963,6 +965,7 @@ fn push_synth(
             fm.return_type = spec.return_type;
             fm.aliases = spec.aliases;
             fm.imports = spec.imports;
+            fm.filter_condition = spec.filter_condition;
             fm.includes = spec.includes;
             fm.value = spec.value;
             fm.is_individual = spec.is_individual;
@@ -2040,6 +2043,32 @@ fn view_def_rendering(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::Vi
     })
 }
 
+/// `filter @Tag;` members of a `view def` body as one `filterCondition:` (joined with ` and `).
+fn view_def_filter(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewDefBodyElement>]) -> Option<String> {
+    let parts: Vec<String> = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::ViewDefBodyElement::Filter(f) => Some(expr_text(&f.value.condition)),
+            _ => None,
+        })
+        .filter(|t| !t.trim().is_empty())
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(" and "))
+}
+
+/// Same as [`view_def_filter`], for a `view` usage body.
+fn view_usage_filter(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> Option<String> {
+    let parts: Vec<String> = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::ViewBodyElement::Filter(f) => Some(expr_text(&f.value.condition)),
+            _ => None,
+        })
+        .filter(|t| !t.trim().is_empty())
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(" and "))
+}
+
 /// Same as [`view_def_rendering`], for a `view` usage body.
 fn view_usage_rendering(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> Option<String> {
     elements.iter().find_map(|n| match &n.value {
@@ -2259,7 +2288,7 @@ fn render_expression(e: &sysml_v2_parser::Expression) -> String {
         }
         E::Extent { target } => format!("all {}", qr(*target)),
         E::Null => "null".to_string(),
-        E::Classification { .. } => "<classification expression>".to_string(),
+        E::Classification { metaclass } => format!("@{}", qr(*metaclass)),
         E::MetaCast { .. } => "<meta-cast expression>".to_string(),
         E::TypeCheck { .. } => "<type-check expression>".to_string(),
         E::Select { .. } => "<select expression>".to_string(),
@@ -3990,6 +4019,7 @@ fn convert_view_def(v: &sysml_v2_parser::ast::ViewDef, qname: &str, file_path: &
     .with_doc(view_def_doc(elements))
     .with_metadata(body_metadata(elements))
     .with_view(Vec::new(), None, view_def_rendering(elements));
+    let spec = Spec { filter_condition: view_def_filter(elements), ..spec };
     push_synth(out, &view_qname, file_path, ElementType::ViewDef, &name, spec);
 }
 
@@ -4017,6 +4047,7 @@ fn convert_view_usage(v: &sysml_v2_parser::ast::ViewUsage, qname: &str, file_pat
         view_satisfy_viewpoint(elements),
         view_usage_rendering(elements),
     );
+    let spec = Spec { filter_condition: view_usage_filter(elements), ..spec };
     push_synth(out, &view_qname, file_path, ElementType::View, &v_name, spec);
 }
 
