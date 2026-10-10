@@ -77,6 +77,7 @@
 | `E314` | `PartDef`/`Part` with `isDeploymentPackage: true` has no allocation to a `hardware` element in any §12.9 form (`Allocation` element top-level or per `features:` entry, `allocatedTo:` on the part, legacy authored `allocatedFrom:` on the target) |
 | `E315` | `domain: software` element has `supertype:`/`typedBy:` referencing `domain: hardware`, or vice versa |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` or behavioral `ActionDef`/`Action`/`StateDef`/`State` does not resolve, or resolves to a non-`Requirement`/`RequirementDef` |
+| `E319` | Results-gated: `Requirement` at `verified` has an active verifying `TestCase` whose ingested verdict is Fail |
 
 ## Warnings — core (W001–W007, W300–W305)
 
@@ -98,6 +99,7 @@
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed` |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` |
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |
+| `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
 | `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |

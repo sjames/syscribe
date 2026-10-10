@@ -4987,6 +4987,37 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             _ => {}
         }
 
+        // W312 / E319: with results ingested, a requirement at approved/implemented/
+        // verified whose active verifier FAILED (GH #257). Verified is an error, since
+        // verified with a failing verifier is a contradiction. Only a Fail verdict counts.
+        if matches!(status, "approved" | "implemented" | "verified") {
+            if let Some(results) = &config.results {
+                let mut failing: Vec<&str> = active_tcs
+                    .iter()
+                    .filter_map(|tc_id| resolver.get_by_id(elements, tc_id))
+                    .filter(|tc| {
+                        crate::results::testcase_verdict(tc, Some(results)) == crate::safety_case::Verdict::Fail
+                    })
+                    .filter_map(|tc| tc.frontmatter.id.as_deref())
+                    .collect();
+                failing.sort_unstable();
+                failing.dedup();
+                if !failing.is_empty() {
+                    let msg = format!(
+                        "Requirement '{}' (status: {}) has an active verifying TestCase that FAILED in the ingested results: {}",
+                        req_id,
+                        status,
+                        failing.join(", ")
+                    );
+                    if status == "verified" {
+                        findings.push(error("E319", &elem.file_path, &msg));
+                    } else {
+                        findings.push(warning("W312", &elem.file_path, &msg));
+                    }
+                }
+            }
+        }
+
         // W702: asilLevel: D requirement must have at least one active L5 (HIL) TestCase
         if elem.frontmatter.asil_level.as_deref() == Some("D") && !active_tcs.is_empty() {
             let has_l5 = active_tcs.iter().any(|tc_id| {
