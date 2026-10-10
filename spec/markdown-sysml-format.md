@@ -1327,7 +1327,7 @@ Ports and interfaces are the most error-prone area to model. Orient first, then 
 
 #### 8.3.0a Data records versus flowing items (`E123`)
 
-A usage is typed by a definition of the matching kind (`E123` otherwise): `Attribute` ← `AttributeDef` or `EnumerationDef`; `Item`/`Part` ← `ItemDef`/`PartDef`/`OccurrenceDef`/…; `Port` ← `PortDef`; `Connection` ← `ConnectionDef`/`InterfaceDef`; `Interface` ← `InterfaceDef`; `Action` ← `ActionDef`; `State` ← `StateDef`.
+A usage is typed by a definition of the matching kind (`E123` otherwise): `Attribute` ← `AttributeDef` or `EnumerationDef`; `Item`/`Part` ← `ItemDef`/`PartDef`/`OccurrenceDef`/…; `Port` ← `PortDef`; `Connection` ← `ConnectionDef`/`InterfaceDef`; `Interface` ← `InterfaceDef`; `Action` ← `ActionDef`; `State` ← `StateDef` (and so on for the other usage kinds; `Constraint` and `Calculation` also accept a `PartDef`/`ItemDef` context).
 
 | You are modelling | Define | Use |
 |---|---|---|

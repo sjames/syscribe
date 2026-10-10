@@ -60,6 +60,11 @@ fn multiplicity_problem(text: &str) -> Option<String> {
     }
 }
 
+/// "a" or "an" for a type name (`an Attribute`, `a Port`).
+fn article(name: &str) -> &'static str {
+    if name.starts_with(['A', 'E', 'I', 'O', 'U']) { "an" } else { "a" }
+}
+
 /// How to fix an `E123`: the common data-record mistake first (an `Attribute` typed by an
 /// `ItemDef`, or the mirror), else the definition kinds that can type the usage (GH #254).
 fn e123_remedy(usage: &T, def: &T, def_name: &str, allowed: &[T]) -> String {
@@ -72,7 +77,11 @@ fn e123_remedy(usage: &T, def: &T, def_name: &str, allowed: &[T]) -> String {
         ),
         _ => {
             let names: Vec<String> = allowed.iter().map(|t| format!("{t:?}")).collect();
-            format!("A {usage:?} must be typed by one of: {}.", names.join(", "))
+            format!(
+                "{} {usage:?} must be typed by one of: {}.",
+                if article(&format!("{usage:?}")) == "an" { "An" } else { "A" },
+                names.join(", ")
+            )
         }
     }
 }
@@ -369,7 +378,12 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
                     out.push(error(
                         "E123",
                         file,
-                        format!("{ctx} is typed by '{r}', a {tt:?}, which cannot type a {ty:?}. {}", e123_remedy(ty, tt, r, allowed)),
+                        format!(
+                            "{ctx} is typed by '{r}', {} {tt:?}, which cannot type {} {ty:?}. {}",
+                            article(&format!("{tt:?}")),
+                            article(&format!("{ty:?}")),
+                            e123_remedy(ty, tt, r, allowed)
+                        ),
                     ));
                 }
             };
@@ -391,7 +405,8 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
                     "E123",
                     file,
                     format!(
-                        "inline feature '{n}' ({kind:?}) is typed by '{tb}', a {tt:?}, which cannot type it. {}",
+                        "inline feature '{n}' ({kind:?}) is typed by '{tb}', {} {tt:?}, which cannot type it. {}",
+                        article(&format!("{tt:?}")),
                         e123_remedy(&kind, tt, tb, allowed)
                     ),
                 ));

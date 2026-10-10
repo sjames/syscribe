@@ -48,3 +48,24 @@ fn item_typed_by_attribute_def_gets_the_mirror_remedy() {
     assert_eq!(m.len(), 1, "{m:?}");
     assert!(m[0].contains("ItemDef") && m[0].contains("type: Attribute"), "{}", m[0]);
 }
+
+#[test]
+fn other_mismatches_list_the_allowed_kinds_with_correct_grammar() {
+    let m = e123(&[
+        ("Data/P.md", "---\ntype: PartDef\nname: P\n---\n"),
+        ("Unit.md", "---\ntype: PartDef\nname: Unit\nfeatures:\n  - {name: a, type: Attribute, typedBy: Data::P}\n  - {name: p, type: Port, typedBy: Data::P}\n---\n"),
+    ]);
+    assert_eq!(m.len(), 2, "{m:?}");
+    assert!(m.iter().any(|x| x.contains("An Attribute must be typed by one of: AttributeDef, EnumerationDef")), "{m:?}");
+    assert!(m.iter().any(|x| x.contains("A Port must be typed by one of: PortDef")), "{m:?}");
+    assert!(m.iter().all(|x| !x.contains("a ItemDef") && !x.contains("A Attribute") && !x.contains("a AttributeDef")), "{m:?}");
+}
+
+#[test]
+fn attribute_typed_by_an_enumeration_def_is_fine() {
+    let m = e123(&[
+        ("Data/E.md", "---\ntype: EnumerationDef\nname: E\nvalues: [A, B]\n---\n"),
+        ("Unit.md", "---\ntype: PartDef\nname: Unit\nfeatures:\n  - {name: e, type: Attribute, typedBy: Data::E}\n---\n"),
+    ]);
+    assert!(m.is_empty(), "{m:?}");
+}
