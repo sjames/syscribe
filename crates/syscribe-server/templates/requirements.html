@@ -13,6 +13,12 @@
     <span id="req-status" class="req-status" role="status"></span>
     <label>Search <input id="req-search" type="search" size="22" placeholder="id or name" aria-controls="req-search-results"></label>
     <ul id="req-search-results" class="req-search-results" aria-live="polite"></ul>
+    <span class="req-actions">
+      <button type="button" id="req-view-table" aria-pressed="false" aria-controls="req-table">Show table</button>
+      <button type="button" id="req-export-json">Export JSON</button>
+      <button type="button" id="req-export-csv">Export CSV</button>
+      <button type="button" id="req-export-svg">Export SVG</button>
+    </span>
     <label>Trace to
       <select id="req-trace"><option value="">(off)</option><option>tests</option><option>architecture</option><option>features</option><option>safety</option><option>security</option></select>
     </label>
@@ -28,6 +34,7 @@
         <span class="lg lg-unverified">unverified</span><span class="lg lg-na">other element</span>
       </div>
     </div>
+    <div id="req-table" class="req-table" hidden></div>
     <aside id="req-detail" class="req-detail"><p class="req-hint">Select a node to see its element card.</p></aside>
   </div>
 </div>

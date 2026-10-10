@@ -158,6 +158,48 @@
     return [];
   }
 
+  // Pure: the drawn graph as table rows; `hop` is the undirected distance from the root (null if unreachable).
+  function tableRows(g) {
+    var adj = {};
+    g.nodes.forEach(function (n) { adj[n.id] = []; });
+    (g.edges || []).forEach(function (e) { if (adj[e.from] && adj[e.to]) { adj[e.from].push(e.to); adj[e.to].push(e.from); } });
+    var hop = {};
+    var queue = [];
+    if (g.root && adj[g.root]) { hop[g.root] = 0; queue.push(g.root); }
+    while (queue.length) {
+      var u = queue.shift();
+      adj[u].forEach(function (n) { if (hop[n] === undefined) { hop[n] = hop[u] + 1; queue.push(n); } });
+    }
+    return {
+      elements: g.nodes.map(function (n) {
+        return { id: n.id, qname: n.qname, type: n.type || '', name: n.name || '', status: n.status || '', asil: n.asil || '', verification: n.verification || '', hop: hop[n.id] === undefined ? null : hop[n.id] };
+      }),
+      relations: (g.edges || []).map(function (e) { return { from: e.from, to: e.to, kind: e.kind }; })
+    };
+  }
+
+  // RFC 4180 quoting; a cell a spreadsheet would evaluate as a formula gets a leading apostrophe.
+  function csvCell(v) {
+    var t = v === undefined || v === null ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+
+  function toCsv(g) {
+    var t = tableRows(g);
+    var out = ['id,type,name,status,asil,verification,hop'];
+    t.elements.forEach(function (r) { out.push([r.id, r.type, r.name, r.status, r.asil, r.verification, r.hop].map(csvCell).join(',')); });
+    out.push('');
+    out.push('from,to,kind');
+    t.relations.forEach(function (r) { out.push([r.from, r.to, r.kind].map(csvCell).join(',')); });
+    return out.join('\n') + '\n';
+  }
+
+  function exportName(root, ext) {
+    var safe = String(root || '').replace(/[^A-Za-z0-9._-]/g, '_') || 'graph';
+    return 'req-graph-' + safe + '.' + ext;
+  }
+
   function el(name, attrs, text) {
     var e = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
@@ -167,7 +209,7 @@
 
   function truncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '' };
+  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '', drawn: null, view: 'graph' };
   var root, svg, statusEl, detailEl;
 
   function setStatus(t) { if (statusEl) statusEl.textContent = t || ''; }
@@ -177,6 +219,7 @@
     syncTypeFilters(raw);
     var graph = filterGraph(raw, state.filters);
     if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
+    state.drawn = graph;
     var lay = layoutGraph(graph);
     var tr = null;
     if (state.trace) {
@@ -237,8 +280,76 @@
       g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
       svg.appendChild(g);
     });
+    renderTable(graph, tr);
     labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
     setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (tr ? (tr.targets.length ? ', ' + tr.targets.length + ' ' + state.trace + ' element(s) on the trace' : ', no ' + state.trace + ' element in view — raise the depth or tick more relations') : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
+  }
+
+  function cell(row, text, tag) {
+    var c = document.createElement(tag || 'td');
+    c.textContent = text === null || text === undefined ? '' : String(text);
+    row.appendChild(c);
+    return c;
+  }
+
+  // The table lens: the same drawn graph as two tables; id cells are buttons, so it is the keyboard equivalent.
+  function renderTable(graph, tr) {
+    var host = document.getElementById('req-table');
+    if (!host) return;
+    host.textContent = '';
+    var t = tableRows(graph);
+    var el1 = document.createElement('table');
+    var cap = document.createElement('caption'); cap.textContent = 'Elements'; el1.appendChild(cap);
+    var head = document.createElement('tr');
+    ['Id', 'Type', 'Name', 'Status', 'ASIL', 'Verification', 'Hop', 'Trace'].forEach(function (h) { cell(head, h, 'th'); });
+    el1.appendChild(head);
+    t.elements.forEach(function (r) {
+      var tr1 = document.createElement('tr');
+      var idc = document.createElement('td');
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = r.id;
+      b.addEventListener('click', function () { select(r); });
+      idc.appendChild(b); tr1.appendChild(idc);
+      [r.type, r.name, r.status, r.asil, r.verification, r.hop].forEach(function (v) { cell(tr1, v); });
+      cell(tr1, tr ? (tr.targetSet[r.id] ? 'target' : tr.nodeSet[r.id] ? 'on trace' : '') : '');
+      el1.appendChild(tr1);
+    });
+    host.appendChild(el1);
+    var rel = document.createElement('table');
+    var cap2 = document.createElement('caption'); cap2.textContent = 'Relations'; rel.appendChild(cap2);
+    var h2 = document.createElement('tr');
+    ['From', 'To', 'Kind'].forEach(function (h) { cell(h2, h, 'th'); });
+    rel.appendChild(h2);
+    t.relations.forEach(function (r) { var x = document.createElement('tr'); cell(x, r.from); cell(x, r.to); cell(x, r.kind); rel.appendChild(x); });
+    host.appendChild(rel);
+  }
+
+  function setView(v) {
+    state.view = v;
+    var host = document.getElementById('req-table');
+    var btn = document.getElementById('req-view-table');
+    if (host) host.hidden = v !== 'table';
+    if (svg) svg.style.display = v === 'table' ? 'none' : '';
+    if (btn) { btn.setAttribute('aria-pressed', v === 'table' ? 'true' : 'false'); btn.textContent = v === 'table' ? 'Show graph' : 'Show table'; }
+  }
+
+  function download(name, mime, text) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function exportAs(kind) {
+    var g = state.drawn;
+    if (!g) { setStatus('Nothing to export yet.'); return; }
+    if (kind === 'json') download(exportName(g.root, 'json'), 'application/json', JSON.stringify(g, null, 2) + '\n');
+    else if (kind === 'csv') download(exportName(g.root, 'csv'), 'text/csv', toCsv(g));
+    else if (kind === 'svg') download(exportName(g.root, 'svg'), 'image/svg+xml', new XMLSerializer().serializeToString(svg));
   }
 
   function qnamePath(q) { return q.split('::').map(encodeURIComponent).join('/'); }
@@ -472,6 +583,13 @@
     if (fv) [['verified', 'verified'], ['planned', 'planned'], ['unverified', 'unverified'], ['na', 'other element']].forEach(function (p) { addFilterBox(fv, 'verification', p[0], p[1]); });
     var fa = document.getElementById('req-filter-asil');
     if (fa) ['QM', 'A', 'B', 'C', 'D'].forEach(function (a) { addFilterBox(fa, 'asil', a); });
+    var vt = document.getElementById('req-view-table');
+    if (vt) vt.addEventListener('click', function () { setView(state.view === 'table' ? 'graph' : 'table'); });
+    ['json', 'csv', 'svg'].forEach(function (k) {
+      var b = document.getElementById('req-export-' + k);
+      if (b) b.addEventListener('click', function () { exportAs(k); });
+    });
+    setView('graph');
     var ts = document.getElementById('req-trace');
     if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); });
     initSearch();
@@ -480,7 +598,7 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }

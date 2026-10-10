@@ -680,3 +680,8 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 #req-graph .rg-node.target rect { stroke-width: 3px; }
 #req-graph .rg-edge-label.dim { opacity: 0.18; }
 #req-graph .rg-node.target rect { stroke-dasharray: 5 2; filter: drop-shadow(0 0 3px #1a4fd6); }
+.req-table { flex: 1; overflow: auto; }
+.req-table table { border-collapse: collapse; margin-bottom: 1em; font-size: 0.85em; }
+.req-table th, .req-table td { border: 1px solid #c9d1e0; padding: 2px 6px; text-align: left; }
+.req-table caption { font-weight: bold; text-align: left; }
+.req-table button { background: none; border: 0; cursor: pointer; text-decoration: underline; color: inherit; font: inherit; }

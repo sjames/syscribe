@@ -277,3 +277,47 @@ console.log(JSON.stringify({{ t, tf, tfEdgeKinds: tf.edges.map(i => f.edges[i].k
         assert!(known.contains(n.as_str().unwrap()), "{n} is not an ElementType name");
     }
 }
+
+#[test]
+fn table_rows_csv_and_file_names_are_pure_and_safe() {
+    if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
+        panic!("node is required for the explorer client tests");
+    }
+    let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
+    let script = format!(
+        r#"const m = require({js:?});
+const g = {{root:'A', nodes:[{{id:'A',type:'Requirement',name:'Root, "quoted"',status:'draft',asil:'B',verification:'verified'}},
+  {{id:'B',type:'TestCase',name:'=HYPERLINK("x")',status:'active',verification:'na'}},
+  {{id:'C',type:'Requirement',name:'line1\nline2'}}],
+  edges:[{{from:'B',to:'A',kind:'verifies'}},{{from:'C',to:'A',kind:'derivedFrom'}}]}};
+const t = m.tableRows(g);
+console.log(JSON.stringify({{
+  hops: t.elements.map(r => [r.id, r.hop]),
+  rel: t.relations.map(r => [r.from, r.to, r.kind]),
+  csv: m.toCsv(g),
+  names: [m.exportName('A', 'csv'), m.exportName('../a b/c:d', 'json'), m.exportName('', 'svg')],
+  cell: [m.csvCell('+1'), m.csvCell('-1'), m.csvCell('@x'), m.csvCell('\tx'), m.csvCell('plain'), m.csvCell(undefined), m.csvCell('a,b')],
+}}));"#
+    );
+    let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["hops"], serde_json::json!([["A", 0], ["B", 1], ["C", 1]]));
+    assert_eq!(v["rel"], serde_json::json!([["B", "A", "verifies"], ["C", "A", "derivedFrom"]]));
+    let csv = v["csv"].as_str().unwrap();
+    assert!(csv.contains("\"Root, \"\"quoted\"\"\""), "{csv}");
+    assert!(csv.contains("\"'=HYPERLINK(\"\"x\"\")\""), "formula neutralised and quoted: {csv}");
+    assert!(csv.contains("\"line1\nline2\""), "{csv}");
+    assert!(csv.contains("from,to,kind"), "relations section: {csv}");
+    assert_eq!(v["names"], serde_json::json!(["req-graph-A.csv", "req-graph-.._a_b_c_d.json", "req-graph-graph.svg"]));
+    assert_eq!(v["cell"], serde_json::json!(["'+1", "'-1", "'@x", "'\tx", "plain", "", "\"a,b\""]));
+}
+
+#[tokio::test]
+async fn the_page_has_view_toggle_and_export_buttons() {
+    let a = app();
+    let (_, _, html) = get(&a, "/requirements").await;
+    for id in ["req-view-table", "req-export-json", "req-export-csv", "req-export-svg", "req-table"] {
+        assert!(html.contains(&format!("id=\"{id}\"")), "{id} missing: {html}");
+    }
+}
