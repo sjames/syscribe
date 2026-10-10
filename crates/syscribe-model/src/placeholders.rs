@@ -127,7 +127,7 @@ pub enum FieldKind {
     Rate,
     /// A number in 0..=1.
     Fraction,
-    /// An integer 0..=4.
+    /// An integer 1..=4 (as E009 requires).
     Sil,
     /// `QM`, `A`..`D`.
     Asil,
@@ -163,20 +163,62 @@ pub fn parse_whole(text: &str) -> Option<Placeholder> {
     Some(Placeholder { raw: text.trim().to_string(), feature: c[1].to_string(), param: c[2].to_string(), unit: false })
 }
 
-/// Remove the whole-value placeholders of the placeholder-capable fields from a frontmatter mapping,
-/// returning YAML key → placeholder text.
-pub fn take_field_placeholders(map: &mut serde_yaml::Mapping) -> std::collections::BTreeMap<String, String> {
+/// Remove the whole-value placeholders of the placeholder-capable fields from frontmatter YAML text:
+/// the top-level `key: "{{Feature.param}}"` line (double or single quoted, nothing after it but a
+/// comment) of each capable key. Returns the remaining YAML — otherwise byte-identical, so every
+/// other scalar keeps the text it was written with — and YAML key → placeholder text.
+pub fn take_field_placeholders(yaml: &str) -> (String, std::collections::BTreeMap<String, String>) {
     let mut out = std::collections::BTreeMap::new();
-    for (key, _) in FIELDS {
-        let k = serde_yaml::Value::String((*key).to_string());
-        let hit = matches!(map.get(&k), Some(serde_yaml::Value::String(s)) if s.contains("{{") && parse_whole(s).is_some());
-        if hit {
-            if let Some(serde_yaml::Value::String(s)) = map.remove(&k) {
-                out.insert((*key).to_string(), s.trim().to_string());
+    let mut kept = String::with_capacity(yaml.len());
+    for line in yaml.split_inclusive('\n') {
+        let body = line.trim_end_matches(['\n', '\r']);
+        let taken = FIELDS.iter().find_map(|(key, _)| {
+            let rest = body.strip_prefix(key)?.strip_prefix(':')?;
+            let rest = rest.trim();
+            let (quote, inner) = match rest.chars().next()? {
+                q @ ('"' | '\'') => (q, &rest[1..]),
+                _ => return None,
+            };
+            let end = inner.find(quote)?;
+            let after = inner[end + 1..].trim();
+            if !(after.is_empty() || after.starts_with('#')) {
+                return None;
+            }
+            let value = &inner[..end];
+            parse_whole(value).map(|_| ((*key).to_string(), value.trim().to_string()))
+        });
+        match taken {
+            Some((k, v)) => {
+                out.insert(k, v);
+            }
+            None => kept.push_str(line),
+        }
+    }
+    (kept, out)
+}
+
+/// The parameter's own `range:` / `enumValues:` (they also bind a fixed `value:` or `default:`).
+fn check_param(d: &Decl, value: &str) -> Result<(), String> {
+    let v = value.trim();
+    if let Some(r) = d.entry.get("range").and_then(|r| r.as_str()) {
+        if let Some((lo, hi)) = r.split_once("..") {
+            let hi = hi.trim();
+            let hi = hi.strip_prefix('=').unwrap_or(hi).trim();
+            if let (Ok(lo), Ok(hi)) = (lo.trim().parse::<f64>(), hi.parse::<f64>()) {
+                match v.parse::<f64>() {
+                    Ok(n) if n >= lo && n <= hi => {}
+                    _ => return Err(format!("the parameter's range {r}")),
+                }
             }
         }
     }
-    out
+    if let Some(serde_yaml::Value::Sequence(vals)) = d.entry.get("enumValues") {
+        let allowed: Vec<String> = vals.iter().filter_map(scalar).collect();
+        if !allowed.is_empty() && !allowed.iter().any(|a| a == v) {
+            return Err(format!("the parameter's enumValues {allowed:?}"));
+        }
+    }
+    Ok(())
 }
 
 /// Check `value` against `kind`; the error says what the field accepts.
@@ -192,8 +234,8 @@ fn check_field(kind: FieldKind, value: &str) -> Result<(), String> {
             _ => Err("a number from 0 to 1".to_string()),
         },
         FieldKind::Sil => match v.parse::<u8>() {
-            Ok(n) if n <= 4 => Ok(()),
-            _ => Err("an integer from 0 to 4".to_string()),
+            Ok(n) if (1..=4).contains(&n) => Ok(()),
+            _ => Err("an integer from 1 to 4".to_string()),
         },
         FieldKind::Asil => {
             if ["QM", "A", "B", "C", "D"].contains(&v.to_ascii_uppercase().as_str()) {
@@ -357,7 +399,8 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
         for (key, raw) in e.frontmatter.placeholder_fields.clone() {
             let (Some(ph), Some(kind)) = (parse_whole(&raw), field_kind(&key)) else { continue };
             if let Some(v) = f(&ph) {
-                if check_field(kind, &v).is_ok() {
+                let param_ok = decl(full, &resolver, &ph.feature, &ph.param).map(|d| check_param(&d, &v).is_ok()).unwrap_or(false);
+                if param_ok && check_field(kind, &v).is_ok() {
                     apply_field(&mut e.frontmatter, &key, &v);
                 }
             }
@@ -413,7 +456,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
                     continue;
                 }
                 let Some(v) = value_for(elements, resolver, Some(c), &ph) else { continue };
-                if let Err(expect) = check_field(kind, &v) {
+                if let Err(expect) = check_field(kind, &v).and_then(|()| check_param(&d, &v)) {
                     let cid = c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone());
                     out.push((
                         true,

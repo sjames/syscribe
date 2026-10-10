@@ -109,3 +109,46 @@ fn a_mixed_or_unit_suffixed_value_is_not_a_whole_value_placeholder() {
     let (o, c) = run(&r, &["validate"]);
     assert!(c != 0, "the mixed string is an invalid asilLevel as before: {o}");
 }
+
+#[test]
+fn integrity_propagation_rules_tolerate_a_placeholder_level() {
+    let r = model(("B", "1"), "derivedFrom: [REQ-PF-000]\nasilLevel: \"{{Features::Safety.level}}\"\n");
+    std::fs::write(
+        r.join("Reqs/REQ-PF-000.md"),
+        "---\nid: REQ-PF-000\ntype: Requirement\nname: parent\nstatus: draft\nreqDomain: software\nasilLevel: B\n---\n\nShall.\n",
+    )
+    .unwrap();
+    let (o, _) = run(&r, &["validate"]);
+    assert!(!o.contains("E842"), "the child's level is per configuration, not missing: {o}");
+}
+
+#[test]
+fn calibration_and_rate_fields_take_their_typed_values() {
+    // valid in ALPHA: no E247; invalid values are reported, which shows the fields are recognised
+    let ok = model(("cal2", "1e-7"), "calLevel: \"{{Features::Safety.level}}\"\nfailureRate: \"{{Features::Safety.rate}}\"\n");
+    let (o, _) = run(&ok, &["validate", "--config", "CONF-PF-ALPHA-001"]);
+    assert!(!o.lines().any(|l| l.contains("E247") && l.contains("CONF-PF-ALPHA-001")), "ALPHA's values are valid (BRAVO's fixed D is not a CAL): {o}");
+    let bad = model(("cal9", "-1"), "calLevel: \"{{Features::Safety.level}}\"\nfailureRate: \"{{Features::Safety.rate}}\"\n");
+    let (o, _) = run(&bad, &["validate", "--config", "CONF-PF-ALPHA-001"]);
+    assert!(o.contains("calLevel") && o.contains("CAL1") && o.contains("failureRate") && o.contains(">= 0"), "{o}");
+}
+
+#[test]
+fn the_parameters_own_enum_values_bind_the_field_placeholder() {
+    let r = model(("D", "1"), "asilLevel: \"{{Features::Safety.level}}\"\n");
+    std::fs::write(
+        r.join("Features/Safety.md"),
+        "---\ntype: FeatureDef\nid: FEAT-PF-100\nname: Safety\ngroupKind: optional\nparameters:\n  - {name: level, type: ScalarValues::String, enumValues: [A, B]}\n  - {name: rate, type: ScalarValues::Real}\n---\n\nS.\n",
+    )
+    .unwrap();
+    let (o, _) = run(&r, &["validate", "--config", "CONF-PF-ALPHA-001"]);
+    // ALPHA binds D: not one of the parameter's enumValues (the binding check) and so not substituted
+    assert!(show(&r, Some("CONF-PF-ALPHA-001"))["asilLevel"].is_null(), "{o}");
+}
+
+#[test]
+fn a_sil_of_zero_is_not_accepted_just_as_e009_requires() {
+    let r = model(("B", "0"), "silLevel: \"{{Features::Safety.rate}}\"\n");
+    let (o, _) = run(&r, &["validate", "--config", "CONF-PF-ALPHA-001"]);
+    assert!(o.contains("E247") && o.contains("1 to 4"), "{o}");
+}

@@ -171,6 +171,15 @@ struct StateEdge {
     legacy: bool,
 }
 
+/// Whether an element carries an ASIL or SIL — a whole-value placeholder in `asilLevel` / `silLevel`
+/// (GH #268) counts: the base model has the field unset only because its value is per configuration.
+fn has_integrity_level(fm: &crate::element::RawFrontmatter) -> bool {
+    fm.asil_level.is_some()
+        || fm.sil_level.is_some()
+        || fm.placeholder_fields.contains_key("asilLevel")
+        || fm.placeholder_fields.contains_key("silLevel")
+}
+
 /// The `requirementKind` vocabulary (E022). The last three are not architecture-allocatable.
 const REQUIREMENT_KINDS: &[&str] =
     &["stakeholder", "system", "software", "hardware", "process", "regulatory", "deliverable"];
@@ -2234,7 +2243,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // W801: SafetyGoal should carry an integrity level (asilLevel, silLevel, or plLevel)
-            if fm.asil_level.is_none() && fm.sil_level.is_none() && fm.pl_level.is_none() {
+            if !has_integrity_level(fm) && fm.pl_level.is_none() {
                 findings.push(warning("W801", &file, "SafetyGoal has no integrity level — set asilLevel (ISO 26262), silLevel (IEC 61508), or plLevel (ISO 13849-1)"));
             }
         }
@@ -7483,8 +7492,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if let Some(ref goal_ref) = fm.derived_from_safety_goal {
             if let Some(goal) = resolver.resolve_ref(elements, goal_ref) {
                 let gfm = &goal.frontmatter;
-                let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
-                let src_has   = gfm.asil_level.is_some() || gfm.sil_level.is_some();
+                let child_has = has_integrity_level(fm);
+                let src_has   = has_integrity_level(gfm);
                 if src_has && !child_has {
                     findings.push(error(
                         "E841",
@@ -7519,8 +7528,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let via = link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, di);
                 if let Some(parent) = resolver.resolve_ref(elements, df) {
                     let pfm = &parent.frontmatter;
-                    let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
-                    let src_has   = pfm.asil_level.is_some() || pfm.sil_level.is_some();
+                    let child_has = has_integrity_level(fm);
+                    let src_has   = has_integrity_level(pfm);
                     if src_has && !child_has {
                         findings.push(error(
                             "E842",
@@ -7559,8 +7568,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let via = link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::Satisfies, si);
                 if let Some(target) = resolver.resolve_ref(elements, s) {
                     let tfm = &target.frontmatter;
-                    let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
-                    let src_has   = tfm.asil_level.is_some() || tfm.sil_level.is_some();
+                    let child_has = has_integrity_level(fm);
+                    let src_has   = has_integrity_level(tfm);
                     if src_has && !child_has {
                         findings.push(error(
                             "E843",

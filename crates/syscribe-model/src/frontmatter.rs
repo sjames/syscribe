@@ -31,18 +31,21 @@ pub fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
 
 /// Parse YAML frontmatter string into `RawFrontmatter`.
 pub fn parse_frontmatter(yaml: &str) -> Result<RawFrontmatter> {
-    // A whole-value placeholder in a typed field (GH #268) is taken out of the mapping first, so a
-    // numeric field does not fail to deserialize and an enumerated one is not mistaken for a value.
-    let value: serde_yaml::Value = serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")?;
-    match value {
-        serde_yaml::Value::Mapping(mut map) => {
-            let taken = crate::placeholders::take_field_placeholders(&mut map);
-            let mut fm: RawFrontmatter = serde_yaml::from_value(serde_yaml::Value::Mapping(map)).context("Failed to parse YAML frontmatter")?;
-            fm.placeholder_fields = taken;
-            Ok(fm)
-        }
-        other => serde_yaml::from_value(other).context("Failed to parse YAML frontmatter"),
+    // The common case — no `{{` anywhere — is parsed exactly as before (string-typed fields keep the
+    // source text of an unquoted number such as `id: 2024`).
+    if !yaml.contains("{{") {
+        return serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter");
     }
+    // A whole-value placeholder in a typed field (GH #268) is taken out of the text first, so a numeric
+    // field does not fail to deserialize and an enumerated one is not mistaken for a value; the rest
+    // of the YAML is parsed untouched.
+    let (rest, taken) = crate::placeholders::take_field_placeholders(yaml);
+    if taken.is_empty() {
+        return serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter");
+    }
+    let mut fm: RawFrontmatter = serde_yaml::from_str(&rest).context("Failed to parse YAML frontmatter")?;
+    fm.placeholder_fields = taken;
+    Ok(fm)
 }
 
 /// Splice `new_fm` into `content` in place of the borrowed `yaml` region
@@ -113,6 +116,15 @@ mod tests {
     // Promoted from `applies-when`'s own private copy (issue #112, `syscribe set`
     // needed the same splice primitive) -- both callers now share one
     // implementation instead of two copies that could drift apart.
+    #[test]
+    fn unquoted_numbers_still_fill_string_fields_with_and_without_a_placeholder() {
+        let fm = parse_frontmatter("type: Requirement\nid: 2024\nname: 1.10\n").unwrap();
+        assert_eq!(fm.name.as_deref(), Some("1.10"));
+        let fm = parse_frontmatter("type: Requirement\nid: 2024\nname: 1.10\nasilLevel: \"{{Features::S.level}}\"\n").unwrap();
+        assert_eq!(fm.name.as_deref(), Some("1.10"), "a placeholder file keeps the same scalar semantics");
+        assert!(fm.asil_level.is_none() && fm.placeholder_fields.contains_key("asilLevel"));
+    }
+
     #[test]
     fn splice_frontmatter_replaces_only_the_yaml_region() {
         let content = "---\ntype: Requirement\nstatus: draft\n---\n\nBody text.\n";
