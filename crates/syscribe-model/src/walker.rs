@@ -514,6 +514,22 @@ fn attach_about_comments(elements: &mut Vec<RawElement>) {
     }
 }
 
+/// Common fields a sheet states once for all its rows (GH #229, REQ-TRS-SHEET-001):
+/// `responsibility`, `appliesWhen` and `tags` are inherited by a row that does not set
+/// them; a row's own value (including its own `tags` list) wins. `status` is handled by
+/// the callers.
+fn inherit_sheet_common_fields(row: &mut RawFrontmatter, sheet: &RawFrontmatter) {
+    if row.responsibility.is_none() {
+        row.responsibility = sheet.responsibility.clone();
+    }
+    if row.applies_when.is_none() {
+        row.applies_when = sheet.applies_when.clone();
+    }
+    if row.tags.is_none() {
+        row.tags = sheet.tags.clone();
+    }
+}
+
 /// Post-processing pass: for each TARASheet, synthesise DamageScenario, ThreatScenario,
 /// CybersecurityGoal, and SecurityControl elements from the four section tables.
 /// Each row must have an `id` key; rows without one are skipped.
@@ -572,6 +588,7 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
                 if fm.status.is_none() {
                     fm.status = sheet.frontmatter.status.clone();
                 }
+                inherit_sheet_common_fields(&mut fm, &sheet.frontmatter);
 
                 synthetic.push(RawElement {
                     qualified_name: format!("{}::{}", sheet.qualified_name, entry_id),
@@ -698,6 +715,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 fm.diagnostic_coverage = f64_val("diagnosticCoverage");
                 fm.latent_diagnostic_coverage = f64_val("latentDiagnosticCoverage");
                 fm.unknown_fmea_keys = unknown_fmea_keys;
+                inherit_sheet_common_fields(&mut fm, &sheet.frontmatter);
                 fm
             };
 
