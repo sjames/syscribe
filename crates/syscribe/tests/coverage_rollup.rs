@@ -59,6 +59,7 @@ fn filters_policy_and_json() {
     let row = |id: &str| v["rows"].as_array().unwrap().iter().find(|r| r["id"] == id).unwrap().clone();
     assert_eq!(row("REQ-RL-001")["leavesActive"], 1);
     assert_eq!(row("REQ-RL-001")["rule"], "both");
+    assert!(row("REQ-RL-002")["rule"].is_null(), "a leaf has no parent rule");
     assert_eq!(row("REQ-RL-002")["verdict"], "complete");
     assert_eq!(row("REQ-RL-004")["verdict"], "none");
     assert_eq!(v["byClass"]["system"]["complete"], 1);
@@ -71,4 +72,30 @@ fn filters_policy_and_json() {
     // a configuration error is exit 1
     let (_, c) = run(&model("[coverage]\ndefault = \"x\"\n"), &["matrix", "--rollup"]);
     assert_eq!(c, 1);
+}
+
+#[test]
+fn a_filter_cannot_hide_a_policy_error() {
+    let d = model("[coverage]\ndefault = \"rollup\"\n");
+    let rated = std::fs::read_to_string(d.join("R/REQ-RL-001.md")).unwrap().replace("reqClass: stakeholder", "reqClass: stakeholder\nasilLevel: B");
+    std::fs::write(d.join("R/REQ-RL-001.md"), rated).unwrap();
+    assert_eq!(run(&d, &["matrix", "--rollup"]).1, 1);
+    assert_eq!(run(&d, &["matrix", "--rollup", "--status", "draft"]).1, 1, "the guard covers all requirements");
+}
+
+#[test]
+fn a_diamond_ladder_finishes_quickly() {
+    // 24 layers of 2 requirements, each derived from both above: 2^24 routes without memoisation
+    let d = model("");
+    for l in 0..24 {
+        for i in 0..2 {
+            let id = format!("REQ-LD-{:03}", l * 2 + i + 1);
+            let parents = if l == 0 { String::new() } else { format!("derivedFrom: [REQ-LD-{:03}, REQ-LD-{:03}]\n", (l - 1) * 2 + 1, (l - 1) * 2 + 2) };
+            std::fs::write(d.join(format!("R/{id}.md")), format!("---\nid: {id}\ntype: Requirement\nname: {id}\nstatus: approved\nreqDomain: software\nreqClass: system\n{parents}---\n\nShall.\n")).unwrap();
+        }
+    }
+    let t = std::time::Instant::now();
+    let (o, c) = run(&d, &["matrix", "--rollup"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(t.elapsed().as_secs() < 20, "took {:?}", t.elapsed());
 }

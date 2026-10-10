@@ -9,6 +9,7 @@ use syscribe_model::resolver::Resolver;
 use syscribe_model::results::ResultsData;
 use syscribe_model::validator::ValidationResult;
 
+#[derive(Clone)]
 struct Node {
     id: String,
     name: Option<String>,
@@ -95,13 +96,9 @@ fn build(
 ) -> Node {
     let k = key(e);
     path.insert(k.clone());
-    let (rule, source) = policy.rule_for(&e.frontmatter);
-    let leaf_now = result.derived_children.get(&k).is_none_or(|v| v.is_empty());
-    if !leaf_now && rule != ParentRule::Both && is_integrity_rated(&e.frontmatter) {
-        violations.push(format!(
-            "{k} is integrity-rated (ASIL/CAL/SIL) but {source} sets parent_rule = \"{}\"; an integrity-rated parent needs \"both\"",
-            rule.as_str()
-        ));
+    let (rule, _source) = policy.rule_for(&e.frontmatter);
+    if let Some(v) = guard_violation(e, result, policy) {
+        violations.push(v);
     }
     let mut child_ids: Vec<&String> = result.derived_children.get(&k).map(|v| v.iter().collect()).unwrap_or_default();
     child_ids.sort();
@@ -150,6 +147,72 @@ fn build(
         rule,
         children: kids,
     }
+}
+
+/// The integrity guard of `[coverage]`: a parent that is integrity-rated must keep the `both` rule.
+fn guard_violation(e: &RawElement, result: &ValidationResult, policy: &CoveragePolicy) -> Option<String> {
+    let k = key(e);
+    let (rule, source) = policy.rule_for(&e.frontmatter);
+    let is_parent = result.derived_children.get(&k).is_some_and(|v| !v.is_empty());
+    (is_parent && rule != ParentRule::Both && is_integrity_rated(&e.frontmatter)).then(|| {
+        format!(
+            "{k} is integrity-rated (ASIL/CAL/SIL) but {source} sets parent_rule = \"{}\"; an integrity-rated parent needs \"both\"",
+            rule.as_str()
+        )
+    })
+}
+
+/// Coverage of one requirement without the child tree, memoised across the whole model so a
+/// requirement reachable by many `derivedFrom` routes is computed once (diamonds would otherwise be
+/// walked once per route). A node cut short by a cycle back-edge is not memoised.
+#[allow(clippy::too_many_arguments)]
+fn summarise(
+    e: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    result: &ValidationResult,
+    states: &std::collections::HashMap<String, &'static str>,
+    path: &mut HashSet<String>,
+    policy: &CoveragePolicy,
+    memo: &mut std::collections::HashMap<String, Node>,
+) -> (Node, bool) {
+    let k = key(e);
+    if let Some(n) = memo.get(&k) {
+        return (n.clone(), false);
+    }
+    path.insert(k.clone());
+    let mut child_ids: Vec<&String> = result.derived_children.get(&k).map(|v| v.iter().collect()).unwrap_or_default();
+    child_ids.sort();
+    let leaf = child_ids.is_empty();
+    let mut cut = false;
+    let mut leaves: BTreeMap<String, &'static str> = BTreeMap::new();
+    for cid in child_ids {
+        if path.contains(cid) {
+            cut = true;
+            continue;
+        }
+        if let Some(c) = resolver.resolve_ref(elements, cid) {
+            let (cn, ccut) = summarise(c, elements, resolver, result, states, path, policy, memo);
+            cut |= ccut;
+            leaves.extend(cn.leaves);
+        }
+    }
+    path.remove(&k);
+    let own = states.get(&k).copied().unwrap_or("na");
+    if leaf && own != "na" {
+        leaves.insert(k.clone(), own);
+    }
+    let direct = result
+        .verified_by
+        .get(&k)
+        .map(|v| v.iter().filter(|tc| resolver.resolve_ref(elements, tc).is_some_and(|t| t.frontmatter.status.as_deref() == Some("active"))).count())
+        .unwrap_or(0);
+    let (rule, _) = policy.rule_for(&e.frontmatter);
+    let n = Node { id: k.clone(), name: e.frontmatter.name.clone(), status: e.frontmatter.status.clone(), leaf, own, leaves, direct, rule, children: Vec::new() };
+    if !cut {
+        memo.insert(k, n.clone());
+    }
+    (n, cut)
 }
 
 fn render(n: &Node, depth: usize, out: &mut String) {
@@ -260,14 +323,8 @@ pub fn cmd_rollup(
         .filter(|e| tag.is_none_or(|t| e.frontmatter.tags.iter().flatten().any(|x| x == t)))
         .collect();
     reqs.sort_by_key(|e| key(e));
-    let mut violations = Vec::new();
-    let rows: Vec<(&RawElement, Node)> = reqs
-        .into_iter()
-        .map(|e| {
-            let n = build(e, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut violations);
-            (e, n)
-        })
-        .collect();
+    // The integrity guard covers every requirement, whatever the display filters keep.
+    let mut violations: Vec<String> = elements.iter().filter(|e| Resolver::is_native_requirement(e)).filter_map(|e| guard_violation(e, result, policy)).collect();
     violations.sort();
     violations.dedup();
     if !violations.is_empty() {
@@ -276,9 +333,17 @@ pub fn cmd_rollup(
         }
         return 1;
     }
+    let mut memo = std::collections::HashMap::new();
+    let rows: Vec<(&RawElement, Node)> = reqs
+        .into_iter()
+        .map(|e| {
+            let (n, _) = summarise(e, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut memo);
+            (e, n)
+        })
+        .collect();
     let mut by_class: BTreeMap<String, BTreeMap<&'static str, usize>> = BTreeMap::new();
     for (e, n) in &rows {
-        let class = e.frontmatter.req_class.clone().unwrap_or_else(|| "(none)".into());
+        let class = e.frontmatter.req_class.clone().unwrap_or_else(|| "-".into());
         *by_class.entry(class).or_default().entry(n.verdict()).or_default() += 1;
     }
     if json_out {
@@ -289,7 +354,7 @@ pub fn cmd_rollup(
                     "id": n.id, "name": n.name, "reqClass": e.frontmatter.req_class, "status": n.status, "leaf": n.leaf,
                     "own": if n.leaf { json!(n.own_label()) } else { Value::Null },
                     "directTests": n.direct, "leavesActive": n.active(), "leavesPlanned": n.planned(), "leavesUncovered": n.uncovered(),
-                    "verdict": n.verdict(), "glyph": n.glyph().to_string(), "rule": n.rule.as_str(),
+                    "verdict": n.verdict(), "glyph": n.glyph().to_string(), "rule": if n.leaf { Value::Null } else { json!(n.rule.as_str()) },
                 })
             })
             .collect();
@@ -316,7 +381,7 @@ pub fn cmd_rollup(
             own,
             below,
             n.glyph(),
-            n.rule.as_str()
+            if n.leaf { "-" } else { n.rule.as_str() }
         );
     }
     println!("\nBy reqClass:");

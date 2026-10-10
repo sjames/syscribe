@@ -25,7 +25,10 @@ its effective (inherited + own) selection, spec §9.8.
                     descendants active/total/planned), verdict glyph and the
                     [coverage] rule applied, plus a per-reqClass footer. The
                     all-requirements view of `coverage tree`. Honours --tag,
-                    --status, --config and --json.
+                    --status, --config and --json; --gaps-only, --linked-only are not applied (results are always
+                    used), --plan scopes the model first, and --allocations / --features take
+                    precedence over it. The [coverage] integrity guard runs over all
+                    requirements, whatever the filters keep.
     --features      Show the Feature × Configuration selection grid instead.
     --allocations   Show the MagicGrid Allocation source × target matrix instead:
                     rows are allocation sources, columns are targets, cells mark an
