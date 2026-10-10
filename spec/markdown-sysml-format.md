@@ -297,6 +297,7 @@ Native, id-identified element types for functional safety (ISO 26262, IEC 61508,
 | `Argument` | `ARG-*` | GSN claim, strategy, or solution node in the safety argument. §8.18.6 |
 | `AssumptionOfUse` | `AOU-*` | Safety-related application condition constraining goals, arguments, or requirements. §8.18.6 |
 | `TestEnvironment` | `TE-*` | The rig a test runs on (HIL, bench, chamber, vehicle); capabilities and calibration. §8.12.7 |
+| `SafetyMechanism` | `SM-*` | Diagnostic/safety mechanism: `covers:` failure modes, coverages, `reactionTime`, `safeState`. §8.18.9 |
 | `DependentFailureAnalysis` | `DFA-*` | ISO 26262-9 clause 7 independence argument for decomposed or co-hosted elements. §8.18.7 |
 | `Zone` | `ZN-*` | IEC 62443 security zone with a target security level. §13.2 |
 | `Conduit` | `CD-*` | IEC 62443 conduit connecting two zones, with an achieved security level. §13.3 |
@@ -4539,6 +4540,10 @@ Security/Attacks/AT-TORQUE-001/
 
 **Feasibility roll-up (weakest-link):** rank `very_low`=0, `low`=1, `medium`=2, `high`=3. An `AttackStep` is its `attackFeasibility` rank; an `AND` gate (sequential path) is the **MIN** of its children; an `OR` gate (alternatives) is the **MAX** of its children; the `AttackTree`'s feasibility is the value of its root node — the one gate/step of the tree that no other gate lists in its `inputs:`, independent of file order (no unique root → not computable, no W035) — mapped back to a label. When the computed feasibility differs from the linked `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs declared).
 
+#### 8.18.9 Safety mechanisms (`SafetyMechanism`)
+
+`SafetyMechanism` (`SM-*`, GH #236) makes "which mechanism covers which failure mode, with what diagnostic coverage and reaction time" answerable from the model. `status` is `draft`, `review`, `approved` or `retired`. `covers:` (string or list) names the `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` elements covered (unresolved or of another type → E897). `diagnosticCoverage` and `latentDiagnosticCoverage` are numbers in 0..1 (outside → E896); `reactionTime` is a duration (`10 ms`); `safeState` is text; `allocatedTo:` names where the mechanism runs. A non-draft mechanism whose `reactionTime` exceeds the `ftti` (or `ftti` quantity) of a goal it covers — directly or through a covered requirement's `derivedFromSafetyGoal` — is W894. `syscribe mechanisms` lists them; `--uncovered` lists the `FMEAEntry` rows no mechanism covers. The hardware FMEDA table feeding SPFM/LFM is not yet modelled.
+
 #### 8.18.8 Structured timing quantities (`quantities:`)
 
 Any element may carry `quantities:` (GH #237), a list of `{kind, value, unit}`: `kind` is `ftti`, `latency`, `wcet` or `reaction`; `value` a positive number; `unit` `s`, `ms`, `us` or `ns`. A `SafetyGoal`'s `ftti:` string is read as an `ftti` quantity. Malformed entries are E895. `validate` compares budgets after normalising units (W893): for a `Requirement` or `SafetyGoal` with a quantity of a kind, the sum of that kind over the requirements derived from it (`derivedFrom:`, or `derivedFromSafetyGoal:` for a goal) — treated as a serial chain — must not exceed it, and for a goal with an `ftti` each derived requirement's `latency` plus `reaction` must fit. A child that states no quantity of the kind contributes the serial sum of its own children (the budget rolls up through intermediate requirements); draft and retired children do not count and a child listed twice counts once. A parent whose children state nothing of the kind raises nothing. A budget holder with a variant-gated child is not summed in plain `validate` (alternatives cannot be added up) but is recomputed in each variant by `validate --config` / `--all-configs`. One value per kind per element (a second is E895); draft budget holders are not checked.
@@ -6524,6 +6529,16 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | W891 | Warning | a `TestCase`/`TestPlan` lists `requiresCapabilities` that none of its `runsOn` environments offers (case-insensitive) |
 | W892 | Warning | a non-draft `TestCase`/`TestPlan` runs on a `retired` `TestEnvironment` or one whose `calibrationStatus` is `expired` |
 
+#### Safety mechanisms (E896–E897, W894)
+
+`SafetyMechanism` (`SM-*`, §8.18.9).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or a `diagnosticCoverage` / `latentDiagnosticCoverage` is outside 0..1 |
+| E897 | Error | a `SafetyMechanism.covers` entry does not resolve, or is not an `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` |
+| W894 | Warning | a non-draft `SafetyMechanism`'s `reactionTime` exceeds the `ftti` of a `SafetyGoal` it covers (directly or through a covered requirement's `derivedFromSafetyGoal`) |
+
 #### Dependent failure analysis (E890–E892, W890)
 
 `DependentFailureAnalysis` (`DFA-*`, §8.18.7).
@@ -8442,6 +8457,8 @@ since `status: in_progress` alone already signals active work.
 | `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
 | `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
 | `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `covers` | SafetyMechanism | string or list | absent | 8.18.9, 11.12 (E897) — FMEAEntry/FaultTreeEvent/Requirement/SafetyGoal/HazardousEvent covered |
+| `reactionTime` | SafetyMechanism | duration string | absent | 8.18.9, 11.12 (W894) |
 | `quantities` | any (SafetyGoal / Requirement / TestCase) | list of mappings | absent | 8.18.8, 11.12 (E895, W893) — `{kind, value, unit}` |
 | `runsOn` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (E894) — TestEnvironment(s) the test executes on |
 | `requiresCapabilities` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (W891) — capabilities needed from the environment |

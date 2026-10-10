@@ -6,7 +6,7 @@ use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_asset_id, is_aou_id, is_dfa_id, is_te_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
+    is_adr_id, is_asset_id, is_aou_id, is_dfa_id, is_sm_id, is_te_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_zn_id,
     is_pi_id,
@@ -2401,6 +2401,78 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 if approved && !mitigated {
                     findings.push(warning("W890", &file, &format!("approved DependentFailureAnalysis: shared resource '{}' has no `mitigation`", if resource.is_empty() { format!("#{n}") } else { resource.to_string() })));
                 }
+            }
+        }
+
+        // ── SafetyMechanism (E896, E897, W894; GH #236) ──
+        if matches!(fm.element_type, Some(ElementType::SafetyMechanism)) {
+            const SM_STATUSES: &[&str] = &["draft", "review", "approved", "retired"];
+            for (field, present) in [("id", fm.id.is_some()), ("name", fm.name.is_some()), ("status", fm.status.is_some())] {
+                if !present {
+                    findings.push(error("E896", &file, &format!("`{field}` is required on SafetyMechanism")));
+                }
+            }
+            if let Some(ref id) = fm.id {
+                if !is_sm_id(id) {
+                    findings.push(error("E896", &file, &format!("`id` '{id}' does not match SM-* pattern")));
+                }
+            }
+            if let Some(ref s) = fm.status {
+                if !SM_STATUSES.contains(&s.as_str()) {
+                    findings.push(error("E896", &file, &format!("SafetyMechanism.status '{s}' must be draft, review, approved or retired")));
+                }
+            }
+            for (field, v) in [("diagnosticCoverage", fm.diagnostic_coverage), ("latentDiagnosticCoverage", fm.latent_diagnostic_coverage)] {
+                if let Some(v) = v {
+                    if !(0.0..=1.0).contains(&v) {
+                        findings.push(error("E896", &file, &format!("SafetyMechanism.{field} {v} must be between 0 and 1")));
+                    }
+                }
+            }
+            let goal_ftti = |g: &RawElement| -> Option<f64> {
+                let q = g.frontmatter.quantities.iter().flatten().filter_map(|e| e.as_mapping()).find(|m| yaml_field(m, "kind").and_then(|v| v.as_str()) == Some("ftti"));
+                if let Some(m) = q {
+                    let v = yaml_field(m, "value").and_then(|v| v.as_f64())?;
+                    let f = match yaml_field(m, "unit").and_then(|v| v.as_str())? { "s" => 1000.0, "ms" => 1.0, "us" => 0.001, "ns" => 1e-6, _ => return None };
+                    return Some(v * f);
+                }
+                g.frontmatter.ftti.as_deref().and_then(crate::asil::ftti_millis)
+            };
+            let reaction = fm.reaction_time.as_deref().and_then(crate::asil::ftti_millis);
+            let draft = fm.status.as_deref() == Some("draft");
+            let mut over: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            for r in fm.covers.iter().flatten() {
+                let Some(t) = resolver.resolve_ref(elements, r) else {
+                    findings.push(error("E897", &file, &format!("SafetyMechanism.covers '{r}' does not resolve to any model element")));
+                    continue;
+                };
+                let ok = matches!(
+                    t.frontmatter.element_type,
+                    Some(ElementType::FMEAEntry) | Some(ElementType::FaultTreeEvent) | Some(ElementType::SafetyGoal) | Some(ElementType::HazardousEvent)
+                ) || Resolver::is_native_requirement(t);
+                if !ok {
+                    findings.push(error("E897", &file, &format!("SafetyMechanism.covers '{r}' must be an FMEAEntry, FaultTreeEvent, Requirement, SafetyGoal or HazardousEvent")));
+                    continue;
+                }
+                if draft {
+                    continue;
+                }
+                // The goal whose FTTI bounds this coverage: the covered goal, or the goal a covered requirement derives from.
+                let goal = if matches!(t.frontmatter.element_type, Some(ElementType::SafetyGoal)) {
+                    Some(t)
+                } else {
+                    t.frontmatter.derived_from_safety_goal.as_deref().and_then(|g| resolver.resolve_ref(elements, g))
+                };
+                if let (Some(rt), Some(g)) = (reaction, goal) {
+                    if let Some(f) = goal_ftti(g) {
+                        if rt > f * (1.0 + 1e-9) {
+                            over.insert(format!("{} ({f} ms)", g.frontmatter.id.as_deref().unwrap_or(&g.qualified_name)));
+                        }
+                    }
+                }
+            }
+            for g in over {
+                findings.push(warning("W894", &file, &format!("reactionTime {} exceeds the FTTI of {g}", fm.reaction_time.as_deref().unwrap_or(""))));
             }
         }
 

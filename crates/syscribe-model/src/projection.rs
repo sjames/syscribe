@@ -230,7 +230,7 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
     }
     // List-valued references of the analysis/process elements (GH #234): an inactive member
     // escapes as W019 rather than failing the element's own resolution check.
-    for xs in [&fm.reviews, &fm.test_cases, &fm.demonstrates, &fm.confirms, &fm.supports, &fm.runs_on, &fm.analyses].into_iter().flatten() {
+    for xs in [&fm.reviews, &fm.test_cases, &fm.demonstrates, &fm.confirms, &fm.supports, &fm.runs_on, &fm.analyses, &fm.covers].into_iter().flatten() {
         for s in xs {
             out.push((RefKind::Traceability, s.clone()));
         }
@@ -325,7 +325,7 @@ const LENS_SUPPRESS: &[&str] = &[
     "E102", "E103", "E104", "E105", "E106", "E110", "E111", "E112", "E113", "E114", "E320", "E632",
     // Per-kind resolution of list-valued references (GH #234): a member inactive in the variant is
     // a W019 escape; one that resolves nowhere is still reported by whole-model `validate`.
-    "E601", "E603", "E704", "E716", "E851", "E855", "E891", "E894",
+    "E601", "E603", "E704", "E716", "E851", "E855", "E891", "E894", "E897",
     // A `done` leaf PlanningItem whose only evidence is inactive here has no resolving evidence (E719):
     // the same cascade, reported as the W019 escape instead.
     "E719",

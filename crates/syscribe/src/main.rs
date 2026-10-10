@@ -13,6 +13,7 @@ mod covtree;
 mod runhist;
 mod reqif_import;
 mod compliance;
+mod mechanisms;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
@@ -1202,6 +1203,13 @@ fn main() {
                         eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
                         std::process::exit(1);
                     }
+                }
+            }
+            "mechanisms" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = mechanisms::cmd_mechanisms(&elems, rest.iter().any(|a| a == "--json"), rest.iter().any(|a| a == "--uncovered"));
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             "compliance" => {

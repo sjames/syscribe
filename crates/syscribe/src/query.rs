@@ -488,7 +488,7 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
             out.push(("evidence".into(), s.to_string()));
         }
     }
-    for (label, list) in [("runsOn", &fm.runs_on), ("analyses", &fm.analyses)] {
+    for (label, list) in [("runsOn", &fm.runs_on), ("analyses", &fm.analyses), ("covers", &fm.covers)] {
         for s in list.iter().flatten() { out.push((label.into(), s.clone())); }
     }
     if let Some(ref at) = fm.applies_to {
@@ -694,10 +694,10 @@ pub fn cmd_show(
         }
     }
     if let Some(ref at) = fm.applies_to { if !at.is_empty() { println!("| **appliesTo** | {} |", at.join(", ")); } }
-    for (label, list) in [("analyses", &fm.analyses), ("runsOn", &fm.runs_on), ("requiresCapabilities", &fm.requires_capabilities), ("capabilities", &fm.capabilities)] {
+    for (label, list) in [("analyses", &fm.analyses), ("runsOn", &fm.runs_on), ("requiresCapabilities", &fm.requires_capabilities), ("capabilities", &fm.capabilities), ("covers", &fm.covers)] {
         if let Some(l) = list.as_ref().filter(|l| !l.is_empty()) { println!("| **{label}** | {} |", l.join(", ")); }
     }
-    for (label, v) in [("environmentKind", &fm.environment_kind), ("calibrationStatus", &fm.calibration_status), ("calibrationDue", &fm.calibration_due)] {
+    for (label, v) in [("environmentKind", &fm.environment_kind), ("calibrationStatus", &fm.calibration_status), ("calibrationDue", &fm.calibration_due), ("reactionTime", &fm.reaction_time)] {
         if let Some(v) = v { println!("| **{label}** | {v} |"); }
     }
     if let Some(sr) = fm.shared_resources.as_ref().filter(|l| !l.is_empty()) { println!("| **sharedResources** | {} |", sr.len()); }
@@ -4478,6 +4478,24 @@ calibrationDue: 2027-01-01
 The rig a test runs on. Name it from a `TestCase` or `TestPlan` with `runsOn:`; list what
 the test needs with `requiresCapabilities:` (`W891` when the rig lacks one).
 "#,
+        "safetymechanism" => r#"---
+type: SafetyMechanism
+id: SM-PREFIX-001
+name: "[Frame CRC monitor]"
+status: draft                 # draft | review | approved | retired
+covers:                       # FMEAEntry / FaultTreeEvent / Requirement / SafetyGoal / HazardousEvent
+  - FM-PREFIX-001
+diagnosticCoverage: 0.99      # 0..1
+latentDiagnosticCoverage: 0.9 # 0..1
+reactionTime: 20 ms           # compared with the covered goal's FTTI (W894)
+safeState: "[blank display]"
+allocatedTo:
+  - Architecture::PartA
+---
+
+A safety mechanism: what it detects or controls, with which coverage, and how fast it reacts.
+List mechanisms with `syscribe mechanisms`.
+"#,
         "dependentfailureanalysis" => r#"---
 type: DependentFailureAnalysis
 id: DFA-PREFIX-001
@@ -4614,7 +4632,7 @@ fn template_group(name: &str) -> &'static str {
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"
         | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse"
-        | "DependentFailureAnalysis" => "Safety",
+        | "DependentFailureAnalysis" | "SafetyMechanism" => "Safety",
         "Asset" | "DamageScenario" | "ThreatScenario" | "CybersecurityGoal" | "SecurityControl"
         | "VulnerabilityReport" | "TARASheet" | "AttackTree" | "AttackTreeGate" | "AttackStep"
         | "Zone" | "Conduit" => "Security",

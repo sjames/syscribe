@@ -372,6 +372,7 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` Aâ
 | `supports` | Argument | string or list | SafetyGoal or parent Argument argued for |
 | `evidence` | Argument | list | Requirement/TestCase/Argument/AssumptionOfUse refs (strings) |
 | `appliesTo` | AssumptionOfUse | list | SafetyGoal/Argument/Requirement the SRAC constrains |
+| `covers` / `reactionTime` | SafetyMechanism | list / duration | Failure modes covered; reaction time checked against the goal FTTI (W894) |
 | `quantities` | any | list | Timing values `{kind: ftti\|latency\|wcet\|reaction, value, unit: s\|ms\|us\|ns}`; budgets checked (W893) |
 | `runsOn` | TestCase / TestPlan | list | TestEnvironment(s) the test executes on |
 | `requiresCapabilities` | TestCase / TestPlan | list | Capabilities needed from the environment |

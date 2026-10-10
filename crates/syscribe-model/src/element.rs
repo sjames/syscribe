@@ -91,6 +91,9 @@ mod named_string_or_vec {
     pub fn capabilities<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "capabilities")
     }
+    pub fn covers<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "covers")
+    }
 }
 
 /// A string-typed field that tolerates a YAML number or bool (`calibrationDue: 20270101`,
@@ -259,6 +262,7 @@ pub enum ElementType {
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     DependentFailureAnalysis, // DFA-* — ISO 26262-9 clause 7 independence argument
     TestEnvironment,  // TE-* — a rig a test runs on (HIL, bench, chamber, vehicle)
+    SafetyMechanism,  // SM-* — a diagnostic/safety mechanism with coverage and reaction time
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
     // Single-file feature model (REQ-TRS-FM-005) — a `featureTree:` sheet
@@ -371,6 +375,7 @@ impl ElementType {
         ElementType::AssumptionOfUse,
         ElementType::DependentFailureAnalysis,
         ElementType::TestEnvironment,
+        ElementType::SafetyMechanism,
         ElementType::TARASheet,
         ElementType::FeatureModel,
         ElementType::Package,
@@ -472,6 +477,7 @@ impl ElementType {
             ElementType::AssumptionOfUse => "AssumptionOfUse",
             ElementType::DependentFailureAnalysis => "DependentFailureAnalysis",
             ElementType::TestEnvironment => "TestEnvironment",
+            ElementType::SafetyMechanism => "SafetyMechanism",
             ElementType::TARASheet => "TARASheet",
             ElementType::FeatureModel => "FeatureModel",
             ElementType::Package => "Package",
@@ -532,6 +538,7 @@ impl ElementType {
                 | ElementType::AssumptionOfUse
                 | ElementType::DependentFailureAnalysis
                 | ElementType::TestEnvironment
+                | ElementType::SafetyMechanism
                 | ElementType::Asset
         )
     }
@@ -1163,6 +1170,12 @@ pub struct ColdFrontmatter {
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `SafetyMechanism.covers` — failure modes / requirements / goals the mechanism covers (E897).
+    #[serde(default, deserialize_with = "named_string_or_vec::covers")]
+    pub covers: Option<Vec<String>>,
+    /// `SafetyMechanism.reactionTime` — a duration such as `10 ms` (W894 against the covered FTTI).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub reaction_time: Option<String>,
     /// `quantities:` — structured timing values `{kind, value, unit}` (kind ftti | latency | wcet |
     /// reaction; unit s | ms | us | ns). E895 / W893.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
@@ -1745,6 +1758,12 @@ struct ColdWire {
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `SafetyMechanism.covers` — failure modes / requirements / goals the mechanism covers (E897).
+    #[serde(default, deserialize_with = "named_string_or_vec::covers")]
+    pub covers: Option<Vec<String>>,
+    /// `SafetyMechanism.reactionTime` — a duration such as `10 ms` (W894 against the covered FTTI).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub reaction_time: Option<String>,
     /// `quantities:` — structured timing values `{kind, value, unit}` (kind ftti | latency | wcet |
     /// reaction; unit s | ms | us | ns). E895 / W893.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
@@ -2134,6 +2153,8 @@ impl ColdWire {
             applies_to: w.applies_to,
             analyses: w.analyses,
             shared_resources: w.shared_resources,
+            covers: w.covers,
+            reaction_time: w.reaction_time,
             quantities: w.quantities,
             runs_on: w.runs_on,
             requires_capabilities: w.requires_capabilities,

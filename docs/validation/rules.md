@@ -947,6 +947,17 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 
 See `docs/model-guide/safety-analysis.md`.
 
+### SafetyMechanism (E896–E897, W894)
+
+`SafetyMechanism` (`SM-*`, GH #236) records what a mechanism covers, its coverages and reaction
+time; list them with `syscribe mechanisms`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or a `diagnosticCoverage` / `latentDiagnosticCoverage` is outside 0..1 |
+| E897 | Error | a `SafetyMechanism.covers` entry does not resolve, or is not an `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` |
+| W894 | Warning | a non-draft `SafetyMechanism`'s `reactionTime` exceeds the `ftti` of a `SafetyGoal` it covers (directly or through a covered requirement's `derivedFromSafetyGoal`) |
+
 ### DependentFailureAnalysis (E890–E892, W890)
 
 The ISO 26262-9 clause 7 independence argument as a model element (`DFA-*`). An `approved`
