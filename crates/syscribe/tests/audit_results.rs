@@ -85,6 +85,7 @@ fn passing_results_show_the_section_but_no_failing_reasons() {
     let v = audit(&model(Some(PASSING)));
     assert_eq!(v["verification"]["tests"]["pass"], 2, "{v}");
     assert_eq!(v["verification"]["goals"]["failing"], 0, "{v}");
+    assert_eq!(v["verification"]["goals"]["supported"], 1, "{v}");
     let r = reasons(&v);
     assert!(!r.contains("FAILING") && !r.contains("W312"), "{r}");
 }
@@ -102,4 +103,23 @@ fn text_output_has_the_section() {
     let s = String::from_utf8_lossy(&o.stdout);
     assert!(s.contains("Verification results") && s.contains("FAILING"), "{s}");
     assert!(s.contains("Verdict: **FAIL**"), "{s}");
+}
+
+#[test]
+fn plan_scoped_audit_reports_tests_only_and_does_not_apply_goal_verdicts() {
+    // Goals and plans are model-level; a plan-scoped audit counts the plan's tests and
+    // leaves goal/plan verdicts out rather than silently reporting zeros.
+    let root = model(Some(FAILING));
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe"))
+        .arg("-m")
+        .arg(&root)
+        .args(["audit", "--json", "--plan", "TP-AUDIT-001"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&o.stdout);
+    let v: serde_json::Value = serde_json::from_str(&s).unwrap_or_else(|e| panic!("{e}: {s}"));
+    assert_eq!(v["verification"]["tests"]["fail"], 1, "{v}");
+    assert!(v["verification"]["goals"].is_null(), "{v}");
+    assert!(v["verification"]["plans"].is_null(), "{v}");
+    assert!(!reasons(&v).contains("FAILING"), "{}", reasons(&v));
 }

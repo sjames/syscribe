@@ -986,7 +986,7 @@ $ syscribe -m model/ audit --all-configs       # gate every Configuration's vari
 
 **Variant scoping (`--config` / `--all-configs`).** Certification is scoped to a *variant*. `audit --config <CONF|features>` projects the entire dashboard — verdict, W306, orphans, coverage — onto the elements **active** in that configuration (per `appliesWhen`), exactly like `validate --config`; a requirement gated out of the variant no longer trips the verdict. `audit --all-configs` audits every stored `Configuration` and exits non-zero if any fails. (The same `--config` lens is available on `metrics`, `cyber-risk`, `co-analysis`, `verification-depth`, and `safety-case`.)
 
-The report (mirrored in `--json`) has seven sections:
+The report (mirrored in `--json`) has eight sections:
 
 1. **Requirement status split** — counts of native `Requirement`s by `status:` (`draft` / `review` / `approved` / `implemented` / `verified`), **overall** and **per top-level package** (the first `::` segment of the qualified name).
 2. **SIL / ASIL distribution** — counts by `silLevel` and by `asilLevel`, plus a `QM/none` bucket for requirements that declare neither.
@@ -994,14 +994,15 @@ The report (mirrored in `--json`) has seven sections:
 4. **Orphans** — counts and ids of: requirements with no active verifying `TestCase`; requirements that no element `satisfies:`; `TestCase`s whose `verifies:` is empty or resolves to nothing; and requirements with neither `derivedFrom` nor `derivedChildren`.
 5. **Safety** — hazardous events; safety goals by integrity level (`ASIL x` / `SIL n` / `PL x`); goals with no derived requirement (`W805`), unreferenced hazards (`W800`), goals with no integrity level (`W801`); fault trees and events; FMEA sheets/rows with the max RPN, rows missing S/O/D (`W931`), `W903` and severity-priority (`W932`) gaps; the SPFM/LFM/PMHF hardware metrics per goal with a pass/fail/n-a result against the ASIL/SIL target; and freedom-from-interference gaps (`W034`).
 6. **Security** — assets, damage and threat scenarios, cybersecurity goals by CAL, security controls, goals not implemented by a control (`W802`) or with no derived requirement (`W804`), assets in no damage scenario (`W810`), vulnerability reports (total / open), attack trees, and IEC 62443 zones (with security-level gaps) and conduits.
-7. **Readiness verdict** — a single **PASS/FAIL** line that names *why* it failed.
+7. **Verification results** — present only when test results are ingested: active tests by verdict (pass / fail / unknown), safety goals by safety-case verdict (supported / incomplete / **failing**) and test plans by verdict. Under `--plan`, goals and plans are model-level and reported as `null`.
+8. **Readiness verdict** — a single **PASS/FAIL** line that names *why* it failed.
 
 ### Verdict policy and exit code
 
 | Exit code | Meaning |
 |---|---|
-| `0` | **PASS** — no `Error`-severity findings, no finding selected by the `[audit]` policy (default: `W306`, and `W033`/`W805` on an ASIL C/D goal), and (under `--profile`) nothing the profile promotes. |
-| `2` | **FAIL** — at least one `Error` finding, **or** at least one finding selected by the `[audit]` policy (default: `W306`, the unsatisfied-safety-mechanism gate; `W033`, a hardware safety metric below its target, and `W805`, a goal no requirement derives from, when the goal is ASIL C or D), **or** at least one finding promoted by `--profile <name>`. |
+| `0` | **PASS** — no `Error`-severity findings, no finding selected by the `[audit]` policy (default: `W306`, `W312`, and `W033`/`W805` on an ASIL C/D goal), no safety goal `failing` on ingested results, and (under `--profile`) nothing the profile promotes. |
+| `2` | **FAIL** — at least one `Error` finding, **or** at least one finding selected by the `[audit]` policy (default: `W306`, the unsatisfied-safety-mechanism gate; `W033`, a hardware safety metric below its target, and `W805`, a goal no requirement derives from, when the goal is ASIL C or D), **or** a safety goal is `failing` on ingested test results (not evaluated under `--plan`), **or** at least one finding promoted by `--profile <name>`. The default policy also selects `W312`, an approved/implemented requirement whose active verifier failed. |
 | `1` | The `--profile <name>` is undefined (or no `.syscribe.toml` exists). |
 
 The default policy always fails on errors, on `W306`, and on `W033`/`W805` for ASIL C/D goals (a model with an ASIL D goal whose metrics miss target or that no requirement derives from is not "ready"; this was a PASS before GH #216). **Configurable policy:** an `[audit]` table in `<model_root>/.syscribe.toml` replaces the defaults:
@@ -1015,7 +1016,7 @@ W033 = ["B", "C", "D"]
 W805 = ["D"]
 ```
 
-A present key replaces its default wholesale, so an empty `[audit.fail_on_asil]` table opts out of the ASIL-gated defaults and relaxes the audit to the previous behaviour. Error-severity findings always fail. A malformed entry is ignored and reported as `W934`. Passing `--profile <name>` loads `[profiles.<name>]` from `<model_root>/.syscribe.toml` and additionally fails the audit if any finding that profile promotes is present, using the same promotion semantics as `validate --profile`. The JSON document has the shape `{ statusSplit, integrityDistribution, coverage, orphans, safety, security, verdict: { pass, reasons } }`.
+A present key replaces its default wholesale, so an empty `[audit.fail_on_asil]` table opts out of the ASIL-gated defaults and relaxes the audit to the previous behaviour. Error-severity findings always fail. A malformed entry is ignored and reported as `W934`. Passing `--profile <name>` loads `[profiles.<name>]` from `<model_root>/.syscribe.toml` and additionally fails the audit if any finding that profile promotes is present, using the same promotion semantics as `validate --profile`. The JSON document has the shape `{ statusSplit, integrityDistribution, coverage, orphans, safety, security, verification, verdict: { pass, reasons } }` (`verification` is `null` without ingested results).
 
 ---
 

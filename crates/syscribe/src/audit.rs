@@ -222,35 +222,43 @@ pub fn audit_verdict(
     let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project(elements, s));
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let resolver = Resolver::new(view);
-    let in_scope = |e: &RawElement| plan_scope.is_none_or(|s| s.contains(&e.file_path));
-    let failing = failing_goals(view, &resolver, config, &in_scope);
+    let failing = failing_goals(view, &resolver, config, plan_scope.is_some());
     verdict_from_findings(&findings, elements, config, profile, &failing)
 }
 
-/// Safety goals whose argument is `failing` on the ingested results (GH #256). Empty
-/// when no results are loaded.
-fn failing_goals(
+/// The safety case over the **reporting** view, so a `coverage = true` link type counts
+/// the same here as in every dashboard section. `coverage_view` keeps the element order,
+/// so `resolver` (built on `view`) stays valid. Shared by the verdict and the section so
+/// they cannot disagree.
+fn goal_verdicts(
     view: &[RawElement],
     resolver: &Resolver,
     config: &ValidateConfig,
-    in_scope: &dyn Fn(&RawElement) -> bool,
-) -> Vec<String> {
-    let Some(results) = config.results.as_ref() else { return Vec::new() };
-    let sc = syscribe_model::safety_case::build(
-        view,
+    results: &syscribe_model::results::ResultsData,
+) -> syscribe_model::safety_case::SafetyCase {
+    let cov = syscribe_model::link_types::coverage_view(view, &config.link_types);
+    syscribe_model::safety_case::build(
+        &cov,
         resolver,
         "",
         syscribe_model::safety_case::BuildOptions::default(),
         &|tc| syscribe_model::results::testcase_verdict(tc, Some(results)),
-    );
+    )
+}
+
+/// Safety goals whose argument is `failing` on the ingested results (GH #256). Empty
+/// when no results are loaded.
+fn failing_goals(view: &[RawElement], resolver: &Resolver, config: &ValidateConfig, plan_scoped: bool) -> Vec<String> {
+    let Some(results) = config.results.as_ref() else { return Vec::new() };
+    if plan_scoped {
+        return Vec::new(); // goals are model-level; see `goal_verdicts`
+    }
+    let sc = goal_verdicts(view, resolver, config, results);
     let mut out: Vec<String> = sc
         .goals
         .iter()
         .filter(|g| g.verdict == syscribe_model::safety_case::GoalVerdict::Failing)
-        .filter_map(|g| {
-            let goal = view.iter().find(|e| Resolver::is_safety_goal(e) && disp_id(e) == g.root.id)?;
-            in_scope(goal).then(|| disp_id(goal))
-        })
+        .map(|g| g.root.id.clone())
         .collect();
     out.sort();
     out
@@ -263,6 +271,7 @@ fn verification_section(
     resolver: &Resolver,
     config: &ValidateConfig,
     in_scope: &dyn Fn(&RawElement) -> bool,
+    plan_scoped: bool,
 ) -> Option<serde_json::Value> {
     let results = config.results.as_ref()?;
     let (mut pass, mut fail, mut unknown) = (0u32, 0u32, 0u32);
@@ -276,25 +285,23 @@ fn verification_section(
             crate::query::TcVerdict::Unknown => unknown += 1,
         }
     }
-    let sc = syscribe_model::safety_case::build(
-        view,
-        resolver,
-        "",
-        syscribe_model::safety_case::BuildOptions::default(),
-        &|tc| syscribe_model::results::testcase_verdict(tc, Some(results)),
-    );
-    let mut goals: BTreeMap<&str, u32> = BTreeMap::from([("supported", 0), ("incomplete", 0), ("failing", 0)]);
-    for g in &sc.goals {
-        let in_s = view.iter().find(|e| Resolver::is_safety_goal(e) && disp_id(e) == g.root.id).is_some_and(|e| in_scope(e));
-        if in_s {
+    // Goals and plans are model-level: under `--plan` they are left out (null) rather than
+    // reported as misleading zeros, and no goal verdict is applied to the plan's verdict.
+    let (goals, plans) = if plan_scoped {
+        (serde_json::Value::Null, serde_json::Value::Null)
+    } else {
+        let sc = goal_verdicts(view, resolver, config, results);
+        let mut goals: BTreeMap<&str, u32> = BTreeMap::from([("supported", 0), ("incomplete", 0), ("failing", 0)]);
+        for g in &sc.goals {
             *goals.entry(g.verdict.as_str()).or_insert(0) += 1;
         }
-    }
-    let mut plans: BTreeMap<&str, u32> =
-        BTreeMap::from([("pass", 0), ("fail", 0), ("incomplete", 0), ("empty", 0)]);
-    for p in view.iter().filter(|e| is_type(e, ElementType::TestPlan) && in_scope(e)) {
-        *plans.entry(crate::testplan::plan_verdict(p, view, resolver, Some(results))).or_insert(0) += 1;
-    }
+        let mut plans: BTreeMap<&str, u32> =
+            BTreeMap::from([("pass", 0), ("fail", 0), ("incomplete", 0), ("empty", 0)]);
+        for p in view.iter().filter(|e| is_type(e, ElementType::TestPlan)) {
+            *plans.entry(crate::testplan::plan_verdict(p, view, resolver, Some(results))).or_insert(0) += 1;
+        }
+        (json!(goals), json!(plans))
+    };
     Some(json!({
         "tests": { "pass": pass, "fail": fail, "unknown": unknown },
         "goals": goals,
@@ -308,15 +315,19 @@ fn print_verification(v: &serde_json::Value) {
     let t = &v["tests"];
     println!("- Active tests: {} pass, {} fail, {} unknown", t["pass"], t["fail"], t["unknown"]);
     let g = &v["goals"];
-    println!(
-        "- Safety goals: {} supported, {} incomplete, {} FAILING",
-        g["supported"], g["incomplete"], g["failing"]
-    );
-    let p = &v["plans"];
-    println!(
-        "- Test plans: {} pass, {} fail, {} incomplete, {} empty",
-        p["pass"], p["fail"], p["incomplete"], p["empty"]
-    );
+    if g.is_null() {
+        println!("- Safety goals and test plans: model-level, not evaluated under --plan");
+    } else {
+        println!(
+            "- Safety goals: {} supported, {} incomplete, {} FAILING",
+            g["supported"], g["incomplete"], g["failing"]
+        );
+        let p = &v["plans"];
+        println!(
+            "- Test plans: {} pass, {} fail, {} incomplete, {} empty",
+            p["pass"], p["fail"], p["incomplete"], p["empty"]
+        );
+    }
     println!();
 }
 
@@ -406,8 +417,7 @@ pub fn cmd_audit(
 
     // ---- Readiness verdict (shared policy, projection-aware) --------------
     let findings = audit_findings(elements, config, sel, plan_scope);
-    let full_in_scope = |e: &RawElement| plan_scope.is_none_or(|s| s.contains(&e.file_path));
-    let failing = failing_goals(view, &Resolver::new(view), config, &full_in_scope);
+    let failing = failing_goals(view, &resolver, config, plan_scope.is_some());
     let (pass, reasons) = verdict_from_findings(&findings, elements, config, profile, &failing);
 
     // REQ-TRS-LINKTYPE-006 — every dashboard section below reads the *reporting*
@@ -536,7 +546,7 @@ pub fn cmd_audit(
     // ---- Sections 5/6: safety & security (GH #216) -------------------------
     let safety = safety_section(view, &resolver, &findings, &in_scope);
     let security = security_section(view, &findings, &in_scope);
-    let verification = verification_section(view, &resolver, config, &in_scope);
+    let verification = verification_section(view, &resolver, config, &in_scope, plan_scope.is_some());
 
     // ---- Section 7: verdict (computed above via verdict_from_findings) -----
     let exit_code = if pass { 0 } else { 2 };
