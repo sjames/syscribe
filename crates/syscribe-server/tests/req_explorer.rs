@@ -308,7 +308,8 @@ console.log(JSON.stringify({{
     assert!(csv.contains("\"Root, \"\"quoted\"\"\""), "{csv}");
     assert!(csv.contains("\"'=HYPERLINK(\"\"x\"\")\""), "formula neutralised and quoted: {csv}");
     assert!(csv.contains("\"line1\nline2\""), "{csv}");
-    assert!(csv.contains("from,to,kind"), "relations section: {csv}");
+    assert!(csv.starts_with("record,id,type,name,status,asil,verification,hop,from,to,kind\r\n"), "{csv}");
+    assert!(csv.contains("relation,,,,,,,,B,A,verifies\r\n"), "relations share the one column set: {csv}");
     assert_eq!(v["names"], serde_json::json!(["req-graph-A.csv", "req-graph-.._a_b_c_d.json", "req-graph-graph.svg"]));
     assert_eq!(v["cell"], serde_json::json!(["'+1", "'-1", "'@x", "'\tx", "plain", "", "\"a,b\""]));
 }

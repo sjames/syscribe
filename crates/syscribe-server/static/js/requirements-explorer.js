@@ -185,14 +185,13 @@
     return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   }
 
+  // One table, one column set: `record` says whether a row is an element or a relation. CRLF line ends.
   function toCsv(g) {
     var t = tableRows(g);
-    var out = ['id,type,name,status,asil,verification,hop'];
-    t.elements.forEach(function (r) { out.push([r.id, r.type, r.name, r.status, r.asil, r.verification, r.hop].map(csvCell).join(',')); });
-    out.push('');
-    out.push('from,to,kind');
-    t.relations.forEach(function (r) { out.push([r.from, r.to, r.kind].map(csvCell).join(',')); });
-    return out.join('\n') + '\n';
+    var out = ['record,id,type,name,status,asil,verification,hop,from,to,kind'];
+    t.elements.forEach(function (r) { out.push(['element', r.id, r.type, r.name, r.status, r.asil, r.verification, r.hop, '', '', ''].map(csvCell).join(',')); });
+    t.relations.forEach(function (r) { out.push(['relation', '', '', '', '', '', '', '', r.from, r.to, r.kind].map(csvCell).join(',')); });
+    return out.join('\r\n') + '\r\n';
   }
 
   function exportName(root, ext) {
@@ -219,7 +218,6 @@
     syncTypeFilters(raw);
     var graph = filterGraph(raw, state.filters);
     if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
-    state.drawn = graph;
     var lay = layoutGraph(graph);
     var tr = null;
     if (state.trace) {
@@ -281,6 +279,7 @@
       svg.appendChild(g);
     });
     renderTable(graph, tr);
+    state.drawn = graph; // only once the SVG and the table both show it
     labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
     setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (tr ? (tr.targets.length ? ', ' + tr.targets.length + ' ' + state.trace + ' element(s) on the trace' : ', no ' + state.trace + ' element in view — raise the depth or tick more relations') : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
   }
@@ -300,9 +299,13 @@
     var t = tableRows(graph);
     var el1 = document.createElement('table');
     var cap = document.createElement('caption'); cap.textContent = 'Elements'; el1.appendChild(cap);
+    var thead = document.createElement('thead');
     var head = document.createElement('tr');
-    ['Id', 'Type', 'Name', 'Status', 'ASIL', 'Verification', 'Hop', 'Trace'].forEach(function (h) { cell(head, h, 'th'); });
-    el1.appendChild(head);
+    ['Id', 'Type', 'Name', 'Status', 'ASIL', 'Verification', 'Hop', 'Trace'].forEach(function (h) { cell(head, h, 'th').setAttribute('scope', 'col'); });
+    thead.appendChild(head);
+    el1.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    el1.appendChild(tbody);
     t.elements.forEach(function (r) {
       var tr1 = document.createElement('tr');
       var idc = document.createElement('td');
@@ -312,15 +315,20 @@
       idc.appendChild(b); tr1.appendChild(idc);
       [r.type, r.name, r.status, r.asil, r.verification, r.hop].forEach(function (v) { cell(tr1, v); });
       cell(tr1, tr ? (tr.targetSet[r.id] ? 'target' : tr.nodeSet[r.id] ? 'on trace' : '') : '');
-      el1.appendChild(tr1);
+      if (state.selected === r.id) b.setAttribute('aria-current', 'true');
+      tbody.appendChild(tr1);
     });
     host.appendChild(el1);
     var rel = document.createElement('table');
     var cap2 = document.createElement('caption'); cap2.textContent = 'Relations'; rel.appendChild(cap2);
+    var th2 = document.createElement('thead');
     var h2 = document.createElement('tr');
-    ['From', 'To', 'Kind'].forEach(function (h) { cell(h2, h, 'th'); });
-    rel.appendChild(h2);
-    t.relations.forEach(function (r) { var x = document.createElement('tr'); cell(x, r.from); cell(x, r.to); cell(x, r.kind); rel.appendChild(x); });
+    ['From', 'To', 'Kind'].forEach(function (h) { cell(h2, h, 'th').setAttribute('scope', 'col'); });
+    th2.appendChild(h2);
+    rel.appendChild(th2);
+    var tb2 = document.createElement('tbody');
+    rel.appendChild(tb2);
+    t.relations.forEach(function (r) { var x = document.createElement('tr'); cell(x, r.from).setAttribute('scope', 'row'); cell(x, r.to); cell(x, r.kind); tb2.appendChild(x); });
     host.appendChild(rel);
   }
 
@@ -329,8 +337,27 @@
     var host = document.getElementById('req-table');
     var btn = document.getElementById('req-view-table');
     if (host) host.hidden = v !== 'table';
-    if (svg) svg.style.display = v === 'table' ? 'none' : '';
-    if (btn) { btn.setAttribute('aria-pressed', v === 'table' ? 'true' : 'false'); btn.textContent = v === 'table' ? 'Show graph' : 'Show table'; }
+    var canvas = document.querySelector('.req-canvas');
+    if (canvas) canvas.hidden = v === 'table';
+    if (btn) { btn.setAttribute('aria-pressed', v === 'table' ? 'true' : 'false'); }
+  }
+
+  // The page styles the graph from its stylesheet; a standalone SVG needs the same rules inline.
+  var SVG_STYLE = '.rg-node text{font:12px sans-serif}.rg-node .rg-sub{font-size:10px;fill:#555}.rg-node rect{stroke-width:1.5}' +
+    '.rg-node.root rect{stroke-width:3.5}.rg-node.selected rect{stroke:#1a4fd6;stroke-width:3}.rg-edge{fill:none;stroke:#7a869a;stroke-width:1.4}' +
+    '.rg-edge-label{font:10px sans-serif;fill:#2b3550;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}' +
+    '.dim{opacity:.18}.rg-edge.hl{stroke-width:2.5px}.rg-node.target rect{stroke-width:3px;stroke-dasharray:5 2}';
+
+  function svgText() {
+    var c = svg.cloneNode(true);
+    var st = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    st.textContent = SVG_STYLE;
+    var bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', '#fff');
+    c.insertBefore(bg, c.firstChild);
+    c.insertBefore(st, c.firstChild);
+    c.style.display = '';
+    return new XMLSerializer().serializeToString(c);
   }
 
   function download(name, mime, text) {
@@ -348,8 +375,8 @@
     var g = state.drawn;
     if (!g) { setStatus('Nothing to export yet.'); return; }
     if (kind === 'json') download(exportName(g.root, 'json'), 'application/json', JSON.stringify(g, null, 2) + '\n');
-    else if (kind === 'csv') download(exportName(g.root, 'csv'), 'text/csv', toCsv(g));
-    else if (kind === 'svg') download(exportName(g.root, 'svg'), 'image/svg+xml', new XMLSerializer().serializeToString(svg));
+    else if (kind === 'csv') download(exportName(g.root, 'csv'), 'text/csv;charset=utf-8', '\uFEFF' + toCsv(g));
+    else if (kind === 'svg') download(exportName(g.root, 'svg'), 'image/svg+xml', svgText());
   }
 
   function qnamePath(q) { return q.split('::').map(encodeURIComponent).join('/'); }
@@ -364,7 +391,10 @@
     if (state.trace && state.lastGraph) {
       draw(state.lastGraph); // the trace starts at the selection; the redraw rebuilds the nodes, so give focus back
       var again = svg.querySelector('.rg-node[data-id="' + String(n.id).replace(/["\\]/g, '\\$&') + '"]');
-      if (again && again.focus) again.focus();
+      if (state.view === 'table') {
+        var bs = document.querySelectorAll('#req-table tbody button');
+        for (var bi = 0; bi < bs.length; bi++) if (bs[bi].textContent === String(n.id)) { bs[bi].focus(); break; }
+      } else if (again && again.focus) again.focus();
     }
     detailEl.textContent = '';
     var bar = document.createElement('p');
@@ -412,7 +442,12 @@
 
   var seq = 0;
 
-  function clearGraph() { while (svg.firstChild) svg.removeChild(svg.firstChild); state.lastGraph = null; }
+  function clearGraph() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    state.lastGraph = null; state.drawn = null;
+    var host = document.getElementById('req-table');
+    if (host) host.textContent = '';
+  }
 
   function load() {
     var my = ++seq; // only the newest request may draw: an older response arriving late is dropped
