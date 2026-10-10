@@ -196,7 +196,7 @@ pub fn cmd_behavioral_coverage(elements: &[RawElement], opts: &BcovOptions) {
         println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({
-                "scope": scope_label, "covered": covered, "total": total,
+                "scope": opts.scope.map(|_| scope_label.as_str()), "covered": covered, "total": total,
                 "coverage_pct": (pct * 10.0).round() / 10.0, "elements": els
             }))
             .unwrap()

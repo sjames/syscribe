@@ -6,7 +6,9 @@
 ## DESCRIPTION
 Lists every relationship touching an element in both directions — outbound
 (supertype, typedBy, satisfies, verifies, implementedBy, …) and inbound (what
-references it). Useful for impact analysis before editing.
+references it). Useful for impact analysis before editing. A remote-URI or
+package-registry `implementedBy` target shows target type `external`; one that
+resolves to nothing shows `(unresolved)`.
 
 User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are
 listed too: outbound under the link-type name, inbound under the type's declared

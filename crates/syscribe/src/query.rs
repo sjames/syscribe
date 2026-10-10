@@ -1214,12 +1214,16 @@ pub fn cmd_ls(elements: &[RawElement], parent: &str, wheres: &[CustomWhere]) {
             eprintln!("No top-level elements found.");
         } else {
             eprintln!("No children found for: {parent}");
+            // Hint only when the scope itself does not exist; an existing, childless or
+            // filtered-out scope needs no suggestion.
             let q = path_to_qname(parent).unwrap_or_else(|| parent.to_string());
-            if q != parent {
-                eprintln!("(scopes use `::`, e.g. `{q}`)");
-            }
-            if let Some(near) = nearest_scope(elements, &q) {
-                eprintln!("did you mean `{near}`?");
+            if !elements.iter().any(|e| e.qualified_name == q) {
+                if q != parent {
+                    eprintln!("(scopes use `::`, e.g. `{q}`)");
+                }
+                if let Some(near) = nearest_scope(elements, &q) {
+                    eprintln!("did you mean `{near}`?");
+                }
             }
         }
         return;

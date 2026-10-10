@@ -227,7 +227,7 @@ pub fn cmd_n2(elements: &[RawElement], opts: &N2Options) {
     let scope_label;
     let mut axis: Vec<&RawElement> = match opts.scope {
         None => {
-            scope_label = "<model>".to_string();
+            scope_label = "whole model".to_string();
             elements.iter().filter(|e| is_part(e)).collect()
         }
         Some(q) => match resolver.resolve_ref(elements, q) {
@@ -257,7 +257,7 @@ pub fn cmd_n2(elements: &[RawElement], opts: &N2Options) {
     }
 
     match opts.format {
-        "json" => render_json(&scope_label, &axis, &edges),
+        "json" => render_json(opts.scope.map(|_| scope_label.as_str()), &axis, &edges),
         "html" => render_html(&scope_label, &axis, &edges, opts.depth),
         _ => render_text(&scope_label, &axis, &edges, opts.depth),
     }
@@ -313,7 +313,7 @@ fn render_text(scope: &str, axis: &[&RawElement], edges: &BTreeMap<(String, Stri
     }
 }
 
-fn render_json(scope: &str, axis: &[&RawElement], edges: &BTreeMap<(String, String), Vec<Edge>>) {
+fn render_json(scope: Option<&str>, axis: &[&RawElement], edges: &BTreeMap<(String, String), Vec<Edge>>) {
     let qn_to_name: BTreeMap<&str, String> = axis.iter().map(|e| (e.qualified_name.as_str(), disp(e))).collect();
     let mut matrix: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
     for ((r, c), es) in edges {

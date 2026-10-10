@@ -931,11 +931,6 @@ impl PackageRef<'_> {
     }
 }
 
-/// Parse a package-registry reference `<registry>:<package>@<version>[#<path>]`
-/// whose registry is one of [`PACKAGE_REGISTRIES`] and whose package and
-/// version are both non-empty. Anything else — a local path, `repo:`/`model:`
-/// prefixes, a Windows drive (`C:\…`), an unknown prefix, a missing version —
-/// is `None`.
 /// Whether `scheme` (the text before `://`) is a syntactically valid URI scheme.
 fn is_remote_uri_scheme(scheme: &str) -> bool {
     !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
@@ -943,7 +938,7 @@ fn is_remote_uri_scheme(scheme: &str) -> bool {
 
 /// Whether an `implementedBy`-style value names something outside the repository: a
 /// non-`file` URI or a package-registry reference. The same test `classify_source`
-/// applies, exposed so reports can say `external` rather than `(unresolved)` (GH #231).
+/// applies (see `ValidateConfig::classify_source`), exposed so reports can say `external` rather than `(unresolved)` (GH #231).
 pub fn is_external_source_ref(value: &str) -> bool {
     let v = value.trim();
     if let Some(i) = v.find("://") {
@@ -954,6 +949,11 @@ pub fn is_external_source_ref(value: &str) -> bool {
     parse_package_ref(v).is_some()
 }
 
+/// Parse a package-registry reference `<registry>:<package>@<version>[#<path>]`
+/// whose registry is one of [`PACKAGE_REGISTRIES`] and whose package and
+/// version are both non-empty. Anything else — a local path, `repo:`/`model:`
+/// prefixes, a Windows drive (`C:\…`), an unknown prefix, a missing version —
+/// is `None`.
 pub fn parse_package_ref(value: &str) -> Option<PackageRef<'_>> {
     let (registry, rest) = value.trim().split_once(':')?;
     let ecosystem = PACKAGE_REGISTRIES

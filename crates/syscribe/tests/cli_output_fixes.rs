@@ -61,3 +61,39 @@ fn ls_unknown_scope_hints_at_the_qualified_form() {
     let (_, err) = run(&model(), &["ls", "Requirements/System/Nope"]);
     assert!(err.contains("Requirements::System"), "hint expected: {err}");
 }
+
+#[test]
+fn whole_model_json_scope_is_null_not_a_placeholder() {
+    let m = model();
+    let (out, _) = run(&m, &["behavioral-coverage", "--format", "json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"));
+    assert!(v["scope"].is_null(), "{out}");
+    let (out, _) = run(&m, &["n2", "--format", "json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"));
+    assert!(v["scope"].is_null(), "{out}");
+}
+
+#[test]
+fn n2_text_header_has_no_placeholder() {
+    let (out, _) = run(&model(), &["n2"]);
+    assert!(!out.contains("<model>"), "{out}");
+}
+
+#[test]
+fn ls_hint_is_not_printed_for_an_existing_scope() {
+    let m = model();
+    // Existing element with no children: no misleading parent suggestion.
+    let (_, err) = run(&m, &["ls", "Requirements::System::REQ-A-001"]);
+    assert!(err.contains("No children found"), "{err}");
+    assert!(!err.contains("did you mean"), "{err}");
+    // Existing scope filtered to nothing by --where: no hint either.
+    let (_, err) = run(&m, &["ls", "Requirements::System", "--where", "custom.x=y"]);
+    assert!(!err.contains("did you mean"), "{err}");
+}
+
+#[test]
+fn ls_trailing_slash_and_root() {
+    let m = model();
+    let (out, _) = run(&m, &["ls", "Requirements/System/"]);
+    assert!(out.contains("REQ-A-001"), "{out}");
+}

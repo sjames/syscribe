@@ -4,7 +4,9 @@
     syscribe -m <root> ls [qname] [--where custom.<key>[<op><value>]]...
 
 ## DESCRIPTION
-Lists the direct children of a namespace (default: the model root). For the
+Lists the direct children of a namespace (default: the model root). The scope is a
+qualified name (`Requirements::System`); a `/` path (`Requirements/System`) is accepted
+as the same scope, and an unknown scope prints a `did you mean` hint on stderr. For the
 recursive form, use `tree`.
 
 ## OPTIONS
