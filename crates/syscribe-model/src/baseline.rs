@@ -338,7 +338,7 @@ pub fn scan(elements: &[RawElement], resolver: &Resolver, model_root: &Path) -> 
         let id = element_key(e);
 
         // E522 — supersedes must resolve to an existing element.
-        if let Some(sup) = &fm.supersedes {
+        for sup in fm.supersedes.iter().flatten() {
             if resolver.resolve_ref(elements, sup).is_none() {
                 out.push((
                     "E522",

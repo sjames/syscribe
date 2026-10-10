@@ -446,6 +446,9 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref sat) = fm.satisfies {
         for s in sat { out.push(("satisfies".into(), s.clone())); }
     }
+    if matches!(fm.element_type, Some(ElementType::ADR)) {
+        for s in fm.supersedes.iter().flatten() { out.push(("supersedes".into(), s.clone())); }
+    }
     if let Some(ref aw) = fm.applies_when {
         if let Ok(Some(expr)) = syscribe_model::variability::applies_when_expr(aw) {
             for op in expr.operands() {
@@ -630,6 +633,24 @@ pub fn cmd_show(
     if matches!(fm.element_type, Some(ElementType::ADR)) {
         if let Some(ref d) = fm.date { println!("| **date** | {} |", d); }
         if let Some(ref ds) = fm.deciders { if !ds.is_empty() { println!("| **deciders** | {} |", ds.join(", ")); } }
+        // Supersession (GH #232): the stored direction and the computed reverse.
+        if let Some(s) = fm.supersedes.as_ref().filter(|v| !v.is_empty()) {
+            println!("| **supersedes** | {} |", s.join(", "));
+        }
+        let me_id = fm.id.as_deref();
+        let by: Vec<String> = elements
+            .iter()
+            .filter(|o| matches!(o.frontmatter.element_type, Some(ElementType::ADR)))
+            .filter(|o| {
+                o.frontmatter.supersedes.iter().flatten().any(|t| {
+                    t == &elem.qualified_name || me_id == Some(t.as_str())
+                })
+            })
+            .map(|o| o.frontmatter.id.clone().unwrap_or_else(|| o.qualified_name.clone()))
+            .collect();
+        if !by.is_empty() {
+            println!("| **supersededBy** | {} |", by.join(", "));
+        }
     }
     // PlanningItem (ADR-SYS-PLANITEM-001): itemType/parent/achieves/blockedBy
     // were previously absent from `show`'s field dump entirely (evidence: and
@@ -3213,6 +3234,7 @@ type: ADR
 id: ADR-PREFIX-001
 name: "Decision title"
 status: proposed
+# supersedes: ADR-PREFIX-000   # the ADR(s) this replaces; mark them status: superseded
 ---
 
 ## Context

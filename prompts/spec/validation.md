@@ -35,6 +35,8 @@
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |
 | `E303` | `domain:` is not `system`, `hardware`, or `software` |
 | `E304` | `ADR.status` not in `proposed · accepted · deprecated · superseded` |
+| `E320` | `ADR.supersedes:` names an element that does not resolve or is not an `ADR` |
+| `E321` | An `ADR` is on a `supersedes:` cycle (a self-reference included) |
 
 ## Model-time errors — core (E101–E106, E310–E315)
 
@@ -99,6 +101,8 @@
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed` |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` |
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |
+| `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
+| `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
 | `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |

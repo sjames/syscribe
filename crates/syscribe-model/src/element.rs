@@ -1283,9 +1283,10 @@ pub struct ColdFrontmatter3 {
     pub frozen_scope: Option<FrozenScope>,
     /// The generated content seal (REQ-TRS-BL-002).
     pub seal: Option<BaselineSeal>,
-    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
+    /// What this element replaces: the `Baseline` a baseline replaces (REQ-TRS-BL-005), or the
+    /// `ADR`s an ADR supersedes (GH #232). One reference or a list. Resolver-checked, not a
     /// suspect-tracked trace link.
-    pub supersedes: Option<String>,
+    pub supersedes: Option<Vec<String>>,
     pub is_composite: Option<bool>,
     pub portion_kind: Option<String>,
 
@@ -1817,9 +1818,11 @@ struct ColdWire {
     pub frozen_scope: Option<FrozenScope>,
     /// The generated content seal (REQ-TRS-BL-002).
     pub seal: Option<BaselineSeal>,
-    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
+    /// What this element replaces: the `Baseline` a baseline replaces (REQ-TRS-BL-005), or the
+    /// `ADR`s an ADR supersedes (GH #232). One reference or a list. Resolver-checked, not a
     /// suspect-tracked trace link.
-    pub supersedes: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub supersedes: Option<Vec<String>>,
     pub is_composite: Option<bool>,
     pub portion_kind: Option<String>,
 

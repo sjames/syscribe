@@ -281,8 +281,7 @@ Updated body.
 
 ```deprecate: model/Decisions/OldADR.md
 Change status: accepted → superseded
-Add field:     supersededBy: Decisions::NewADR
-No other changes.
+No other changes. (The link is stored on the NEW ADR as `supersedes: Decisions::OldADR`; `supersededBy` is computed.)
 ```
 ````
 
@@ -1212,7 +1211,7 @@ draft → review → approved → implemented → verified
 **Update:** old Requirement — leave the file, do not change the ID; update `satisfies:` in architecture elements; retire old TestCase.
 
 ### Pattern F — Supersede an ADR
-**Create:** new ADR (`status: accepted`). **Deprecate:** old ADR (`status: superseded`). **Update:** any Requirement with `breakdownAdr:` pointing to the old ADR — update to the new one.
+**Create:** new ADR (`status: accepted`) with `supersedes: <old ADR>` (one reference or a list). **Deprecate:** old ADR (`status: superseded`; `W313` if you forget). The reverse `supersededBy` is computed and shown by `show`/`links`; `E320` unresolved/non-ADR target, `E321` cycle, `W314` a `breakdownAdr:` that still cites the superseded ADR. **Update:** any Requirement with `breakdownAdr:` pointing to the old ADR — update to the new one.
 
 ### Pattern G — Add a new architecture element
 **Create:** new PartDef/Part with correct `domain:` and `satisfies:`. **Check:** domain matches `reqDomain:` on satisfied requirements; add `Allocation` if it's software running on hardware.

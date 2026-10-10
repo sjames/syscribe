@@ -6095,6 +6095,8 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` is the source of no allocation edge (any §12.9 form: `Allocation` element top-level or per `features:` entry, `allocatedTo:` on the package, legacy authored `allocatedFrom:` on the target) to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
+| `E320` | `ADR.supersedes:` names an element that does not resolve or is not an `ADR` |
+| `E321` | An `ADR` is on a `supersedes:` cycle (a self-reference included) |
 | `E319` | Results-gated: `Requirement` at `verified` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `E317` | A `metadata:` application does not resolve to a `MetadataDef` (§8.15.2) |
 | `E318` | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (the abstract `Element`/`Definition`/`Usage` metaclasses match; standard-library metadata is recognised) |
@@ -6119,6 +6121,8 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
+| `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
+| `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
 | `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |

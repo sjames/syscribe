@@ -4394,6 +4394,84 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ADR supersession (GH #232, REQ-TRS-ADRSUP-001): E320 unresolved/non-ADR target, E321
+    // cycle, W313 target not marked superseded, W314 breakdownAdr cites a superseded ADR.
+    {
+        let is_adr = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::ADR));
+        let mut edges: HashMap<&str, Vec<&str>> = HashMap::new();
+        for adr in elements.iter().filter(|e| is_adr(e)) {
+            for t in adr.frontmatter.supersedes.iter().flatten() {
+                match resolver.resolve_ref(elements, t) {
+                    None => findings.push(error(
+                        "E320",
+                        &adr.file_path,
+                        &format!("ADR supersedes '{}', which resolves to no element", t),
+                    )),
+                    Some(x) if !is_adr(x) => findings.push(error(
+                        "E320",
+                        &adr.file_path,
+                        &format!("ADR supersedes '{}', which is not an ADR", t),
+                    )),
+                    Some(x) => {
+                        edges.entry(adr.qualified_name.as_str()).or_default().push(x.qualified_name.as_str());
+                        if adr.frontmatter.status.as_deref() == Some("accepted")
+                            && x.frontmatter.status.as_deref() != Some("superseded")
+                            && x.qualified_name != adr.qualified_name
+                        {
+                            findings.push(warning(
+                                "W313",
+                                &adr.file_path,
+                                &format!(
+                                    "ADR supersedes '{}' whose status is '{}', not 'superseded'",
+                                    t,
+                                    x.frontmatter.status.as_deref().unwrap_or("(none)")
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        // E321: an ADR on a supersession cycle (a self-loop included) — reachable from itself.
+        for adr in elements.iter().filter(|e| is_adr(e)) {
+            let start = adr.qualified_name.as_str();
+            let mut seen: HashSet<&str> = HashSet::new();
+            let mut stack: Vec<&str> = edges.get(start).cloned().unwrap_or_default();
+            let mut on_cycle = false;
+            while let Some(n) = stack.pop() {
+                if n == start {
+                    on_cycle = true;
+                    break;
+                }
+                if seen.insert(n) {
+                    stack.extend(edges.get(n).into_iter().flatten().copied());
+                }
+            }
+            if on_cycle {
+                findings.push(error(
+                    "E321",
+                    &adr.file_path,
+                    &format!("ADR '{}' is on a supersession cycle", adr.frontmatter.id.as_deref().unwrap_or(start)),
+                ));
+            }
+        }
+        for e in elements {
+            if e.frontmatter.status.as_deref() == Some("draft") {
+                continue;
+            }
+            let Some(b) = e.frontmatter.breakdown_adr.as_deref() else { continue };
+            if let Some(x) = resolver.resolve_ref(elements, b) {
+                if is_adr(x) && x.frontmatter.status.as_deref() == Some("superseded") {
+                    findings.push(warning(
+                        "W314",
+                        &e.file_path,
+                        &format!("breakdownAdr '{}' is superseded — cite its successor", b),
+                    ));
+                }
+            }
+        }
+    }
+
     // Build verified_by and derived_children reverse indices, and check E102–E105
     let mut verified_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut derived_children: HashMap<String, Vec<String>> = HashMap::new();

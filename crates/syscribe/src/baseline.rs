@@ -725,8 +725,8 @@ fn cmd_show(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest: 
         println!("aggregate: {}", seal.aggregate_hash);
         println!("manifest:  {}", manifest_path(model_root, seal).display());
     }
-    if let Some(sup) = &fm.supersedes {
-        println!("supersedes: {sup}");
+    if let Some(sup) = fm.supersedes.as_ref().filter(|v| !v.is_empty()) {
+        println!("supersedes: {}", sup.join(", "));
     }
     let _ = PathBuf::new();
     0
