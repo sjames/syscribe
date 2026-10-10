@@ -120,18 +120,126 @@ pub fn find(text: &str) -> Vec<Placeholder> {
         .collect()
 }
 
+/// What a placeholder-capable typed field accepts (GH #268, REQ-TRS-PHOLDFIELD-001).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldKind {
+    /// A finite number ≥ 0.
+    Rate,
+    /// A number in 0..=1.
+    Fraction,
+    /// An integer 0..=4.
+    Sil,
+    /// `QM`, `A`..`D`.
+    Asil,
+    /// `CAL1`..`CAL4`.
+    Cal,
+}
+
+/// The frontmatter keys (YAML spelling) that may hold a whole-value placeholder.
+pub const FIELDS: &[(&str, FieldKind)] = &[
+    ("failureRate", FieldKind::Rate),
+    ("diagnosticCoverage", FieldKind::Fraction),
+    ("latentDiagnosticCoverage", FieldKind::Fraction),
+    ("silLevel", FieldKind::Sil),
+    ("asilLevel", FieldKind::Asil),
+    ("calLevel", FieldKind::Cal),
+];
+
+fn field_kind(key: &str) -> Option<FieldKind> {
+    FIELDS.iter().find(|(k, _)| *k == key).map(|(_, k)| *k)
+}
+
+fn whole_re() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_\-:]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}\s*$").unwrap())
+}
+
+/// The placeholder `text` consists of, when it is exactly one (no `|unit`, nothing around it).
+pub fn parse_whole(text: &str) -> Option<Placeholder> {
+    let c = whole_re().captures(text)?;
+    if !(c[1].contains("::") || c[1].starts_with("FEAT-")) {
+        return None;
+    }
+    Some(Placeholder { raw: text.trim().to_string(), feature: c[1].to_string(), param: c[2].to_string(), unit: false })
+}
+
+/// Remove the whole-value placeholders of the placeholder-capable fields from a frontmatter mapping,
+/// returning YAML key → placeholder text.
+pub fn take_field_placeholders(map: &mut serde_yaml::Mapping) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    for (key, _) in FIELDS {
+        let k = serde_yaml::Value::String((*key).to_string());
+        let hit = matches!(map.get(&k), Some(serde_yaml::Value::String(s)) if s.contains("{{") && parse_whole(s).is_some());
+        if hit {
+            if let Some(serde_yaml::Value::String(s)) = map.remove(&k) {
+                out.insert((*key).to_string(), s.trim().to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Check `value` against `kind`; the error says what the field accepts.
+fn check_field(kind: FieldKind, value: &str) -> Result<(), String> {
+    let v = value.trim();
+    match kind {
+        FieldKind::Rate => match v.parse::<f64>() {
+            Ok(n) if n.is_finite() && n >= 0.0 => Ok(()),
+            _ => Err("a finite number >= 0".to_string()),
+        },
+        FieldKind::Fraction => match v.parse::<f64>() {
+            Ok(n) if (0.0..=1.0).contains(&n) => Ok(()),
+            _ => Err("a number from 0 to 1".to_string()),
+        },
+        FieldKind::Sil => match v.parse::<u8>() {
+            Ok(n) if n <= 4 => Ok(()),
+            _ => Err("an integer from 0 to 4".to_string()),
+        },
+        FieldKind::Asil => {
+            if ["QM", "A", "B", "C", "D"].contains(&v.to_ascii_uppercase().as_str()) {
+                Ok(())
+            } else {
+                Err("one of QM, A, B, C, D".to_string())
+            }
+        }
+        FieldKind::Cal => {
+            if ["CAL1", "CAL2", "CAL3", "CAL4"].contains(&v.to_ascii_uppercase().as_str()) {
+                Ok(())
+            } else {
+                Err("one of CAL1, CAL2, CAL3, CAL4".to_string())
+            }
+        }
+    }
+}
+
+/// Store an already checked `value` in the typed field `key` of `fm`.
+fn apply_field(fm: &mut crate::element::RawFrontmatter, key: &str, value: &str) {
+    let v = value.trim();
+    match key {
+        "failureRate" => fm.failure_rate = v.parse().ok(),
+        "diagnosticCoverage" => fm.diagnostic_coverage = v.parse().ok(),
+        "latentDiagnosticCoverage" => fm.latent_diagnostic_coverage = v.parse().ok(),
+        "silLevel" => fm.sil_level = v.parse().ok(),
+        "asilLevel" => fm.asil_level = Some(v.to_ascii_uppercase()),
+        "calLevel" => fm.cal_level = Some(v.to_ascii_uppercase()),
+        _ => {}
+    }
+}
+
 fn texts(e: &RawElement) -> [&str; 2] {
     [e.doc.as_str(), e.frontmatter.name.as_deref().unwrap_or("")]
 }
 
 /// Placeholders in an element's body and name.
 pub fn of_element(e: &RawElement) -> Vec<Placeholder> {
-    texts(e).iter().flat_map(|t| find(t)).collect()
+    let mut v: Vec<Placeholder> = texts(e).iter().flat_map(|t| find(t)).collect();
+    v.extend(e.frontmatter.placeholder_fields.values().filter_map(|raw| parse_whole(raw)));
+    v
 }
 
 /// Whether any element uses a placeholder (cheap pre-check).
 pub fn any(elements: &[RawElement]) -> bool {
-    elements.iter().any(|e| texts(e).iter().any(|t| t.contains("{{") && !find(t).is_empty()))
+    elements.iter().any(|e| !e.frontmatter.placeholder_fields.is_empty() || texts(e).iter().any(|t| t.contains("{{") && !find(t).is_empty()))
 }
 
 /// A parameter declared on a `FeatureDef`.
@@ -244,6 +352,16 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
     let cfg = matching_config(full, sel);
     let f = |ph: &Placeholder| value_for(full, &resolver, cfg, ph);
     for e in view.iter_mut() {
+        // Placeholder-capable typed fields: resolved, checked against the field, stored typed. An
+        // unresolved or invalid value leaves the field unset (E247/E243 report why).
+        for (key, raw) in e.frontmatter.placeholder_fields.clone() {
+            let (Some(ph), Some(kind)) = (parse_whole(&raw), field_kind(&key)) else { continue };
+            if let Some(v) = f(&ph) {
+                if check_field(kind, &v).is_ok() {
+                    apply_field(&mut e.frontmatter, &key, &v);
+                }
+            }
+        }
         if e.doc.contains("{{") {
             e.doc = substitute_text(&e.doc, &f);
         }
@@ -285,6 +403,27 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
         }
         let status = e.frontmatter.status.as_deref().unwrap_or("");
         let firm = matches!(status, "approved" | "implemented" | "verified");
+        // A typed field's value must suit the field in every configuration that fills it (E247); an
+        // unknown reference is E241 below and an unbound parameter E243/W245, as for text.
+        for (key, raw) in &e.frontmatter.placeholder_fields {
+            let (Some(ph), Some(kind)) = (parse_whole(raw), field_kind(key)) else { continue };
+            let Ok(d) = decl(elements, resolver, &ph.feature, &ph.param) else { continue };
+            for (c, sel) in configs.iter().zip(&sels) {
+                if !crate::projection::is_active_canon(e, sel, &pkg, &alias) || sel.get(&d.feature_qname).copied() != Some(true) {
+                    continue;
+                }
+                let Some(v) = value_for(elements, resolver, Some(c), &ph) else { continue };
+                if let Err(expect) = check_field(kind, &v) {
+                    let cid = c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone());
+                    out.push((
+                        true,
+                        "E247",
+                        e.file_path.clone(),
+                        format!("field '{key}': placeholder '{}' is '{v}' in configuration {cid}, but the field accepts {expect}", ph.raw),
+                    ));
+                }
+            }
+        }
         let mut seen: Vec<String> = Vec::new();
         for ph in &phs {
             if seen.contains(&ph.raw) {

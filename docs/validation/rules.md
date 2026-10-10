@@ -135,6 +135,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E241 | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
 | E242 | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | E243 | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
+| E247 | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
 | E234 | (Configuration inheritance, §9.8) A `Configuration`'s `derivedFrom:` base does not resolve to any element of the model (the base must be local) |
 | E235 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` base is not a `Configuration` |
 | E236 | (Configuration inheritance) A `Configuration` is on a `derivedFrom:` cycle — reported on each member; none inherits |

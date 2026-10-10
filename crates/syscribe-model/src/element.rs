@@ -678,6 +678,12 @@ pub struct RawFrontmatter {
     /// identifier. A decimal is accepted so a new element can be inserted between two
     /// neighbours (e.g. `15` between `10` and `20`) without renumbering. (REQ-TRS-ORDER-001)
     pub display_order: Option<f64>,
+    /// Typed fields whose YAML value is a whole-value feature-parameter placeholder
+    /// (`asilLevel: "{{Features::Safety.level}}"`, GH #268, REQ-TRS-PHOLDFIELD-001): YAML key → the
+    /// placeholder as written. The field itself is unset in the base model; a projection onto a
+    /// matching Configuration fills it. Set by `frontmatter::parse_frontmatter`, never authored.
+    #[serde(skip_deserializing, default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub placeholder_fields: std::collections::BTreeMap<String, String>,
     pub supertype: Option<serde_yaml::Value>,
     pub typed_by: Option<serde_yaml::Value>,
     pub subsets: Option<Vec<String>>,

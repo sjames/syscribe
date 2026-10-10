@@ -31,7 +31,18 @@ pub fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
 
 /// Parse YAML frontmatter string into `RawFrontmatter`.
 pub fn parse_frontmatter(yaml: &str) -> Result<RawFrontmatter> {
-    serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")
+    // A whole-value placeholder in a typed field (GH #268) is taken out of the mapping first, so a
+    // numeric field does not fail to deserialize and an enumerated one is not mistaken for a value.
+    let value: serde_yaml::Value = serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")?;
+    match value {
+        serde_yaml::Value::Mapping(mut map) => {
+            let taken = crate::placeholders::take_field_placeholders(&mut map);
+            let mut fm: RawFrontmatter = serde_yaml::from_value(serde_yaml::Value::Mapping(map)).context("Failed to parse YAML frontmatter")?;
+            fm.placeholder_fields = taken;
+            Ok(fm)
+        }
+        other => serde_yaml::from_value(other).context("Failed to parse YAML frontmatter"),
+    }
 }
 
 /// Splice `new_fm` into `content` in place of the borrowed `yaml` region

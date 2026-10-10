@@ -5422,6 +5422,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E241` | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
+| `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
 | `E222` | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter). Emitted by `validate` and `feature-check`. |
 | `E223` | (`feature-check --deep`) The feature model is **void** — no valid configuration exists (reported once, with a conflict-set explanation). |
 | `E224` | (`feature-check --deep`) A **dead feature** — selectable in no valid configuration. |
@@ -6027,7 +6028,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | Codes | Family | Specified in |
 |---|---|---|
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
-| `E200`–`E243`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
