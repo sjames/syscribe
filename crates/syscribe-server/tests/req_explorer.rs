@@ -191,7 +191,7 @@ console.log(JSON.stringify({{
 async fn the_page_has_search_and_filter_controls() {
     let a = app();
     let (_, _, html) = get(&a, "/requirements").await;
-    assert!(html.contains("id=\"req-search\"") && html.contains("id=\"req-filters\""), "{html}");
+    assert!(html.contains("id=\"req-search\"") && html.contains("id=\"req-filters\"") && html.contains("id=\"req-trace\""), "{html}");
 }
 
 #[tokio::test]
@@ -209,4 +209,42 @@ async fn safety_and_security_links_are_edges() {
     assert_eq!(kinds, want, "{body}");
     let (s, _, _) = get(&app, "/api/req-graph?root=REQ-LNK-001&edges=mitigatedBy,hazardRef").await;
     assert_eq!(s, StatusCode::OK, "new kinds are filterable");
+}
+
+#[test]
+fn trace_returns_shortest_paths_to_a_category_and_jump_links_are_fixed() {
+    if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
+        eprintln!("node not available — skipping the trace test");
+        return;
+    }
+    let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
+    let script = format!(
+        r#"const m = require({js:?});
+// A -> B -> T (short, edge directions mixed); A -> C -> D -> T (long); X is unrelated.
+const g = {{root:'A', nodes:[{{id:'A',type:'Requirement'}},{{id:'B',type:'Requirement'}},{{id:'C',type:'Requirement'}},{{id:'D',type:'Requirement'}},
+  {{id:'T',type:'TestCase'}},{{id:'X',type:'Requirement'}}],
+  edges:[{{from:'B',to:'A',kind:'derivedFrom'}},{{from:'B',to:'T',kind:'x'}},{{from:'C',to:'A',kind:'x'}},{{from:'D',to:'C',kind:'x'}},{{from:'D',to:'T',kind:'x'}}]}};
+const t = m.tracePath(g, 'A', 'tests');
+const none = m.tracePath(g, 'A', 'security');
+const fromT = m.tracePath(g, 'T', 'tests');
+console.log(JSON.stringify({{
+  nodes: t.nodes.slice().sort(), edges: t.edges.length, targets: t.targets,
+  none: [none.nodes.length, none.edges.length, none.targets.length],
+  fromT: fromT.targets,
+  unknown: m.tracePath(g, 'A', 'bogus').nodes.length,
+  cat: [m.categoryOf('FaultTreeGate'), m.categoryOf('Zone'), m.categoryOf('Configuration'), m.categoryOf('Requirement') || null],
+  jumps: ['FeatureDef','Configuration','FeatureModel','PlanningItem','Requirement'].map(ty => m.jumpLinks({{type: ty, id: 'a"b'}}).map(l => l.href)),
+}}));"#
+    );
+    let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["nodes"], serde_json::json!(["A", "B", "T"]), "{v}");
+    assert_eq!(v["edges"], 2);
+    assert_eq!(v["targets"], serde_json::json!(["T"]));
+    assert_eq!(v["none"], serde_json::json!([0, 0, 0]));
+    assert_eq!(v["fromT"], serde_json::json!([]), "the start is never a target");
+    assert_eq!(v["unknown"], 0);
+    assert_eq!(v["cat"], serde_json::json!(["safety", "security", "features", null]));
+    assert_eq!(v["jumps"], serde_json::json!([["/features"], ["/features"], ["/features"], ["/planning"], []]));
 }

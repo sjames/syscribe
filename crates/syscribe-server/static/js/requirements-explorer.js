@@ -91,6 +91,72 @@
     return out;
   }
 
+  var CATEGORIES = {
+    tests: ['TestCase', 'TestPlan', 'TestEnvironment', 'VerificationCase', 'VerificationCaseDef'],
+    architecture: ['PartDef', 'Part', 'ItemDef', 'PortDef', 'InterfaceDef', 'ConnectionDef', 'Allocation', 'AllocationDef', 'ActionDef', 'StateDef'],
+    features: ['FeatureDef', 'Configuration', 'FeatureModel'],
+    safety: ['HazardousEvent', 'SafetyGoal', 'SafetyMechanism', 'ConfirmationMeasure', 'DependentFailureAnalysis', 'AssumptionOfUse', 'Argument',
+      'FaultTree', 'FaultTreeGate', 'FaultTreeEvent', 'FMEASheet', 'FMEAEntry'],
+    security: ['DamageScenario', 'ThreatScenario', 'CybersecurityGoal', 'SecurityControl', 'VulnerabilityReport', 'Asset', 'AttackTree',
+      'AttackTreeGate', 'AttackStep', 'Zone', 'Conduit', 'TARASheet']
+  };
+
+  function categoryOf(type) {
+    var found;
+    Object.keys(CATEGORIES).forEach(function (c) { if (CATEGORIES[c].indexOf(type) >= 0) found = c; });
+    return found;
+  }
+
+  // Pure: every node and edge on a shortest path (either edge direction) from `start` to a node of the
+  // category. The start is never a target. Unknown category, unknown start or no match: empty result.
+  function tracePath(g, start, category) {
+    var empty = { nodes: [], edges: [], targets: [] };
+    var types = CATEGORIES[category];
+    if (!types) return empty;
+    var ids = {};
+    g.nodes.forEach(function (n) { ids[n.id] = n; });
+    if (!ids[start]) return empty;
+    var adj = {};
+    (g.edges || []).forEach(function (e, i) {
+      if (!ids[e.from] || !ids[e.to]) return;
+      (adj[e.from] = adj[e.from] || []).push({ to: e.to, i: i });
+      (adj[e.to] = adj[e.to] || []).push({ to: e.from, i: i });
+    });
+    var dist = {}; dist[start] = 0;
+    var queue = [start];
+    while (queue.length) {
+      var u = queue.shift();
+      (adj[u] || []).forEach(function (a) { if (dist[a.to] === undefined) { dist[a.to] = dist[u] + 1; queue.push(a.to); } });
+    }
+    var targets = g.nodes.filter(function (n) { return n.id !== start && dist[n.id] !== undefined && types.indexOf(n.type) >= 0; }).map(function (n) { return n.id; });
+    var onNode = {}, onEdge = {};
+    targets.forEach(function (t) { onNode[t] = true; });
+    // Walk back from the targets by decreasing distance, marking every predecessor on a shortest path.
+    var order = targets.slice();
+    while (order.length) {
+      order.sort(function (a, b) { return dist[b] - dist[a]; });
+      var v = order.shift();
+      (adj[v] || []).forEach(function (a) {
+        if (dist[a.to] === dist[v] - 1) {
+          onEdge[a.i] = true;
+          if (!onNode[a.to]) { onNode[a.to] = true; order.push(a.to); }
+        }
+      });
+    }
+    return {
+      nodes: g.nodes.filter(function (n) { return onNode[n.id]; }).map(function (n) { return n.id; }),
+      edges: Object.keys(onEdge).map(Number).sort(function (a, b) { return a - b; }),
+      targets: targets
+    };
+  }
+
+  // Fixed paths only: model text never reaches an href.
+  function jumpLinks(n) {
+    if (n.type === 'FeatureDef' || n.type === 'Configuration' || n.type === 'FeatureModel') return [{ label: 'Open the feature model', href: '/features' }];
+    if (n.type === 'PlanningItem') return [{ label: 'Open the planning board', href: '/planning' }];
+    return [];
+  }
+
   function el(name, attrs, text) {
     var e = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
@@ -100,7 +166,7 @@
 
   function truncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {} };
+  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '' };
   var root, svg, statusEl, detailEl;
 
   function setStatus(t) { if (statusEl) statusEl.textContent = t || ''; }
@@ -111,6 +177,14 @@
     var graph = filterGraph(raw, state.filters);
     if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
     var lay = layoutGraph(graph);
+    var tr = null;
+    if (state.trace) {
+      var start = state.selected && graph.nodes.some(function (n) { return n.id === state.selected; }) ? state.selected : graph.root;
+      tr = tracePath(graph, start, state.trace);
+      tr.nodeSet = {}; tr.nodes.forEach(function (i) { tr.nodeSet[i] = true; });
+      tr.edgeSet = {}; tr.edges.forEach(function (i) { tr.edgeSet[i] = true; });
+      tr.targetSet = {}; tr.targets.forEach(function (i) { tr.targetSet[i] = true; });
+    }
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.setAttribute('width', lay.width);
     svg.setAttribute('height', lay.height);
@@ -124,7 +198,7 @@
     lay.nodes.forEach(function (n) { pos[n.id] = n; });
     var labels = [];
     var seenPair = {};
-    lay.edges.forEach(function (e) {
+    lay.edges.forEach(function (e, ei) {
       var a = pos[e.from], b = pos[e.to];
       if (!a || !b) return;
       var x1, y1, x2, y2, d;
@@ -141,7 +215,7 @@
         d = fwd ? 'M' + x1 + ',' + y1 + ' C' + mx + ',' + y1 + ' ' + mx + ',' + y2 + ' ' + x2 + ',' + y2
                 : 'M' + x2 + ',' + y2 + ' C' + mx + ',' + y2 + ' ' + mx + ',' + y1 + ' ' + x1 + ',' + y1;
       }
-      var path = el('path', { d: d, class: 'rg-edge', 'marker-end': 'url(#rg-arrow)', 'data-kind': e.kind });
+      var path = el('path', { d: d, class: 'rg-edge' + (tr ? (tr.edgeSet[ei] ? ' hl' : ' dim') : ''), 'marker-end': 'url(#rg-arrow)', 'data-kind': e.kind });
       path.appendChild(el('title', {}, e.from + ' → ' + e.to + ' (' + e.kind + ')'));
       svg.appendChild(path);
       var pk = [e.from, e.to].sort().join('|');
@@ -152,7 +226,7 @@
       var v = n.verification || 'na';
       var vlabel = { verified: 'verified', planned: 'verification planned', unverified: 'not verified', na: '' }[v] || '';
       var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '');
-      var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0', role: 'button', 'aria-label': summary, 'aria-pressed': state.selected === n.id ? 'true' : 'false' });
+      var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (tr ? (tr.targetSet[n.id] ? ' target hl' : tr.nodeSet[n.id] ? ' hl' : ' dim') : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0', role: 'button', 'aria-label': summary, 'aria-pressed': state.selected === n.id ? 'true' : 'false' });
       g.appendChild(el('title', {}, summary));
       g.appendChild(el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, fill: FILL[v] || FILL.na, stroke: STROKE[v] || STROKE.na }));
       g.appendChild(el('text', { x: n.x + 8, y: n.y + 18 }, truncate(n.id, 28)));
@@ -163,7 +237,7 @@
       svg.appendChild(g);
     });
     labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
-    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
+    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (tr ? (tr.targets.length ? ', ' + tr.targets.length + ' ' + state.trace + ' element(s) on the trace' : ', no ' + state.trace + ' element in view — raise the depth or tick more relations') : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
   }
 
   function qnamePath(q) { return q.split('::').map(encodeURIComponent).join('/'); }
@@ -175,6 +249,7 @@
       g.classList.toggle('selected', on);
       g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    if (state.trace && state.lastGraph) { draw(state.lastGraph); }
     detailEl.textContent = '';
     var bar = document.createElement('p');
     var btn = document.createElement('button');
@@ -182,6 +257,12 @@
     btn.textContent = 'Focus here';
     btn.addEventListener('click', function () { focusOn(n.id, true); });
     bar.appendChild(btn);
+    jumpLinks(n).forEach(function (l) {
+      var a = document.createElement('a');
+      a.href = l.href; a.textContent = l.label; a.className = 'req-jump';
+      bar.appendChild(document.createTextNode(' '));
+      bar.appendChild(a);
+    });
     detailEl.appendChild(bar);
     var holder = document.createElement('div');
     detailEl.appendChild(holder);
@@ -386,13 +467,15 @@
     if (fv) [['verified', 'verified'], ['planned', 'planned'], ['unverified', 'unverified'], ['na', 'other element']].forEach(function (p) { addFilterBox(fv, 'verification', p[0], p[1]); });
     var fa = document.getElementById('req-filter-asil');
     if (fa) ['QM', 'A', 'B', 'C', 'D'].forEach(function (a) { addFilterBox(fa, 'asil', a); });
+    var ts = document.getElementById('req-trace');
+    if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); });
     initSearch();
     document.addEventListener('syscribe:reload', load);
     load();
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { layoutGraph: layoutGraph, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }
