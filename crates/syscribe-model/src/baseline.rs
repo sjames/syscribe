@@ -451,6 +451,10 @@ pub fn diff_manifests(a: &Manifest, b: &Manifest) -> BaselineDiff {
 pub struct VerifyResult {
     pub id: String,
     pub passed: bool,
+    /// A `superseded` baseline whose content drift was not checked (GH #262): history,
+    /// not a gate. Seal/manifest and git-tag problems are still reported.
+    #[serde(default)]
+    pub skipped: bool,
     pub messages: Vec<String>,
 }
 
@@ -460,11 +464,12 @@ pub fn verify_baseline(elements: &[RawElement], b: &RawElement, model_root: &Pat
     let fm = &b.frontmatter;
     let mut messages = Vec::new();
     let Some(seal) = &fm.seal else {
-        return VerifyResult { id, passed: false, messages: vec!["no seal".to_string()] };
+        return VerifyResult { id, passed: false, skipped: false, messages: vec!["no seal".to_string()] };
     };
     let scope = fm.frozen_scope.clone().unwrap_or_default();
+    let superseded = fm.status.as_deref() == Some("superseded");
     let (current, _n) = aggregate_for_scope(elements, &scope);
-    if current != seal.aggregate_hash {
+    if !superseded && current != seal.aggregate_hash {
         messages.push("content drift (recomputed aggregate ≠ seal)".to_string());
     }
     if let Some(m) = Manifest::from_file(&manifest_path(model_root, seal)) {
@@ -483,5 +488,5 @@ pub fn verify_baseline(elements: &[RawElement], b: &RawElement, model_root: &Pat
             None => {} // tag not present yet — informational, not a failure
         }
     }
-    VerifyResult { id, passed: messages.is_empty(), messages }
+    VerifyResult { id, passed: messages.is_empty(), skipped: superseded && messages.is_empty(), messages }
 }

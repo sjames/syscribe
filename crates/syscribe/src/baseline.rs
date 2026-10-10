@@ -379,12 +379,9 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
     for b in targets {
         let id = element_key(b);
         let fm = &b.frontmatter;
-        // A superseded baseline is history, not a gate: `validate` skips its drift and so
-        // does `verify` (GH #262).
-        if fm.status.as_deref() == Some("superseded") {
-            println!("{id}: skipped (superseded)");
-            continue;
-        }
+        // A superseded baseline is history, not a gate: `validate` skips its content drift
+        // and so does `verify` (GH #262); seal/manifest and git-tag problems still count.
+        let superseded = fm.status.as_deref() == Some("superseded");
         let Some(seal) = &fm.seal else {
             println!("{id}: FAIL (no seal)");
             failed = true;
@@ -393,7 +390,7 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
         let scope = fm.frozen_scope.clone().unwrap_or_default();
         let (current, _n) = baseline::aggregate_for_scope(elems, &scope);
         let mut msgs: Vec<String> = Vec::new();
-        if current != seal.aggregate_hash {
+        if !superseded && current != seal.aggregate_hash {
             msgs.push("content drift (recomputed aggregate ≠ seal)".to_string());
         }
         if let Some(m) = Manifest::from_file(&manifest_path(model_root, seal)) {
@@ -411,15 +408,19 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
                 None => println!("{id}: note — gitTag `{tag}` does not resolve yet (not pushed?)"),
             }
         }
-        if msgs.is_empty() {
+        if msgs.is_empty() && superseded {
+            println!("{id}: skipped (superseded)");
+        } else if msgs.is_empty() {
             println!("{id}: OK");
         } else {
             println!("{id}: FAIL — {}", msgs.join("; "));
             failed = true;
-            if has_flag(rest, "--detail") && current != seal.aggregate_hash {
+            if has_flag(rest, "--detail") && !superseded && current != seal.aggregate_hash {
                 if let Some(m) = Manifest::from_file(&manifest_path(model_root, seal)) {
-                    let items = current_items(elems, &scope);
-                    print_changes(model_root, &m, &items, true);
+                    match current_items(elems, &scope) {
+                        Ok(items) => print_changes(model_root, &m, &items, true),
+                        Err(e) => println!("  (cannot list the drift: scope config did not resolve: {e})"),
+                    }
                 }
             }
         }
@@ -460,9 +461,9 @@ fn manifest_items(m: &Manifest) -> Vec<Item> {
 
 /// The elements a baseline's scope selects in the working tree now (projected when the
 /// scope names a config), hashed exactly as the seal and the manifest hash them.
-fn current_items(elems: &[RawElement], scope: &FrozenScope) -> Vec<Item> {
-    let owned = baseline::resolve_in_scope(elems, scope).unwrap_or_default();
-    owned
+fn current_items(elems: &[RawElement], scope: &FrozenScope) -> Result<Vec<Item>, String> {
+    let owned = baseline::resolve_in_scope(elems, scope)?;
+    Ok(owned
         .iter()
         .map(|e| Item {
             key: e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()),
@@ -475,7 +476,7 @@ fn current_items(elems: &[RawElement], scope: &FrozenScope) -> Vec<Item> {
             hash: syscribe_model::suspect::content_hash(e),
             file: e.file_path.clone(),
         })
-        .collect()
+        .collect())
 }
 
 fn cmd_diff(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest: &[String]) -> i32 {
@@ -497,7 +498,13 @@ fn cmd_diff(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest: 
     let detail = has_flag(rest, "--detail");
     if current {
         let scope = a.frontmatter.frozen_scope.clone().unwrap_or_default();
-        let items = current_items(elems, &scope);
+        let items = match current_items(elems, &scope) {
+            Ok(i) => i,
+            Err(e) => {
+                eprintln!("error: the baseline's scope config did not resolve: {e}");
+                return 1;
+            }
+        };
         println!("# baseline diff {} → working tree", ma.baseline);
         print_changes(model_root, &ma, &items, detail);
         return 0;

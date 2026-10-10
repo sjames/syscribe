@@ -142,3 +142,48 @@ fn current_diff_lists_added_and_removed_elements() {
     assert!(out.contains("added (1)") && out.contains("REQ-BD-002"), "{out}");
     assert!(out.contains("removed (1)") && out.contains("REQ-BD-001"), "{out}");
 }
+
+fn set_status(r: &Repo, id: &str, from: &str, to: &str) {
+    let p = r.model.join(format!("Baselines/{id}.md"));
+    let t = std::fs::read_to_string(&p).unwrap();
+    std::fs::write(&p, t.replacen(&format!("status: {from}"), &format!("status: {to}"), 1)).unwrap();
+}
+
+#[test]
+fn superseded_still_reports_a_tampered_manifest() {
+    // GH #262 review: only content drift is skipped for a superseded baseline.
+    let r = two_baselines();
+    set_status(&r, "BL-V1", "draft", "superseded");
+    let mp = r.root.join("baselines/BL-V1.manifest.json");
+    let mut v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&mp).unwrap()).unwrap();
+    v["aggregateHash"] = serde_json::Value::String("blake3:deadbeef".into());
+    std::fs::write(&mp, serde_json::to_string_pretty(&v).unwrap()).unwrap();
+    commit(&r, "tamper");
+    let (out, c) = run(&r, &["baseline", "verify", "--all"]);
+    assert_eq!(c, 2, "{out}");
+    assert!(out.contains("BL-V1: FAIL") && out.contains("manifest aggregate"), "{out}");
+    assert!(!out.contains("content drift") || !out.contains("BL-V1: FAIL — content drift"), "{out}");
+}
+
+#[test]
+fn current_diff_reports_an_unresolvable_scope_config_instead_of_everything_removed() {
+    let r = two_baselines();
+    // A feature model must exist for an unknown config to be an error (otherwise the
+    // variability dimension is dormant and the scope is read flat).
+    std::fs::create_dir_all(r.model.join("Features")).unwrap();
+    std::fs::write(
+        r.model.join("Features/A.md"),
+        "---\ntype: FeatureDef\nid: FEAT-BD-100\nname: A\ngroupKind: optional\n---\n\nF.\n",
+    )
+    .unwrap();
+    let p = r.model.join("Baselines/BL-V2.md");
+    let t = std::fs::read_to_string(&p).unwrap();
+    // Point the frozen scope at a configuration that does not exist.
+    assert!(t.contains("frozenScope: {}"), "{t}");
+    let t = t.replacen("frozenScope: {}", "frozenScope:\n  config: CONF-NOPE-001", 1);
+    std::fs::write(&p, t).unwrap();
+    let (out, c) = run(&r, &["baseline", "diff", "BL-V2", "--current"]);
+    assert_eq!(c, 1, "{out}");
+    assert!(out.to_lowercase().contains("scope") && out.contains("CONF-NOPE-001"), "{out}");
+    assert!(!out.contains("removed (1)"), "{out}");
+}
