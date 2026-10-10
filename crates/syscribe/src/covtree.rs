@@ -391,3 +391,30 @@ pub fn cmd_rollup(
     }
     0
 }
+
+/// Per-`reqClass` roll-up counts for `audit` (GH #252, REQ-TRS-AUDITCLS-001): `Ok(class -> verdict
+/// -> count)` or `Err` with the policy problem. Same verdicts as `matrix --rollup`.
+pub fn class_summary(
+    elements: &[RawElement],
+    result: &ValidationResult,
+    results: Option<&ResultsData>,
+    policy: &CoveragePolicy,
+) -> Result<BTreeMap<String, BTreeMap<&'static str, usize>>, String> {
+    if !policy.problems.is_empty() {
+        return Err(policy.problems.join("; "));
+    }
+    let violations: Vec<String> = elements.iter().filter(|e| Resolver::is_native_requirement(e)).filter_map(|e| guard_violation(e, result, policy)).collect();
+    if !violations.is_empty() {
+        return Err(violations.join("; "));
+    }
+    let resolver = Resolver::new(elements);
+    let states = crate::matrix::requirement_rollup(elements, results);
+    let mut memo = std::collections::HashMap::new();
+    let mut by_class: BTreeMap<String, BTreeMap<&'static str, usize>> = BTreeMap::new();
+    for e in elements.iter().filter(|e| Resolver::is_native_requirement(e)) {
+        let (n, _) = summarise(e, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut memo);
+        let class = e.frontmatter.req_class.clone().unwrap_or_else(|| "-".into());
+        *by_class.entry(class).or_default().entry(n.verdict()).or_default() += 1;
+    }
+    Ok(by_class)
+}

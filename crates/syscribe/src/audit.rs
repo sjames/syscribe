@@ -471,6 +471,35 @@ pub fn cmd_audit(
         None => Coverage::rollup(view, config.results.as_ref(), false),
     };
 
+    // ---- Section 3b: coverage by requirement class (GH #252) ---------------
+    // The derivation-tree roll-up of `matrix --rollup`, per reqClass. One extra validation pass over
+    // the same (scoped) view supplies the derivation and verification indices.
+    let class_cov: Result<std::collections::BTreeMap<String, std::collections::BTreeMap<&'static str, usize>>, String> = {
+        let scoped: Vec<RawElement>;
+        let cov_view: &[RawElement] = match plan_scope {
+            Some(_) => {
+                scoped = view.iter().filter(|e| in_scope(e)).cloned().collect();
+                &scoped
+            }
+            None => view,
+        };
+        let res = validator::validate_with_config(cov_view, config);
+        crate::covtree::class_summary(cov_view, &res, config.results.as_ref(), &config.coverage)
+    };
+    let class_cov_json = match &class_cov {
+        Ok(m) => {
+            let mut o = serde_json::Map::new();
+            for (class, v) in m {
+                let g = |k: &str| v.get(k).copied().unwrap_or(0);
+                let applicable = g("complete") + g("partial") + g("none");
+                let pct = if applicable == 0 { serde_json::Value::Null } else { json!(100.0 * g("complete") as f64 / applicable as f64) };
+                o.insert(class.clone(), json!({"complete": g("complete"), "partial": g("partial"), "none": g("none"), "na": g("na"), "percentComplete": pct}));
+            }
+            serde_json::Value::Object(o)
+        }
+        Err(e) => json!({"error": e}),
+    };
+
     // ---- Section 4: orphans ----------------------------------------------
     // Satisfaction map: any element's satisfies: target (by qname or id).
     let mut satisfied: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -568,6 +597,7 @@ pub fn cmd_audit(
                 "qmOrNone": qm_none,
             },
             "coverage": coverage.json(),
+            "coverageByClass": class_cov_json,
             "orphans": {
                 "unverifiedRequirements": orphan_json(&unverified),
                 "unsatisfiedRequirements": orphan_json(&unsatisfied),
@@ -641,6 +671,23 @@ pub fn cmd_audit(
         }
         let (cov, app) = coverage.overall();
         println!("  Overall: {cov}/{app} ({})", fmt_pct(Coverage::percent(cov, app)));
+    }
+    println!();
+
+    // 3b. Coverage by requirement class
+    println!("## Coverage by Requirement Class");
+    println!();
+    match &class_cov {
+        Err(e) => println!("[coverage] policy problem: {e}"),
+        Ok(m) if m.is_empty() => println!("No requirements."),
+        Ok(m) => {
+            println!("complete / partial / none (derivation-tree roll-up, as `matrix --rollup`):");
+            for (class, v) in m {
+                let g = |k: &str| v.get(k).copied().unwrap_or(0);
+                let applicable = g("complete") + g("partial") + g("none");
+                println!("  {class}: {} complete, {} partial, {} none ({})", g("complete"), g("partial"), g("none"), fmt_pct(Coverage::percent(g("complete") as u32, applicable as u32)));
+            }
+        }
     }
     println!();
 
