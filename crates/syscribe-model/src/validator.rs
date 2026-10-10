@@ -6393,52 +6393,65 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             leaves
         };
+        let req_index: HashMap<&str, usize> = reqs.iter().enumerate().map(|(i, (id, _, _, _))| (id.as_str(), i)).collect();
+        // Statuses whose leaves make no commitment (as `parent_rolled_up`'s `live`).
+        let dead = |id: &str| {
+            resolver
+                .get_by_id(elements, id)
+                .and_then(|e| e.frontmatter.status.as_deref())
+                .is_some_and(|s| matches!(s, "draft" | "rejected" | "obsolete" | "retired" | "deprecated" | "superseded"))
+        };
         for (rid, rexpr, rkeys, rfile) in &reqs {
             let mut uncovered: Vec<&str> = Vec::new();
-            let mut below_verified_everywhere = true;
-            let leaves = leaf_ids(rid);
             for (cfg_id, sel) in &cfgs {
                 let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
                 if !rexpr.as_ref().is_none_or(|e| e.eval(&selected)) {
                     continue;
                 }
-                let covered = tcs.iter().any(|(texpr, verifies)| {
-                    let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
-                    runs && verifies.iter().any(|v| rkeys.iter().any(|k| k == v))
-                });
-                if !covered {
+                if !covered_in(rkeys, &selected) {
                     uncovered.push(cfg_id.as_str());
-                    // A parent: are the leaves below it that are active here all covered here?
-                    for l in &leaves {
-                        if let Some((_, lexpr, lkeys, _)) = reqs.iter().find(|(id, _, _, _)| id == l) {
-                            if lexpr.as_ref().is_none_or(|e| e.eval(&selected)) && !covered_in(lkeys, &selected) {
-                                below_verified_everywhere = false;
-                            }
+                }
+            }
+            if uncovered.is_empty() {
+                continue;
+            }
+            // For a parent, say whether it is uncovered *directly only* or also below it: the live
+            // leaves active in an uncovered configuration are checked there.
+            let leaves = leaf_ids(rid);
+            let below = if leaves.is_empty() {
+                String::new()
+            } else {
+                let (mut checked, mut all_covered) = (0usize, true);
+                for (_, sel) in cfgs.iter().filter(|(c, _)| uncovered.contains(&c.as_str())) {
+                    let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+                    for l in leaves.iter().filter(|l| !dead(l)) {
+                        let Some(&i) = req_index.get(l.as_str()) else { continue };
+                        let (_, lexpr, lkeys, _) = &reqs[i];
+                        if lexpr.as_ref().is_none_or(|e| e.eval(&selected)) {
+                            checked += 1;
+                            all_covered &= covered_in(lkeys, &selected);
                         }
                     }
                 }
-            }
-            if !uncovered.is_empty() {
-                // For a parent, say whether it is uncovered *directly only* or also below it.
-                let below = if leaves.is_empty() {
-                    String::new()
-                } else if below_verified_everywhere {
+                if checked == 0 {
+                    "; no live leaf below it is active there to cover it".to_string()
+                } else if all_covered {
                     "; its leaves below are all verified there — covered through its children only, it still needs a direct test".to_string()
                 } else {
                     "; and not every leaf below it is verified there".to_string()
-                };
-                findings.push(warning(
-                    "W015",
-                    rfile,
-                    &format!(
-                        "requirement '{}' is active in {} configuration(s) but no TestCase covering it runs there: {}{}",
-                        rid,
-                        uncovered.len(),
-                        uncovered.join(", "),
-                        below
-                    ),
-                ));
-            }
+                }
+            };
+            findings.push(warning(
+                "W015",
+                rfile,
+                &format!(
+                    "requirement '{}' is active in {} configuration(s) but no TestCase covering it runs there: {}{}",
+                    rid,
+                    uncovered.len(),
+                    uncovered.join(", "),
+                    below
+                ),
+            ));
         }
     }
 

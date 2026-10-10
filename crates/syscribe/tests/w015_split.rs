@@ -53,3 +53,23 @@ fn a_parent_with_an_unverified_leaf_and_a_plain_leaf() {
     assert!(!leaf.contains("leaf") && !leaf.contains("children"), "a leaf's message is unchanged: {leaf}");
     assert!(lines.iter().any(|l| l.contains("REQ-WS-003")));
 }
+
+#[test]
+fn draft_and_dead_leaves_are_not_claimed_verified_or_unverified() {
+    // all children draft: nothing live to check -> neither claim is made
+    let d = model(true);
+    for id in ["REQ-WS-002", "REQ-WS-003"] {
+        let p = d.join(format!("R/{id}.md"));
+        std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("status: approved", "status: draft")).unwrap();
+    }
+    let lines = w015(&d);
+    let parent = lines.iter().find(|l| l.contains("REQ-WS-001")).unwrap_or_else(|| panic!("{lines:?}"));
+    assert!(parent.contains("no live leaf below it is active there") && !parent.contains("all verified"), "{parent}");
+    // an obsolete untested leaf next to a tested one does not make the parent look unverified
+    let d = model(false);
+    let p = d.join("R/REQ-WS-003.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("status: approved", "status: obsolete")).unwrap();
+    let lines = w015(&d);
+    let parent = lines.iter().find(|l| l.contains("REQ-WS-001")).unwrap();
+    assert!(parent.contains("covered through its children only"), "{parent}");
+}
