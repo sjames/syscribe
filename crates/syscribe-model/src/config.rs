@@ -153,7 +153,7 @@ pub struct ValidateConfig {
 ///
 /// ```toml
 /// [audit]
-/// fail_on = ["W306"]                       # codes that fail at any integrity level
+/// fail_on = ["W306", "W312"]              # codes that fail at any integrity level (defaults)
 /// [audit.fail_on_asil]                     # codes that fail only on a goal at these ASILs
 /// W033 = ["C", "D"]
 /// W805 = ["C", "D"]
@@ -180,7 +180,7 @@ impl Default for AuditConfig {
         for c in ["W033", "W805"] {
             fail_on_asil.insert(c.to_string(), vec!["C".to_string(), "D".to_string()]);
         }
-        Self { fail_on: vec!["W306".to_string()], fail_on_asil, problems: Vec::new() }
+        Self { fail_on: vec!["W306".to_string(), "W312".to_string()], fail_on_asil, problems: Vec::new() }
     }
 }
 

@@ -268,7 +268,7 @@ pub fn plan_lens(elements: &[RawElement], tp: &str) -> Vec<RawElement> {
 /// `tc_verdict` evidence fold. Empty effective set → `empty`. Any member Fail →
 /// `fail`. All members Pass → `pass`. Otherwise (missing / no results) →
 /// `incomplete`.
-fn plan_verdict(
+pub(crate) fn plan_verdict(
     plan: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,

@@ -181,7 +181,7 @@ fn audit_config_defaults_overrides_and_problems() {
     let root = tempdir();
     let d = AuditConfig::load(&root);
     assert_eq!(d, AuditConfig::default());
-    assert_eq!(d.fail_on, vec!["W306".to_string()]);
+    assert_eq!(d.fail_on, vec!["W306".to_string(), "W312".to_string()]);
     assert_eq!(d.fail_on_asil["W805"], vec!["C".to_string(), "D".to_string()]);
 
     write(

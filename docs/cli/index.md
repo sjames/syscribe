@@ -1008,7 +1008,7 @@ The default policy always fails on errors, on `W306`, and on `W033`/`W805` for A
 
 ```toml
 [audit]
-fail_on = ["W306", "W800"]      # codes that fail the verdict at any integrity level (default ["W306"])
+fail_on = ["W306", "W800"]      # codes that fail the verdict at any integrity level (default ["W306", "W312"])
 
 [audit.fail_on_asil]            # code -> ASIL levels at which it fails (default W033/W805 at C and D)
 W033 = ["B", "C", "D"]
