@@ -7,7 +7,8 @@
 
 ## DESCRIPTION
 For each requirement, reports the distinct verification levels (testLevels of its
-active verifying TestCases), a count, and a depth flag: none (no active test),
+`active` verifying TestCases — draft, approved and retired ones are not counted, and
+the report header says so), a count, and a depth flag: none (no active test),
 hil-only (only L5), single (one level), or ok (≥2 levels). Diversity of
 verification is a core SIL-4 expectation.
 

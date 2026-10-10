@@ -5,7 +5,8 @@
         [--config <C> | --all-configs] [--plan TP-X]
 
 ## DESCRIPTION
-Rolls up a top-level readiness picture: requirement status split (overall and
+Rolls up a top-level readiness picture (coverage and orphans count `active` TestCases
+only; `trace` and `who-verifies` list linked TestCases of any status): requirement status split (overall and
 per top-level package), SIL/ASIL distribution, per-configuration coverage %,
 orphans (requirements with no test / no satisfying element, dangling TestCases,
 no-trace requirements), Safety (hazards, goals by integrity level, FTA, FMEA,

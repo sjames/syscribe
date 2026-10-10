@@ -5,7 +5,7 @@
                                            [--uncovered-only] [--include-planned]
 
 ## DESCRIPTION
-Reports how completely the **active** `TestCase` elements exercise the behavioral elements
+Reports how completely the **active** `TestCase` elements (draft/approved/retired ones are not counted) exercise the behavioral elements
 (`ActionDef`, `Action`, `StateDef`, `State`) in scope (§20). A behavioral element B is
 covered by a TestCase TC when any of four paths holds:
 

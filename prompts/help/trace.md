@@ -8,6 +8,9 @@ Shows a requirement's complete traceability slice: parents (derivedFrom), the
 breakdown ADR, the SafetyGoal it derives from, the architecture that satisfies
 it, and the TestCases that verify it. When a results sidecar is present, each
 verifying TestCase is annotated with its ingested verdict ([pass]/[fail]/[unknown]).
+Evidence status: every linked TestCase is listed whatever its status; the coverage
+commands (`verification-depth`, `audit` orphans, `behavioral-coverage`) count only
+`active` ones, so a requirement shown as verified here can still read as unverified there.
 
 A "Custom links" section lists the user-defined links (`links:`, declared in
 `[linkTypes]` of `.syscribe.toml`) leaving and entering the requirement. Instances of

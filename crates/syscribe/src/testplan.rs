@@ -395,6 +395,10 @@ pub fn cmd_testplan_list(elements: &[RawElement], json: bool, results: Option<&R
             r.id, title, scope, cfgs, r.effective_count, cov, r.verdict
         );
     }
+    println!();
+    println!(
+        "Coverage = requirements in the plan's scope covered by a linked member TestCase, as a percentage of the requirements applicable in the plan's configurations. It is a traceability measure, not an execution result: Verdict (pass / fail / incomplete / empty) folds the ingested results."
+    );
 }
 
 // ── detail (`testplan TP-X`) ────────────────────────────────────────────────

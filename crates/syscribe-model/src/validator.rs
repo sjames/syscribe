@@ -6869,7 +6869,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     // CAL3 → I2 (or higher) cybersecurity_assessment required (REQ-TRS-SEC-007).
                     if fm.cal_level.as_deref() == Some("CAL3") && !is_assessed(elem, &cs_assessed_i2) {
                         findings.push(warning("W039", &elem.file_path, &format!(
-                            "CAL3 item '{}' has no I2 cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
+                            "CAL3 item '{}' has no I2 or higher (I2 or I3) cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
                     }
                 }
             }
