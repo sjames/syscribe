@@ -1474,6 +1474,11 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     for x in elements {
         let aw_x = elem_aw(x); // None ⇒ always active (true)
         for (kind, target) in crate::projection::outbound_refs(x) {
+            // An Allocation inherits the gate of its endpoints (GH #234): it is inactive wherever an
+            // endpoint is, so its endpoint references cannot escape.
+            if is(x, ElementType::Allocation) && kind == crate::projection::RefKind::Structural {
+                continue;
+            }
             let Some(y) = resolver.resolve_ref(elements, &target) else { continue };
             let Some(aw_y) = elem_aw(y) else { continue }; // Y always active ⇒ implication holds
             let mut cnf = enc.cnf();

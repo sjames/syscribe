@@ -241,7 +241,9 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
         match entry {
             serde_yaml::Value::String(s) => out.push((RefKind::Traceability, s.clone())),
             serde_yaml::Value::Mapping(m) => {
-                if let Some(r) = m.get("ref").and_then(|v| v.as_str()) {
+                // A non-empty `rationale:` waives the entry (E716 treats it so): no escape either.
+                let waived = m.get("rationale").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
+                if let Some(r) = m.get("ref").and_then(|v| v.as_str()).filter(|_| !waived) {
                     out.push((RefKind::Traceability, r.to_string()));
                 }
             }
@@ -324,6 +326,9 @@ const LENS_SUPPRESS: &[&str] = &[
     // Per-kind resolution of list-valued references (GH #234): a member inactive in the variant is
     // a W019 escape; one that resolves nowhere is still reported by whole-model `validate`.
     "E601", "E603", "E704", "E716", "E851", "E855",
+    // A `done` leaf PlanningItem whose only evidence is inactive here has no resolving evidence (E719):
+    // the same cascade, reported as the W019 escape instead.
+    "E719",
 ];
 
 /// An `Allocation` is gated by the AND of its endpoints' gates (GH #234): inactive when any
@@ -333,12 +338,18 @@ fn allocation_gated_off(x: &RawElement, full: &[RawElement], resolver: &Resolver
         return false;
     }
     let fm = &x.frontmatter;
-    fm.allocated_from
-        .iter()
-        .flatten()
-        .chain(fm.allocated_to.iter().flatten())
-        .filter_map(|r| resolver.resolve_ref(full, r))
-        .any(|t| !active(t))
+    let mut endpoints: Vec<String> = fm.allocated_from.iter().flatten().chain(fm.allocated_to.iter().flatten()).cloned().collect();
+    // The `features: [{allocatedFrom, allocatedTo}]` form names endpoints too.
+    for f in fm.features.iter().flatten() {
+        if let Some(m) = f.as_mapping() {
+            for key in ["allocatedFrom", "allocatedTo"] {
+                if let Some(v) = m.get(key) {
+                    endpoints.extend(vstr(v));
+                }
+            }
+        }
+    }
+    endpoints.iter().filter_map(|r| resolver.resolve_ref(full, r)).any(|t| !active(t))
 }
 
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the

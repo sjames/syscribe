@@ -72,3 +72,24 @@ fn plain_validate_still_flags_a_reference_that_resolves_nowhere() {
     .unwrap();
     assert!(run(&d, &["validate"]).contains("E716"));
 }
+
+#[test]
+fn waived_evidence_done_leaves_and_features_form_allocations_do_not_cascade() {
+    let d = model();
+    let w = |rel: &str, c: &str| std::fs::write(d.join(rel), c).unwrap();
+    w("Planning/PI-PL-003.md", "---\nid: PI-PL-003\ntype: PlanningItem\nname: waived\nstatus: todo\nitemType: task\nachieves: [REQ-PL-001]\nevidence:\n  - ref: TC-PL-001\n    rationale: verified offline\n---\n\nW.\n");
+    w("Planning/PI-PL-004.md", "---\nid: PI-PL-004\ntype: PlanningItem\nname: doneleaf\nstatus: done\nitemType: task\nachieves: [REQ-PL-001]\nevidence:\n  - ref: TC-PL-001\n---\n\nD.\n");
+    w("Sys/Alt.md", "---\ntype: Allocation\nname: Alt\nfeatures:\n  - {name: a, type: Allocation, allocatedFrom: Sys::Base, allocatedTo: Sys::Cloud}\n---\n\nA.\n");
+    let off = run(&d, &["validate", "--config", "CONF-OFF-001"]);
+    assert!(!off.contains("PI-PL-003"), "a waived entry raises nothing: {off}");
+    assert!(!off.contains("E719"), "{off}");
+    assert!(off.contains("PI-PL-004"), "the done leaf still gets its W019: {off}");
+    assert!(!off.contains("Alt.md"), "the features-form allocation is inactive too: {off}");
+}
+
+#[test]
+fn deep_check_does_not_report_e227_for_an_allocation() {
+    let d = model();
+    let o = run(&d, &["feature-check", "--deep"]);
+    assert!(!o.contains("BaseToCloud"), "{o}");
+}

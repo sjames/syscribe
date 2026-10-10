@@ -42,15 +42,17 @@ checks differ in reach:
     validate                 sees no escapes (the 150% model: every element is present)
     validate --config C      checks that one variant; --all-configs checks every stored
                              Configuration
-    feature-check --deep     proves the absence of escapes (E227) for every valid
-                             configuration, stored or not
+    feature-check --deep     proves the absence of escapes (E227 structural, W020
+                             traceability) for every valid configuration, stored or not
 
 In a variant, a structural reference to an inactive element is E226; a traceability or
 list-valued reference (satisfies, verifies, derivedFrom, links, ReviewRecord.reviews,
 Argument.supports/evidence, PlanningItem evidence ref, ConfirmationMeasure.confirms,
 TestPlan.demonstrates/testCases) is the warning W019 — the per-kind "does not resolve"
-errors are not raised for a target that exists but is inactive. An Allocation is inactive
-in a variant when any endpoint is. A mandatory single reference (FaultTree.topEvent) keeps
+errors (and E719 for a done leaf PlanningItem) are not raised for a target that exists but
+is inactive; a waived evidence entry (with a `rationale:`) raises nothing. An Allocation is
+inactive in a variant when any endpoint is, whether named in allocatedFrom/allocatedTo or in
+a `features:` entry. A mandatory single reference (FaultTree.topEvent) keeps
 its error.
 
 ## EXAMPLES
