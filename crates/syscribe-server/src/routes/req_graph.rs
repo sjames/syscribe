@@ -46,7 +46,7 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
                 }
             }
         };
-        let lists: [(&'static str, Option<&Vec<String>>); 11] = [
+        let lists: [(&'static str, Option<&Vec<String>>); 16] = [
             ("derivedFrom", fm.derived_from.as_ref()),
             ("satisfies", fm.satisfies.as_ref()),
             ("verifies", fm.verifies.as_ref()),
@@ -58,7 +58,23 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
             ("analyses", fm.analyses.as_ref()),
             ("runsOn", fm.runs_on.as_ref()),
             ("achieves", fm.achieves.as_ref()),
+            ("hazardRef", fm.hazard_ref.as_ref()),
+            ("hazardousEvents", fm.hazardous_events.as_ref()),
+            ("threatScenarios", fm.threat_scenarios.as_ref()),
+            ("mitigatedBy", fm.mitigated_by.as_ref()),
+            ("derivedFromCybersecurityGoal", fm.derived_from_cybersecurity_goal.as_ref()),
         ];
+        let more: [(&'static str, Option<&Vec<String>>); 2] = [("confirms", fm.confirms.as_ref()), ("implementedBy", fm.implemented_by.as_ref())];
+        for (kind, list) in more {
+            if let Some(l) = list {
+                push(kind, l);
+            }
+        }
+        for (kind, one) in [("threatRef", fm.threat_ref.as_ref()), ("relatedSafetyGoal", fm.related_safety_goal.as_ref())] {
+            if let Some(r) = one {
+                push(kind, std::slice::from_ref(r));
+            }
+        }
         for (kind, list) in lists {
             if let Some(l) = list {
                 push(kind, l);
@@ -170,7 +186,8 @@ fn view<'a>(live: &'a [RawElement], config: Option<&str>) -> Result<std::borrow:
 
 const EDGE_KINDS: &[&str] = &[
     "derivedFrom", "satisfies", "verifies", "allocatedTo", "refines", "supersedes", "derivedFromSafetyGoal", "breakdownAdr",
-    "blockedBy", "covers", "analyses", "runsOn", "achieves", "evidence", "appliesWhen",
+    "blockedBy", "covers", "analyses", "runsOn", "achieves", "evidence", "appliesWhen", "hazardRef", "hazardousEvents", "threatScenarios",
+    "mitigatedBy", "derivedFromCybersecurityGoal", "confirms", "implementedBy", "threatRef", "relatedSafetyGoal",
 ];
 
 fn parse_usize(params: &HashMap<String, String>, key: &str) -> Result<Option<usize>, Err> {
@@ -277,4 +294,42 @@ pub async fn get_overview(State(state): State<SharedState>, Query(params): Query
         }
     }
     Ok(Json(json!({"requirements": total, "byClass": by_class, "byStatus": by_status, "unlinked": unlinked, "verification": verification})))
+}
+
+const SEARCH_DEFAULT: usize = 20;
+const SEARCH_MAX: usize = 100;
+
+/// GET /api/req-graph/search?q=&limit=&config= — find a root by id, name or qualified name.
+pub async fn get_search(State(state): State<SharedState>, Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, Err> {
+    let q = params.get("q").map(|q| q.trim().to_lowercase()).filter(|q| !q.is_empty()).ok_or_else(|| bad(StatusCode::BAD_REQUEST, "`q` is required"))?;
+    let limit = parse_usize(&params, "limit")?.unwrap_or(SEARCH_DEFAULT).clamp(1, SEARCH_MAX);
+    let store = state.read().await;
+    let elems = view(&store.elements, params.get("config").map(String::as_str))?;
+    let mut hits: Vec<(u8, String, &RawElement)> = Vec::new();
+    for e in elems.iter() {
+        let id = node_id(e).to_lowercase();
+        let name = e.frontmatter.name.as_deref().unwrap_or("").to_lowercase();
+        let rank = if id == q {
+            0
+        } else if id.starts_with(&q) {
+            1
+        } else if id.contains(&q) {
+            2
+        } else if name.contains(&q) {
+            3
+        } else if e.qualified_name.to_lowercase().contains(&q) {
+            4
+        } else {
+            continue;
+        };
+        hits.push((rank, node_id(e), e));
+    }
+    hits.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
+    let truncated = hits.len() > limit;
+    let results: Vec<Value> = hits
+        .iter()
+        .take(limit)
+        .map(|(_, id, e)| json!({"id": id, "qname": e.qualified_name, "type": e.frontmatter.element_type.as_ref().map(|t| t.name()), "name": e.frontmatter.name, "status": e.frontmatter.status}))
+        .collect();
+    Ok(Json(json!({"results": results, "truncated": truncated})))
 }

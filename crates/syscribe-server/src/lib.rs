@@ -68,6 +68,7 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
         .route("/requirements", get(routes::ui::requirements_page))
         .route("/api/req-graph", get(routes::req_graph::get_req_graph))
         .route("/api/req-graph/overview", get(routes::req_graph::get_overview))
+        .route("/api/req-graph/search", get(routes::req_graph::get_search))
         .route("/ws", get(ws_handler))
         .route("/static/{*path}", get(static_assets::static_handler))
         .layer(axum::Extension(reload_tx))

@@ -7,7 +7,8 @@
 
   var NODE_W = 190, NODE_H = 44, GAP_X = 96, GAP_Y = 22, PAD = 24;
   var EDGE_KINDS = ['derivedFrom', 'satisfies', 'verifies', 'allocatedTo', 'refines', 'supersedes',
-    'derivedFromSafetyGoal', 'breakdownAdr', 'blockedBy', 'covers', 'analyses', 'runsOn', 'achieves', 'evidence', 'appliesWhen'];
+    'derivedFromSafetyGoal', 'breakdownAdr', 'blockedBy', 'covers', 'analyses', 'runsOn', 'achieves', 'evidence', 'appliesWhen',
+    'hazardRef', 'hazardousEvents', 'threatScenarios', 'mitigatedBy', 'derivedFromCybersecurityGoal', 'confirms', 'implementedBy', 'threatRef', 'relatedSafetyGoal'];
   var FILL = { verified: '#e3f4e5', planned: '#fff3d6', unverified: '#fde4e1', na: '#eceff4' };
   var STROKE = { verified: '#2e7d32', planned: '#b7791f', unverified: '#c0392b', na: '#7a869a' };
 
@@ -55,6 +56,24 @@
     return { nodes: nodes, edges: g.edges || [], width: width, height: height };
   }
 
+  // Pure filter: keeps the root and every node matching ALL non-empty criteria (types, verification, asil);
+  // drops edges touching a hidden node. An empty or missing criterion restricts nothing.
+  function filterGraph(g, f) {
+    f = f || {};
+    function ok(list, v) { return !list || !list.length || list.indexOf(v) >= 0; }
+    var keep = {};
+    var nodes = g.nodes.filter(function (n) {
+      var k = n.id === g.root || (ok(f.types, n.type) && ok(f.verification, n.verification || 'na') && ok(f.asil, n.asil));
+      if (k) keep[n.id] = true;
+      return k;
+    });
+    var edges = (g.edges || []).filter(function (e) { return keep[e.from] && keep[e.to]; });
+    var out = {};
+    Object.keys(g).forEach(function (k) { out[k] = g[k]; });
+    out.nodes = nodes; out.edges = edges; out.hidden = g.nodes.length - nodes.length;
+    return out;
+  }
+
   function el(name, attrs, text) {
     var e = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
@@ -64,13 +83,15 @@
 
   function truncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null };
+  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {} };
   var root, svg, statusEl, detailEl;
 
   function setStatus(t) { if (statusEl) statusEl.textContent = t || ''; }
 
-  function draw(graph) {
-    state.lastGraph = graph;
+  function draw(raw) {
+    state.lastGraph = raw;
+    syncTypeFilters(raw);
+    var graph = filterGraph(raw, state.filters);
     var lay = layoutGraph(graph);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.setAttribute('width', lay.width);
@@ -124,7 +145,7 @@
       svg.appendChild(g);
     });
     labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
-    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
+    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
   }
 
   function qnamePath(q) { return q.split('::').map(encodeURIComponent).join('/'); }
@@ -236,6 +257,69 @@
     return load();
   }
 
+  // Filter checkboxes: a ticked box restricts to that value; none ticked in a group restricts nothing.
+  function readFilters() {
+    var f = {};
+    ['types', 'verification', 'asil'].forEach(function (g) {
+      f[g] = Array.prototype.map.call(document.querySelectorAll('#req-filters input[data-group="' + g + '"]:checked'), function (i) { return i.value; });
+    });
+    state.filters = f;
+  }
+
+  function addFilterBox(host, group, value, label) {
+    var lab = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = value; cb.setAttribute('data-group', group);
+    cb.addEventListener('change', function () { readFilters(); if (state.lastGraph) draw(state.lastGraph); });
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(' ' + (label || value)));
+    host.appendChild(lab);
+  }
+
+  function syncTypeFilters(raw) {
+    var host = document.getElementById('req-filter-types');
+    if (!host) return;
+    var have = {};
+    Array.prototype.forEach.call(host.querySelectorAll('input'), function (i) { have[i.value] = true; });
+    raw.nodes.map(function (n) { return n.type; }).filter(Boolean).sort().forEach(function (t) {
+      if (!have[t]) { have[t] = true; addFilterBox(host, 'types', t); }
+    });
+  }
+
+  var searchSeq = 0;
+  function initSearch() {
+    var input = document.getElementById('req-search');
+    var list = document.getElementById('req-search-results');
+    if (!input || !list) return;
+    var timer = null;
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var q = input.value.trim();
+        var my = ++searchSeq;
+        list.textContent = '';
+        if (!q) return;
+        var url = '/api/req-graph/search?q=' + encodeURIComponent(q) + (state.config ? '&config=' + encodeURIComponent(state.config) : '');
+        fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); }).then(function (res) {
+          if (my !== searchSeq) return; // a newer search superseded this one
+          list.textContent = '';
+          if (!res.ok) { var li = document.createElement('li'); li.textContent = (res.body && res.body.error) || 'Search failed.'; list.appendChild(li); return; }
+          if (!res.body.results.length) { var none = document.createElement('li'); none.textContent = 'No matches.'; list.appendChild(none); return; }
+          res.body.results.forEach(function (r) {
+            var li = document.createElement('li');
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = r.id + (r.name ? ' — ' + r.name : '') + ' (' + (r.type || '?') + ')';
+            b.addEventListener('click', function () { list.textContent = ''; input.value = ''; focusOn(r.id, true); });
+            li.appendChild(b);
+            list.appendChild(li);
+          });
+          if (res.body.truncated) { var more = document.createElement('li'); more.textContent = 'More matches — refine the search.'; list.appendChild(more); }
+        }).catch(function () { if (my === searchSeq) list.textContent = 'Search failed.'; });
+      }, 200);
+    });
+  }
+
   function init() {
     root = document.getElementById('req-explorer');
     if (!root) return;
@@ -278,12 +362,17 @@
       resetDetail();
       load();
     });
+    var fv = document.getElementById('req-filter-verification');
+    if (fv) [['verified', 'verified'], ['planned', 'planned'], ['unverified', 'unverified'], ['na', 'other element']].forEach(function (p) { addFilterBox(fv, 'verification', p[0], p[1]); });
+    var fa = document.getElementById('req-filter-asil');
+    if (fa) ['QM', 'A', 'B', 'C', 'D'].forEach(function (a) { addFilterBox(fa, 'asil', a); });
+    initSearch();
     document.addEventListener('syscribe:reload', load);
     load();
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { layoutGraph: layoutGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { layoutGraph: layoutGraph, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }

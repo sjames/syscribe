@@ -672,3 +672,6 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 #req-graph .rg-edge { fill: none; stroke: #7a869a; stroke-width: 1.4; }
 #req-graph .rg-edge-label { font: 10px sans-serif; fill: #2b3550; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
 #req-graph .rg-node:focus-visible rect { outline: 3px solid #1a4fd6; outline-offset: 2px; }
+.req-search-results { list-style: none; margin: 0; padding: 0; max-height: 14em; overflow: auto; }
+.req-search-results button { background: none; border: 0; padding: 2px 4px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+.req-search-results button:hover, .req-search-results button:focus-visible { text-decoration: underline; }

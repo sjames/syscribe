@@ -11,6 +11,11 @@
     <label>Configuration <input id="req-config" type="text" size="14" placeholder="CONF-… (optional)" value="{{ config }}"></label>
     <button type="submit">Show</button>
     <span id="req-status" class="req-status" role="status"></span>
+    <label>Search <input id="req-search" type="search" size="22" placeholder="id or name" aria-controls="req-search-results"></label>
+    <ul id="req-search-results" class="req-search-results" aria-live="polite"></ul>
+    <fieldset id="req-filters" class="req-kinds"><legend>Show only (tick to restrict)</legend>
+      <span id="req-filter-types"></span> <span id="req-filter-verification"></span> <span id="req-filter-asil"></span>
+    </fieldset>
     <fieldset id="req-kinds" class="req-kinds"><legend>Relations</legend></fieldset>
   </form>
   <div class="req-body">
