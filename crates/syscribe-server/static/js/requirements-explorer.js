@@ -611,7 +611,7 @@
     p.set('depth', String(state.depth));
     if (state.config) p.set('config', state.config);
     var vq = viewStateQuery(state);
-    return '/requirements?' + p.toString() + (vq ? '&' + vq : '');
+    return '/requirements?' + p.toString() + (vq ? '&' + vq : '') + (location.hash || '');
   }
 
   function snapshot() {
@@ -622,7 +622,7 @@
   function syncUrl() { history.replaceState(snapshot(), '', urlFor()); }
 
   // Apply a (parsed or remembered) view state to the state object and the controls.
-  function applyView(v) {
+  function applyView(v, noDraw) {
     state.layout = v.layout || VIEW_DEFAULT.layout;
     state.trace = v.trace || '';
     state.cols = v.cols || VIEW_DEFAULT.cols;
@@ -630,7 +630,7 @@
     var ts = document.getElementById('req-trace'); if (ts) ts.value = state.trace;
     var mc = document.getElementById('req-matrix-cols'); if (mc) mc.value = state.cols;
     setView(v.view || VIEW_DEFAULT.view);
-    if (state.lastGraph) draw(state.lastGraph);
+    if (state.lastGraph && !noDraw) draw(state.lastGraph);
   }
 
   // Push a history entry only when the view actually changed.
@@ -760,8 +760,12 @@
       document.getElementById('req-root').value = state.focus;
       document.getElementById('req-depth').value = String(state.depth);
       document.getElementById('req-config').value = state.config;
-      applyView(ev.state ? s : parseViewState(location.search));
       resetDetail();
+      // Fields an entry lacks (older entries) come from the address bar; load() redraws, so skip the stale draw.
+      var fromUrl = parseViewState(location.search);
+      var view = {};
+      ['layout', 'view', 'trace', 'cols'].forEach(function (k) { view[k] = ev.state && ev.state[k] !== undefined ? ev.state[k] : fromUrl[k]; });
+      applyView(view, true);
       load();
     });
     var fv = document.getElementById('req-filter-verification');

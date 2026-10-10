@@ -419,22 +419,26 @@ fn view_state_round_trips_through_the_url_and_invalid_values_fall_back() {
     let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
     let script = format!(
         r#"const m = require({js:?});
+const proto = m.parseViewState('?layout=__proto__&view=constructor&trace=toString&cols=hasOwnProperty');
+const dup = m.parseViewState('?view=table&view=matrix');
 const bad = m.parseViewState('?layout=evil&view=<script>&trace=nope&cols=%00');
 const def = m.parseViewState('');
 let roundTrip = true;
-for (const layout of ['hops','v-model']) for (const view of ['graph','table','matrix']) for (const trace of ['','tests','safety']) for (const cols of ['tests','security']) {{
+for (const layout of ['hops','v-model']) for (const view of ['graph','table','matrix']) for (const trace of ['','tests','architecture','features','safety','security']) for (const cols of ['tests','architecture','features','safety','security']) {{
   const s = {{layout, view, trace, cols}};
   const q = m.viewStateQuery(s);
   const back = m.parseViewState('?' + q);
   if (JSON.stringify(back) !== JSON.stringify(s)) roundTrip = false;
 }}
-console.log(JSON.stringify({{ bad, def, roundTrip, defaultsOmitted: m.viewStateQuery(def), some: m.viewStateQuery({{layout:'v-model',view:'table',trace:'tests',cols:'tests'}}) }}));"#
+console.log(JSON.stringify({{ proto, dup, bad, def, roundTrip, defaultsOmitted: m.viewStateQuery(def), some: m.viewStateQuery({{layout:'v-model',view:'table',trace:'tests',cols:'tests'}}) }}));"#
     );
     let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
     let d = serde_json::json!({"layout": "hops", "view": "graph", "trace": "", "cols": "tests"});
     assert_eq!(v["bad"], d);
+    assert_eq!(v["proto"], d, "prototype-chain names are not vocabulary");
+    assert_eq!(v["dup"]["view"], "table", "the first of a repeated parameter wins");
     assert_eq!(v["def"], d);
     assert_eq!(v["roundTrip"], true);
     assert_eq!(v["defaultsOmitted"], "");
