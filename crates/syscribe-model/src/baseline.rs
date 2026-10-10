@@ -280,6 +280,20 @@ impl Manifest {
         }
     }
 
+    /// Store each element's `file` relative to `base` (the git root), so a manifest is
+    /// portable between machines (GH #261). A path that is not under `base`, or does
+    /// not exist, is left as it is.
+    pub fn relativize(&mut self, base: &Path) {
+        let base = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+        for e in &mut self.elements {
+            let p = Path::new(&e.file);
+            let abs = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+            if let Ok(rel) = abs.strip_prefix(&base) {
+                e.file = rel.to_string_lossy().replace('\\', "/");
+            }
+        }
+    }
+
     pub fn to_json_pretty(&self) -> String {
         serde_json::to_string_pretty(self).unwrap_or_default()
     }

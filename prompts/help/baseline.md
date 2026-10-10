@@ -4,8 +4,9 @@
     syscribe -m <root> baseline create --tag <tag> [--name <n>] [--approver <a>]
                                        [--frozen-scope <sel>] [--id <BL-id>]
                                        [--allow-dirty] [--require-reviewed]
-    syscribe -m <root> baseline verify <BL-id> | --all
+    syscribe -m <root> baseline verify <BL-id> | --all [--detail]
     syscribe -m <root> baseline diff <BL-A> <BL-B> [--detail]
+    syscribe -m <root> baseline diff <BL> --current [--detail]
     syscribe -m <root> baseline list
     syscribe -m <root> baseline show <BL-id>
 
@@ -57,7 +58,11 @@ resolve it wherever it lives.
 `create` records the current `HEAD` as `gitCommit` and expects a **clean** working tree
 (`--allow-dirty` to override). It does **not** create the git tag — tag the release
 yourself; `verify` checks that `gitTag` resolves to `gitCommit` when the tag exists.
-`diff --detail` reconstructs field/body changes via `git show`.
+`diff --detail` reconstructs field/body changes via `git show` (manifest paths are stored
+relative to the git root; older absolute paths still resolve). `verify` reports a
+`superseded` baseline as `skipped` and ignores it for the exit code. `diff <BL> --current`
+(and `verify <BL> --detail` on drift) list the added / removed / changed elements between the
+sealed baseline and the working tree.
 
 ## EXAMPLES
     # the bundled models carry no Baseline yet; create one, then compare two

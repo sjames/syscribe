@@ -280,7 +280,7 @@ fn cmd_create(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
     let warnings = result.warnings().count();
 
     let (aggregate_hash, element_count) = aggregate(&in_scope);
-    let manifest = Manifest::build(
+    let mut manifest = Manifest::build(
         &id,
         Some(&name),
         date.as_deref(),
@@ -293,6 +293,9 @@ fn cmd_create(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
         warnings,
     );
 
+    if let Some(gr) = &git_root {
+        manifest.relativize(gr);
+    }
     let seal = BaselineSeal {
         aggregate_hash: aggregate_hash.clone(),
         element_count,
@@ -376,6 +379,12 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
     for b in targets {
         let id = element_key(b);
         let fm = &b.frontmatter;
+        // A superseded baseline is history, not a gate: `validate` skips its drift and so
+        // does `verify` (GH #262).
+        if fm.status.as_deref() == Some("superseded") {
+            println!("{id}: skipped (superseded)");
+            continue;
+        }
         let Some(seal) = &fm.seal else {
             println!("{id}: FAIL (no seal)");
             failed = true;
@@ -407,6 +416,12 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
         } else {
             println!("{id}: FAIL — {}", msgs.join("; "));
             failed = true;
+            if has_flag(rest, "--detail") && current != seal.aggregate_hash {
+                if let Some(m) = Manifest::from_file(&manifest_path(model_root, seal)) {
+                    let items = current_items(elems, &scope);
+                    print_changes(model_root, &m, &items, true);
+                }
+            }
         }
     }
     if failed {
@@ -423,30 +438,106 @@ fn load_manifest_for(b: &RawElement, model_root: &Path) -> Option<Manifest> {
     Manifest::from_file(&manifest_path(model_root, seal))
 }
 
+/// One element on either side of a comparison.
+struct Item {
+    key: String,
+    type_name: String,
+    hash: String,
+    file: String,
+}
+
+fn manifest_items(m: &Manifest) -> Vec<Item> {
+    m.elements
+        .iter()
+        .map(|e| Item {
+            key: e.id.clone().unwrap_or_else(|| e.qname.clone()),
+            type_name: e.type_name.clone(),
+            hash: e.hash.clone(),
+            file: e.file.clone(),
+        })
+        .collect()
+}
+
+/// The elements a baseline's scope selects in the working tree now (projected when the
+/// scope names a config), hashed exactly as the seal and the manifest hash them.
+fn current_items(elems: &[RawElement], scope: &FrozenScope) -> Vec<Item> {
+    let owned = baseline::resolve_in_scope(elems, scope).unwrap_or_default();
+    owned
+        .iter()
+        .map(|e| Item {
+            key: e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()),
+            type_name: e
+                .frontmatter
+                .element_type
+                .as_ref()
+                .map(baseline::element_type_name)
+                .unwrap_or_else(|| "Unknown".to_string()),
+            hash: syscribe_model::suspect::content_hash(e),
+            file: e.file_path.clone(),
+        })
+        .collect()
+}
+
 fn cmd_diff(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest: &[String]) -> i32 {
     let pos = positionals(rest);
-    if pos.len() != 2 {
-        eprintln!("Usage: syscribe -m <root> baseline diff <BL-A> <BL-B> [--detail]");
+    let current = has_flag(rest, "--current");
+    if pos.len() != if current { 1 } else { 2 } {
+        eprintln!("Usage: syscribe -m <root> baseline diff <BL-A> <BL-B> [--detail] | <BL> --current [--detail]");
         return 1;
     }
     let resolve = |k: &str| resolver.resolve_ref(elems, k).filter(|e| baseline::is_baseline(&e.frontmatter));
-    let (Some(a), Some(b)) = (resolve(pos[0]), resolve(pos[1])) else {
-        eprintln!("error: both arguments must resolve to Baseline elements");
+    let Some(a) = resolve(pos[0]) else {
+        eprintln!("error: `{}` must resolve to a Baseline element", pos[0]);
         return 1;
     };
-    let (Some(ma), Some(mb)) = (load_manifest_for(a, model_root), load_manifest_for(b, model_root)) else {
-        eprintln!("error: could not load one or both manifests");
+    let Some(ma) = load_manifest_for(a, model_root) else {
+        eprintln!("error: could not load the manifest of `{}`", pos[0]);
         return 1;
     };
+    let detail = has_flag(rest, "--detail");
+    if current {
+        let scope = a.frontmatter.frozen_scope.clone().unwrap_or_default();
+        let items = current_items(elems, &scope);
+        println!("# baseline diff {} → working tree", ma.baseline);
+        print_changes(model_root, &ma, &items, detail);
+        return 0;
+    }
+    let Some(b) = resolve(pos[1]) else {
+        eprintln!("error: `{}` must resolve to a Baseline element", pos[1]);
+        return 1;
+    };
+    let Some(mb) = load_manifest_for(b, model_root) else {
+        eprintln!("error: could not load the manifest of `{}`", pos[1]);
+        return 1;
+    };
+    println!("# baseline diff {} → {}", ma.baseline, mb.baseline);
+    if ma.aggregate_hash == mb.aggregate_hash {
+        println!("aggregate: identical");
+    }
+    print_changes_between(model_root, &ma, Some(&mb), &manifest_items(&ma), &manifest_items(&mb), detail);
+    0
+}
 
-    let map_a: BTreeMap<String, &baseline::ManifestElement> =
-        ma.elements.iter().map(|e| (e.id.clone().unwrap_or_else(|| e.qname.clone()), e)).collect();
-    let map_b: BTreeMap<String, &baseline::ManifestElement> =
-        mb.elements.iter().map(|e| (e.id.clone().unwrap_or_else(|| e.qname.clone()), e)).collect();
+/// Compare manifest `a` with the working tree `items` and print the changes.
+fn print_changes(model_root: &Path, a: &Manifest, items: &[Item], detail: bool) {
+    print_changes_between(model_root, a, None, &manifest_items(a), items, detail);
+}
 
-    let mut added: Vec<&baseline::ManifestElement> = Vec::new();
-    let mut removed: Vec<&baseline::ManifestElement> = Vec::new();
-    let mut changed: Vec<(&baseline::ManifestElement, &baseline::ManifestElement)> = Vec::new();
+/// Print added / removed / changed elements between two item sets. `mb` is the newer
+/// manifest, or `None` when the newer side is the working tree.
+fn print_changes_between(
+    model_root: &Path,
+    ma: &Manifest,
+    mb: Option<&Manifest>,
+    old: &[Item],
+    new: &[Item],
+    detail: bool,
+) {
+    let map_a: BTreeMap<&str, &Item> = old.iter().map(|e| (e.key.as_str(), e)).collect();
+    let map_b: BTreeMap<&str, &Item> = new.iter().map(|e| (e.key.as_str(), e)).collect();
+    let mut added: Vec<&Item> = Vec::new();
+    let mut removed: Vec<&Item> = Vec::new();
+    let mut changed: Vec<(&Item, &Item)> = Vec::new();
     for (k, eb) in &map_b {
         match map_a.get(k) {
             None => added.push(eb),
@@ -459,59 +550,73 @@ fn cmd_diff(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest: 
             removed.push(ea);
         }
     }
-
-    println!("# baseline diff {} → {}", ma.baseline, mb.baseline);
-    if ma.aggregate_hash == mb.aggregate_hash {
-        println!("aggregate: identical");
-    }
-    let group = |label: &str, items: &[&baseline::ManifestElement]| {
+    let group = |label: &str, items: &[&Item]| {
         println!("\n## {label} ({})", items.len());
-        let mut by_type: BTreeMap<&str, Vec<&baseline::ManifestElement>> = BTreeMap::new();
+        let mut by_type: BTreeMap<&str, Vec<&Item>> = BTreeMap::new();
         for e in items {
             by_type.entry(e.type_name.as_str()).or_default().push(e);
         }
         for (ty, es) in by_type {
             for e in es {
-                println!("  [{ty}] {}", e.id.clone().unwrap_or_else(|| e.qname.clone()));
+                println!("  [{ty}] {}", e.key);
             }
         }
     };
     group("added", &added);
     group("removed", &removed);
     println!("\n## changed ({})", changed.len());
-    let detail = has_flag(rest, "--detail");
-    let mut by_type: BTreeMap<&str, Vec<(&baseline::ManifestElement, &baseline::ManifestElement)>> = BTreeMap::new();
+    let mut by_type: BTreeMap<&str, Vec<(&Item, &Item)>> = BTreeMap::new();
     for (ea, eb) in &changed {
         by_type.entry(eb.type_name.as_str()).or_default().push((ea, eb));
     }
     for (ty, es) in by_type {
         for (ea, eb) in es {
-            let key = eb.id.clone().unwrap_or_else(|| eb.qname.clone());
-            println!("  [{ty}] {key}");
+            println!("  [{ty}] {}", eb.key);
             if detail {
-                print_detail(model_root, &ma, &mb, ea, eb);
+                print_detail(model_root, ma, mb, ea, eb);
             }
         }
     }
-    0
 }
 
-/// Reconstruct the two versions of a changed element via `git show` and print a diff.
-fn print_detail(
-    model_root: &Path,
-    ma: &Manifest,
-    mb: &Manifest,
-    ea: &baseline::ManifestElement,
-    eb: &baseline::ManifestElement,
-) {
+/// Candidate repo-root-relative paths for a manifest `file`: as stored when relative,
+/// else the part under the git root, else every trailing sub-path longest-first (an
+/// absolute path written on another machine, GH #261).
+fn repo_paths(root: &Path, file: &str) -> Vec<String> {
+    let p = Path::new(file);
+    if !p.is_absolute() {
+        return vec![file.replace('\\', "/")];
+    }
+    let rootc = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    for r in [root, rootc.as_path()] {
+        if let Ok(rel) = p.strip_prefix(r) {
+            return vec![rel.to_string_lossy().replace('\\', "/")];
+        }
+    }
+    let comps: Vec<String> = p
+        .components()
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect();
+    (0..comps.len()).map(|i| comps[i..].join("/")).collect()
+}
+
+/// Reconstruct the old and new versions of a changed element and print a diff. The old
+/// side comes from `git show` at the older baseline's commit; the new side from the newer
+/// baseline's commit, or the file on disk when comparing against the working tree.
+fn print_detail(model_root: &Path, ma: &Manifest, mb: Option<&Manifest>, ea: &Item, eb: &Item) {
     let Some(root) = detect_git_root(model_root) else { return };
     let show = |commit: &Option<String>, file: &str| -> Option<String> {
         let c = commit.as_ref()?;
-        // git wants a repo-root-relative path; try as-is and basename fallback.
-        git_output(&root, &["show", &format!("{c}:{file}")])
+        repo_paths(&root, file).iter().find_map(|path| git_output(&root, &["show", &format!("{c}:{path}")]))
     };
     let old = show(&ma.git_commit, &ea.file);
-    let new = show(&mb.git_commit, &eb.file);
+    let new = match mb {
+        Some(mb) => show(&mb.git_commit, &eb.file),
+        None => std::fs::read_to_string(&eb.file).ok(),
+    };
     match (old, new) {
         (Some(o), Some(n)) => {
             for line in unified_lines(&o, &n) {

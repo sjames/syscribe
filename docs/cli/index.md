@@ -1289,8 +1289,9 @@ syscribe -m model/ suspect accept TC-UAV-CARGO-001 REQ-UAV-CARGO-001
 
 ```bash
 syscribe -m <root> baseline create --tag <tag> [--name <n>] [--approver <a>] [--frozen-scope <sel>] [--id <BL-id>] [--allow-dirty] [--require-reviewed]
-syscribe -m <root> baseline verify <BL-id> | --all
+syscribe -m <root> baseline verify <BL-id> | --all [--detail]
 syscribe -m <root> baseline diff <BL-A> <BL-B> [--detail]
+syscribe -m <root> baseline diff <BL> --current [--detail]
 syscribe -m <root> baseline list
 syscribe -m <root> baseline show <BL-id>
 ```
