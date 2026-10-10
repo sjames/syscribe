@@ -4373,7 +4373,8 @@ measureType: functional_safety_assessment
 #   functional_safety_assessment | cybersecurity_assessment
 independenceLevel: I3    # I1 | I2 | I3
 confirms:
-  - SG-PREFIX-001        # the confirmed work product(s) (any model element ref)
+  - SG-PREFIX-001        # SafetyGoal | CybersecurityGoal | HazardousEvent | Requirement |
+                         # FaultTree | FMEASheet | TARASheet | ADR | Argument | TestPlan | Allocation
 ---
 
 Record the confirmation measure: who performs it, with what independence (I1–I3),

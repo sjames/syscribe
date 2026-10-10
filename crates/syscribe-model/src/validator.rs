@@ -2502,7 +2502,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // E851: confirms refs must resolve.
-            // E860: target must be SafetyGoal, CybersecurityGoal, HazardousEvent, or native Requirement (REQ-TRS-SEC-005).
+            // E860: target must be a SafetyGoal, CybersecurityGoal, HazardousEvent, Requirement, or an
+            // analysis / plan work product a confirmation review covers (REQ-TRS-SEC-005, GH #233).
             if let Some(ref refs) = fm.confirms {
                 for r in refs {
                     match resolver.resolve_ref(elements, r) {
@@ -2512,10 +2513,22 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 || Resolver::is_cybersecurity_goal(target)
                                 || Resolver::is_hazardous_event(target)
                                 || Resolver::is_native_requirement(target)
-                                || matches!(target.frontmatter.element_type, Some(ElementType::Requirement));
+                                || matches!(
+                                    target.frontmatter.element_type,
+                                    Some(
+                                        ElementType::Requirement
+                                            | ElementType::FaultTree
+                                            | ElementType::FMEASheet
+                                            | ElementType::TARASheet
+                                            | ElementType::ADR
+                                            | ElementType::Argument
+                                            | ElementType::TestPlan
+                                            | ElementType::Allocation
+                                    )
+                                );
                             if !ok {
                                 findings.push(error("E860", &file, &format!(
-                                    "ConfirmationMeasure.confirms '{}' is not a valid confirmation target type (expected SafetyGoal, CybersecurityGoal, HazardousEvent, or Requirement)", r)));
+                                    "ConfirmationMeasure.confirms '{}' is not a valid confirmation target type (expected SafetyGoal, CybersecurityGoal, HazardousEvent, Requirement, FaultTree, FMEASheet, TARASheet, ADR, Argument, TestPlan, or Allocation)", r)));
                             }
                         }
                     }

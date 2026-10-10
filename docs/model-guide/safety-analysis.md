@@ -570,7 +570,7 @@ measureType: functional_safety_assessment
 #   confirmation_review | functional_safety_audit |
 #   functional_safety_assessment | cybersecurity_assessment   (else E849)
 independenceLevel: I3             # I1 | I2 | I3                (else E850)
-confirms:                         # work product ref(s), resolved via the Resolver (else E851)
+confirms:                         # work product ref(s) (else E851); goals, hazards, requirements, FaultTree, FMEASheet, TARASheet, ADR, Argument, TestPlan, Allocation (else E860)
   - SG-BRK-001
 ```
 

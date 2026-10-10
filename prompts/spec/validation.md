@@ -262,7 +262,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E857` | `AssumptionOfUse.id` does not match `AOU-*` |
 | `E858` | An `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `E859` | `AssumptionOfUse.appliesTo` resolves to a non-`SafetyGoal`/`CybersecurityGoal`/`Argument`/`Requirement` (REQ-TRS-SEC-004) |
-| `E860` | `ConfirmationMeasure.confirms` resolves to a non-`SafetyGoal`/`CybersecurityGoal`/`HazardousEvent`/`Requirement` (REQ-TRS-SEC-005) |
+| `E860` | `ConfirmationMeasure.confirms` resolves to an element that is not a `SafetyGoal`/`CybersecurityGoal`/`HazardousEvent`/`Requirement`/`FaultTree`/`FMEASheet`/`TARASheet`/`ADR`/`Argument`/`TestPlan`/`Allocation` (REQ-TRS-SEC-005) |
 | `E718` | An `Argument.evidence` entry is not a scalar reference (expected a string id/qname — e.g. a `PlanningItem`-style `{ref:, path:}` mapping on an `Argument`) |
 | `W040` | A `claim`/`strategy` `Argument` has neither `supports` nor `evidence` (orphan GSN node) |
 | `E881` | An `Argument` is part of a cycle — it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning; GH #217) |
