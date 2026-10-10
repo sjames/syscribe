@@ -1,7 +1,7 @@
 # diagram — export one Diagram element as PlantUML, Mermaid or static SVG
 
 ## SYNOPSIS
-    syscribe -m <root> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--out <file>]
+    syscribe -m <root> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--config <C>] [--out <file>]
 
 ## DESCRIPTION
 Writes one `Diagram` element's picture source, generated from its Diagram IR
@@ -43,6 +43,10 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
 ## OPTIONS
     --format <plantuml|mermaid|svg|dot>   Output format (default: plantuml). Any
                                       other value is a usage error.
+    --config <C>                      Derive from the model projected onto Configuration <C>
+                                      (elements gated off by appliesWhen are absent). An
+                                      unknown configuration, or a diagram inactive in it,
+                                      exits 1.
     --out <file>                      Write to <file> (parent directories are
                                       created) instead of stdout.
 

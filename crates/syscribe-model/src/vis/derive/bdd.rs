@@ -164,15 +164,26 @@ pub fn generate(
         let id = derived_shape_id(&e.qualified_name);
         let mut node = block_node(id.clone(), e, NodeKind::Block, None, display_name(e), elements, resolver);
         node.lines = Vec::new();
+        // Integrity allocation (GH #244): the ASIL as a banner.
+        if let Some(asil) = e.frontmatter.asil_level.as_deref().filter(|a| !a.trim().is_empty()) {
+            node.banners.push(format!("ASIL {}", asil.trim()));
+        }
         if externals.iter().any(|x| x.qualified_name == e.qualified_name) {
             node.mark = Some(NodeMark { status: Some("external".to_string()), ..Default::default() });
         }
         graph.nodes.push(node);
-        let lines: Vec<String> = features_of(e, elements, resolver)
+        let mut lines: Vec<String> = features_of(e, elements, resolver)
             .iter()
             .filter(|f| matches!(f.role, FeatureRole::Attribute | FeatureRole::Port))
             .map(feature_line)
             .collect();
+        // Ownership metadata (GH #244): shown only when authored.
+        if let Some(d) = e.frontmatter.domain.as_deref().filter(|s| !s.trim().is_empty()) {
+            lines.push(format!("domain: {d}"));
+        }
+        if let Some(r) = e.frontmatter.responsibility.as_deref().filter(|s| !s.trim().is_empty()) {
+            lines.push(format!("responsibility: {r}"));
+        }
         if !lines.is_empty() {
             graph.nodes.push(Node {
                 id: format!("{id}-compartment"),

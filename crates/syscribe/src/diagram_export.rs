@@ -18,7 +18,7 @@ use syscribe_model::resolver::Resolver;
 use syscribe_model::vis;
 
 const FORMATS: &[&str] = &["plantuml", "mermaid", "svg", "dot"];
-const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--out <file>]";
+const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--config <C>] [--out <file>]";
 
 /// Entry point for `syscribe -m <root> diagram <sub> …`. Returns the exit code.
 pub fn cmd_diagram(
@@ -104,11 +104,12 @@ pub fn export_diagram(
 fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, config: &ValidateConfig, args: &[String]) -> i32 {
     let format = crate::cliargs::or_exit(crate::cliargs::enum_value("diagram export", args, "--format", FORMATS, "plantuml"));
     let out_file = args.windows(2).find(|w| w[0] == "--out").map(|w| w[1].as_str());
+    let config_flag = args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
     let qname = {
         let mut found = None;
         let mut i = 0;
         while i < args.len() {
-            if args[i] == "--format" || args[i] == "--out" {
+            if args[i] == "--format" || args[i] == "--out" || args[i] == "--config" {
                 i += 2;
                 continue;
             }
@@ -125,8 +126,31 @@ fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, c
         eprintln!("{USAGE}");
         return 1;
     };
+    // `--config`: derive from the model projected onto that Configuration (REQ-TRS-BDDCFG-001).
+    let projected: Option<Vec<RawElement>> = match config_flag {
+        None => None,
+        Some(c) => match syscribe_model::projection::resolve_config_flag(elements, c) {
+            syscribe_model::projection::SelectionOutcome::Dormant => None,
+            syscribe_model::projection::SelectionOutcome::Resolved(sel) => Some(syscribe_model::projection::project(elements, &sel)),
+            syscribe_model::projection::SelectionOutcome::Error(m) => {
+                eprintln!("{m}");
+                return 1;
+            }
+        },
+    };
+    let view_resolver;
+    let (elements, resolver): (&[RawElement], &Resolver) = match &projected {
+        Some(v) => {
+            view_resolver = Resolver::new(v);
+            (v.as_slice(), &view_resolver)
+        }
+        None => (elements, resolver),
+    };
     let Some(elem) = resolver.resolve_ref(elements, qname) else {
-        eprintln!("error: element '{qname}' not found");
+        match config_flag {
+            Some(c) => eprintln!("error: element '{qname}' not found (or not active in configuration '{c}')"),
+            None => eprintln!("error: element '{qname}' not found"),
+        }
         return 1;
     };
     match export_diagram(elem, elements, resolver, model_root, config, format) {

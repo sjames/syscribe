@@ -64,7 +64,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--json", Switch),
         ],
         "show" => &[("--no-related", Switch)],
-        "diagram" => &[("--format", Value), ("--out", Value)],
+        "diagram" => &[("--format", Value), ("--out", Value), LENS],
         "trace" => &[("--linked-only", Switch), LENS],
         "why" | "who-verifies" | "links" | "refs" => &[LENS],
         "tree" => &[],
