@@ -46,5 +46,5 @@ ingested verdict is Fail; `pass` when every member passes; otherwise
     syscribe -m model/ testplan TP-TRS-MCP-001 --json
 
 ## SEE ALSO
-    matrix, audit, verification-depth (each accepts the `--plan TP-X` lens),
+    matrix, audit, verification-depth, coverage tree (each accepts the `--plan TP-X` lens),
     ingest-results

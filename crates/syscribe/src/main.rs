@@ -1127,7 +1127,7 @@ fn main() {
                 // Coverage roll-up through the derivation tree (GH #252). Read-only. Exit 0 · 1 usage/unresolved.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 if rest.first().map(|s| s.as_str()) != Some("tree") {
-                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--json]");
+                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = &rest[1..];

@@ -144,6 +144,12 @@ fn plan_lens_counts_only_the_plans_tests() {
     assert_eq!(c, 0, "{o}");
     let first = o.lines().next().unwrap();
     assert!(first.contains("leaves 1/") && first.contains("active"), "only TC-CT-001's leaf is verified under the plan: {o}");
+    // flag order does not matter, and the lens reaches --json
+    let (j, c) = run(&r, &["coverage", "tree", "--plan", "TP-CT-001", "--json", "REQ-CT-001"]);
+    let (j2, c2) = run(&r, &["coverage", "tree", "REQ-CT-001", "--plan", "TP-CT-001", "--json"]);
+    assert_eq!((c, c2), (0, 0), "{j}{j2}");
+    let v: serde_json::Value = serde_json::from_str(&j2).unwrap();
+    assert_eq!(v["leavesActive"], 1, "{j2}");
     assert!(first.contains("direct tests 1"), "TC-CT-004 is in the plan: {o}");
 }
 
@@ -158,4 +164,11 @@ fn a_root_outside_the_lens_or_an_unknown_plan_exits_one() {
         .map(|o| (format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)), o.status.code().unwrap_or(-1))).unwrap();
     assert_eq!(c, 1, "{o}");
     assert!(o.contains("does not resolve") && o.contains("TP-CT-001"), "names the lens: {o}");
+}
+
+#[test]
+fn an_unknown_configuration_exits_one() {
+    let r = model(true);
+    let (_, c) = run(&r, &["coverage", "tree", "REQ-CT-001", "--config", "CONF-NOPE"]);
+    assert_eq!(c, 1);
 }
