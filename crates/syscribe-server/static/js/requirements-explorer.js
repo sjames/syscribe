@@ -178,6 +178,33 @@
     };
   }
 
+  // Pure: Requirement rows against the nodes of one category; a cell holds the sorted, distinct kinds of the
+  // direct edges between row and column (either direction). Rows/columns with no cell are kept.
+  function matrixModel(g, category) {
+    var types = CATEGORIES[category];
+    if (!types) return { rows: [], cols: [], cells: {}, noneIn: {} };
+    function byId(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
+    var rows = g.nodes.filter(function (n) { return n.type === 'Requirement'; }).map(function (n) { return n.id; }).sort(byId);
+    var cols = g.nodes.filter(function (n) { return types.indexOf(n.type) >= 0; }).map(function (n) { return n.id; }).sort(byId);
+    var isRow = {}, isCol = {};
+    rows.forEach(function (r) { isRow[r] = true; });
+    cols.forEach(function (c) { isCol[c] = true; });
+    var cells = {};
+    (g.edges || []).forEach(function (e) {
+      [[e.from, e.to], [e.to, e.from]].forEach(function (p) {
+        if (isRow[p[0]] && isCol[p[1]] && p[0] !== p[1]) {
+          var k = p[0] + '|' + p[1];
+          cells[k] = cells[k] || [];
+          if (cells[k].indexOf(e.kind) < 0) cells[k].push(e.kind);
+        }
+      });
+    });
+    Object.keys(cells).forEach(function (k) { cells[k].sort(); });
+    var noneIn = {};
+    rows.forEach(function (r) { noneIn[r] = !cols.some(function (c) { return cells[r + '|' + c]; }); });
+    return { rows: rows, cols: cols, cells: cells, noneIn: noneIn };
+  }
+
   // RFC 4180 quoting; a cell a spreadsheet would evaluate as a formula gets a leading apostrophe.
   function csvCell(v) {
     var t = v === undefined || v === null ? '' : String(v);
@@ -279,6 +306,7 @@
       svg.appendChild(g);
     });
     renderTable(graph, tr);
+    renderMatrix(graph);
     state.drawn = graph; // only once the SVG and the table both show it
     labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
     setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.hidden ? ', ' + graph.hidden + ' hidden by filters' : '') + (tr ? (tr.targets.length ? ', ' + tr.targets.length + ' ' + state.trace + ' element(s) on the trace' : ', no ' + state.trace + ' element in view — raise the depth or tick more relations') : '') + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
@@ -332,14 +360,65 @@
     host.appendChild(rel);
   }
 
+  function renderMatrix(graph) {
+    var host = document.getElementById('req-matrix');
+    if (!host) return;
+    host.textContent = '';
+    var sel = document.getElementById('req-matrix-cols');
+    var m = matrixModel(graph, sel ? sel.value : 'tests');
+    var t = document.createElement('table');
+    var cap = document.createElement('caption');
+    cap.textContent = 'Requirements by ' + (sel ? sel.value : 'tests');
+    t.appendChild(cap);
+    var thead = document.createElement('thead');
+    var hr = document.createElement('tr');
+    cell(hr, 'Requirement', 'th').setAttribute('scope', 'col');
+    m.cols.forEach(function (c) { cell(hr, c, 'th').setAttribute('scope', 'col'); });
+    cell(hr, 'Coverage', 'th').setAttribute('scope', 'col');
+    thead.appendChild(hr);
+    t.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    var byId = {};
+    graph.nodes.forEach(function (n) { byId[n.id] = n; });
+    function idButton(td, id) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = id;
+      b.addEventListener('click', function () { select(byId[id]); });
+      td.appendChild(b);
+    }
+    m.rows.forEach(function (r) {
+      var tr1 = document.createElement('tr');
+      var th = document.createElement('th');
+      th.setAttribute('scope', 'row');
+      idButton(th, r);
+      tr1.appendChild(th);
+      m.cols.forEach(function (c) { cell(tr1, (m.cells[r + '|' + c] || []).join(', ')); });
+      cell(tr1, m.noneIn[r] ? 'none' : '');
+      tbody.appendChild(tr1);
+    });
+    t.appendChild(tbody);
+    if (!m.rows.length) {
+      var p = document.createElement('p');
+      p.textContent = 'No requirement is in view.';
+      host.appendChild(p);
+    }
+    host.appendChild(t);
+  }
+
   function setView(v) {
     state.view = v;
     var host = document.getElementById('req-table');
     var btn = document.getElementById('req-view-table');
     if (host) host.hidden = v !== 'table';
+    var mhost = document.getElementById('req-matrix');
+    if (mhost) mhost.hidden = v !== 'matrix';
+    var mcols = document.getElementById('req-matrix-cols');
+    if (mcols && mcols.parentNode) mcols.parentNode.hidden = v !== 'matrix';
     var canvas = document.querySelector('.req-canvas');
-    if (canvas) canvas.hidden = v === 'table';
+    if (canvas) canvas.hidden = v !== 'graph';
     if (btn) { btn.setAttribute('aria-pressed', v === 'table' ? 'true' : 'false'); }
+    var mbtn = document.getElementById('req-view-matrix');
+    if (mbtn) mbtn.setAttribute('aria-pressed', v === 'matrix' ? 'true' : 'false');
   }
 
   // The page styles the graph from its stylesheet; a standalone SVG needs the same rules inline.
@@ -391,8 +470,8 @@
     if (state.trace && state.lastGraph) {
       draw(state.lastGraph); // the trace starts at the selection; the redraw rebuilds the nodes, so give focus back
       var again = svg.querySelector('.rg-node[data-id="' + String(n.id).replace(/["\\]/g, '\\$&') + '"]');
-      if (state.view === 'table') {
-        var bs = document.querySelectorAll('#req-table tbody button');
+      if (state.view === 'table' || state.view === 'matrix') {
+        var bs = document.querySelectorAll(state.view === 'table' ? '#req-table tbody button' : '#req-matrix tbody button');
         for (var bi = 0; bi < bs.length; bi++) if (bs[bi].textContent === String(n.id)) { bs[bi].focus(); break; }
       } else if (again && again.focus) again.focus();
     }
@@ -618,6 +697,10 @@
     if (fv) [['verified', 'verified'], ['planned', 'planned'], ['unverified', 'unverified'], ['na', 'other element']].forEach(function (p) { addFilterBox(fv, 'verification', p[0], p[1]); });
     var fa = document.getElementById('req-filter-asil');
     if (fa) ['QM', 'A', 'B', 'C', 'D'].forEach(function (a) { addFilterBox(fa, 'asil', a); });
+    var vm = document.getElementById('req-view-matrix');
+    if (vm) vm.addEventListener('click', function () { setView(state.view === 'matrix' ? 'graph' : 'matrix'); });
+    var mc = document.getElementById('req-matrix-cols');
+    if (mc) mc.addEventListener('change', function () { if (state.drawn) renderMatrix(state.drawn); });
     var vt = document.getElementById('req-view-table');
     if (vt) vt.addEventListener('click', function () { setView(state.view === 'table' ? 'graph' : 'table'); });
     ['json', 'csv', 'svg'].forEach(function (k) {
@@ -633,7 +716,7 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { matrixModel: matrixModel, tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }

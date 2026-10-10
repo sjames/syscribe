@@ -322,3 +322,41 @@ async fn the_page_has_view_toggle_and_export_buttons() {
         assert!(html.contains(&format!("id=\"{id}\"")), "{id} missing: {html}");
     }
 }
+
+#[test]
+fn the_matrix_model_lists_rows_columns_and_direct_edge_kinds() {
+    if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
+        panic!("node is required for the explorer client tests");
+    }
+    let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
+    let script = format!(
+        r#"const m = require({js:?});
+const g = {{root:'R1', nodes:[{{id:'R1',type:'Requirement'}},{{id:'R2',type:'Requirement'}},{{id:'R3',type:'Requirement'}},
+  {{id:'T1',type:'TestCase'}},{{id:'T2',type:'TestCase'}},{{id:'P1',type:'PartDef'}}],
+  edges:[{{from:'T1',to:'R1',kind:'verifies'}},{{from:'R1',to:'T1',kind:'evidence'}},{{from:'R2',to:'P1',kind:'allocatedTo'}},{{from:'R2',to:'R1',kind:'derivedFrom'}}]}};
+const t = m.matrixModel(g, 'tests');
+const a = m.matrixModel(g, 'architecture');
+console.log(JSON.stringify({{ rows: t.rows, cols: t.cols, cell: t.cells['R1|T1'], none: t.rows.filter(r => t.noneIn[r]), noCell: t.cells['R2|T1'] || null,
+  archCols: a.cols, archCell: a.cells['R2|P1'], bad: m.matrixModel(g, 'bogus').cols }}));"#
+    );
+    let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["rows"], serde_json::json!(["R1", "R2", "R3"]));
+    assert_eq!(v["cols"], serde_json::json!(["T1", "T2"]), "unlinked columns are kept");
+    assert_eq!(v["cell"], serde_json::json!(["evidence", "verifies"]), "both directions, sorted, deduplicated");
+    assert_eq!(v["none"], serde_json::json!(["R2", "R3"]));
+    assert_eq!(v["noCell"], serde_json::Value::Null);
+    assert_eq!(v["archCols"], serde_json::json!(["P1"]));
+    assert_eq!(v["archCell"], serde_json::json!(["allocatedTo"]));
+    assert_eq!(v["bad"], serde_json::json!([]));
+}
+
+#[tokio::test]
+async fn the_page_has_matrix_controls() {
+    let a = app();
+    let (_, _, html) = get(&a, "/requirements").await;
+    for id in ["req-view-matrix", "req-matrix-cols", "req-matrix"] {
+        assert!(html.contains(&format!("id=\"{id}\"")), "{id} missing: {html}");
+    }
+}

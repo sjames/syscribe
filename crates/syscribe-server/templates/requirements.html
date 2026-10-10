@@ -15,6 +15,8 @@
     <ul id="req-search-results" class="req-search-results" aria-live="polite"></ul>
     <span class="req-actions">
       <button type="button" id="req-view-table" aria-pressed="false" aria-controls="req-table">Table view</button>
+      <button type="button" id="req-view-matrix" aria-pressed="false" aria-controls="req-matrix">Matrix view</button>
+      <label>Columns <select id="req-matrix-cols" hidden><option>tests</option><option>architecture</option><option>features</option><option>safety</option><option>security</option></select></label>
       <button type="button" id="req-export-json">Export JSON</button>
       <button type="button" id="req-export-csv">Export CSV</button>
       <button type="button" id="req-export-svg">Export SVG</button>
@@ -35,6 +37,7 @@
       </div>
     </div>
     <div id="req-table" class="req-table" hidden></div>
+    <div id="req-matrix" class="req-table" hidden></div>
     <aside id="req-detail" class="req-detail"><p class="req-hint">Select a node to see its element card.</p></aside>
   </div>
 </div>
