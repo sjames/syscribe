@@ -17,9 +17,16 @@ body is `E012`). The OEM identifier (`ReqIF.ForeignID`, `ID` or `SYSCRIBE_ID`, e
 object IDENTIFIER) is kept in `extRef: ["reqif:<id>"]`. Ids are `<PFX>-NNN`, numbered
 after any existing id with that prefix.
 
+An object whose identifier repeats within the file is skipped (reported as `duplicate`). A
+SYSCRIBE_ID that is already the id of a requirement matches it, so an `export-reqif` file imports
+back onto its own model without creating anything.
+
 Re-importing is idempotent: an object whose `reqif:<id>` already exists is reported
 as `exists` and left alone. With `--update` its name and body are rewritten when they
-differ — every other frontmatter field is kept, and the body is replaced as a whole.
+differ — every other frontmatter field is kept. A body that has headings or code fences of its
+own (it was worked on after import) is kept and only the name is refreshed. Only requirements
+stored in their own `<id>.md` file with LF line endings are rewritten; others are reported as
+failed and the exit code is 1.
 A changed text is then picked up by the normal suspect-link / baseline machinery.
 
 Not yet: CSV/Excel mapping files, ReqIF relations and attribute enumerations

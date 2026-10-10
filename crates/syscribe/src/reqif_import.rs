@@ -5,7 +5,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde_json::json;
 use std::collections::HashMap;
-use syscribe_model::element::{ElementType, RawElement};
+use syscribe_model::element::RawElement;
 use syscribe_model::mutate::{plan_create_in, write_confined};
 
 /// One requirement object read from a ReqIF document.
@@ -80,6 +80,8 @@ pub fn parse_reqif(text: &str) -> Result<Vec<ImportedReq>, String> {
     let mut cur_val = String::new();
     let mut cur_def = String::new();
     let mut ref_text_target: Option<&'static str> = None;
+    // Inside THE-ORIGINAL-VALUE (the pre-edit copy of an XHTML value): not part of the text.
+    let mut in_original = false;
 
     loop {
         let ev = reader.read_event_into(&mut buf).map_err(|e| format!("malformed XML at byte {}: {e}", reader.buffer_position()))?;
@@ -112,6 +114,7 @@ pub fn parse_reqif(text: &str) -> Result<Vec<ImportedReq>, String> {
                         cur_def.clear();
                     }
                     "DEFINITION" if in_value => in_def = true,
+                    "THE-ORIGINAL-VALUE" => in_original = !is_empty,
                     "SPEC-OBJECT-TYPE-REF" if in_obj && !in_value => ref_text_target = Some("type"),
                     l if in_def && l.starts_with("ATTRIBUTE-DEFINITION-") && l.ends_with("-REF") => ref_text_target = Some("def"),
                     _ => {}
@@ -134,12 +137,21 @@ pub fn parse_reqif(text: &str) -> Result<Vec<ImportedReq>, String> {
                 match ref_text_target {
                     Some("type") => obj_type = s.trim().to_string(),
                     Some("def") => cur_def = s.trim().to_string(),
-                    _ if in_xhtml => cur_val.push_str(&s),
+                    _ if in_xhtml && !in_original => cur_val.push_str(&s),
+                    _ => {}
+                }
+            }
+            Event::CData(ref t) => {
+                let s = t.decode().map(|c| c.into_owned()).unwrap_or_default();
+                match ref_text_target {
+                    Some("type") => obj_type = s.trim().to_string(),
+                    Some("def") => cur_def = s.trim().to_string(),
+                    _ if in_xhtml && !in_original => cur_val.push_str(&s),
                     _ => {}
                 }
             }
             Event::GeneralRef(ref r) => {
-                if in_xhtml {
+                if in_xhtml && !in_original {
                     if let Some(c) = r.decode().ok().and_then(|n| entity(&n)) {
                         cur_val.push_str(&c);
                     }
@@ -152,10 +164,15 @@ pub fn parse_reqif(text: &str) -> Result<Vec<ImportedReq>, String> {
                 if local == "DEFINITION" {
                     in_def = false;
                 }
-                if in_xhtml && matches!(local.as_str(), "p" | "div" | "h1" | "h2" | "h3" | "h4" | "pre" | "ul" | "ol") {
+                if local == "THE-ORIGINAL-VALUE" {
+                    in_original = false;
+                }
+                if in_xhtml && matches!(local.as_str(), "p" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "pre" | "ul" | "ol" | "table" | "blockquote") {
                     cur_val.push_str("\n\n");
-                } else if in_xhtml && local == "li" {
+                } else if in_xhtml && matches!(local.as_str(), "li" | "tr") {
                     cur_val.push('\n');
+                } else if in_xhtml && matches!(local.as_str(), "td" | "th") {
+                    cur_val.push(' ');
                 }
                 if local.starts_with("ATTRIBUTE-VALUE-") && in_obj {
                     let v = if in_xhtml { tidy(&cur_val) } else { cur_val.clone() };
@@ -171,12 +188,15 @@ pub fn parse_reqif(text: &str) -> Result<Vec<ImportedReq>, String> {
                     } else {
                         let by = |names: &[&str]| -> Option<String> {
                             names.iter().find_map(|n| {
-                                values.iter().find(|(d, v)| !v.is_empty() && attr_names.get(d).is_some_and(|ln| ln.eq_ignore_ascii_case(n))).map(|(_, v)| v.clone())
+                                values.iter().find(|(d, v)| !v.trim().is_empty() && attr_names.get(d).is_some_and(|ln| ln.eq_ignore_ascii_case(n))).map(|(_, v)| v.clone())
                             })
                         };
                         out.push(ImportedReq {
                             ext_id: by(ID_ATTRS).unwrap_or_else(|| obj_id.clone()),
-                            name: by(NAME_ATTRS).unwrap_or_else(|| obj_long.clone()),
+                            name: by(NAME_ATTRS)
+                                .map(|n| n.split_whitespace().collect::<Vec<_>>().join(" "))
+                                .or_else(|| Some(obj_long.trim().to_string()).filter(|n| !n.is_empty()))
+                                .unwrap_or_else(|| obj_id.clone()),
                             // E012 forbids an empty normative text; say plainly that the source had none.
                             text: by(TEXT_ATTRS).unwrap_or_else(|| NO_TEXT.to_string()),
                         });
@@ -208,30 +228,49 @@ fn ext_ref_of(ext_id: &str) -> String {
     format!("reqif:{ext_id}")
 }
 
-/// Rewrite `name:` and the body of an existing requirement file; every other byte is kept.
-fn rewrite_name_and_body(content: &str, name: &str, body: &str) -> Option<String> {
+/// Rewrite `name:` (and its wrapped continuation lines) and, when `body` is given, the body of an
+/// existing requirement file; every other byte is kept. `None` for CRLF or frontmatter-less files.
+fn rewrite_name_and_body(content: &str, name: &str, body: Option<&str>) -> Option<String> {
+    if content.contains('\r') {
+        return None; // CRLF files are not rewritten (byte preservation); the caller says so
+    }
     let rest = content.strip_prefix("---\n")?;
     let end = rest.find("\n---")?;
     let (yaml, after) = rest.split_at(end);
     let after = &after[4..]; // past "\n---"
-    let after_nl = after.strip_prefix('\n').unwrap_or(after);
-    let _ = after_nl;
     let name_line = format!("name: {}", serde_yaml::to_string(&serde_yaml::Value::String(name.to_string())).ok()?.trim_end());
     let mut replaced = false;
+    let mut in_name = false;
     let mut lines: Vec<String> = Vec::new();
     for l in yaml.lines() {
         if !replaced && l.starts_with("name:") {
             lines.push(name_line.clone());
             replaced = true;
+            in_name = true;
+        } else if in_name && l.starts_with([' ', '\t']) {
+            // continuation of a folded/wrapped `name:` value — replaced along with it
         } else {
+            in_name = false;
             lines.push(l.to_string());
         }
     }
     if !replaced {
         lines.push(name_line);
     }
-    Some(format!("---\n{}\n---\n\n{}\n", lines.join("\n"), body.trim_end()))
+    Some(match body {
+        Some(b) => format!("---\n{}\n---\n\n{}\n", lines.join("\n"), b.trim_end()),
+        None => format!("---\n{}\n---{}", lines.join("\n"), after),
+    })
 }
+
+/// A body that has been worked on after import: headings or code fences (rationale, acceptance
+/// criteria, Gherkin). `--update` keeps such a body and refreshes only the name.
+fn body_is_enriched(doc: &str) -> bool {
+    doc.lines().any(|l| l.starts_with('#') || l.trim_start().starts_with("```"))
+}
+
+const REQ_CLASSES: &[&str] = &["stakeholder", "system", "software", "hardware", "process", "regulatory", "deliverable"];
+const REQ_DOMAINS: &[&str] = &["system", "hardware", "software"];
 
 /// Entry point. Returns the process exit code.
 pub fn cmd_import_reqif(model_root: &std::path::Path, elems: &[RawElement], opts: &ImportOptions) -> i32 {
@@ -249,11 +288,23 @@ pub fn cmd_import_reqif(model_root: &std::path::Path, elems: &[RawElement], opts
             return 1;
         }
     };
-    // Existing requirements by OEM identifier.
+    if !REQ_CLASSES.contains(&opts.req_class) {
+        eprintln!("import-reqif: --class '{}' is not one of {}", opts.req_class, REQ_CLASSES.join(", "));
+        return 1;
+    }
+    if !REQ_DOMAINS.contains(&opts.req_domain) {
+        eprintln!("import-reqif: --domain '{}' is not one of {}", opts.req_domain, REQ_DOMAINS.join(", "));
+        return 1;
+    }
+    // Existing native requirements by OEM identifier (`extRef: reqif:<id>`), and by their own id so
+    // that a Syscribe export (SYSCRIBE_ID) imports back onto the model it came from.
     let mut existing: HashMap<String, &RawElement> = HashMap::new();
-    for e in elems.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Requirement)) {
+    for e in elems.iter().filter(|e| syscribe_model::resolver::Resolver::is_native_requirement(e)) {
         for r in e.frontmatter.ext_ref.iter().flatten() {
             existing.insert(r.clone(), e);
+        }
+        if let Some(id) = &e.frontmatter.id {
+            existing.entry(ext_ref_of(id)).or_insert(e);
         }
     }
     // Next free number for the prefix.
@@ -266,51 +317,65 @@ pub fn cmd_import_reqif(model_root: &std::path::Path, elems: &[RawElement], opts
         .max()
         .unwrap_or(0)
         + 1;
-    let (mut created, mut updated, mut skipped) = (0, 0, 0);
+    let (mut created, mut updated, mut skipped, mut failed, mut dups) = (0, 0, 0, 0, 0);
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for r in &reqs {
         let xr = ext_ref_of(&r.ext_id);
+        if !seen.insert(xr.clone()) {
+            eprintln!("import-reqif: duplicate identifier '{}' in the file — later object skipped", r.ext_id);
+            dups += 1;
+            continue;
+        }
         if let Some(e) = existing.get(&xr) {
             let id = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
-            let changed = e.frontmatter.name.as_deref() != Some(r.name.as_str()) || e.doc.trim() != r.text.trim();
-            if opts.update && changed {
-                if opts.dry_run {
-                    println!("would update {id} ({})", r.ext_id);
-                } else {
-                    let Ok(old) = std::fs::read_to_string(&e.file_path) else {
-                        eprintln!("import-reqif: cannot read {}", e.file_path);
-                        return 1;
-                    };
-                    let Some(new) = rewrite_name_and_body(&old, &r.name, &r.text) else {
-                        eprintln!("import-reqif: {} has no frontmatter to update", e.file_path);
-                        return 1;
-                    };
-                    if let Err(err) = std::fs::write(&e.file_path, new) {
-                        eprintln!("import-reqif: cannot write {}: {err}", e.file_path);
-                        return 1;
-                    }
-                    println!("updated {id} ({})", r.ext_id);
-                }
-                updated += 1;
-            } else {
-                println!("exists {id} ({}){}", r.ext_id, if changed && !opts.update { " — text differs, use --update" } else { "" });
+            let enriched = body_is_enriched(&e.doc);
+            let name_changed = e.frontmatter.name.as_deref() != Some(r.name.as_str());
+            let body_changed = !enriched && e.doc.trim() != r.text.trim();
+            let changed = name_changed || body_changed;
+            if !(opts.update && changed) {
+                println!("exists {id} ({}){}", r.ext_id, if changed { " — text differs, use --update" } else { "" });
                 skipped += 1;
+                continue;
             }
+            let stem_ok = std::path::Path::new(&e.file_path).file_stem().and_then(|s| s.to_str()) == e.frontmatter.id.as_deref();
+            if !stem_ok {
+                eprintln!("import-reqif: cannot update {id}: it is not stored in its own <id>.md file ({})", e.file_path);
+                failed += 1;
+                continue;
+            }
+            if opts.dry_run {
+                println!("would update {id} ({}){}", r.ext_id, if enriched { " — name only, body kept" } else { "" });
+                updated += 1;
+                continue;
+            }
+            let Ok(old) = std::fs::read_to_string(&e.file_path) else {
+                eprintln!("import-reqif: cannot read {}", e.file_path);
+                failed += 1;
+                continue;
+            };
+            let body = (!enriched).then_some(r.text.as_str());
+            let Some(new) = rewrite_name_and_body(&old, &r.name, body) else {
+                eprintln!("import-reqif: cannot update {id}: {} has CRLF line endings or no frontmatter", e.file_path);
+                failed += 1;
+                continue;
+            };
+            if let Err(err) = std::fs::write(&e.file_path, new) {
+                eprintln!("import-reqif: cannot write {}: {err}", e.file_path);
+                failed += 1;
+                continue;
+            }
+            println!("updated {id} ({}){}", r.ext_id, if enriched { " — name only, body kept (it has sections of its own)" } else { "" });
+            updated += 1;
             continue;
         }
         let id = format!("{pfx}{next:03}");
         next += 1;
-        if opts.dry_run {
-            println!("would create {id} ({}) {}", r.ext_id, r.name);
-            created += 1;
-            continue;
-        }
         let fields = json!({
             "id": id, "name": r.name, "status": "draft",
             "reqClass": opts.req_class, "reqDomain": opts.req_domain,
             "extRef": [xr],
         });
-        let doc = (!r.text.is_empty()).then_some(r.text.as_str());
-        let plan = match plan_create_in(elems, Some(opts.into), None, "Requirement", Some(&fields), doc) {
+        let plan = match plan_create_in(elems, Some(opts.into), None, "Requirement", Some(&fields), Some(r.text.as_str())) {
             Ok(p) => p,
             Err(e) => {
                 let hint = if matches!(e, syscribe_model::mutate::CreateError::InvalidId(_)) {
@@ -319,17 +384,25 @@ pub fn cmd_import_reqif(model_root: &std::path::Path, elems: &[RawElement], opts
                     ""
                 };
                 eprintln!("import-reqif: cannot create {id} for {}: {e}{hint}", r.ext_id);
-                return 1;
+                failed += 1;
+                // The same cause (prefix, target package) fails every object: stop rather than spam.
+                break;
             }
         };
+        if opts.dry_run {
+            println!("would create {id} ({}) {}", r.ext_id, r.name);
+            created += 1;
+            continue;
+        }
         if let Err(e) = write_confined(model_root, &plan.rel, &plan.content) {
             eprintln!("import-reqif: cannot write {}: {e}", plan.rel);
-            return 1;
+            failed += 1;
+            break;
         }
         println!("created {id} ({}) {}", r.ext_id, r.name);
         created += 1;
     }
-    let verb = if opts.dry_run { "Would create" } else { "Created" };
-    println!("{verb} {created}, updated {updated}, existing {skipped} ({} object(s) in {}).", reqs.len(), opts.file);
-    0
+    let (c, u) = if opts.dry_run { ("Would create", "would update") } else { ("Created", "updated") };
+    println!("{c} {created}, {u} {updated}, existing {skipped}, duplicate {dups}, failed {failed} ({} object(s) in {}).", reqs.len(), opts.file);
+    i32::from(failed > 0)
 }

@@ -131,3 +131,48 @@ fn an_export_reqif_file_imports_back() {
     assert!(read(&d, "Requirements/STK-RT-001.md").contains("reqif:REQ-RT-001"));
     assert!(d.join("model/Requirements/STK-RT-002.md").exists());
 }
+
+#[test]
+fn duplicate_ids_in_a_file_are_skipped_and_enriched_bodies_survive_update() {
+    let d = dir();
+    let dup = OEM.replace("OEM-0043", "OEM-0042");
+    let f = write_oem(&d, &dup);
+    let (o, c) = run(&d, &["import-reqif", &f, "--id-prefix", "STK-DC"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(o.contains("duplicate identifier 'OEM-0042'"), "{o}");
+    assert!(!d.join("model/Requirements/STK-DC-002.md").exists(), "{o}");
+    // enrich the body by hand, then re-import with changed text and a new name
+    let p = d.join("model/Requirements/STK-DC-001.md");
+    let t = std::fs::read_to_string(&p).unwrap() + "\n## Rationale\n\nKept by hand.\n";
+    std::fs::write(&p, &t).unwrap();
+    let f2 = write_oem(&d, &OEM.replace("Boot time &amp; splash", "Boot time"));
+    let (o, c) = run(&d, &["import-reqif", &f2, "--id-prefix", "STK-DC", "--update"]);
+    assert_eq!(c, 0, "{o}");
+    let after = std::fs::read_to_string(&p).unwrap();
+    assert!(after.contains("name: Boot time\n") && after.contains("Kept by hand."), "{after}");
+    assert!(o.contains("body kept"), "{o}");
+}
+
+#[test]
+fn a_bad_class_or_prefix_fails_before_anything_is_written_even_in_a_dry_run() {
+    let d = dir();
+    let f = write_oem(&d, OEM);
+    assert_eq!(run(&d, &["import-reqif", &f, "--class", "bogus"]).1, 1);
+    let (o, c) = run(&d, &["import-reqif", &f, "--id-prefix", "NOPE", "--dry-run"]);
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("ids.prefixes"), "{o}");
+    assert_eq!(std::fs::read_dir(d.join("model/Requirements")).unwrap().count(), 1);
+}
+
+#[test]
+fn importing_an_export_onto_its_own_model_creates_nothing() {
+    let d = dir();
+    for (id, name) in [("REQ-RT-001", "First"), ("REQ-RT-002", "Second")] {
+        std::fs::write(d.join(format!("model/Requirements/{id}.md")), format!("---\nid: {id}\ntype: Requirement\nname: \"{name}\"\nstatus: approved\nreqDomain: software\nreqClass: system\n---\n\nThe system shall do {name}.\n")).unwrap();
+    }
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(d.join("model")).args(["export-reqif", "--output"]).arg(d.join("out")).output().unwrap();
+    assert!(o.status.success());
+    let (o, c) = run(&d, &["import-reqif", d.join("out.reqif").to_str().unwrap()]);
+    assert_eq!(c, 0, "{o}");
+    assert!(o.contains("Created 0"), "{o}");
+}
