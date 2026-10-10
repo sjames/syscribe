@@ -251,6 +251,15 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W813` | `HazardousEvent` has a partial ISO 26262 S/E/C set (some but not all of `severity`/`exposure`/`controllability`; draft-suppressed) (#215) |
 | `W814` | `HazardousEvent` mixes ISO 26262 S/E/C parameters with IEC 61508 risk-graph parameters (#215) |
 
+## Dependent failure analysis (E890–E892, W890)
+
+| Code | Condition |
+|---|---|
+| `E890` | `DependentFailureAnalysis` missing `id`, `name`, `status` or `analyses`, `id` not `DFA-*`, status not `draft`/`review`/`approved`/`retired`, or fewer than two `analyses` |
+| `E891` | A `DependentFailureAnalysis.analyses` entry does not resolve to any model element |
+| `E892` | A `sharedResources` entry is not a mapping, lacks `resource`, has an unknown `kind` or a `couplingFactor` outside 0..1 |
+| `W890` | An `approved` `DependentFailureAnalysis` has a shared resource with no `mitigation` |
+
 ## GSN safety-argument layer (E852–E860, W040)
 
 | Code | Condition |

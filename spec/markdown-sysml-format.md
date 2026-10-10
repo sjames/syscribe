@@ -296,6 +296,7 @@ Native, id-identified element types for functional safety (ISO 26262, IEC 61508,
 | `AttackStep` | `ATS-*` | Leaf attack step with an attack feasibility. §8.18.5 |
 | `Argument` | `ARG-*` | GSN claim, strategy, or solution node in the safety argument. §8.18.6 |
 | `AssumptionOfUse` | `AOU-*` | Safety-related application condition constraining goals, arguments, or requirements. §8.18.6 |
+| `DependentFailureAnalysis` | `DFA-*` | ISO 26262-9 clause 7 independence argument for decomposed or co-hosted elements. §8.18.7 |
 | `Zone` | `ZN-*` | IEC 62443 security zone with a target security level. §13.2 |
 | `Conduit` | `CD-*` | IEC 62443 conduit connecting two zones, with an achieved security level. §13.3 |
 
@@ -4533,6 +4534,10 @@ Security/Attacks/AT-TORQUE-001/
 
 **Feasibility roll-up (weakest-link):** rank `very_low`=0, `low`=1, `medium`=2, `high`=3. An `AttackStep` is its `attackFeasibility` rank; an `AND` gate (sequential path) is the **MIN** of its children; an `OR` gate (alternatives) is the **MAX** of its children; the `AttackTree`'s feasibility is the value of its root node — the one gate/step of the tree that no other gate lists in its `inputs:`, independent of file order (no unique root → not computable, no W035) — mapped back to a label. When the computed feasibility differs from the linked `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs declared).
 
+#### 8.18.7 Dependent failure analysis (`DependentFailureAnalysis`)
+
+`DependentFailureAnalysis` (`DFA-*`, GH #235) records why the elements of an ASIL decomposition or a mixed-criticality co-hosting cannot fail from a common cause (ISO 26262-9 clause 7). `status` is `draft`, `review`, `approved` or `retired`. `analyses:` (string or list, at least two) names the elements argued independent. `sharedResources:` is a list of mappings `{resource, kind, initiators, couplingFactor, mitigation}`: `resource` the shared item (a power rail, clock, memory, bus master), `kind` one of `power`, `clock`, `memory`, `bus`, `software`, `other`, `initiators` the triggering events, `couplingFactor` a number in 0..1 and `mitigation` how the coupling is controlled. An `approved` analysis excuses `W034` for every pair of its `analyses`. Missing fields, an unknown status, fewer than two entries → E890; an unresolved entry → E891; a malformed shared resource → E892; an approved analysis with an unmitigated shared resource → W890.
+
 #### 8.18.6 GSN safety-argument layer (`Argument`, `AssumptionOfUse`)
 
 The Goal Structuring Notation (GSN) argument layer makes the safety **argument** a
@@ -6490,6 +6495,17 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
+#### Dependent failure analysis (E890–E892, W890)
+
+`DependentFailureAnalysis` (`DFA-*`, §8.18.7).
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E890` | Error | `DependentFailureAnalysis` is missing `id`, `name`, `status` or `analyses`, its `id` is not `DFA-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or `analyses` names fewer than two elements |
+| `E891` | Error | a `DependentFailureAnalysis.analyses` entry does not resolve to any model element |
+| `E892` | Error | a `sharedResources` entry is not a mapping, has no `resource`, has an unknown `kind`, or a `couplingFactor` outside 0..1 |
+| `W890` | Warning | an `approved` `DependentFailureAnalysis` has a shared resource with no `mitigation` |
+
 #### GSN safety-argument layer (E852–E858, W040)
 
 The Goal Structuring Notation (GSN) argument layer (§8.18.6). `Argument` (`ARG-*`) nodes
@@ -8397,6 +8413,8 @@ since `status: in_progress` alone already signals active work.
 | `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
 | `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
 | `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `analyses` | DependentFailureAnalysis | string or list (≥2) | absent | 8.18.7, 11.12 (E890, E891) — elements argued independent |
+| `sharedResources` | DependentFailureAnalysis | list of mappings | absent | 8.18.7, 11.12 (E892, W890) — `{resource, kind, initiators, couplingFactor, mitigation}` |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
 | `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
 | `residualRisk` | ThreatScenario | string | absent | 8.18.2 |

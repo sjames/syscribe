@@ -229,6 +229,7 @@ pub enum ElementType {
     // GSN safety-argument layer (issue #20)
     Argument,         // ARG-* — a GSN node (claim/strategy/solution)
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
+    DependentFailureAnalysis, // DFA-* — ISO 26262-9 clause 7 independence argument
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
     // Single-file feature model (REQ-TRS-FM-005) — a `featureTree:` sheet
@@ -339,6 +340,7 @@ impl ElementType {
         ElementType::FMEAEntry,
         ElementType::Argument,
         ElementType::AssumptionOfUse,
+        ElementType::DependentFailureAnalysis,
         ElementType::TARASheet,
         ElementType::FeatureModel,
         ElementType::Package,
@@ -438,6 +440,7 @@ impl ElementType {
             ElementType::FMEAEntry => "FMEAEntry",
             ElementType::Argument => "Argument",
             ElementType::AssumptionOfUse => "AssumptionOfUse",
+            ElementType::DependentFailureAnalysis => "DependentFailureAnalysis",
             ElementType::TARASheet => "TARASheet",
             ElementType::FeatureModel => "FeatureModel",
             ElementType::Package => "Package",
@@ -496,6 +499,7 @@ impl ElementType {
                 | ElementType::AttackStep
                 | ElementType::Argument
                 | ElementType::AssumptionOfUse
+                | ElementType::DependentFailureAnalysis
                 | ElementType::Asset
         )
     }
@@ -1121,6 +1125,11 @@ pub struct ColdFrontmatter {
     /// Resolver (else E858).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
+    /// `DependentFailureAnalysis.analyses` — the elements argued independent (≥2; each resolves, else E891).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub analyses: Option<Vec<String>>,
+    /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
+    pub shared_resources: Option<Vec<serde_yaml::Value>>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
     // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
@@ -1675,6 +1684,11 @@ struct ColdWire {
     /// Resolver (else E858).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
+    /// `DependentFailureAnalysis.analyses` — the elements argued independent (≥2; each resolves, else E891).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub analyses: Option<Vec<String>>,
+    /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
+    pub shared_resources: Option<Vec<serde_yaml::Value>>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
     // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
@@ -2040,6 +2054,8 @@ impl ColdWire {
             argument_type: w.argument_type,
             supports: w.supports,
             applies_to: w.applies_to,
+            analyses: w.analyses,
+            shared_resources: w.shared_resources,
             security_test_method: w.security_test_method,
             tier2: Boxed::of(ColdFrontmatter2 {
                 conjugates: w.conjugates,

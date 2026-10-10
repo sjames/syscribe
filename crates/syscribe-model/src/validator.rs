@@ -6,7 +6,7 @@ use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
+    is_adr_id, is_asset_id, is_aou_id, is_dfa_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_zn_id,
     is_pi_id,
@@ -2336,6 +2336,62 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // ── DependentFailureAnalysis (E890–E892, W890; ISO 26262-9 clause 7, GH #235) ──
+        if matches!(fm.element_type, Some(ElementType::DependentFailureAnalysis)) {
+            const DFA_STATUSES: &[&str] = &["draft", "review", "approved", "retired"];
+            const DFA_KINDS: &[&str] = &["power", "clock", "memory", "bus", "software", "other"];
+            for (field, present) in [("id", fm.id.is_some()), ("name", fm.name.is_some()), ("status", fm.status.is_some())] {
+                if !present {
+                    findings.push(error("E890", &file, &format!("`{field}` is required on DependentFailureAnalysis")));
+                }
+            }
+            if let Some(ref id) = fm.id {
+                if !is_dfa_id(id) {
+                    findings.push(error("E890", &file, &format!("`id` '{id}' does not match DFA-* pattern")));
+                }
+            }
+            if let Some(ref s) = fm.status {
+                if !DFA_STATUSES.contains(&s.as_str()) {
+                    findings.push(error("E890", &file, &format!("DependentFailureAnalysis.status '{s}' must be draft, review, approved or retired")));
+                }
+            }
+            let analyses = fm.analyses.as_deref().unwrap_or(&[]);
+            if analyses.len() < 2 {
+                findings.push(error("E890", &file, "`analyses` must name at least two elements argued independent"));
+            }
+            for r in analyses {
+                if resolver.resolve_ref(elements, r).is_none() {
+                    findings.push(error("E891", &file, &format!("DependentFailureAnalysis.analyses '{r}' does not resolve to any model element")));
+                }
+            }
+            let approved = fm.status.as_deref() == Some("approved");
+            for (i, entry) in fm.shared_resources.iter().flatten().enumerate() {
+                let n = i + 1;
+                let Some(m) = entry.as_mapping() else {
+                    findings.push(error("E892", &file, &format!("sharedResources entry {n} must be a mapping")));
+                    continue;
+                };
+                let resource = yaml_field(m, "resource").and_then(|v| v.as_str()).map(str::trim).unwrap_or("");
+                if resource.is_empty() {
+                    findings.push(error("E892", &file, &format!("sharedResources entry {n} has no `resource`")));
+                }
+                if let Some(k) = yaml_field(m, "kind") {
+                    if !k.as_str().is_some_and(|k| DFA_KINDS.contains(&k)) {
+                        findings.push(error("E892", &file, &format!("sharedResources entry {n}: `kind` must be one of {}", DFA_KINDS.join(", "))));
+                    }
+                }
+                if let Some(c) = yaml_field(m, "couplingFactor") {
+                    if !c.as_f64().is_some_and(|c| (0.0..=1.0).contains(&c)) {
+                        findings.push(error("E892", &file, &format!("sharedResources entry {n}: `couplingFactor` must be a number between 0 and 1")));
+                    }
+                }
+                let mitigated = yaml_field(m, "mitigation").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
+                if approved && !mitigated {
+                    findings.push(warning("W890", &file, &format!("approved DependentFailureAnalysis: shared resource '{}' has no `mitigation`", if resource.is_empty() { format!("#{n}") } else { resource.to_string() })));
                 }
             }
         }
@@ -7365,6 +7421,25 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // use — GH #131), inverted into target qname -> { source qnames }. A
             // standalone `Allocation` element contributes its allocatedFrom ->
             // allocatedTo edge, never itself as an endpoint.
+            // Pairs argued independent by an `approved` DependentFailureAnalysis (GH #235).
+            let mut dfa_pairs: BTreeSet<(String, String)> = BTreeSet::new();
+            for d in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::DependentFailureAnalysis)) && e.frontmatter.status.as_deref() == Some("approved")) {
+                let qn: Vec<String> = d
+                    .frontmatter
+                    .analyses
+                    .iter()
+                    .flatten()
+                    .filter_map(|r| resolver.resolve_ref(elements, r))
+                    .map(|t| t.qualified_name.clone())
+                    .collect();
+                for x in &qn {
+                    for y in &qn {
+                        if x != y {
+                            dfa_pairs.insert((x.clone(), y.clone()));
+                        }
+                    }
+                }
+            }
             let mut targets: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
             for (from, to) in allocation_edges(elements, &resolver) {
                 targets.entry(to).or_default().insert(from);
@@ -7396,6 +7471,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         // Excused when the target OR at least one source carries an FFI arg.
                         if target_has_ffi || has_ffi_arg(a) || has_ffi_arg(b) {
                             continue;
+                        }
+                        if dfa_pairs.contains(&(a.qualified_name.clone(), b.qualified_name.clone())) {
+                            continue; // independence argued by an approved DependentFailureAnalysis
                         }
                         findings.push(warning(
                             "W034",

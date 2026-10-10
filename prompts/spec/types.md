@@ -99,6 +99,7 @@
 cybersecurity assessment, with independence level I1–I3 ·
 `Argument` (ARG-*) — a GSN node (claim/strategy/solution) ·
 `AssumptionOfUse` (AOU-*) — safety-related application condition (SRAC)
+`DependentFailureAnalysis` (DFA-*) — ISO 26262-9 clause 7 independence argument (`analyses`, `sharedResources`)
 
 ## Key per-type schemas
 

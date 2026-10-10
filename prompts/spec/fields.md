@@ -372,6 +372,8 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` Aâ
 | `supports` | Argument | string or list | SafetyGoal or parent Argument argued for |
 | `evidence` | Argument | list | Requirement/TestCase/Argument/AssumptionOfUse refs (strings) |
 | `appliesTo` | AssumptionOfUse | list | SafetyGoal/Argument/Requirement the SRAC constrains |
+| `analyses` | DependentFailureAnalysis | list (â‰¥2) | Elements argued independent |
+| `sharedResources` | DependentFailureAnalysis | list | `{resource, kind, initiators, couplingFactor, mitigation}` |
 
 ## Security analysis fields (ISO/SAE 21434)
 

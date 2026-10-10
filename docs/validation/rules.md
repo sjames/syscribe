@@ -947,6 +947,18 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 
 See `docs/model-guide/safety-analysis.md`.
 
+### DependentFailureAnalysis (E890–E892, W890)
+
+The ISO 26262-9 clause 7 independence argument as a model element (`DFA-*`). An `approved`
+analysis silences `W034` for every pair of its `analyses`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E890 | Error | `DependentFailureAnalysis` is missing `id`, `name`, `status` or `analyses`, its `id` is not `DFA-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or `analyses` names fewer than two elements |
+| E891 | Error | a `DependentFailureAnalysis.analyses` entry does not resolve to any model element |
+| E892 | Error | a `sharedResources` entry is not a mapping, has no `resource`, has a `kind` outside `power`/`clock`/`memory`/`bus`/`software`/`other`, or a `couplingFactor` outside 0..1 |
+| W890 | Warning | an `approved` `DependentFailureAnalysis` has a shared resource with no `mitigation` |
+
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
 Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).

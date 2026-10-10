@@ -4442,6 +4442,26 @@ appliesTo:
 A safety-related application condition (SRAC): a constraint the integrator must
 honour for the referenced goal/argument/requirement to hold.
 "#,
+        "dependentfailureanalysis" => r#"---
+type: DependentFailureAnalysis
+id: DFA-PREFIX-001
+name: "Independence of [A] and [B]"
+status: draft          # draft | review | approved | retired
+analyses:              # the elements argued independent (at least two)
+  - Architecture::PartA
+  - Architecture::PartB
+sharedResources:
+  - resource: "[shared power rail / clock / memory / bus master]"
+    kind: power        # power | clock | memory | bus | software | other
+    initiators: ["[brown-out]"]
+    couplingFactor: 0.1   # 0..1
+    mitigation: "[how the coupling is controlled]"
+---
+
+Dependent failure analysis (ISO 26262-9 clause 7): why a common cause cannot take
+out all the analysed elements at once. An `approved` analysis silences `W034` for
+every pair of its `analyses`.
+"#,
         _ => return None,
     };
     Some(out)
@@ -4557,7 +4577,8 @@ fn template_group(name: &str) -> &'static str {
         "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"
-        | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse" => "Safety",
+        | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse"
+        | "DependentFailureAnalysis" => "Safety",
         "Asset" | "DamageScenario" | "ThreatScenario" | "CybersecurityGoal" | "SecurityControl"
         | "VulnerabilityReport" | "TARASheet" | "AttackTree" | "AttackTreeGate" | "AttackStep"
         | "Zone" | "Conduit" => "Security",
