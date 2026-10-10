@@ -1196,6 +1196,8 @@ pub struct ColdFrontmatter2 {
     /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
     /// derived `Diagram`, members of the subject to drop.
     pub exclude: Option<Vec<String>>,
+    /// On a derived BDD `Diagram`: composition levels followed beyond the subject's blocks (default 1).
+    pub depth: Option<usize>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
 
     // §8.10.2 — Constraint usage
@@ -1740,6 +1742,8 @@ struct ColdWire {
     /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
     /// derived `Diagram`, members of the subject to drop.
     pub exclude: Option<Vec<String>>,
+    /// On a derived BDD `Diagram`: composition levels followed beyond the subject's blocks (default 1).
+    pub depth: Option<usize>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
 
     // §8.10.2 — Constraint usage
@@ -2069,6 +2073,7 @@ impl ColdWire {
                 marker: w.marker,
                 include: w.include,
                 exclude: w.exclude,
+                depth: w.depth,
                 control_nodes: w.control_nodes,
                 is_asserted: w.is_asserted,
                 is_semantic: w.is_semantic,

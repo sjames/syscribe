@@ -3698,6 +3698,8 @@ edges:
 
 An edge is emitted only when both of its ends are nodes of the diagram after `include:`/`exclude:`. Layout hints are layered, top-to-bottom, with inheritance edges oriented so a supertype sits above its subtypes.
 
+**Composition across packages** (`REQ-TRS-BDDX-001`): the blocks that type the part usages of a diagram block are pulled in as **external blocks** — a `block` whose mark status is `external` — together with the composition edge, even when they are defined in another package. The optional `depth:` key (a non-negative integer, default `1`) sets how many composition levels are followed beyond the subject's own blocks; `0` keeps only the subject's members, `2` also pulls in what the external blocks compose. `exclude:` keeps a block out. On a package subject, an `include:` entry may also be a name qualified relative to the subject (`Hardware::Box`), a full qualified name or a stable id; it adds that definition as a block of the diagram and is matched for `W417`.
+
 ---
 
 ##### 8.16.8.2 IBD (Internal Block Diagram)

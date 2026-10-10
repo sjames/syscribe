@@ -48,6 +48,9 @@ pub(crate) fn w418(message: String) -> Issue {
 pub struct Filters {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
+    /// `depth:` of a BDD — composition levels followed beyond the subject's own blocks
+    /// (default 1; GH #243).
+    pub depth: Option<usize>,
     /// The project's `[cyber]` risk configuration, for the `ThreatGraph` tones
     /// (GH #223); the `simple` default when the caller has none.
     pub cyber: crate::cyber_config::CyberConfig,
@@ -58,6 +61,7 @@ impl Filters {
         Filters {
             include: elem.frontmatter.include.clone().unwrap_or_default(),
             exclude: elem.frontmatter.exclude.clone().unwrap_or_default(),
+            depth: elem.frontmatter.depth,
             cyber: Default::default(),
         }
     }
@@ -460,6 +464,17 @@ pub(crate) mod testkit {
                 fm.allocated_to = Some(vec!["Sys::Engine".into()]);
                 fm.features = Some(yaml_list("- {name: ctrlToGhost, type: Allocation, allocatedFrom: Reqs::Controller, allocatedTo: Ghost::Hw}\n"));
             }),
+            // A cross-package composition fixture (GH #243): Top (in Xp) composes Box (in the
+            // sub-package Xp::Sub), which composes Leaf; Loop composes itself.
+            raw("Xp", ElementType::Package, |_| {}),
+            raw("Xp::Sub", ElementType::Package, |_| {}),
+            raw("Xp::Top", ElementType::PartDef, |fm| {
+                fm.features = Some(yaml_list("- {name: hw, type: Part, typedBy: Xp::Sub::Box}\n"));
+            }),
+            raw("Xp::Sub::Box", ElementType::PartDef, |fm| {
+                fm.features = Some(yaml_list("- {name: leaf, type: Part, typedBy: Xp::Sub::Leaf}\n- {name: me, type: Part, typedBy: Xp::Sub::Box}\n"));
+            }),
+            raw("Xp::Sub::Leaf", ElementType::PartDef, |_| {}),
             // A behaviour package for the Sequence generator (REQ-TRS-VIS-021),
             // outside `Sys` so the BDD member list above is untouched: a
             // controller that performs `Startup` and owns the `statusIn` port,
