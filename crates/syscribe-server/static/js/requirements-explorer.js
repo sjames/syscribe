@@ -176,6 +176,30 @@
     };
   }
 
+  var VIEW_LAYOUTS = ['hops', 'v-model'];
+  var VIEW_MODES = ['graph', 'table', 'matrix'];
+  var VIEW_DEFAULT = { layout: 'hops', view: 'graph', trace: '', cols: 'tests' };
+
+  // Pure: the view state of a query string; anything outside its vocabulary falls back to the default.
+  function parseViewState(search) {
+    var p = new URLSearchParams(search || '');
+    function pick(key, allowed, dflt) { var v = p.get(key); return v !== null && allowed.indexOf(v) >= 0 ? v : dflt; }
+    var cats = Object.keys(CATEGORIES);
+    return {
+      layout: pick('layout', VIEW_LAYOUTS, VIEW_DEFAULT.layout),
+      view: pick('view', VIEW_MODES, VIEW_DEFAULT.view),
+      trace: pick('trace', cats, VIEW_DEFAULT.trace),
+      cols: pick('cols', cats, VIEW_DEFAULT.cols)
+    };
+  }
+
+  // Pure inverse: defaults are omitted.
+  function viewStateQuery(s) {
+    var p = new URLSearchParams();
+    ['layout', 'view', 'trace', 'cols'].forEach(function (k) { if (s[k] && s[k] !== VIEW_DEFAULT[k]) p.set(k, s[k]); });
+    return p.toString();
+  }
+
   // Fixed paths only: model text never reaches an href.
   function jumpLinks(n) {
     if (n.type === 'FeatureDef' || n.type === 'Configuration' || n.type === 'FeatureModel') return [{ label: 'Open the feature model', href: '/features' }];
@@ -261,7 +285,7 @@
 
   function truncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '', drawn: null, view: 'graph', layout: 'hops' };
+  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '', drawn: null, view: 'graph', layout: 'hops', cols: 'tests' };
   var root, svg, statusEl, detailEl;
 
   function setStatus(t) { if (statusEl) statusEl.textContent = t || ''; }
@@ -393,11 +417,10 @@
     var host = document.getElementById('req-matrix');
     if (!host) return;
     host.textContent = '';
-    var sel = document.getElementById('req-matrix-cols');
-    var m = matrixModel(graph, sel ? sel.value : 'tests');
+    var m = matrixModel(graph, state.cols);
     var t = document.createElement('table');
     var cap = document.createElement('caption');
-    cap.textContent = 'Requirements by ' + (sel ? sel.value : 'tests');
+    cap.textContent = 'Requirements by ' + state.cols;
     t.appendChild(cap);
     var thead = document.createElement('thead');
     var hr = document.createElement('tr');
@@ -587,10 +610,28 @@
     p.set('focus', state.focus);
     p.set('depth', String(state.depth));
     if (state.config) p.set('config', state.config);
-    return '/requirements?' + p.toString();
+    var vq = viewStateQuery(state);
+    return '/requirements?' + p.toString() + (vq ? '&' + vq : '');
   }
 
-  function snapshot() { return { focus: state.focus, depth: state.depth, config: state.config }; }
+  function snapshot() {
+    return { focus: state.focus, depth: state.depth, config: state.config, layout: state.layout, view: state.view, trace: state.trace, cols: state.cols };
+  }
+
+  // View controls change the current entry (Back should not step through every toggle).
+  function syncUrl() { history.replaceState(snapshot(), '', urlFor()); }
+
+  // Apply a (parsed or remembered) view state to the state object and the controls.
+  function applyView(v) {
+    state.layout = v.layout || VIEW_DEFAULT.layout;
+    state.trace = v.trace || '';
+    state.cols = v.cols || VIEW_DEFAULT.cols;
+    var lo = document.getElementById('req-layout'); if (lo) lo.value = state.layout;
+    var ts = document.getElementById('req-trace'); if (ts) ts.value = state.trace;
+    var mc = document.getElementById('req-matrix-cols'); if (mc) mc.value = state.cols;
+    setView(v.view || VIEW_DEFAULT.view);
+    if (state.lastGraph) draw(state.lastGraph);
+  }
 
   // Push a history entry only when the view actually changed.
   function pushUrl() {
@@ -711,8 +752,6 @@
       pushUrl();
       load();
     });
-    // The initial entry gets the seeded state, so Back to it restores focus, depth and configuration.
-    history.replaceState(snapshot(), '', location.href);
     window.addEventListener('popstate', function (ev) {
       var s = ev.state || snapshot();
       state.focus = s.focus === undefined ? '' : s.focus;
@@ -721,6 +760,7 @@
       document.getElementById('req-root').value = state.focus;
       document.getElementById('req-depth').value = String(state.depth);
       document.getElementById('req-config').value = state.config;
+      applyView(ev.state ? s : parseViewState(location.search));
       resetDetail();
       load();
     });
@@ -729,28 +769,29 @@
     var fa = document.getElementById('req-filter-asil');
     if (fa) ['QM', 'A', 'B', 'C', 'D'].forEach(function (a) { addFilterBox(fa, 'asil', a); });
     var vm = document.getElementById('req-view-matrix');
-    if (vm) vm.addEventListener('click', function () { setView(state.view === 'matrix' ? 'graph' : 'matrix'); });
+    if (vm) vm.addEventListener('click', function () { setView(state.view === 'matrix' ? 'graph' : 'matrix'); syncUrl(); });
     var mc = document.getElementById('req-matrix-cols');
-    if (mc) mc.addEventListener('change', function () { if (state.drawn) renderMatrix(state.drawn); });
+    if (mc) mc.addEventListener('change', function () { state.cols = mc.value; if (state.drawn) renderMatrix(state.drawn); syncUrl(); });
     var vt = document.getElementById('req-view-table');
-    if (vt) vt.addEventListener('click', function () { setView(state.view === 'table' ? 'graph' : 'table'); });
+    if (vt) vt.addEventListener('click', function () { setView(state.view === 'table' ? 'graph' : 'table'); syncUrl(); });
     ['json', 'csv', 'svg'].forEach(function (k) {
       var b = document.getElementById('req-export-' + k);
       if (b) b.addEventListener('click', function () { exportAs(k); });
     });
-    setView('graph');
     var lo = document.getElementById('req-layout');
-    if (lo) state.layout = lo.value || 'hops'; // a restored form value must match what is drawn
-    if (lo) lo.addEventListener('change', function () { state.layout = lo.value; if (state.lastGraph) draw(state.lastGraph); });
+    if (lo) lo.addEventListener('change', function () { state.layout = lo.value; if (state.lastGraph) draw(state.lastGraph); syncUrl(); });
     var ts = document.getElementById('req-trace');
-    if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); });
+    if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); syncUrl(); });
+    // The URL wins over any form state the browser restored; the initial entry then holds the full state.
+    applyView(parseViewState(location.search));
+    history.replaceState(snapshot(), '', location.href);
     initSearch();
     document.addEventListener('syscribe:reload', load);
     load();
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { vmodelColumn: vmodelColumn, matrixModel: matrixModel, tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { parseViewState: parseViewState, viewStateQuery: viewStateQuery, vmodelColumn: vmodelColumn, matrixModel: matrixModel, tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }
