@@ -21,6 +21,7 @@ pub mod members;
 pub mod fta;
 pub mod metrics;
 pub mod mutate;
+pub mod placeholders;
 pub mod plugins;
 pub mod projection;
 pub mod remote;

@@ -6122,6 +6122,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // Feature-parameter placeholders (GH #265, REQ-TRS-PHOLD-001): E240–E243, W245, W246.
+    for (is_error, code, file, msg) in crate::placeholders::findings(elements, &resolver) {
+        findings.push(if is_error { error(code, &file, &msg) } else { warning(code, &file, &msg) });
+    }
+
     // ── Tier 2 cross-reference checks (E825-E830) ────────────────────────────
 
     // Build reverse index: csg_implemented_by[csg_id_or_qn] — used for W802

@@ -43,10 +43,26 @@ pub enum SelectionOutcome {
     Error(String),
 }
 
+thread_local! {
+    /// The stored `Configuration` the last `resolve_selection` on this thread resolved to.
+    /// A `Selection` is only the feature map, so two configurations that select the same
+    /// features but bind different parameters cannot be told apart from it; `project` uses this
+    /// (guarded by an equality check against the selection) to pick the right `parameterBindings`
+    /// for `{{Feature.param}}` placeholders (GH #265). A proper variant type would replace it.
+    static CURRENT_CONFIG: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The qualified name of the stored Configuration the last `resolve_selection` on this thread
+/// resolved to, if the most recent resolution was a stored Configuration.
+pub fn current_config() -> Option<String> {
+    CURRENT_CONFIG.with(|c| c.borrow().clone())
+}
+
 /// Resolve a `--config` argument into a concrete selection. Accepts a stored
 /// `Configuration` (by id or qualified name) or an ad-hoc comma-separated set of
 /// `FeatureDef` qualified names (listed = selected, all others deselected).
 pub fn resolve_selection(elements: &[RawElement], arg: &str) -> SelectionOutcome {
+    CURRENT_CONFIG.with(|c| *c.borrow_mut() = None);
     if !has_feature_model(elements) {
         return SelectionOutcome::Dormant;
     }
@@ -55,6 +71,7 @@ pub fn resolve_selection(elements: &[RawElement], arg: &str) -> SelectionOutcome
         e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration)
             && (e.frontmatter.id.as_deref() == Some(arg) || e.qualified_name == arg)
     }) {
+        CURRENT_CONFIG.with(|c| *c.borrow_mut() = Some(cfg.qualified_name.clone()));
         return SelectionOutcome::Resolved(cfg.frontmatter.feature_selections());
     }
     // 2. An ad-hoc feature set — each token is a FeatureDef qualified name or its
@@ -155,7 +172,10 @@ pub fn project(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
     let pkg = variability::package_conditions(elements);
     let alias = variability::feature_id_to_qname(elements);
     let sel = variability::canon_selection(sel, &alias);
-    elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect()
+    let mut view: Vec<RawElement> = elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect();
+    // Feature-parameter placeholders ({{Feature.param}}) take this variant's values (GH #265).
+    crate::placeholders::substitute(&mut view, elements, &sel);
+    view
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────

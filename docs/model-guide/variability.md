@@ -175,6 +175,12 @@ A **parameter reference** is always the dotted form `Features::Path::Feature.par
 
 Binding rules (run by `validate`): bind a parameter of an unselected feature (`E203`), bind a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), unresolved/legacy-`::` path (`E222`); a required, unbound parameter warns (`W017`).
 
+### Parameter placeholders in element text
+
+Instead of restating a parameter value in prose, reference it: `{{Features::Display.sizeInch}}` (the dotted parameter reference; `{{...|unit}}` appends the parameter's `unit:`; the feature may be named by qname or `FEAT-*` id). The base model keeps the placeholder; a projection for a stored `Configuration` (`--config`, `validate --config`, `validate --all-configs`, every report) replaces it with that configuration's `parameterBindings:` value, else the parameter's fixed `value:`, else its `default:`. A placeholder that cannot be resolved is left as written.
+
+v1 covers an element's Markdown body and `name`. Rules: `E240` (placeholder used but no feature model or no configuration), `E241` (unknown feature or parameter), `E242` (the element is active in a configuration that does not select the feature — gate it with `appliesWhen`), `E243`/`W245` (no binding, value or default in a configuration where the element is active; error for approved elements, warning for drafts), `W246` (a `runtime` parameter has no value at projection time). Note: configurations that select the same features but bind different parameters are told apart by the configuration the command resolved last (the lens), not by the selection alone.
+
 **Binding time.** A parameter may declare an optional `bindingTime:` — *when* its value is resolved, from the PLE triad ordered earliest→latest: `compile` (build / codegen) · `load` (deployment / startup) · `runtime` (live). It is orthogonal to `isFixed:`/`value:` (a value fixed in the model, i.e. no variability). Absent = unspecified (opts out of the checks below).
 
 ```yaml
