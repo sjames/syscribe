@@ -20,7 +20,8 @@ gating flags promote chosen warnings to build failures.
     --warnings-as-errors    Treat every warning as a gate failure.
     --summary               Print finding counts per code and severity instead of each
                             finding (with --json: [{code, severity, count}]). Gating and
-                            the exit code are unchanged.
+                            the exit code are unchanged. With --all-configs the per-variant
+                            result table is already a summary; --summary has no effect there.
     --profile <name>        Apply a named [profiles.<name>] policy from .syscribe.toml
                             (SIL/ASIL-scopable code promotion). See `help` for profiles.
     --config <C>            Project onto a Configuration (id/qname or 'Features::A,Features::B')

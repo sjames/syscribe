@@ -2678,6 +2678,36 @@ fn evaluate_gate<'a>(
     GateEval { errors, warnings, infos, denied, denied_by_flags, denied_by_profile, over_max, exit_code }
 }
 
+/// The one-line `N errors, M warnings (…) — FAIL` verdict that opens every text report.
+fn gate_summary_line(eval: &GateEval<'_>, gate: &GateOptions) -> String {
+    let mut summary = format!("{} errors, {} warnings", eval.errors.len(), eval.warnings.len());
+    let mut clauses: Vec<String> = Vec::new();
+    if !eval.denied_by_flags.is_empty() {
+        if gate.warnings_as_errors {
+            clauses.push("all warnings promoted to errors (--warnings-as-errors)".to_string());
+        } else {
+            clauses.push(format!(
+                "{} gated by --deny {}",
+                eval.denied_by_flags.len(),
+                sorted_codes(&eval.denied_by_flags).join(", ")
+            ));
+        }
+    }
+    if !eval.denied_by_profile.is_empty() {
+        clauses.push(format!("{} gated by --profile", eval.denied_by_profile.len()));
+    }
+    if eval.over_max {
+        clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap_or(0)));
+    }
+    if !clauses.is_empty() {
+        summary.push_str(&format!(" ({})", clauses.join("; ")));
+    }
+    if !eval.errors.is_empty() || eval.gate_tripped() {
+        summary.push_str(" — FAIL");
+    }
+    summary
+}
+
 /// Print a gated finding report (text or `--json`) and return its exit code
 /// WITHOUT exiting. `clean_msg` is the line printed when there are no findings.
 fn print_gated_report(
@@ -2710,12 +2740,7 @@ fn print_gated_report(
         } else if counts.is_empty() {
             println!("{clean_msg}");
         } else {
-            println!(
-                "{} errors, {} warnings{}",
-                eval.errors.len(),
-                eval.warnings.len(),
-                if !eval.errors.is_empty() || eval.gate_tripped() { " — FAIL" } else { "" }
-            );
+            println!("{}", gate_summary_line(eval, gate));
             println!();
             println!("| Code | Severity | Count |");
             println!("|---|---|---|");
@@ -2725,7 +2750,12 @@ fn print_gated_report(
         }
         if exit_code == 2 {
             for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
-                eprintln!("{}", line);
+                // Same streams as the full report: stderr alongside JSON, stdout in text.
+                if json {
+                    eprintln!("{}", line);
+                } else {
+                    println!("{}", line);
+                }
             }
         }
         return exit_code;
@@ -2758,39 +2788,9 @@ fn print_gated_report(
         return exit_code;
     }
 
-    // Leading pass/fail summary line (issue #116): always present in text
-    // mode, so "did this pass" is answerable from the first line instead of
-    // by the absence of an Errors section. Printed before the per-severity
-    // tables below, not after.
-    {
-        let mut summary = format!("{} errors, {} warnings", eval.errors.len(), eval.warnings.len());
-        let mut clauses: Vec<String> = Vec::new();
-        if !eval.denied_by_flags.is_empty() {
-            if gate.warnings_as_errors {
-                clauses.push("all warnings promoted to errors (--warnings-as-errors)".to_string());
-            } else {
-                clauses.push(format!(
-                    "{} gated by --deny {}",
-                    eval.denied_by_flags.len(),
-                    sorted_codes(&eval.denied_by_flags).join(", ")
-                ));
-            }
-        }
-        if !eval.denied_by_profile.is_empty() {
-            clauses.push(format!("{} gated by --profile", eval.denied_by_profile.len()));
-        }
-        if eval.over_max {
-            clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap_or(0)));
-        }
-        if !clauses.is_empty() {
-            summary.push_str(&format!(" ({})", clauses.join("; ")));
-        }
-        if !eval.errors.is_empty() || eval.gate_tripped() {
-            summary.push_str(" — FAIL");
-        }
-        println!("{}", summary);
-        println!();
-    }
+    // Leading pass/fail summary line (issue #116): always present in text mode.
+    println!("{}", gate_summary_line(eval, gate));
+    println!();
 
     let table = |label: &str, fs: &[&VFinding]| {
         if fs.is_empty() {

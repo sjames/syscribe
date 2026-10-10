@@ -338,7 +338,7 @@ exactly the kind of model it was motivated by — see the `W600` entry below.)
 - **`W601` × 1 ("ActionDef/Action has an empty documentation body")** —
   `MonitorRotorHealth` carries no `doc /* ... */` member, the behavior
   counterpart of the `W600` entry above.
-- **`W015` × 2 in `validate` (one per `Configuration`), and `W022` × 1 in
+- **`W015` × 1 in `validate` (one per requirement, listing both `Configuration`s), and `W022` × 1 in
   `feature-check` ("requirement ...::thrustCheck is active ... but no TestCase
   covering it runs" / "... covered in none")** — the SysMLv2 `thrustCheck` requirement usage is a `type:
   Requirement` element with no `status:` (the mapper never sets one), so the

@@ -99,3 +99,34 @@ fn summary_json_is_a_count_array_and_exit_code_is_unchanged() {
     assert_eq!(row["count"], 2);
     assert_eq!(row["severity"], "warning");
 }
+
+#[test]
+fn config_lens_w015_names_only_the_selected_configuration() {
+    // GH #245 review: under --config X, other configurations must not appear.
+    let root = model(false);
+    std::fs::write(
+        root.join("Tests/TC-NZ-009.md"),
+        "---\nid: TC-NZ-009\ntype: TestCase\ntestLevel: L3\nstatus: approved\nname: t\nappliesWhen: Features::Bravo\nverifies: [REQ-NZ-002]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n",
+    )
+    .unwrap_or_else(|_| {
+        std::fs::create_dir_all(root.join("Tests")).unwrap();
+        std::fs::write(
+            root.join("Tests/TC-NZ-009.md"),
+            "---\nid: TC-NZ-009\ntype: TestCase\ntestLevel: L3\nstatus: approved\nname: t\nappliesWhen: Features::Bravo\nverifies: [REQ-NZ-002]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n",
+        )
+        .unwrap();
+    });
+    let (out, _) = validate(&root, &["--config", "CONF-NZ-ALPHA-001"]);
+    let line = w015_lines(&out).into_iter().find(|x| x.contains("REQ-NZ-002")).unwrap_or_else(|| panic!("{out}"));
+    assert!(line.contains("CONF-NZ-ALPHA-001"), "{line}");
+    assert!(!line.contains("CONF-NZ-BRAVO-001") && !line.contains("CONF-NZ-CHARLIE-001"), "{line}");
+}
+
+#[test]
+fn summary_text_gate_output_matches_the_normal_report() {
+    let root = model(false);
+    let (out, code) = validate(&root, &["--summary", "--deny", "W015"]);
+    assert_eq!(code, 2);
+    assert!(out.contains("gated by --deny W015"), "{out}");
+    assert!(out.contains("FAIL"), "{out}");
+}

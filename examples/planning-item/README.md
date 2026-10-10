@@ -287,7 +287,7 @@ the "done" claim is not backed by verification either.
 
 ## Expected / documented warnings (main example)
 
-- **`W002`, `W015` × 2 (`REQ-RTH-002` has no covering `TestCase`)** — the
+- **`W002`, `W015` × 1 (`REQ-RTH-002` has no covering `TestCase`; one finding listing both configurations)** — the
   event-logging requirement genuinely has no test written yet in this
   example (only the battery-trigger and anti-false-trigger paths have
   `TestCase`s); realistic for an `in_progress` feature, not a defect.

@@ -281,7 +281,15 @@ pub fn validate_projected(
     sel: &Selection,
 ) -> Vec<Finding> {
     let mut findings = escaping_refs(full, sel);
-    let active = project(full, sel);
+    let mut active = project(full, sel);
+    // Per-configuration findings (W015) are about the selected variant only: keep the
+    // stored Configuration(s) whose selection is this one, drop the others so a
+    // requirement is not reported against configurations outside the lens (GH #245).
+    let wanted = variability::canon_selection(sel, &variability::feature_id_to_qname(full));
+    active.retain(|e| {
+        e.frontmatter.element_type.as_ref() != Some(&ElementType::Configuration)
+            || canonical_selection(full, e) == wanted
+    });
     let res = validator::validate_with_config(&active, config);
     findings.extend(
         res.findings
