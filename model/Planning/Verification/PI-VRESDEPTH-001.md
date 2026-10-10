@@ -1,6 +1,6 @@
 ---
 type: PlanningItem
-id: PI-VRES-257B
+id: PI-VRESDEPTH-001
 name: "verification-depth counts only non-failing, run tests (GH #257 b, c)"
 status: done
 itemType: bug

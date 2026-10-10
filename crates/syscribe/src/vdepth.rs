@@ -64,7 +64,7 @@ pub fn cmd_verification_depth(
                                     failing.insert(tc_id.clone());
                                     continue;
                                 }
-                                Verdict::Unknown if tc.frontmatter.test_functions.as_ref().is_some_and(|f| !f.is_empty()) => {
+                                Verdict::Unknown if !syscribe_model::results::tc_function_refs(tc).is_empty() => {
                                     not_run.insert(tc_id.clone());
                                     continue;
                                 }

@@ -109,7 +109,7 @@ struct SessionLogRecord {
 }
 
 /// The `function` strings declared under a TestCase's `testFunctions:`.
-fn tc_function_refs(tc: &crate::element::RawElement) -> Vec<String> {
+pub fn tc_function_refs(tc: &crate::element::RawElement) -> Vec<String> {
     let func_key = serde_yaml::Value::String("function".into());
     tc.frontmatter
         .test_functions

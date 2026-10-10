@@ -1154,23 +1154,23 @@ $ syscribe -m model_auto/ who-verifies REQ-ENG-SAFE-001
 
 ### Verification-depth & independence report
 
-`verification-depth` gives the fleet-wide view that `trace` shows one requirement at a time: for each requirement, the **distinct** `testLevel`s among its active verifying TestCases, a count, and a depth flag — `none` (no active test), `hil-only` (only L5), `single` (one level), or `ok` (≥2 levels). Diversity/independence of verification is a core SIL-4 expectation.
+`verification-depth` gives the fleet-wide view that `trace` shows one requirement at a time: for each requirement, the **distinct** `testLevel`s among its active verifying TestCases, a count, and a depth flag — `none` (no active test), `hil-only` (only L5), `single` (one level), or `ok` (≥2 levels). With test results ingested, a failing test and an automated test whose functions did not run do not count as a level (so a requirement whose only tests fail is `none`) and are listed in `Failing` / `Not run` columns. Diversity/independence of verification is a core SIL-4 expectation.
 
 ```
 $ syscribe -m model_sil/ verification-depth --sil 4
 
 # Verification depth (9 requirements)
 
-| Requirement | SIL/ASIL | Levels | Count | Flag |
-|---|---|---|---|---|
-| REQ-SIL-SAFE-001 | 4 | L4 | 1 | single |
-| REQ-SIL-SAFE-002 | 4 | L5 | 1 | hil-only |
-| REQ-SIL-SW-002 | 4 | L2 | 1 | single |
+| Requirement | SIL/ASIL | Levels | Count | Flag | Failing | Not run |
+|---|---|---|---|---|---|---|
+| REQ-SIL-SAFE-001 | 4 | L4 | 1 | single | — | — |
+| REQ-SIL-SAFE-002 | 4 | L5 | 1 | hil-only | — | — |
+| REQ-SIL-SW-002 | 4 | L2 | 1 | single | — | — |
 ...
 ```
 
 - **`--sil <v>` / `--status <s>`** filter the rows (same `--sil` semantics as `list`).
-- **`--json`** emits an array of `{id, silLevel, asilLevel, levels, count, flag}`.
+- **`--json`** emits an array of `{id, silLevel, asilLevel, levels, count, failing, notRun, flag}`.
 - **`--min-levels N`** turns it into a CI gate — exits non-zero when any reported requirement has fewer than `N` distinct verification levels. Combined with `--sil 4`, gates only that tier:
 
 ```

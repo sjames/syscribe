@@ -23,7 +23,7 @@ pipelines. The format never changes without a version bump.
 | `audit --json` | Full readiness rollup with status split, coverage, orphans, verdict | Safety dashboard; go/no-go gate |
 | `metrics --json` | Array of `{id, sil, asil, spfm, lfm, pmhf, pass}` | PMHF trend charts; FMEDA evidence |
 | `cyber-risk --json` | Array of `{id, severity, feasibility, risk, treatment, addressed, flag}` | Security dashboards; untreated-threat alerting |
-| `verification-depth --json` | Array of `{id, silLevel, asilLevel, count, levels[], flag}` | Single-level coverage gap detection |
+| `verification-depth --json` | Array of `{id, silLevel, asilLevel, count, levels[], failing[], notRun[], flag}` | Single-level coverage gap detection |
 | `co-analysis --json` | Safety↔security overlap per goal | Co-engineering reporting |
 | `safety-case --json` | GSN tree per SafetyGoal with evidence nodes | Safety case document generation |
 | `features --json` | Feature model with groupKind, requires/excludes, selected-in counts | Product line dashboards |
