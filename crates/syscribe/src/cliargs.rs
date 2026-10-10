@@ -43,6 +43,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--deny", ValueOrEq),
             ("--max-warnings", ValueOrEq),
             ("--warnings-as-errors", Switch),
+            ("--summary", Switch),
             ("--profile", Value),
             ("--results", Value),
             ("--format", Value),

@@ -236,7 +236,9 @@ fn parse_gate_options(args: &[String]) -> query::GateOptions {
     let mut i = 0;
     while i < args.len() {
         let a = &args[i];
-        if a == "--warnings-as-errors" {
+        if a == "--summary" {
+            gate.summary = true;
+        } else if a == "--warnings-as-errors" {
             gate.warnings_as_errors = true;
         } else if a == "--deny" {
             if let Some(val) = args.get(i + 1) {

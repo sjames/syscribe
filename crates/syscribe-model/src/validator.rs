@@ -5902,7 +5902,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let is_draft = |elem: &RawElement| elem.frontmatter.status.as_deref() == Some("draft");
 
         // Non-draft requirements: (display id, applies_when, identity keys).
-        let reqs: Vec<(String, Option<FeatureExpr>, Vec<String>)> = elements
+        let reqs: Vec<(String, Option<FeatureExpr>, Vec<String>, String)> = elements
             .iter()
             .filter(|e| {
                 matches!(e.frontmatter.element_type, Some(ElementType::Requirement)) && !is_draft(e)
@@ -5917,7 +5917,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 if let Some(i) = &e.frontmatter.id {
                     keys.push(i.clone());
                 }
-                (id, parse_aw(e), keys)
+                (id, parse_aw(e), keys, e.file_path.clone())
             })
             .collect();
 
@@ -5946,23 +5946,26 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             })
             .collect();
 
-        for cfg in elements
-            .iter()
-            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
-        {
-            let sel = crate::variability::canon_selection(
-                &cfg.frontmatter.feature_selections(),
-                &feat_alias,
-            );
-            let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
-            let cfg_id = cfg
-                .frontmatter
-                .id
-                .clone()
-                .unwrap_or_else(|| cfg.qualified_name.clone());
-            for (rid, rexpr, rkeys) in &reqs {
-                let active = rexpr.as_ref().is_none_or(|e| e.eval(&selected));
-                if !active {
+        // W015, one finding per requirement naming every configuration in which it is
+        // active but uncovered (GH #245), instead of one per (requirement, configuration).
+        let cfgs: Vec<(String, std::collections::BTreeMap<String, bool>)> = {
+            let mut v: Vec<_> = elements
+                .iter()
+                .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+                .map(|cfg| {
+                    let id = cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone());
+                    let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias);
+                    (id, sel)
+                })
+                .collect();
+            v.sort_by(|a, b| a.0.cmp(&b.0));
+            v
+        };
+        for (rid, rexpr, rkeys, rfile) in &reqs {
+            let mut uncovered: Vec<&str> = Vec::new();
+            for (cfg_id, sel) in &cfgs {
+                let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+                if !rexpr.as_ref().is_none_or(|e| e.eval(&selected)) {
                     continue;
                 }
                 let covered = tcs.iter().any(|(texpr, verifies)| {
@@ -5970,15 +5973,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     runs && verifies.iter().any(|v| rkeys.iter().any(|k| k == v))
                 });
                 if !covered {
-                    findings.push(warning(
-                        "W015",
-                        &cfg.file_path,
-                        &format!(
-                            "requirement '{}' is active in configuration '{}' but no TestCase covering it runs in {}",
-                            rid, cfg_id, cfg_id
-                        ),
-                    ));
+                    uncovered.push(cfg_id.as_str());
                 }
+            }
+            if !uncovered.is_empty() {
+                findings.push(warning(
+                    "W015",
+                    rfile,
+                    &format!(
+                        "requirement '{}' is active in {} configuration(s) but no TestCase covering it runs there: {}",
+                        rid,
+                        uncovered.len(),
+                        uncovered.join(", ")
+                    ),
+                ));
             }
         }
     }

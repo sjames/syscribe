@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> validate [--file <path>] [--json]
-        [--deny <CODES>] [--max-warnings <N>] [--warnings-as-errors]
+        [--deny <CODES>] [--max-warnings <N>] [--warnings-as-errors] [--summary]
         [--profile <name>] [--config <C>] [--all-configs]
         [--results <file> [--format <fmt>]] [--fetch-remote]
 
@@ -18,6 +18,9 @@ gating flags promote chosen warnings to build failures.
     --deny <CODES>          Comma-separated warning codes treated as gate failures.
     --max-warnings <N>      Fail when the warning count exceeds N.
     --warnings-as-errors    Treat every warning as a gate failure.
+    --summary               Print finding counts per code and severity instead of each
+                            finding (with --json: [{code, severity, count}]). Gating and
+                            the exit code are unchanged.
     --profile <name>        Apply a named [profiles.<name>] policy from .syscribe.toml
                             (SIL/ASIL-scopable code promotion). See `help` for profiles.
     --config <C>            Project onto a Configuration (id/qname or 'Features::A,Features::B')

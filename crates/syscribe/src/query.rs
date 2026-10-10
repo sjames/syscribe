@@ -2291,6 +2291,8 @@ pub struct GateOptions {
     pub max_warnings: Option<usize>,
     /// Treat every warning as a gate failure.
     pub warnings_as_errors: bool,
+    /// `--summary`: print finding counts per code instead of each finding (GH #245).
+    pub summary: bool,
 }
 
 impl GateOptions {
@@ -2687,6 +2689,47 @@ fn print_gated_report(
 ) -> i32 {
     use syscribe_model::validator::Severity;
     let exit_code = eval.exit_code;
+
+    if gate.summary {
+        use std::collections::BTreeMap;
+        let mut counts: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+        for f in findings {
+            let sev = match f.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+                Severity::Info => "info",
+            };
+            *counts.entry((f.code, sev)).or_insert(0) += 1;
+        }
+        if json {
+            let items: Vec<serde_json::Value> = counts
+                .iter()
+                .map(|((c, s), n)| serde_json::json!({ "code": c, "severity": s, "count": n }))
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        } else if counts.is_empty() {
+            println!("{clean_msg}");
+        } else {
+            println!(
+                "{} errors, {} warnings{}",
+                eval.errors.len(),
+                eval.warnings.len(),
+                if !eval.errors.is_empty() || eval.gate_tripped() { " — FAIL" } else { "" }
+            );
+            println!();
+            println!("| Code | Severity | Count |");
+            println!("|---|---|---|");
+            for ((c, s), n) in &counts {
+                println!("| {c} | {s} | {n} |");
+            }
+        }
+        if exit_code == 2 {
+            for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
+                eprintln!("{}", line);
+            }
+        }
+        return exit_code;
+    }
 
     if json {
         let items: Vec<serde_json::Value> = findings.iter().map(|f| {
