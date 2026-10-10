@@ -45,8 +45,13 @@ fn defects_are_reported() {
     let v = |s: &str| run(&model(s), &["validate"]).0;
     assert!(v(&GOOD.replace("status: approved", "status: bogus")).contains("E896"));
     assert!(v(&GOOD.replace("id: SM-MX-001", "id: XX-MX-001")).contains("E896"));
-    assert!(v(&GOOD.replace("diagnosticCoverage: 0.99", "diagnosticCoverage: 1.5")).contains("E896"));
-    assert!(v(&GOOD.replace("latentDiagnosticCoverage: 0.9", "latentDiagnosticCoverage: -0.1")).contains("E896"));
+    // a coverage outside 0..1 or not a number is the generic E846 — reported once, not also as E896
+    let range = v(&GOOD.replace("diagnosticCoverage: 0.99", "diagnosticCoverage: 1.5"));
+    assert!(range.contains("E846") && !range.contains("E896"), "{range}");
+    assert!(v(&GOOD.replace("latentDiagnosticCoverage: 0.9", "latentDiagnosticCoverage: -0.1")).contains("E846"));
+    let text = v(&GOOD.replace("diagnosticCoverage: 0.99", "diagnosticCoverage: \"99%\""));
+    assert!(text.contains("E846") && !text.contains("E002"), "{text}");
+    assert!(v(&GOOD.replace("reactionTime: 20 ms", "reactionTime: fast")).contains("E896"));
     assert!(v(&GOOD.replace("[FM-MX-001, REQ-MX-001]", "[FM-NOPE-999]")).contains("E897"));
     assert!(v(&GOOD.replace("[FM-MX-001, REQ-MX-001]", "[S::Chip]")).contains("E897"));
 }
@@ -61,6 +66,16 @@ fn a_reaction_time_over_the_ftti_is_w894() {
     assert!(run(&model(&direct), &["validate"]).0.contains("W894"));
     // a draft mechanism is not checked
     assert!(!run(&model(&over.replace("status: approved", "status: draft")), &["validate"]).0.contains("W894"));
+    // a retired mechanism and a duplicated covers entry
+    assert!(!run(&model(&over.replace("status: approved", "status: retired")), &["validate"]).0.contains("W894"));
+    let dup = run(&model(&GOOD.replace("[FM-MX-001, REQ-MX-001]", "[S::Chip, S::Chip]")), &["validate"]).0;
+    assert_eq!(dup.matches("E897").count(), 1, "{dup}");
+    // a requirement two derivedFrom hops below the goal is followed
+    let d = model(&over);
+    std::fs::write(d.join("S/REQ-MX-002.md"), "---\nid: REQ-MX-002\ntype: Requirement\nname: r2\nstatus: approved\nreqDomain: software\nreqClass: system\nderivedFrom: [REQ-MX-001]\n---\n\nShall.\n").unwrap();
+    let chain = std::fs::read_to_string(d.join("S/SM-MX-001.md")).unwrap().replace("[FM-MX-001, REQ-MX-001]", "[REQ-MX-002]");
+    std::fs::write(d.join("S/SM-MX-001.md"), chain).unwrap();
+    assert!(run(&d, &["validate"]).0.contains("W894"));
     // 1 s expressed in seconds also compares
     assert!(run(&model(&GOOD.replace("20 ms", "1 s")), &["validate"]).0.contains("W894"));
 }

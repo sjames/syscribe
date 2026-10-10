@@ -697,6 +697,9 @@ pub fn cmd_show(
     for (label, list) in [("analyses", &fm.analyses), ("runsOn", &fm.runs_on), ("requiresCapabilities", &fm.requires_capabilities), ("capabilities", &fm.capabilities), ("covers", &fm.covers)] {
         if let Some(l) = list.as_ref().filter(|l| !l.is_empty()) { println!("| **{label}** | {} |", l.join(", ")); }
     }
+    for (label, v) in [("diagnosticCoverage", fm.diagnostic_coverage), ("latentDiagnosticCoverage", fm.latent_diagnostic_coverage)] {
+        if let Some(v) = v { println!("| **{label}** | {v} |"); }
+    }
     for (label, v) in [("environmentKind", &fm.environment_kind), ("calibrationStatus", &fm.calibration_status), ("calibrationDue", &fm.calibration_due), ("reactionTime", &fm.reaction_time)] {
         if let Some(v) = v { println!("| **{label}** | {v} |"); }
     }

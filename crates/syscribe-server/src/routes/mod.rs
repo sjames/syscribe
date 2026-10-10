@@ -3,6 +3,7 @@ pub mod diagram_model;
 pub mod elements;
 pub mod feature_model;
 pub mod mutate;
+pub mod req_graph;
 pub mod ui;
 pub mod validation;
 pub mod ws;

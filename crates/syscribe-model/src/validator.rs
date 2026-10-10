@@ -2422,11 +2422,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E896", &file, &format!("SafetyMechanism.status '{s}' must be draft, review, approved or retired")));
                 }
             }
-            for (field, v) in [("diagnosticCoverage", fm.diagnostic_coverage), ("latentDiagnosticCoverage", fm.latent_diagnostic_coverage)] {
-                if let Some(v) = v {
-                    if !(0.0..=1.0).contains(&v) {
-                        findings.push(error("E896", &file, &format!("SafetyMechanism.{field} {v} must be between 0 and 1")));
-                    }
+            // The coverages' 0..1 range is the generic E846 (all element types).
+            if let Some(rt) = fm.reaction_time.as_deref() {
+                if crate::asil::ftti_millis(rt).is_none() {
+                    findings.push(error("E896", &file, &format!("SafetyMechanism.reactionTime '{rt}' is not a duration (e.g. `20 ms`, `1.5 s`)")));
                 }
             }
             let goal_ftti = |g: &RawElement| -> Option<f64> {
@@ -2439,9 +2438,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 g.frontmatter.ftti.as_deref().and_then(crate::asil::ftti_millis)
             };
             let reaction = fm.reaction_time.as_deref().and_then(crate::asil::ftti_millis);
-            let draft = fm.status.as_deref() == Some("draft");
+            // A draft or retired mechanism makes no commitment to check.
+            let draft = matches!(fm.status.as_deref(), Some("draft") | Some("retired"));
+            let mut seen_covers: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
             let mut over: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-            for r in fm.covers.iter().flatten() {
+            for r in fm.covers.iter().flatten().filter(|r| seen_covers.insert(r.as_str())) {
                 let Some(t) = resolver.resolve_ref(elements, r) else {
                     findings.push(error("E897", &file, &format!("SafetyMechanism.covers '{r}' does not resolve to any model element")));
                     continue;
@@ -2458,10 +2459,22 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     continue;
                 }
                 // The goal whose FTTI bounds this coverage: the covered goal, or the goal a covered requirement derives from.
+                // (a covered requirement is followed up its `derivedFrom` chain to the first goal)
                 let goal = if matches!(t.frontmatter.element_type, Some(ElementType::SafetyGoal)) {
                     Some(t)
                 } else {
-                    t.frontmatter.derived_from_safety_goal.as_deref().and_then(|g| resolver.resolve_ref(elements, g))
+                    let mut cur = t;
+                    let mut hops = 0;
+                    loop {
+                        if let Some(g) = cur.frontmatter.derived_from_safety_goal.as_deref().and_then(|g| resolver.resolve_ref(elements, g)) {
+                            break Some(g);
+                        }
+                        hops += 1;
+                        match cur.frontmatter.derived_from.iter().flatten().filter_map(|p| resolver.resolve_ref(elements, p)).next() {
+                            Some(p) if hops < 16 => cur = p,
+                            _ => break None,
+                        }
+                    }
                 };
                 if let (Some(rt), Some(g)) = (reaction, goal) {
                     if let Some(f) = goal_ftti(g) {

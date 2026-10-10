@@ -954,7 +954,7 @@ time; list them with `syscribe mechanisms`.
 
 | Code | Severity | Condition |
 |---|---|---|
-| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or a `diagnosticCoverage` / `latentDiagnosticCoverage` is outside 0..1 |
+| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or its `reactionTime` is not a duration (the coverages' 0..1 range is the generic `E846`) |
 | E897 | Error | a `SafetyMechanism.covers` entry does not resolve, or is not an `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` |
 | W894 | Warning | a non-draft `SafetyMechanism`'s `reactionTime` exceeds the `ftti` of a `SafetyGoal` it covers (directly or through a covered requirement's `derivedFromSafetyGoal`) |
 

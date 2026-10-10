@@ -4542,7 +4542,7 @@ Security/Attacks/AT-TORQUE-001/
 
 #### 8.18.9 Safety mechanisms (`SafetyMechanism`)
 
-`SafetyMechanism` (`SM-*`, GH #236) makes "which mechanism covers which failure mode, with what diagnostic coverage and reaction time" answerable from the model. `status` is `draft`, `review`, `approved` or `retired`. `covers:` (string or list) names the `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` elements covered (unresolved or of another type → E897). `diagnosticCoverage` and `latentDiagnosticCoverage` are numbers in 0..1 (outside → E896); `reactionTime` is a duration (`10 ms`); `safeState` is text; `allocatedTo:` names where the mechanism runs. A non-draft mechanism whose `reactionTime` exceeds the `ftti` (or `ftti` quantity) of a goal it covers — directly or through a covered requirement's `derivedFromSafetyGoal` — is W894. `syscribe mechanisms` lists them; `--uncovered` lists the `FMEAEntry` rows no mechanism covers. The hardware FMEDA table feeding SPFM/LFM is not yet modelled.
+`SafetyMechanism` (`SM-*`, GH #236) makes "which mechanism covers which failure mode, with what diagnostic coverage and reaction time" answerable from the model. `status` is `draft`, `review`, `approved` or `retired`. `covers:` (string or list) names the `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` elements covered (unresolved or of another type → E897). `diagnosticCoverage` and `latentDiagnosticCoverage` are numbers in 0..1 (the generic E846 reports a value outside, or text); `reactionTime` is a duration (`10 ms`; not a duration → E896); `safeState` is text; `allocatedTo:` names where the mechanism runs. A non-draft, non-retired mechanism whose `reactionTime` exceeds the `ftti` (or `ftti` quantity) of a goal it covers — directly, or through a covered requirement's `derivedFromSafetyGoal` found along its `derivedFrom` chain — is W894 (FMEA rows, fault-tree events and hazardous events are not followed to a goal). `syscribe mechanisms` lists them; `--uncovered` lists the `FMEAEntry` rows no mechanism covers. The hardware FMEDA table feeding SPFM/LFM is not yet modelled.
 
 #### 8.18.8 Structured timing quantities (`quantities:`)
 
@@ -6535,7 +6535,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 
 | Code | Severity | Condition |
 |---|---|---|
-| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or a `diagnosticCoverage` / `latentDiagnosticCoverage` is outside 0..1 |
+| E896 | Error | `SafetyMechanism` is missing `id`, `name` or `status`, its `id` is not `SM-*`, its `status` is not `draft`/`review`/`approved`/`retired`, or its `reactionTime` is not a duration (the coverages' 0..1 range is the generic `E846`) |
 | E897 | Error | a `SafetyMechanism.covers` entry does not resolve, or is not an `FMEAEntry`, `FaultTreeEvent`, `Requirement`, `SafetyGoal` or `HazardousEvent` |
 | W894 | Warning | a non-draft `SafetyMechanism`'s `reactionTime` exceeds the `ftti` of a `SafetyGoal` it covers (directly or through a covered requirement's `derivedFromSafetyGoal`) |
 

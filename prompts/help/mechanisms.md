@@ -10,7 +10,7 @@ and `allocatedTo`. `validate` checks the element (`E896`, `E897`) and warns (`W8
 non-draft mechanism's reaction time exceeds the FTTI of a goal it covers, directly or through a
 covered requirement's `derivedFromSafetyGoal`.
 
-`--uncovered` lists the `FMEAEntry` rows that no non-retired mechanism covers.
+`--uncovered` lists the `FMEAEntry` rows that no non-retired mechanism lists directly in `covers:` (a draft mechanism counts; an FMEA row reached only through a covered fault-tree event or requirement is still listed).
 
 ## OPTIONS
     --json         Machine-readable output.

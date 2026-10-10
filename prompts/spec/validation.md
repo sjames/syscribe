@@ -255,7 +255,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E896` | `SafetyMechanism` missing `id`, `name` or `status`, `id` not `SM-*`, status outside `draft`/`review`/`approved`/`retired`, or a coverage outside 0..1 |
+| `E896` | `SafetyMechanism` missing `id`, `name` or `status`, `id` not `SM-*`, status outside `draft`/`review`/`approved`/`retired`, or a `reactionTime` that is not a duration (coverage range: generic `E846`) |
 | `E897` | A `SafetyMechanism.covers` entry does not resolve or is not an `FMEAEntry`/`FaultTreeEvent`/`Requirement`/`SafetyGoal`/`HazardousEvent` |
 | `W894` | A non-draft `SafetyMechanism`'s `reactionTime` exceeds the FTTI of a goal it covers |
 

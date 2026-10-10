@@ -96,6 +96,21 @@ mod named_string_or_vec {
     }
 }
 
+/// A 0..1 coverage number that tolerates a quoted number (`"0.99"`) and turns any other text
+/// (`"99%"`) into NaN, so the range check (E846) reports it instead of the whole file failing
+/// with a generic type mismatch.
+mod lenient_f64 {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+        match Option::<serde_yaml::Value>::deserialize(d)? {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::Number(n)) => Ok(n.as_f64()),
+            Some(serde_yaml::Value::String(s)) => Ok(Some(s.trim().parse::<f64>().unwrap_or(f64::NAN))),
+            Some(_) => Ok(Some(f64::NAN)),
+        }
+    }
+}
+
 /// A string-typed field that tolerates a YAML number or bool (`calibrationDue: 20270101`,
 /// `calibrationStatus: yes`) by reading its text, so the validator reports the specific code
 /// instead of the whole file failing with a generic type mismatch.
@@ -1095,6 +1110,7 @@ pub struct ColdFrontmatter {
     // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
     pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
     // §T4 — FMEDA diagnostic coverage (ISO 26262-5 §8-9), documented for FaultTreeEvent.
+    #[serde(default, deserialize_with = "lenient_f64::deserialize")]
     pub diagnostic_coverage: Option<f64>,         // DC, 0.0–1.0 (YAML: diagnosticCoverage)
 
     // §T4 — FMEASheet / FMEAEntry (IEC 60812 / SAE J1739)
@@ -1444,6 +1460,7 @@ pub struct ColdFrontmatter3 {
     pub control_table: Option<Vec<serde_yaml::Value>>,  // → SecurityControl rows  (YAML: controlTable)
     pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+    #[serde(default, deserialize_with = "lenient_f64::deserialize")]
     pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
     pub ccf_group: Option<String>,               // FaultTreeEvent common-cause group name (YAML: ccfGroup, GH #211)
     pub ccf_beta: Option<f64>,                   // FaultTreeEvent beta factor 0.0–1.0 (YAML: ccfBeta, GH #211)
@@ -1683,6 +1700,7 @@ struct ColdWire {
     // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
     pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
     // §T4 — FMEDA diagnostic coverage (ISO 26262-5 §8-9), documented for FaultTreeEvent.
+    #[serde(default, deserialize_with = "lenient_f64::deserialize")]
     pub diagnostic_coverage: Option<f64>,         // DC, 0.0–1.0 (YAML: diagnosticCoverage)
 
     // §T4 — FMEASheet / FMEAEntry (IEC 60812 / SAE J1739)
@@ -2016,6 +2034,7 @@ struct ColdWire {
     pub control_table: Option<Vec<serde_yaml::Value>>,  // → SecurityControl rows  (YAML: controlTable)
     pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+    #[serde(default, deserialize_with = "lenient_f64::deserialize")]
     pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
     pub ccf_group: Option<String>,               // FaultTreeEvent common-cause group name (YAML: ccfGroup, GH #211)
     pub ccf_beta: Option<f64>,                   // FaultTreeEvent beta factor 0.0–1.0 (YAML: ccfBeta, GH #211)
