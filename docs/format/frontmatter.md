@@ -147,6 +147,7 @@ A `TestPlan` (stable `TP-*` id) groups reusable TestCases by product and scope.
 | `configurations` | A `Configuration` id or list of ids — the product variant(s) the plan is for; absent = config-agnostic. Each must resolve (`E606`) |
 | `demonstrates` | Optional list of goals/requirements the plan is evidence for (`E603` if unresolved); not required |
 | `testCases` | Explicit `TC-*` members (`E601` if not a TestCase) |
+| `runsOn`, `requiresCapabilities` | Optional `TestEnvironment` id(s) the plan executes on (`E894`) and the capabilities it needs (`W891` when the rig lacks one); also valid on a `TestCase` |
 | `selection` | Additive query: `testLevels` (L1–L5, `E602`), `domains` (system/hardware/software, `E605`), `tags` |
 
 Effective members = `testCases` ∪ `selection` matches. Surfaced by `testplan` and the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Codes `E600`–`E606` / `W610`–`W616` in the [Rule Reference](../validation/rules.md).

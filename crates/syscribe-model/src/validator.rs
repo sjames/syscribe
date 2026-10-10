@@ -2360,8 +2360,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             let analyses = fm.analyses.as_deref().unwrap_or(&[]);
-            if analyses.len() < 2 {
-                findings.push(error("E890", &file, "`analyses` must name at least two elements argued independent"));
+            // At least two *distinct* elements (the same one by id and by qualified name counts once).
+            let distinct: std::collections::BTreeSet<String> = analyses
+                .iter()
+                .map(|r| resolver.resolve_ref(elements, r).map(|t| t.qualified_name.clone()).unwrap_or_else(|| r.clone()))
+                .collect();
+            if distinct.len() < 2 {
+                findings.push(error("E890", &file, "`analyses` must name at least two distinct elements argued independent"));
             }
             for r in analyses {
                 if resolver.resolve_ref(elements, r).is_none() {
@@ -2369,6 +2374,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             let approved = fm.status.as_deref() == Some("approved");
+            if approved && fm.shared_resources.as_ref().is_none_or(|l| l.is_empty()) {
+                findings.push(warning("W890", &file, "approved DependentFailureAnalysis lists no `sharedResources` — an independence claim should name what the elements share (or why nothing is shared)"));
+            }
             for (i, entry) in fm.shared_resources.iter().flatten().enumerate() {
                 let n = i + 1;
                 let Some(m) = entry.as_mapping() else {
@@ -2424,8 +2432,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             if let Some(ref due) = fm.calibration_due {
                 let b = due.as_bytes();
-                let ok = b.len() == 10
+                let shape = b.len() == 10
                     && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() });
+                let ok = shape && {
+                    let (y, m, d): (u32, u32, u32) = (due[0..4].parse().unwrap_or(0), due[5..7].parse().unwrap_or(0), due[8..10].parse().unwrap_or(0));
+                    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+                    let dim = match m { 1 | 3 | 5 | 7 | 8 | 10 | 12 => 31, 4 | 6 | 9 | 11 => 30, 2 => if leap { 29 } else { 28 }, _ => 0 };
+                    d >= 1 && d <= dim
+                };
                 if !ok {
                     findings.push(error("E893", &file, &format!("TestEnvironment.calibrationDue '{due}' must be a YYYY-MM-DD date")));
                 }
@@ -2434,7 +2448,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::TestCase) | Some(ElementType::TestPlan)) && fm.runs_on.is_some() {
             let mut offered: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             let draft = fm.status.as_deref() == Some("draft");
-            for r in fm.runs_on.iter().flatten() {
+            let mut seen_runs: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            for r in fm.runs_on.iter().flatten().filter(|r| seen_runs.insert(r.as_str())) {
                 match resolver.resolve_ref(elements, r) {
                     Some(t) if matches!(t.frontmatter.element_type, Some(ElementType::TestEnvironment)) => {
                         offered.extend(t.frontmatter.capabilities.iter().flatten().map(|c| c.trim().to_ascii_lowercase()));
@@ -2449,7 +2464,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     None => findings.push(error("E894", &file, &format!("`runsOn` '{r}' does not resolve to any model element"))),
                 }
             }
-            for need in fm.requires_capabilities.iter().flatten() {
+            let all_resolved = fm.runs_on.iter().flatten().all(|r| {
+                resolver.resolve_ref(elements, r).is_some_and(|t| matches!(t.frontmatter.element_type, Some(ElementType::TestEnvironment)))
+            });
+            for need in fm.requires_capabilities.iter().flatten().filter(|_| all_resolved && fm.runs_on.as_ref().is_some_and(|r| !r.is_empty())) {
                 if !offered.contains(&need.trim().to_ascii_lowercase()) {
                     findings.push(warning("W891", &file, &format!("requires capability '{need}' which none of its `runsOn` environments offers")));
                 }

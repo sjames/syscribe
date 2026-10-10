@@ -41,6 +41,7 @@ Integration plan executed before each delivery/survey release.
 | `configurations` | A `Configuration` id or list — the product variant(s) the plan is for. **Omit** for a config-agnostic plan that applies everywhere. |
 | `demonstrates` | Optional. Goals / requirements the plan is offered as evidence for (a safety-case leg). Not required. |
 | `testCases` | Explicit members. |
+| `runsOn` / `requiresCapabilities` | Optional. The `TestEnvironment` rig(s) the plan runs on and the capabilities it needs; a missing capability is `W891`, a retired or out-of-calibration rig `W892` (`calibrationDue` is advisory — only `calibrationStatus` is evaluated). Also valid on a `TestCase`. |
 | `selection` | An **additive** query (`testLevels`, `domains`, `tags`) unioned with `testCases`. A `selection` with no sub-fields matches nothing; draft TestCases are not swept in. |
 
 **Effective members** = `testCases` ∪ `selection` matches (deduped). Membership of a given

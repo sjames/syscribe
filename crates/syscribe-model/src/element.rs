@@ -79,6 +79,34 @@ mod named_string_or_vec {
     pub fn derived_from_cybersecurity_goal<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "derivedFromCybersecurityGoal")
     }
+    pub fn analyses<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "analyses")
+    }
+    pub fn runs_on<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "runsOn")
+    }
+    pub fn requires_capabilities<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "requiresCapabilities")
+    }
+    pub fn capabilities<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "capabilities")
+    }
+}
+
+/// A string-typed field that tolerates a YAML number or bool (`calibrationDue: 20270101`,
+/// `calibrationStatus: yes`) by reading its text, so the validator reports the specific code
+/// instead of the whole file failing with a generic type mismatch.
+mod lenient_string {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+        match Option::<serde_yaml::Value>::deserialize(d)? {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::String(s)) => Ok(Some(s)),
+            Some(serde_yaml::Value::Number(n)) => Ok(Some(n.to_string())),
+            Some(serde_yaml::Value::Bool(b)) => Ok(Some(b.to_string())),
+            Some(_) => Err(serde::de::Error::custom("expected a scalar value")),
+        }
+    }
 }
 
 /// Serde helper: accept either a single YAML value or a sequence of values,
@@ -1130,24 +1158,28 @@ pub struct ColdFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
     /// `DependentFailureAnalysis.analyses` — the elements argued independent (≥2; each resolves, else E891).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::analyses")]
     pub analyses: Option<Vec<String>>,
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
     /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::runs_on")]
     pub runs_on: Option<Vec<String>>,
     /// `TestCase`/`TestPlan.requiresCapabilities` — what the test needs from its environment (W891).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::requires_capabilities")]
     pub requires_capabilities: Option<Vec<String>>,
     /// `TestEnvironment.capabilities` — what the rig offers.
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::capabilities")]
     pub capabilities: Option<Vec<String>>,
     /// `TestEnvironment.environmentKind`: hil | bench | chamber | vehicle | simulation | other.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub environment_kind: Option<String>,
     /// `TestEnvironment.calibrationStatus`: valid | expired | unknown.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub calibration_status: Option<String>,
     /// `TestEnvironment.calibrationDue` (`YYYY-MM-DD`).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub calibration_due: Option<String>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
@@ -1704,24 +1736,28 @@ struct ColdWire {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
     /// `DependentFailureAnalysis.analyses` — the elements argued independent (≥2; each resolves, else E891).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::analyses")]
     pub analyses: Option<Vec<String>>,
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
     /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::runs_on")]
     pub runs_on: Option<Vec<String>>,
     /// `TestCase`/`TestPlan.requiresCapabilities` — what the test needs from its environment (W891).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::requires_capabilities")]
     pub requires_capabilities: Option<Vec<String>>,
     /// `TestEnvironment.capabilities` — what the rig offers.
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "named_string_or_vec::capabilities")]
     pub capabilities: Option<Vec<String>>,
     /// `TestEnvironment.environmentKind`: hil | bench | chamber | vehicle | simulation | other.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub environment_kind: Option<String>,
     /// `TestEnvironment.calibrationStatus`: valid | expired | unknown.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub calibration_status: Option<String>,
     /// `TestEnvironment.calibrationDue` (`YYYY-MM-DD`).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub calibration_due: Option<String>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)

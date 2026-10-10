@@ -51,3 +51,22 @@ fn defects_are_reported() {
     assert!(validate(&model(&GOOD.replace("calibrationStatus: valid", "calibrationStatus: expired"), RUNS)).contains("W892"));
     assert!(validate(&model(&GOOD.replace("status: available", "status: retired"), RUNS)).contains("W892"));
 }
+
+#[test]
+fn odd_shapes_dates_and_unresolved_runs_on_are_reported_precisely() {
+    // wrong shapes give the specific code, not a whole-file parse failure
+    let v = validate(&model(&GOOD.replace("calibrationDue: 2027-03-01", "calibrationDue: 20270301").replace("calibrationStatus: valid", "calibrationStatus: yes"), RUNS));
+    assert!(v.contains("E893") && !v.contains("E002"), "{v}");
+    assert!(validate(&model(&GOOD.replace("2027-03-01", "2027-13-45"), RUNS)).contains("E893"));
+    assert!(validate(&model(&GOOD.replace("2027-03-01", "2027-02-30"), RUNS)).contains("E893"));
+    assert!(!validate(&model(&GOOD.replace("2027-03-01", "2028-02-29"), RUNS)).contains("E893"));
+    // an unresolved runsOn is E894 only — no W891 pile-on
+    let v = validate(&model(GOOD, "runsOn: [TE-NOPE-999]\nrequiresCapabilities: [x]\n"));
+    assert!(v.contains("E894") && !v.contains("W891"), "{v}");
+    // show and refs know the new edge
+    let d = model(GOOD, RUNS);
+    let run = |a: &[&str]| String::from_utf8_lossy(&Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&d).args(a).output().unwrap().stdout).into_owned();
+    assert!(run(&["show", "TC-TE-001"]).contains("TE-HIL-001"));
+    assert!(run(&["show", "TE-HIL-001"]).contains("CAN-FD"));
+    assert!(run(&["refs", "TE-HIL-001"]).contains("TC-TE-001"), "{}", run(&["refs", "TE-HIL-001"]));
+}

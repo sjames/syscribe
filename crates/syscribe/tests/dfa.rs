@@ -74,3 +74,17 @@ fn the_element_is_addressable_by_its_id() {
     let s = run(&d, &["show", "DFA-CK-001"]);
     assert!(s.contains("DependentFailureAnalysis") && s.contains("DFA-CK-001"), "{s}");
 }
+
+#[test]
+fn odd_shapes_duplicates_and_empty_resources_are_precise() {
+    let v = run(&model(&GOOD.replace("sharedResources:\n  - resource: SoC power rail\n    kind: power\n    initiators: [brown-out]\n    couplingFactor: 0.1\n    mitigation: Separate regulators with supervisor\n", "sharedResources: SoC power rail\n")), &["validate"]);
+    assert!(v.contains("E892") && !v.contains("E002"), "{v}");
+    assert!(run(&model(&GOOD.replace("analyses: [Sys::Cluster, Sys::Android]", "analyses: 5")), &["validate"]).contains("analyses"));
+    let dup = GOOD.replace("[Sys::Cluster, Sys::Android]", "[Sys::Cluster, Sys::Cluster]");
+    assert!(run(&model(&dup), &["validate"]).contains("E890"));
+    let empty = "---\nid: DFA-CK-001\ntype: DependentFailureAnalysis\nname: n\nstatus: approved\nanalyses: [Sys::Cluster, Sys::Android]\n---\n\nNothing shared?\n";
+    assert!(run(&model(empty), &["validate"]).contains("W890"));
+    let d = model(GOOD);
+    let refs = run(&d, &["refs", "Sys::Cluster"]);
+    assert!(refs.contains("DFA-CK-001"), "{refs}");
+}

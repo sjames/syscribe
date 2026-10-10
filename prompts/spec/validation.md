@@ -235,7 +235,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W034` | For an allocation target with ≥2 sources (edges from the §12.9 unified allocation-edge set), a mixed-criticality source pair has no freedom-from-interference argument (`ffiRationale:` or `accepted` `breakdownAdr:`). Opt-in; gate with `--deny W034` |
+| `W034` | For an allocation target with ≥2 sources (edges from the §12.9 unified allocation-edge set), a mixed-criticality source pair has no freedom-from-interference argument (`ffiRationale:` or `accepted` `breakdownAdr:`). An `approved` `DependentFailureAnalysis` whose `analyses` name both sources also excuses the pair. Opt-in; gate with `--deny W034` |
 
 ## Integrity-level propagation — ASIL/SIL decomposition and HARA (E865, E878–E880, W811–W814, W860)
 

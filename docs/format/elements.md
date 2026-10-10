@@ -172,6 +172,7 @@ These types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Each carrie
 | `ConfirmationMeasure` | `CM-*` | ISO 26262-2 / ISO/SAE 21434 | Confirmation review / FS audit / FS assessment / cybersecurity assessment (`measureType`, `independenceLevel` I1–I3, `confirms:`) |
 | `Argument` | `ARG-*` | GSN | Safety-case node (`argumentType: claim \| strategy \| solution`, `supports:`, `evidence:`) |
 | `AssumptionOfUse` | `AOU-*` | ISO 26262 | Safety-related application condition (SRAC); `appliesTo:` goals/arguments/requirements |
+| `TestEnvironment` | `TE-*` | ASPICE SWE.4–SYS.5 | The rig a test runs on; `capabilities:`, calibration; named by `runsOn:` on `TestCase`/`TestPlan` |
 | `DependentFailureAnalysis` | `DFA-*` | ISO 26262-9 cl. 7 | Independence argument; `analyses:` (≥2 elements), `sharedResources:`; an approved one silences `W034` for its pairs |
 
 All of these require `id`, `name` and `status`. Every stable id needs at least one 2–12-character

@@ -880,7 +880,7 @@ one** of the two sources declares a non-empty `ffiRationale:` string, OR carries
 
 | Code | Severity | Condition |
 |---|---|---|
-| W034 | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument. One finding per offending `(target, sourceA, sourceB)`, naming both sources and their integrity tags. Gate with `--deny W034`; promotable via `[profiles]` |
+| W034 | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument. The pair is excused by an `ffiRationale`/`accepted` `breakdownAdr`, or when both sources are in the `analyses` of an `approved` `DependentFailureAnalysis` (it names the pair, not the shared target). One finding per offending `(target, sourceA, sourceB)`, naming both sources and their integrity tags. Gate with `--deny W034`; promotable via `[profiles]` |
 
 See `docs/model-guide/safety-analysis.md`.
 

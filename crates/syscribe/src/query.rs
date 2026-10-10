@@ -488,6 +488,9 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
             out.push(("evidence".into(), s.to_string()));
         }
     }
+    for (label, list) in [("runsOn", &fm.runs_on), ("analyses", &fm.analyses)] {
+        for s in list.iter().flatten() { out.push((label.into(), s.clone())); }
+    }
     if let Some(ref at) = fm.applies_to {
         for s in at { out.push(("appliesTo".into(), s.clone())); }
     }
@@ -691,6 +694,13 @@ pub fn cmd_show(
         }
     }
     if let Some(ref at) = fm.applies_to { if !at.is_empty() { println!("| **appliesTo** | {} |", at.join(", ")); } }
+    for (label, list) in [("analyses", &fm.analyses), ("runsOn", &fm.runs_on), ("requiresCapabilities", &fm.requires_capabilities), ("capabilities", &fm.capabilities)] {
+        if let Some(l) = list.as_ref().filter(|l| !l.is_empty()) { println!("| **{label}** | {} |", l.join(", ")); }
+    }
+    for (label, v) in [("environmentKind", &fm.environment_kind), ("calibrationStatus", &fm.calibration_status), ("calibrationDue", &fm.calibration_due)] {
+        if let Some(v) = v { println!("| **{label}** | {v} |"); }
+    }
+    if let Some(sr) = fm.shared_resources.as_ref().filter(|l| !l.is_empty()) { println!("| **sharedResources** | {} |", sr.len()); }
     if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
     if let Some(ref aw) = fm.applies_when {
         let aw_str = match aw {
