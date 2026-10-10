@@ -1182,7 +1182,30 @@ fn related_commands(elem_type: Option<&ElementType>) -> Vec<(&'static str, &'sta
 
 // ── cmd: ls ──────────────────────────────────────────────────────────────────
 
+/// `Requirements/System` → `Requirements::System` (GH #231). Only a scope that does not
+/// already contain `::` and does contain `/` is rewritten.
+fn path_to_qname(s: &str) -> Option<String> {
+    (s.contains('/') && !s.contains("::")).then(|| s.trim_matches('/').replace('/', "::"))
+}
+
+/// The longest leading part of `qname` that is an existing package/element, for a hint.
+fn nearest_scope<'a>(elements: &'a [RawElement], qname: &str) -> Option<&'a str> {
+    let mut parts: Vec<&str> = qname.split("::").collect();
+    while parts.pop().is_some() && !parts.is_empty() {
+        let cand = parts.join("::");
+        if let Some(e) = elements.iter().find(|e| e.qualified_name == cand) {
+            return Some(e.qualified_name.as_str());
+        }
+    }
+    None
+}
+
 pub fn cmd_ls(elements: &[RawElement], parent: &str, wheres: &[CustomWhere]) {
+    let converted = path_to_qname(parent);
+    let parent = match &converted {
+        Some(q) if ns_children(elements, q).len() + usize::from(elements.iter().any(|e| &e.qualified_name == q)) > 0 => q.as_str(),
+        _ => parent,
+    };
     let mut children = ns_children(elements, parent);
     // `--where` custom-field predicates (GH #39) — ANDed with each other.
     children.retain(|c| wheres.iter().all(|w| custom_field_matches(c, w)));
@@ -1191,6 +1214,13 @@ pub fn cmd_ls(elements: &[RawElement], parent: &str, wheres: &[CustomWhere]) {
             eprintln!("No top-level elements found.");
         } else {
             eprintln!("No children found for: {parent}");
+            let q = path_to_qname(parent).unwrap_or_else(|| parent.to_string());
+            if q != parent {
+                eprintln!("(scopes use `::`, e.g. `{q}`)");
+            }
+            if let Some(near) = nearest_scope(elements, &q) {
+                eprintln!("did you mean `{near}`?");
+            }
         }
         return;
     }
@@ -1913,7 +1943,13 @@ pub fn cmd_links(elements: &[RawElement], resolver: &Resolver, key: &str) {
         for (rel, target) in &out {
             let ttype = resolve(elements, resolver, target)
                 .map(|e| tl(e.frontmatter.element_type.as_ref()))
-                .unwrap_or("(unresolved)");
+                .unwrap_or_else(|| {
+                    if rel == "implementedBy" && syscribe_model::config::is_external_source_ref(target) {
+                        "external"
+                    } else {
+                        "(unresolved)"
+                    }
+                });
             println!("| {} | {} | {} |", rel, target, ttype);
         }
         println!();

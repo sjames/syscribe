@@ -856,11 +856,8 @@ impl ValidateConfig {
 
         // URI with a scheme.
         if let Some(scheme_end) = v.find("://") {
-            let scheme = &v[..scheme_end];
-            let is_scheme = !scheme.is_empty()
-                && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'));
-            if is_scheme {
-                if scheme.eq_ignore_ascii_case("file") {
+            if is_remote_uri_scheme(&v[..scheme_end]) {
+                if v[..scheme_end].eq_ignore_ascii_case("file") {
                     return SourceLocation::Local(file_uri_to_path(&v[scheme_end + 3..]));
                 }
                 return SourceLocation::Remote(v.to_string());
@@ -939,6 +936,24 @@ impl PackageRef<'_> {
 /// version are both non-empty. Anything else — a local path, `repo:`/`model:`
 /// prefixes, a Windows drive (`C:\…`), an unknown prefix, a missing version —
 /// is `None`.
+/// Whether `scheme` (the text before `://`) is a syntactically valid URI scheme.
+fn is_remote_uri_scheme(scheme: &str) -> bool {
+    !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
+}
+
+/// Whether an `implementedBy`-style value names something outside the repository: a
+/// non-`file` URI or a package-registry reference. The same test `classify_source`
+/// applies, exposed so reports can say `external` rather than `(unresolved)` (GH #231).
+pub fn is_external_source_ref(value: &str) -> bool {
+    let v = value.trim();
+    if let Some(i) = v.find("://") {
+        if is_remote_uri_scheme(&v[..i]) {
+            return !v[..i].eq_ignore_ascii_case("file");
+        }
+    }
+    parse_package_ref(v).is_some()
+}
+
 pub fn parse_package_ref(value: &str) -> Option<PackageRef<'_>> {
     let (registry, rest) = value.trim().split_once(':')?;
     let ecosystem = PACKAGE_REGISTRIES
