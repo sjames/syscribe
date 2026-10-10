@@ -41,7 +41,7 @@ How a parent is judged complete is a policy, `both` by default:
     asil = ["A","B","C","D"]     # also cal = ["CAL1".."CAL4"], sil = ["QM", 1, ...]
     parent_rule = "both"
     [[coverage.rule]]
-    reqClass = "stakeholder"     # also tag = ["function"] (any of)
+    reqClass = "stakeholder"     # also requirementKind = ["process"], status = ["approved"], tag = ["function"] (any of)
     parent_rule = "rollup"
 
 `direct`: a direct active test is enough. `rollup`: every leaf below verified.

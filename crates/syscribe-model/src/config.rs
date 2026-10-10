@@ -1539,6 +1539,10 @@ impl ParentRule {
 #[derive(Debug, Clone)]
 pub struct CoverageRule {
     pub req_class: Option<Vec<String>>,
+    /// `requirementKind` (any of); a requirement without one never matches.
+    pub requirement_kind: Option<Vec<String>>,
+    /// Lifecycle `status` (any of).
+    pub status: Option<Vec<String>>,
     pub tag: Option<Vec<String>>,
     pub asil: Option<Vec<String>>,
     pub cal: Option<Vec<String>>,
@@ -1621,7 +1625,7 @@ impl CoveragePolicy {
                             p.problems.push(format!("{at} must be a table"));
                             continue;
                         };
-                        let mut rule = CoverageRule { req_class: None, tag: None, asil: None, cal: None, sil: None, rule: ParentRule::Both };
+                        let mut rule = CoverageRule { req_class: None, requirement_kind: None, status: None, tag: None, asil: None, cal: None, sil: None, rule: ParentRule::Both };
                         let mut have_rule = false;
                         for (rk, rv) in t {
                             let list = strings(rv);
@@ -1638,6 +1642,8 @@ impl CoveragePolicy {
                                     None => p.problems.push(format!("{at}: parent_rule {rv} must be \"direct\", \"rollup\" or \"both\"")),
                                 },
                                 ("reqClass", Some(l)) => rule.req_class = Some(l),
+                                ("requirementKind", Some(l)) => rule.requirement_kind = Some(l),
+                                ("status", Some(l)) => rule.status = Some(l),
                                 ("tag", Some(l)) => rule.tag = Some(l),
                                 ("asil", Some(l)) => {
                                     let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();
@@ -1683,6 +1689,8 @@ impl CoveragePolicy {
     pub fn rule_for(&self, fm: &crate::element::RawFrontmatter) -> (ParentRule, String) {
         let any = |sel: &Option<Vec<String>>, have: &[String]| sel.as_ref().is_none_or(|s| s.iter().any(|x| have.iter().any(|h| h.eq_ignore_ascii_case(x))));
         let tags = fm.tags.clone().unwrap_or_default();
+        let kind: Vec<String> = fm.requirement_kind.iter().cloned().collect();
+        let status: Vec<String> = fm.status.iter().cloned().collect();
         let class: Vec<String> = fm.req_class.iter().cloned().collect();
         let asil: Vec<String> = fm.asil_level.as_deref().map(|a| a.trim().chars().take(1).collect::<String>().to_ascii_uppercase()).into_iter().collect();
         let cal: Vec<String> = fm.cal_level.iter().map(|c| c.trim().to_string()).collect();
@@ -1694,7 +1702,7 @@ impl CoveragePolicy {
             sil.push(s.to_string());
         }
         for (i, r) in self.rules.iter().enumerate() {
-            if any(&r.req_class, &class) && any(&r.tag, &tags) && any(&r.asil, &asil) && any(&r.cal, &cal) && any(&r.sil, &sil) {
+            if any(&r.req_class, &class) && any(&r.requirement_kind, &kind) && any(&r.status, &status) && any(&r.tag, &tags) && any(&r.asil, &asil) && any(&r.cal, &cal) && any(&r.sil, &sil) {
                 return (r.rule, format!("rule #{}", i + 1));
             }
         }

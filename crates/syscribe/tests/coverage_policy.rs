@@ -122,3 +122,26 @@ fn cal_and_sil_rated_requirements_are_guarded_and_sil_zero_is_qm() {
     let (o, c) = run(&model(t, "silLevel: 0\n"), &["coverage", "tree", "REQ-CP-001"]);
     assert_eq!(c, 0, "{o}");
 }
+
+#[test]
+fn status_and_requirement_kind_are_selectors() {
+    // requirementKind: process on the parent selects the rule; status is approved on every requirement.
+    let t = "[[coverage.rule]]\nrequirementKind = [\"process\"]\nparent_rule = \"rollup\"\n[[coverage.rule]]\nparent_rule = \"direct\"\n";
+    assert!(top(&model(t, "requirementKind: process\n")).0.contains("(rule: rollup)"), "kind matches");
+    assert!(top(&model(t, "requirementKind: software\n")).0.contains("(rule: direct)"), "kind differs, falls through");
+    assert!(top(&model(t, "")).0.contains("(rule: direct)"), "no kind never matches a kind selector");
+    let t = "[[coverage.rule]]\nstatus = [\"approved\"]\nparent_rule = \"rollup\"\n";
+    assert!(top(&model(t, "")).0.contains("(rule: rollup)"), "status matches");
+    let t = "[[coverage.rule]]\nstatus = [\"draft\"]\nparent_rule = \"rollup\"\n";
+    assert!(top(&model(t, "")).0.contains("(rule: both)"), "status differs, default applies");
+    // an empty selector list is still an error
+    let (o, c) = top(&model("[[coverage.rule]]\nstatus = []\nparent_rule = \"rollup\"\n", ""));
+    assert_eq!(c, 1, "{o}");
+}
+
+#[test]
+fn a_status_selector_cannot_loosen_a_rated_requirement() {
+    let t = "[[coverage.rule]]\nstatus = [\"approved\"]\nparent_rule = \"rollup\"\n";
+    let (o, c) = top(&model(t, "asilLevel: B\n"));
+    assert_eq!(c, 1, "{o}");
+}
