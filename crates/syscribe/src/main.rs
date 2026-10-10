@@ -497,6 +497,30 @@ fn first_positional<'a>(args: &'a [String], value_flags: &[&str]) -> Option<&'a 
     None
 }
 
+/// Remove `--results-as-of <run>` / `--results-as-of=<run>` from the command line; the run id (if any)
+/// is returned separately. A flag without a value exits 1.
+fn strip_results_as_of(args: Vec<String>) -> (Vec<String>, Option<String>) {
+    let mut out = Vec::with_capacity(args.len());
+    let mut run = None;
+    let mut it = args.into_iter();
+    while let Some(a) = it.next() {
+        if a == "--results-as-of" {
+            match it.next() {
+                Some(v) if !v.starts_with('-') => run = Some(v),
+                _ => {
+                    eprintln!("--results-as-of needs a run id (a run retained with `ingest-results --run <id>`)");
+                    std::process::exit(1);
+                }
+            }
+        } else if let Some(v) = a.strip_prefix("--results-as-of=") {
+            run = Some(v.to_string());
+        } else {
+            out.push(a);
+        }
+    }
+    (out, run)
+}
+
 /// The first command-line token after any leading `-m <root>` / `--model <root>` /
 /// `--model=<root>` / `-m<root>` model flags — the command name position.
 fn first_command_token(args: &[String]) -> Option<&str> {
@@ -585,7 +609,9 @@ fn main() {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    let args: Vec<String> = std::env::args().collect();
+    // `--results-as-of <run>` is a global option like `-m` (GH #258): taken out before anything else
+    // looks at the command line, wherever it appears.
+    let (args, results_as_of) = strip_results_as_of(std::env::args().collect());
 
     // REQ-TRS-CLI-007: version reporting. `--version`, `-V`, or the `version`
     // subcommand print "syscribe <semver>" to stdout and exit 0, handled before any
@@ -671,21 +697,10 @@ fn main() {
     // Strip --model <path> or --model=<path> from args; collect remaining args.
     let mut remaining: Vec<String> = Vec::new();
     let mut model_flag: Option<String> = None;
-    let mut results_as_of: Option<String> = None;
     {
         let mut iter = args[1..].iter();
         while let Some(a) = iter.next() {
-            if a == "--results-as-of" {
-                match iter.next() {
-                    Some(v) if !v.starts_with('-') => results_as_of = Some(v.clone()),
-                    _ => {
-                        eprintln!("--results-as-of needs a run id (a run retained with `ingest-results --run <id>`)");
-                        std::process::exit(1);
-                    }
-                }
-            } else if let Some(v) = a.strip_prefix("--results-as-of=") {
-                results_as_of = Some(v.to_string());
-            } else if a == "--model" || a == "-m" {
+            if a == "--model" || a == "-m" {
                 model_flag = iter.next().cloned();
             } else if let Some(val) = a.strip_prefix("--model=") {
                 model_flag = Some(val.to_string());
@@ -752,6 +767,10 @@ fn main() {
     // `mcp` and `lsp` each own model loading (they build a long-lived, reloadable
     // store), so dispatch them before the eager `walk_model` below to avoid loading
     // the model twice.
+    if results_as_of.is_some() && matches!(subcommand_args.first().map(String::as_str), Some("mcp") | Some("lsp") | Some("ingest-results")) {
+        eprintln!("--results-as-of does not apply to `{}`.", subcommand_args[0]);
+        std::process::exit(1);
+    }
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
         let read_only = subcommand_args.iter().any(|a| a == "--read-only");
         let watch = !subcommand_args.iter().any(|a| a == "--no-watch");

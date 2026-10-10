@@ -64,7 +64,7 @@ fn change_json(c: &TestChange) -> serde_json::Value {
 
 /// `results failures`: the non-passing functions of the latest ingest with retained message/time.
 fn failures(model_root: &Path, json_out: bool) -> i32 {
-    let Some(data) = syscribe_model::results::ResultsData::load_sidecar(model_root) else {
+    let Some(data) = load_results(model_root) else {
         eprintln!("results failures: no results sidecar (run `ingest-results` first).");
         return 1;
     };

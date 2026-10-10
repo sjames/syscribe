@@ -36,7 +36,10 @@ evidence-reading commands (`matrix`, `trace`, `testplan`, `safety-case`, `audit`
 then use that retained run's verdicts instead of the latest sidecar, e.g.
 `syscribe -m model validate --results-as-of SW-0.9.0-rc3`. An unknown run exits 1 and lists
 the retained ones. Class-qualified JUnit keys are not retained, so a qualified reference resolves
-through its leaf name. Nothing on disk changes.
+through its leaf name, and a retained run keeps no failure messages. Nothing on disk changes.
+Not applied: `mcp`, `lsp` and `ingest-results` refuse the option; the derived safety/traceability
+diagrams and the commands that write the model (`set`, `aw`, `baseline` seal) still read the latest
+sidecar; an explicit `validate --results <file>` wins over the lens.
 
 Not yet: per-configuration verdicts (GH #258).
 

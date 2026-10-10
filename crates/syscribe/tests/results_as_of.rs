@@ -43,7 +43,18 @@ fn a_retained_run_is_evaluated_instead_of_the_latest_sidecar() {
     assert!(run(&m, &["validate"]).0.contains("W010"));
     // as of R1 (pass) it does not — in either spelling and position
     assert!(!run(&m, &["validate", "--results-as-of", "R1"]).0.contains("W010"));
-    assert!(!run(&m, &["--results-as-of=R1", "validate"]).0.contains("W010"));
+    for args in [vec!["--results-as-of=R1", "validate"], vec!["--results-as-of", "R1", "validate"]] {
+        let (o, c) = run(&m, &args);
+        assert_eq!(c, 0, "{args:?}: {o}");
+        assert!(!o.contains("W010") && o.contains("errors"), "{args:?}: {o}");
+    }
+    // `results failures` reads the same lens: R1 had no failure
+    let (f, _) = run(&m, &["results", "failures", "--results-as-of", "R1"]);
+    assert!(!f.contains("t_one"), "{f}");
+    // mcp / lsp / ingest-results refuse the flag
+    assert_eq!(run(&m, &["ingest-results", "--results-as-of", "R1"]).1, 1);
+    assert_eq!(run(&m, &["lsp", "--results-as-of", "R1"]).1, 1);
+    assert_eq!(run(&m, &["mcp", "--results-as-of", "R1"]).1, 1);
     // and as of R2 it does
     assert!(run(&m, &["validate", "--results-as-of", "R2"]).0.contains("W010"));
     // the verdicts show up in a results-reading view
