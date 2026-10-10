@@ -64,9 +64,23 @@ pub fn cmd_safety_case(
         return 1;
     }
 
+    // Retained failure evidence of the failing TestCases in the tree (GH #258).
+    let mut failure_details: Vec<(String, syscribe_model::results::FailureNote)> = Vec::new();
+    let mut seen_tc: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for g in &case.goals {
+        g.root.walk(&mut |n| {
+            if n.verdict == Some(Verdict::Fail) && seen_tc.insert(n.id.clone()) {
+                if let Some(tc) = n.qualified_name.as_deref().and_then(|q| elements.iter().find(|e| e.qualified_name == q)) {
+                    for note in syscribe_model::results::failure_notes(tc, results) {
+                        failure_details.push((n.id.clone(), note));
+                    }
+                }
+            }
+        });
+    }
     match format {
-        Format::Json => render_json(&case, sidecar_loaded),
-        Format::Text => render_text(&case, sidecar_loaded),
+        Format::Json => render_json(&case, sidecar_loaded, &failure_details),
+        Format::Text => render_text(&case, sidecar_loaded, &failure_details),
         // GH #223: the same tree as a GSN diagram (the node shapes, status
         // tones, undeveloped diamonds and test verdicts of the web view).
         Format::Dot | Format::Mermaid => {
@@ -153,7 +167,7 @@ fn print_children(children: &[SafetyCaseNode], indent: &str, expanded: &mut std:
     }
 }
 
-fn render_text(case: &SafetyCase, sidecar_loaded: bool) {
+fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)]) {
     for g in &case.goals {
         println!(
             "[SafetyGoal] {} — {} [{}]{}",
@@ -166,6 +180,14 @@ fn render_text(case: &SafetyCase, sidecar_loaded: bool) {
         println!();
     }
     print_completeness(&case.completeness);
+    if !failure_details.is_empty() {
+        println!("Failure details:");
+        for (tc, n) in failure_details {
+            let msg = n.message.as_deref().map(|m| format!(" — {}", m.split_whitespace().collect::<Vec<_>>().join(" "))).unwrap_or_default();
+            let time = n.time.map(|t| format!(" ({t}s)")).unwrap_or_default();
+            println!("  {tc}: {}{msg}{time}", n.function);
+        }
+    }
     if case.any_unknown() && !sidecar_loaded {
         println!("(verdicts unknown — run `syscribe ingest-results` to populate)");
     }
@@ -283,11 +305,12 @@ fn goal_json(g: &GoalTree) -> serde_json::Value {
     v
 }
 
-fn render_json(case: &SafetyCase, sidecar_loaded: bool) {
+fn render_json(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)]) {
     let goals: Vec<serde_json::Value> = case.goals.iter().map(goal_json).collect();
     let mut doc = serde_json::json!({
         "goals": goals,
         "completeness": completeness_json(&case.completeness),
+        "failureDetails": failure_details.iter().map(|(tc, n)| serde_json::json!({"testCase": tc, "function": n.function, "message": n.message, "time": n.time})).collect::<Vec<_>>(),
     });
     if case.any_unknown() && !sidecar_loaded {
         doc.as_object_mut().unwrap().insert("verdictsUnknown".into(), serde_json::json!(true));

@@ -41,6 +41,8 @@ Not applied: `mcp`, `lsp` and `ingest-results` refuse the option; the derived sa
 diagrams and the commands that write the model (`set`, `aw`, `baseline` seal) still read the latest
 sidecar; an explicit `validate --results <file>` wins over the lens.
 
+`trace` and `safety-case` show the retained message and time of a failing verifier ("Failing tests" / "Failure details").
+
 Not yet: per-configuration verdicts (GH #258).
 
 ## SEE ALSO

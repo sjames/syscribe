@@ -145,6 +145,28 @@ pub fn tc_function_refs(tc: &crate::element::RawElement) -> Vec<String> {
         .collect()
 }
 
+/// Retained failure evidence of one failing `testFunctions` function.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FailureNote {
+    pub function: String,
+    pub message: Option<String>,
+    pub time: Option<f64>,
+}
+
+/// The failing functions of a TestCase with their retained JUnit message and time (GH #258):
+/// only functions whose verdict is `fail` and for which a message or time was kept.
+pub fn failure_notes(tc: &crate::element::RawElement, results: Option<&ResultsData>) -> Vec<FailureNote> {
+    let Some(results) = results else { return Vec::new() };
+    tc_function_refs(tc)
+        .into_iter()
+        .filter(|f| results.verdict_for(f) == FnVerdict::Fail)
+        .filter_map(|f| {
+            let d = results.detail_for(&f)?;
+            Some(FailureNote { function: f, message: d.message.clone(), time: d.time })
+        })
+        .collect()
+}
+
 /// The exact `Scenario:`/`Scenario Outline:` titles declared in a TestCase's
 /// body, in document order: the identity a `session-log` record names.
 fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
@@ -308,6 +330,18 @@ impl ResultsData {
             Some(Verdict::Flaky) => FnVerdict::Flaky,
             None => FnVerdict::Missing,
         }
+    }
+
+    /// The retained detail (JUnit message / time) of a `testFunctions[].function` reference, looked
+    /// up like [`Self::verdict_for`]: the class-qualified key first, then the leaf.
+    pub fn detail_for(&self, function_ref: &str) -> Option<&TestDetail> {
+        let mut qualified = function_ref.replace('#', "::");
+        if !qualified.contains("::") {
+            if let Some((class, name)) = qualified.rsplit_once('.') {
+                qualified = format!("{class}::{name}");
+            }
+        }
+        (if qualified.contains("::") { self.details.get(&qualified) } else { None }).or_else(|| self.details.get(function_leaf(function_ref)))
     }
 
     /// Verdict for one (`TestCase`, Gherkin scenario) pair, as recorded by a
