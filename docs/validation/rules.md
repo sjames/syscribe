@@ -147,7 +147,7 @@ The variability dimension is **opt-in**: it is dormant — and these checks do n
 
 | Code | Condition |
 |---|---|
-| W015 | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's selections) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Draft requirements and draft tests are suppressed. Gate it in CI with `--deny W015`. Reported **once per requirement**, listing every configuration where it is uncovered.  |
+| W015 | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's selections) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Draft requirements and draft tests are suppressed. Gate it in CI with `--deny W015`. Reported **once per requirement**, listing every configuration where it is uncovered. For a parent requirement the message adds whether its leaves below are all verified there (it is then covered through its children only and still needs a direct test) or not.  |
 | W016 | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used a legacy/unrecognized `selections:` key instead of the `features:` map (§9.8). Without this warning the block is silently ignored and every cell in `matrix` comes back N/A. Not emitted when no `FeatureDef` is present. |
 | W017 | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion.) **Suppressed** for a parameter whose `bindingTime: runtime` — the running system supplies its value. |
 | W245 | As `E243`, for a draft or review element |

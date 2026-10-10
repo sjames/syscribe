@@ -6370,8 +6370,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             v.sort_by(|a, b| a.0.cmp(&b.0));
             v
         };
+        // Is a (non-draft) requirement covered in the configuration `selected` describes?
+        let covered_in = |keys: &[String], selected: &dyn Fn(&str) -> bool| -> bool {
+            tcs.iter().any(|(texpr, verifies)| {
+                texpr.as_ref().is_none_or(|e| e.eval(&selected)) && verifies.iter().any(|v| keys.iter().any(|k| k == v))
+            })
+        };
+        // Leaf descendants of a parent, by id (cycle-safe).
+        let leaf_ids = |root: &str| -> Vec<String> {
+            let mut leaves = Vec::new();
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut stack = vec![root.to_string()];
+            while let Some(id) = stack.pop() {
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+                match derived_children.get(&id).filter(|c| !c.is_empty()) {
+                    Some(cs) => stack.extend(cs.iter().cloned()),
+                    None if id != root => leaves.push(id),
+                    None => {}
+                }
+            }
+            leaves
+        };
         for (rid, rexpr, rkeys, rfile) in &reqs {
             let mut uncovered: Vec<&str> = Vec::new();
+            let mut below_verified_everywhere = true;
+            let leaves = leaf_ids(rid);
             for (cfg_id, sel) in &cfgs {
                 let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
                 if !rexpr.as_ref().is_none_or(|e| e.eval(&selected)) {
@@ -6383,17 +6408,34 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 });
                 if !covered {
                     uncovered.push(cfg_id.as_str());
+                    // A parent: are the leaves below it that are active here all covered here?
+                    for l in &leaves {
+                        if let Some((_, lexpr, lkeys, _)) = reqs.iter().find(|(id, _, _, _)| id == l) {
+                            if lexpr.as_ref().is_none_or(|e| e.eval(&selected)) && !covered_in(lkeys, &selected) {
+                                below_verified_everywhere = false;
+                            }
+                        }
+                    }
                 }
             }
             if !uncovered.is_empty() {
+                // For a parent, say whether it is uncovered *directly only* or also below it.
+                let below = if leaves.is_empty() {
+                    String::new()
+                } else if below_verified_everywhere {
+                    "; its leaves below are all verified there — covered through its children only, it still needs a direct test".to_string()
+                } else {
+                    "; and not every leaf below it is verified there".to_string()
+                };
                 findings.push(warning(
                     "W015",
                     rfile,
                     &format!(
-                        "requirement '{}' is active in {} configuration(s) but no TestCase covering it runs there: {}",
+                        "requirement '{}' is active in {} configuration(s) but no TestCase covering it runs there: {}{}",
                         rid,
                         uncovered.len(),
-                        uncovered.join(", ")
+                        uncovered.join(", "),
+                        below
                     ),
                 ));
             }
