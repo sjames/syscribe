@@ -729,3 +729,129 @@ Running unittests src/lib.rs
         assert_eq!(merged.schema_version, "1.0");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Run history (GH #258, REQ-TRS-RUNHIST-001)
+// ---------------------------------------------------------------------------
+
+/// One retained run: the verdicts of each section as last ingested under this run id.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunRecord {
+    pub run: String,
+    pub ingested_at_unix: u64,
+    #[serde(default)]
+    pub by_leaf: std::collections::BTreeMap<String, Verdict>,
+    #[serde(default)]
+    pub by_scenario: std::collections::BTreeMap<String, Verdict>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<String>,
+}
+
+/// `.syscribe/results-history.json`: retained runs, oldest first.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunHistory {
+    #[serde(default)]
+    pub runs: Vec<RunRecord>,
+}
+
+/// A test's verdict change between two runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TestChange {
+    pub test: String,
+    /// Verdict in the first run (`None` = not present).
+    pub from: Option<Verdict>,
+    pub to: Option<Verdict>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunDiff {
+    pub regressions: Vec<TestChange>,
+    pub fixed: Vec<TestChange>,
+    pub still_failing: Vec<TestChange>,
+    pub other_changes: Vec<TestChange>,
+}
+
+impl RunHistory {
+    pub fn path(model_root: &Path) -> PathBuf {
+        model_root.join(".syscribe").join("results-history.json")
+    }
+
+    /// Load the history; empty when absent. An unreadable file is an error rather than empty, so
+    /// a corrupt history is never silently overwritten.
+    pub fn load(model_root: &Path) -> Result<Self, String> {
+        let p = Self::path(model_root);
+        match std::fs::read_to_string(&p) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| format!("{} is not valid: {e}", p.display())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(e) => Err(format!("cannot read {}: {e}", p.display())),
+        }
+    }
+
+    pub fn save(&self, model_root: &Path) -> std::io::Result<PathBuf> {
+        let p = Self::path(model_root);
+        std::fs::create_dir_all(p.parent().expect("has parent"))?;
+        std::fs::write(&p, serde_json::to_string_pretty(self).expect("history serialises"))?;
+        Ok(p)
+    }
+
+    /// Record an ingest under `run`: replaces that run's section of the same kind, keeps the other
+    /// section and other runs. Class-qualified `by_leaf` duplicates are not stored.
+    pub fn record(&mut self, run: &str, data: &ResultsData) {
+        let idx = match self.runs.iter().position(|r| r.run == run) {
+            Some(i) => i,
+            None => {
+                self.runs.push(RunRecord { run: run.to_string(), ..Default::default() });
+                self.runs.len() - 1
+            }
+        };
+        let rec = &mut self.runs[idx];
+        rec.ingested_at_unix = data.ingested_at_unix;
+        match data.section() {
+            Section::Leaf => {
+                rec.by_leaf = data.by_leaf.iter().filter(|(k, _)| !k.contains("::")).map(|(k, v)| (k.clone(), *v)).collect();
+            }
+            Section::Scenario => {
+                rec.by_scenario = data.by_scenario.iter().map(|(k, v)| (k.clone(), *v)).collect();
+            }
+        }
+        if !data.source.is_empty() && !rec.sources.contains(&data.source) {
+            rec.sources.push(data.source.clone());
+        }
+    }
+
+    pub fn get(&self, run: &str) -> Option<&RunRecord> {
+        self.runs.iter().find(|r| r.run == run)
+    }
+}
+
+impl RunRecord {
+    fn all(&self) -> std::collections::BTreeMap<String, Verdict> {
+        self.by_leaf.iter().chain(self.by_scenario.iter()).map(|(k, v)| (k.clone(), *v)).collect()
+    }
+
+    /// Compare this run (`from`) with `to`.
+    pub fn diff(&self, to: &RunRecord) -> RunDiff {
+        let (a, b) = (self.all(), to.all());
+        let mut keys: Vec<&String> = a.keys().chain(b.keys()).collect();
+        keys.sort();
+        keys.dedup();
+        let mut d = RunDiff::default();
+        for k in keys {
+            let (from, to_v) = (a.get(k).copied(), b.get(k).copied());
+            if from == to_v {
+                if from == Some(Verdict::Fail) {
+                    d.still_failing.push(TestChange { test: k.clone(), from, to: to_v });
+                }
+                continue;
+            }
+            let c = TestChange { test: k.clone(), from, to: to_v };
+            match (from, to_v) {
+                (_, Some(Verdict::Fail)) => d.regressions.push(c),
+                (Some(Verdict::Fail), Some(Verdict::Pass)) => d.fixed.push(c),
+                _ => d.other_changes.push(c),
+            }
+        }
+        d
+    }
+}

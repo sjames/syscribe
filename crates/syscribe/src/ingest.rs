@@ -62,7 +62,7 @@ pub fn parse_file(format: &str, file: &str) -> Option<ResultsData> {
 /// `model_root` (REQ-TRS-INGEST-001). The format's own section (`by_leaf` for
 /// cargo-json/junit, `by_scenario` for session-log) is replaced; the other is
 /// kept. A malformed input exits before anything is written.
-pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
+pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>) {
     let fmt = match pick_format(format, file) {
         Some(f) => f,
         None => std::process::exit(1),
@@ -71,8 +71,31 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
         Some(d) => d,
         None => std::process::exit(1),
     };
+    // Load the history first so a corrupt one aborts before anything is written.
+    let mut history = None;
+    if let Some(r) = run {
+        match syscribe_model::results::RunHistory::load(model_root) {
+            Ok(mut h) => {
+                h.record(r, &data);
+                history = Some(h);
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        }
+    }
     match data.merge_into_sidecar(model_root) {
         Ok((path, _merged)) => {
+            if let (Some(h), Some(r)) = (&history, run) {
+                match h.save(model_root) {
+                    Ok(p) => println!("Recorded run '{r}' in {}", p.display()),
+                    Err(e) => {
+                        eprintln!("Cannot write run history: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
             use syscribe_model::results::Verdict;
             // Class-qualified keys (`classname::name`, GH #259) duplicate their leaf entry;
             // count each test once. A leaf never contains `:`.

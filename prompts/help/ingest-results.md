@@ -1,7 +1,9 @@
 # ingest-results — ingest external test results (enables W010)
 
 ## SYNOPSIS
-    syscribe -m <root> ingest-results [--format cargo-json|junit|session-log] <file>
+    syscribe -m <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>
+
+`--run <id>` additionally retains the ingest under a run identity for `results diff` (see `results`).
 
 ## DESCRIPTION
 Parses an external test report and writes the verdict sidecar at

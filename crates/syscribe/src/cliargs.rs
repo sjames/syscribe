@@ -115,6 +115,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--where", ValueOrEq),
         ],
         "coverage" => &[("--json", Switch)],
+        "results" => &[("--json", Switch), ("--fail-on-regression", Switch)],
         "digest" => &[
             ("--json", Switch),
             ("--status", Value),

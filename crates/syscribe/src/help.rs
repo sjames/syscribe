@@ -133,6 +133,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("set", include_str!("../../../prompts/help/set.md")),
             ("scaffold-gherkin", include_str!("../../../prompts/help/scaffold-gherkin.md")),
             ("ingest-results", include_str!("../../../prompts/help/ingest-results.md")),
+            ("results", include_str!("../../../prompts/help/results.md")),
         ],
     ),
     (

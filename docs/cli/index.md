@@ -768,6 +768,16 @@ syscribe -m <root> coverage tree <req> [--json]
 
 Shows how well a requirement and every requirement derived below it is verified: per node the leaf counts (`leaves 1/3 active, 1 planned`), the number of direct verifying TestCases and a verdict glyph (`●` complete, `◐` partial, `○` nothing). Roll-up never replaces a parent's own test: a parent whose leaves are all verified but which has no direct test shows `◐`. How a parent is judged complete is set by an optional `[coverage]` table in `.syscribe.toml` (`default` and ordered `[[coverage.rule]]` entries selecting by `reqClass`, `tag`, `asil`, `cal`, `sil`; `parent_rule` = `direct` | `rollup` | `both`, default `both`). Loosening an integrity-rated requirement (ASIL/CAL/SIL) is a configuration error. See `syscribe help coverage`. Exit `1` when `<req>` does not resolve to a requirement or the policy is invalid.
 
+## Run history (`ingest-results --run`, `results`)
+
+```
+syscribe -m <root> ingest-results --format junit --run SW-0.9.0-rc3 report.xml
+syscribe -m <root> results runs [--json]
+syscribe -m <root> results diff <runA> <runB> [--json] [--fail-on-regression]
+```
+
+`--run` additionally retains the ingest under a run identity in `.syscribe/results-history.json` (the `results.json` sidecar is unchanged); without it nothing is retained. `results diff` reports regressions (failing in B, not in A — including tests new in B), fixed, still failing and other changes; `--fail-on-regression` exits 1 on a regression. Per-configuration verdicts and a `--results-as-of` lens are not implemented yet (GH #258).
+
 ## Large-model overview & search (`stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`)
 
 Six read-only commands for getting oriented in a model too large to read file by file — typically an LLM agent facing tens of thousands of requirements. All are deterministic and offline (no network, no embeddings), accept the `--config <C>` projection lens, and have a `--json` form (each is also an MCP tool of the same name, `search-text` as `search_text`). Run `syscribe help <command>` for every option.

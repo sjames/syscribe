@@ -10,6 +10,7 @@ mod clusters;
 mod coanalysis;
 mod coverage;
 mod covtree;
+mod runhist;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
@@ -1182,17 +1183,24 @@ fn main() {
                 let mut file: Option<&str> = None;
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--format" { i += 2; continue; }
+                    if rest[i] == "--format" || rest[i] == "--run" { i += 2; continue; }
                     if rest[i].starts_with("--") { i += 1; continue; }
                     file = Some(rest[i].as_str());
                     break;
                 }
                 match file {
-                    Some(f) => ingest::cmd_ingest_results(model_root, format, f),
+                    Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str())),
                     None => {
                         eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit] <file>");
                         std::process::exit(1);
                     }
+                }
+            }
+            "results" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = runhist::cmd_results(model_root, rest);
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             "export" => {
