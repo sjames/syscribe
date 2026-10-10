@@ -214,8 +214,7 @@ async fn safety_and_security_links_are_edges() {
 #[test]
 fn trace_returns_shortest_paths_to_a_category_and_jump_links_are_fixed() {
     if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
-        eprintln!("node not available — skipping the trace test");
-        return;
+        panic!("node is required for the explorer client tests");
     }
     let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
     let script = format!(
@@ -247,4 +246,34 @@ console.log(JSON.stringify({{
     assert_eq!(v["unknown"], 0);
     assert_eq!(v["cat"], serde_json::json!(["safety", "security", "features", null]));
     assert_eq!(v["jumps"], serde_json::json!([["/features"], ["/features"], ["/features"], ["/planning"], []]));
+}
+
+#[test]
+fn trace_handles_parallel_edges_multiple_targets_and_known_type_names() {
+    if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
+        panic!("node is required for the explorer client tests");
+    }
+    let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
+    let script = format!(
+        r#"const m = require({js:?});
+// Two parallel A-T1 edges, a second target T2 behind B, and a filter that shifts edge indices.
+const g = {{root:'A', nodes:[{{id:'A',type:'Requirement'}},{{id:'B',type:'Requirement'}},{{id:'T1',type:'TestCase'}},{{id:'T2',type:'TestCase'}},{{id:'H',type:'Block'}}],
+  edges:[{{from:'A',to:'H',kind:'x'}},{{from:'T1',to:'A',kind:'verifies'}},{{from:'T1',to:'A',kind:'covers'}},{{from:'B',to:'A',kind:'x'}},{{from:'T2',to:'B',kind:'x'}}]}};
+const t = m.tracePath(g, 'A', 'tests');
+const f = m.filterGraph(g, {{types:['Requirement','TestCase']}});
+const tf = m.tracePath(f, 'A', 'tests');
+console.log(JSON.stringify({{ t, tf, tfEdgeKinds: tf.edges.map(i => f.edges[i].kind), names: [].concat(...Object.values(m.CATEGORIES)) }}));"#
+    );
+    let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["t"]["targets"], serde_json::json!(["T1", "T2"]));
+    assert_eq!(v["t"]["edges"], serde_json::json!([1, 2, 3, 4]), "both parallel edges and the route to T2: {v}");
+    assert_eq!(v["t"]["nodes"], serde_json::json!(["A", "B", "T1", "T2"]));
+    assert_eq!(v["tf"]["edges"].as_array().unwrap().len(), 4, "indices are relative to the filtered edge list");
+    assert_eq!(v["tfEdgeKinds"].as_array().unwrap().len(), 4);
+    let known: std::collections::HashSet<&str> = syscribe_model::element::ElementType::ALL.iter().map(|t| t.name()).collect();
+    for n in v["names"].as_array().unwrap() {
+        assert!(known.contains(n.as_str().unwrap()), "{n} is not an ElementType name");
+    }
 }

@@ -93,7 +93,8 @@
 
   var CATEGORIES = {
     tests: ['TestCase', 'TestPlan', 'TestEnvironment', 'VerificationCase', 'VerificationCaseDef'],
-    architecture: ['PartDef', 'Part', 'ItemDef', 'PortDef', 'InterfaceDef', 'ConnectionDef', 'Allocation', 'AllocationDef', 'ActionDef', 'StateDef'],
+    architecture: ['PartDef', 'Part', 'ItemDef', 'PortDef', 'InterfaceDef', 'ConnectionDef', 'Allocation', 'AllocationDef', 'ActionDef', 'StateDef',
+      'Item', 'Port', 'Interface', 'Connection', 'Action', 'State'],
     features: ['FeatureDef', 'Configuration', 'FeatureModel'],
     safety: ['HazardousEvent', 'SafetyGoal', 'SafetyMechanism', 'ConfirmationMeasure', 'DependentFailureAnalysis', 'AssumptionOfUse', 'Argument',
       'FaultTree', 'FaultTreeGate', 'FaultTreeEvent', 'FMEASheet', 'FMEAEntry'],
@@ -220,12 +221,12 @@
       svg.appendChild(path);
       var pk = [e.from, e.to].sort().join('|');
       var k = seenPair[pk] = (seenPair[pk] || 0) + 1;
-      labels.push(el('text', { x: (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: (y1 + y2) / 2 - 4 + (k - 1) * 12, 'text-anchor': 'middle', class: 'rg-edge-label' }, e.kind));
+      labels.push(el('text', { x: (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: (y1 + y2) / 2 - 4 + (k - 1) * 12, 'text-anchor': 'middle', class: 'rg-edge-label' + (tr && !tr.edgeSet[ei] ? ' dim' : '') }, e.kind));
     });
     lay.nodes.forEach(function (n) {
       var v = n.verification || 'na';
       var vlabel = { verified: 'verified', planned: 'verification planned', unverified: 'not verified', na: '' }[v] || '';
-      var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '');
+      var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '') + (tr && tr.nodeSet[n.id] ? (tr.targetSet[n.id] ? ', trace target' : ', on trace') : '');
       var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (tr ? (tr.targetSet[n.id] ? ' target hl' : tr.nodeSet[n.id] ? ' hl' : ' dim') : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0', role: 'button', 'aria-label': summary, 'aria-pressed': state.selected === n.id ? 'true' : 'false' });
       g.appendChild(el('title', {}, summary));
       g.appendChild(el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, fill: FILL[v] || FILL.na, stroke: STROKE[v] || STROKE.na }));
@@ -249,7 +250,11 @@
       g.classList.toggle('selected', on);
       g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (state.trace && state.lastGraph) { draw(state.lastGraph); }
+    if (state.trace && state.lastGraph) {
+      draw(state.lastGraph); // the trace starts at the selection; the redraw rebuilds the nodes, so give focus back
+      var again = svg.querySelector('.rg-node[data-id="' + String(n.id).replace(/["\\]/g, '\\$&') + '"]');
+      if (again && again.focus) again.focus();
+    }
     detailEl.textContent = '';
     var bar = document.createElement('p');
     var btn = document.createElement('button');
@@ -475,7 +480,7 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }

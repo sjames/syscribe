@@ -678,3 +678,5 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 #req-graph .rg-node.dim, #req-graph .rg-edge.dim { opacity: 0.18; }
 #req-graph .rg-edge.hl { stroke-width: 2.5px; }
 #req-graph .rg-node.target rect { stroke-width: 3px; }
+#req-graph .rg-edge-label.dim { opacity: 0.18; }
+#req-graph .rg-node.target rect { stroke-dasharray: 5 2; filter: drop-shadow(0 0 3px #1a4fd6); }
