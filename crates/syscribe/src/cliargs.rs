@@ -114,6 +114,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--package-top-n", Value),
             ("--where", ValueOrEq),
         ],
+        "coverage" => &[("--json", Switch)],
         "digest" => &[
             ("--json", Switch),
             ("--status", Value),

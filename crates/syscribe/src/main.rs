@@ -9,6 +9,7 @@ mod cliargs;
 mod clusters;
 mod coanalysis;
 mod coverage;
+mod covtree;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
@@ -1077,6 +1078,26 @@ fn main() {
                     package_top_n: top_n,
                 };
                 let code = stats::cmd_stats(&elems, &vcfg, config, &opts, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "coverage" => {
+                // Coverage roll-up through the derivation tree (GH #252). Read-only. Exit 0 · 1 usage/unresolved.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                if rest.first().map(|s| s.as_str()) != Some("tree") {
+                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--json]");
+                    std::process::exit(1);
+                }
+                let rest = &rest[1..];
+                let json = rest.iter().any(|a| a == "--json");
+                let Some(root) = first_positional(rest, &[]) else {
+                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--json]");
+                    std::process::exit(1);
+                };
+                let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
+                let results = ResultsData::load_sidecar(model_root);
+                let code = covtree::cmd_coverage_tree(&elems, &result, results.as_ref(), root, json);
                 if code != 0 {
                     std::process::exit(code);
                 }
