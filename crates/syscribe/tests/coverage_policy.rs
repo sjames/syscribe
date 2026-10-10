@@ -93,3 +93,32 @@ fn invalid_values_and_unknown_selectors_are_errors() {
         assert!(o.contains("[coverage"), "{t}: {o}");
     }
 }
+
+fn stdout_of(root: &Path, args: &[&str]) -> (String, i32) {
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(root).args(args).output().unwrap();
+    (String::from_utf8_lossy(&o.stdout).into_owned(), o.status.code().unwrap_or(-1))
+}
+
+#[test]
+fn a_config_error_prints_nothing_on_stdout_and_a_syntax_error_is_not_ignored() {
+    let t = "[[coverage.rule]]\nreqClass = \"system\"\nparent_rule = \"rollup\"\n";
+    let (o, c) = stdout_of(&model(t, "asilLevel: B\n"), &["coverage", "tree", "REQ-CP-001", "--json"]);
+    assert_eq!((o.as_str(), c), ("", 1));
+    let (o, c) = run(&model("[coverage\ndefault = \"rollup\"\n", ""), &["coverage", "tree", "REQ-CP-001"]);
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("does not parse"), "{o}");
+    let (o, c) = run(&model("[[coverage.rule]]\ntag = []\nparent_rule = \"both\"\n", ""), &["coverage", "tree", "REQ-CP-001"]);
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("never match"), "{o}");
+}
+
+#[test]
+fn cal_and_sil_rated_requirements_are_guarded_and_sil_zero_is_qm() {
+    let t = "[[coverage.rule]]\nreqClass = \"system\"\nparent_rule = \"direct\"\n";
+    for fm in ["calLevel: CAL2\n", "silLevel: 2\n"] {
+        let (o, c) = run(&model(t, fm), &["coverage", "tree", "REQ-CP-001"]);
+        assert_eq!(c, 1, "{fm}: {o}");
+    }
+    let (o, c) = run(&model(t, "silLevel: 0\n"), &["coverage", "tree", "REQ-CP-001"]);
+    assert_eq!(c, 0, "{o}");
+}

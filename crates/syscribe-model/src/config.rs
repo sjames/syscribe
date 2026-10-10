@@ -1570,8 +1570,21 @@ impl CoveragePolicy {
     pub fn load(model_root: &Path) -> Self {
         let mut p = Self::default();
         let Some(text) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok() else { return p };
-        let Ok(root) = toml::from_str::<toml::Value>(&text) else { return p };
-        let Some(tbl) = root.get("coverage").and_then(|v| v.as_table()) else { return p };
+        let root = match toml::from_str::<toml::Value>(&text) {
+            Ok(r) => r,
+            Err(e) => {
+                // A syntax error must not silently drop the policy.
+                if text.contains("coverage") {
+                    p.problems.push(format!("[coverage] .syscribe.toml does not parse: {}", e.message()));
+                }
+                return p;
+            }
+        };
+        let Some(cov) = root.get("coverage") else { return p };
+        let Some(tbl) = cov.as_table() else {
+            p.problems.push("[coverage] must be a table".into());
+            return p;
+        };
         let strings = |v: &toml::Value| -> Option<Vec<String>> {
             match v {
                 toml::Value::String(s) => Some(vec![s.clone()]),
@@ -1608,6 +1621,10 @@ impl CoveragePolicy {
                         let mut have_rule = false;
                         for (rk, rv) in t {
                             let list = strings(rv);
+                            if rk != "parent_rule" && list.as_ref().is_some_and(|l| l.is_empty()) {
+                                p.problems.push(format!("{at}: selector '{rk}' is empty and would never match"));
+                                continue;
+                            }
                             match (rk.as_str(), list) {
                                 ("parent_rule", _) => match rv.as_str().and_then(ParentRule::parse) {
                                     Some(x) => {
@@ -1637,7 +1654,8 @@ impl CoveragePolicy {
                                 ("sil", Some(l)) => {
                                     let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();
                                     if l.iter().all(|x| x == "QM" || x.parse::<u8>().is_ok()) {
-                                        rule.sil = Some(l);
+                                        // normalise "007" -> "7" so it can match
+                                        rule.sil = Some(l.into_iter().map(|x| x.parse::<u8>().map(|n| n.to_string()).unwrap_or(x)).collect());
                                     } else {
                                         p.problems.push(format!("{at}: sil entries must be \"QM\" or integers"));
                                     }
@@ -1663,7 +1681,7 @@ impl CoveragePolicy {
         let tags = fm.tags.clone().unwrap_or_default();
         let class: Vec<String> = fm.req_class.iter().cloned().collect();
         let asil: Vec<String> = fm.asil_level.as_deref().map(|a| a.trim().chars().take(1).collect::<String>().to_ascii_uppercase()).into_iter().collect();
-        let cal: Vec<String> = fm.cal_level.iter().cloned().collect();
+        let cal: Vec<String> = fm.cal_level.iter().map(|c| c.trim().to_string()).collect();
         let mut sil: Vec<String> = Vec::new();
         if !is_integrity_rated(fm) {
             sil.push("QM".into());

@@ -215,6 +215,8 @@ pub fn cmd_coverage_tree(
     let states = crate::matrix::requirement_rollup(elements, results);
     let mut violations = Vec::new();
     let tree = build(r, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut violations);
+    violations.sort();
+    violations.dedup();
     if !violations.is_empty() {
         for v in &violations {
             eprintln!("coverage tree: [coverage] policy error: {v}");
