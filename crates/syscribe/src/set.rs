@@ -428,6 +428,151 @@ fn cmd_evidence_add(
     }
 }
 
+/// Scalar fields `set <id> <field>=<value>` may edit (GH #242).
+const SCALAR_FIELDS: &[&str] = &[
+    "assignedTo",
+    "responsibility",
+    "breakdownAdr",
+    "asilLevel",
+    "reqDomain",
+    "reqClass",
+    "requirementKind",
+    "verificationMethod",
+    "testLevel",
+    "itemType",
+];
+
+/// List fields `set <id> <field>.add <value>` may extend (GH #242).
+const LIST_FIELDS: &[&str] =
+    &["tags", "blockedBy", "derivedFrom", "verifies", "satisfies", "confirms", "hazardousEvents"];
+
+/// Error findings on `rel` (a model-root-relative file) in `elements`, as `(code, message)`.
+fn file_errors(elements: &[RawElement], vcfg: &ValidateConfig, rel: &str) -> std::collections::BTreeSet<(String, String)> {
+    validator::validate_with_config(elements, vcfg)
+        .findings
+        .into_iter()
+        .filter(|f| f.severity == validator::Severity::Error && f.file.ends_with(rel))
+        .map(|f| (f.code.to_string(), f.message))
+        .collect()
+}
+
+/// Apply `new_content` to a candidate copy of the model and validate it. Returns the new
+/// warnings as notes, or `Err` with the new error findings on the edited file: the edit is
+/// then refused before anything is written (REQ-TRS-SETGEN-001).
+fn validate_candidate(
+    model_root: &Path,
+    elements: &[RawElement],
+    elem: &RawElement,
+    new_content: &str,
+) -> Result<Vec<String>, Vec<String>> {
+    let rel = elem
+        .file_path
+        .strip_prefix(&*model_root.to_string_lossy())
+        .map(|s| s.trim_start_matches(['/', '\\']).to_string())
+        .unwrap_or_else(|| elem.file_path.clone());
+    let vcfg = ValidateConfig::with_model_root(model_root);
+    let base = file_errors(elements, &vcfg, &rel);
+    let rel_apply = rel.clone();
+    let content = new_content.to_string();
+    let inspect = |cand: &[RawElement]| file_errors(cand, &vcfg, &rel);
+    let (outcome, inspected) = syscribe_model::mutate::guard::guarded_write_inspect(
+        model_root,
+        elements,
+        &vcfg,
+        true,
+        false,
+        true,
+        move |root: &Path| {
+            std::fs::write(root.join(&rel_apply), &content).map_err(|e| e.to_string())
+        },
+        Some(&inspect),
+        |_| false,
+    );
+    if let Some(reason) = outcome.reason {
+        return Err(vec![reason]);
+    }
+    let cand = inspected.unwrap_or_default();
+    let new: Vec<String> = cand.difference(&base).map(|(c, m)| format!("{c}: {m}")).collect();
+    if new.is_empty() {
+        Ok(outcome.new_warnings.iter().map(|(c, _, m)| format!("{c}: {m}")).collect())
+    } else {
+        Err(new)
+    }
+}
+
+/// `<field>=<value>` / `<field>.add <value>` for the schema-known fields (GH #242): a line-level
+/// edit, validated on a candidate copy first.
+fn cmd_set_generic(
+    model_root: &Path,
+    elements: &[RawElement],
+    elem: &RawElement,
+    field: &str,
+    value: &str,
+    list_add: bool,
+    dry_run: bool,
+) {
+    let content = std::fs::read_to_string(&elem.file_path).unwrap_or_default();
+    let (yaml_opt, _) = split_frontmatter(&content);
+    let Some(yaml) = yaml_opt else {
+        eprintln!("{} has no YAML frontmatter to edit.", elem.file_path);
+        std::process::exit(1);
+    };
+    let new_content = if list_add {
+        let existing = elem_list_value(elem, field);
+        if existing.iter().any(|v| v == value) {
+            println!("{} already has {field} '{value}' — nothing to do.", elem.qualified_name);
+            return;
+        }
+        let mut list: Vec<Value> = existing.iter().map(|s| Value::String(s.clone())).collect();
+        list.push(Value::String(value.to_string()));
+        append_to_list_field(&content, &elem.file_path, field, &[vec![line_scalar(value)]], json!(list))
+    } else {
+        let new_line = format!("{field}: {}", yaml_scalar(value));
+        let prefix = format!("{field}:");
+        let mut found = false;
+        let mut lines: Vec<String> = Vec::new();
+        for line in yaml.lines() {
+            if !found && line.strip_prefix(&prefix).is_some_and(|r| r.is_empty() || r.starts_with([' ', '\t'])) {
+                lines.push(new_line.clone());
+                found = true;
+            } else {
+                lines.push(line.to_string());
+            }
+        }
+        if !found {
+            lines.push(new_line);
+        }
+        splice_frontmatter(&content, yaml, &lines.join("\n"))
+    };
+    match validate_candidate(model_root, elements, elem, &new_content) {
+        Err(errs) => {
+            eprintln!("Refusing to edit {field} on {} — it would introduce:", elem.qualified_name);
+            for e in errs {
+                eprintln!("  {e}");
+            }
+            std::process::exit(1);
+        }
+        Ok(notes) => {
+            for n in notes {
+                eprintln!("note: {n}");
+            }
+        }
+    }
+    let committed = preview_or_write(model_root, elem, &new_content, dry_run);
+    if committed {
+        println!("Set {field} on {}", elem.qualified_name);
+    }
+}
+
+/// The current string items of a list field (scalar or list), read from the serialised frontmatter.
+fn elem_list_value(elem: &RawElement, field: &str) -> Vec<String> {
+    match serde_json::to_value(&elem.frontmatter).ok().and_then(|v| v.get(field).cloned()) {
+        Some(Value::Array(a)) => a.iter().filter_map(|x| x.as_str().map(String::from)).collect(),
+        Some(Value::String(s)) => vec![s],
+        _ => Vec::new(),
+    }
+}
+
 /// `set` subcommand entry point. `op_args` is every token after the target key,
 /// `--dry-run` already stripped by the caller.
 pub fn cmd_set(
@@ -467,12 +612,29 @@ pub fn cmd_set(
         cmd_achieves_add(model_root, elements, resolver, elem, req_ref, dry_run);
         return;
     }
-    if let Some((field, _)) = op.split_once('=') {
+    if let Some((field, value)) = op.split_once('=') {
+        if SCALAR_FIELDS.contains(&field) {
+            cmd_set_generic(model_root, elements, elem, field, value, false, dry_run);
+            return;
+        }
         eprintln!(
-            "Unsupported field '{field}' for `set` — only `status` is a direct field= assignment today; use `evidence.add`/`achieves.add` for list fields."
+            "Unsupported field '{field}' for `set`. Scalar fields: status, {}. List fields (`<field>.add <value>`): evidence, achieves, {}.",
+            SCALAR_FIELDS.join(", "),
+            LIST_FIELDS.join(", ")
         );
+    } else if let Some(field) = op.strip_suffix(".add").filter(|f| LIST_FIELDS.contains(f)) {
+        let Some(&value) = op_args.get(1) else {
+            eprintln!("Usage: syscribe set <qname|id> {field}.add <value>");
+            std::process::exit(1);
+        };
+        cmd_set_generic(model_root, elements, elem, field, value, true, dry_run);
+        return;
     } else {
-        eprintln!("Unrecognized `set` operation '{op}' — expected status=<value>, evidence.add, or achieves.add");
+        eprintln!(
+            "Unrecognized `set` operation '{op}' — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
+            SCALAR_FIELDS.join(", "),
+            LIST_FIELDS.join(", ")
+        );
     }
     std::process::exit(1);
 }

@@ -1,14 +1,16 @@
-# set — safe, schema-aware mutation of a small allowlist of fields
+# set — safe, schema-aware mutation of an allowlist of fields
 
 ## SYNOPSIS
     syscribe -m <root> set <qname|id> status=<value> [--dry-run]
     syscribe -m <root> set <qname|id> evidence.add ref=<id> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> evidence.add path=<path> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> achieves.add <req-id> [--dry-run]
+    syscribe -m <root> set <qname|id> <scalar>=<value> [--dry-run]
+    syscribe -m <root> set <qname|id> <list>.add <value> [--dry-run]
 
 ## DESCRIPTION
 Mutates one field on an existing element without hand-editing YAML frontmatter.
-Deliberately narrow — only `status=`, `evidence.add`, and `achieves.add` — rather
+Deliberately narrow — an explicit allowlist of fields — rather
 than the MCP `update_element` tool's arbitrary-field merge: every operation here
 validates its own value **before** anything is written, so a typo is caught at
 the point of the edit instead of only at the next full-model `validate` (which
@@ -35,6 +37,17 @@ kept as authored.
 order; the target must resolve to a native `Requirement` (mirrors `E714`/`E715`)
 or the edit is refused. Adding an id that is already listed reports it and
 changes nothing.
+
+**Generic fields.** `<scalar>=<value>` sets one of: assignedTo, responsibility,
+breakdownAdr, asilLevel, reqDomain, reqClass, requirementKind,
+verificationMethod, testLevel, itemType (replaced in place, or appended when
+absent). `<list>.add <value>` appends to one of: tags, blockedBy, derivedFrom,
+verifies, satisfies, confirms, hazardousEvents (an existing item is a no-op).
+The edit is first applied to a candidate copy of the model and validated; if it
+would introduce a new error on the edited file (e.g. `E302` for an out-of-enum
+`reqDomain`, `E720` for a dangling `blockedBy`) it is refused and nothing is
+written. New warnings are printed as notes. Any other field is refused with the
+list of supported ones.
 
 Every operation is a line-level edit, byte-preserving for the rest of the file
 — the same "surgical edit" bar `move` holds itself to for reference rewriting.
