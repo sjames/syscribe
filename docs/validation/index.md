@@ -58,7 +58,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E560–E561, W560–W563 | Annotated source | Bad `annotationFormat:` config, invalid marker YAML, skipped blocks, conflicting ingestion modes, auto-filled `implementedBy:` |
 | W090 | Suspect links | A baselined trace-link target changed since review |
 | W099–W103 | Documentation linting (`lint-docs`) | Dangling ids, qnames, SVG refs and image paths in external docs; enumerated package members |
-| E600–E606, W600–W601, W610–W616 | TestPlan and documentation | TestPlan fields, members, selection, demonstrates, configurations; empty PartDef/ActionDef docs |
+| E600–E606, E893–E894, W600–W601, W610–W616, W891–W892 | TestPlan, test environments and documentation | TestEnvironment fields and `runsOn`, TestPlan fields, members, selection, demonstrates, configurations; empty PartDef/ActionDef docs |
 | E630–E636, W630–W631 | User-defined link types (§12.10) | Undeclared/malformed `links:`, unresolved targets, source/target type, cardinality, acyclic types, malformed `[linkTypes]` |
 | E700–E705, W700, W704 | Review records (§19) | ReviewRecord fields, ID/status/type enums, reviewed-element resolution, dispositions, unreviewed requirements |
 | E706–E723 | PlanningItem (§23) | ID/fields/status/itemType, parent resolution and cycle, top-level `achieves`, evidence, leaf-done-needs-evidence, `blockedBy`, `assignedTo`; E718 is a non-scalar `Argument.evidence` entry |

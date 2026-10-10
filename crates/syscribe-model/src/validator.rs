@@ -6,7 +6,7 @@ use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_asset_id, is_aou_id, is_dfa_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
+    is_adr_id, is_asset_id, is_aou_id, is_dfa_id, is_te_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_zn_id,
     is_pi_id,
@@ -2392,6 +2392,66 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let mitigated = yaml_field(m, "mitigation").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty());
                 if approved && !mitigated {
                     findings.push(warning("W890", &file, &format!("approved DependentFailureAnalysis: shared resource '{}' has no `mitigation`", if resource.is_empty() { format!("#{n}") } else { resource.to_string() })));
+                }
+            }
+        }
+
+        // ── TestEnvironment (E893) and runsOn / requiresCapabilities (E894, W891, W892; GH #238) ──
+        if matches!(fm.element_type, Some(ElementType::TestEnvironment)) {
+            const TE_STATUSES: &[&str] = &["planned", "available", "retired"];
+            const TE_KINDS: &[&str] = &["hil", "bench", "chamber", "vehicle", "simulation", "other"];
+            const TE_CALIB: &[&str] = &["valid", "expired", "unknown"];
+            for (field, present) in [("id", fm.id.is_some()), ("name", fm.name.is_some()), ("status", fm.status.is_some())] {
+                if !present {
+                    findings.push(error("E893", &file, &format!("`{field}` is required on TestEnvironment")));
+                }
+            }
+            if let Some(ref id) = fm.id {
+                if !is_te_id(id) {
+                    findings.push(error("E893", &file, &format!("`id` '{id}' does not match TE-* pattern")));
+                }
+            }
+            for (field, val, allowed) in [
+                ("status", fm.status.as_deref(), TE_STATUSES),
+                ("environmentKind", fm.environment_kind.as_deref(), TE_KINDS),
+                ("calibrationStatus", fm.calibration_status.as_deref(), TE_CALIB),
+            ] {
+                if let Some(v) = val {
+                    if !allowed.contains(&v) {
+                        findings.push(error("E893", &file, &format!("TestEnvironment.{field} '{v}' must be one of {}", allowed.join(", "))));
+                    }
+                }
+            }
+            if let Some(ref due) = fm.calibration_due {
+                let b = due.as_bytes();
+                let ok = b.len() == 10
+                    && b.iter().enumerate().all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() });
+                if !ok {
+                    findings.push(error("E893", &file, &format!("TestEnvironment.calibrationDue '{due}' must be a YYYY-MM-DD date")));
+                }
+            }
+        }
+        if matches!(fm.element_type, Some(ElementType::TestCase) | Some(ElementType::TestPlan)) && fm.runs_on.is_some() {
+            let mut offered: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            let draft = fm.status.as_deref() == Some("draft");
+            for r in fm.runs_on.iter().flatten() {
+                match resolver.resolve_ref(elements, r) {
+                    Some(t) if matches!(t.frontmatter.element_type, Some(ElementType::TestEnvironment)) => {
+                        offered.extend(t.frontmatter.capabilities.iter().flatten().map(|c| c.trim().to_ascii_lowercase()));
+                        let retired = t.frontmatter.status.as_deref() == Some("retired");
+                        let expired = t.frontmatter.calibration_status.as_deref() == Some("expired");
+                        if !draft && (retired || expired) {
+                            findings.push(warning("W892", &file, &format!(
+                                "runs on TestEnvironment '{r}' which is {}", if retired { "retired" } else { "past its calibration (calibrationStatus: expired)" })));
+                        }
+                    }
+                    Some(_) => findings.push(error("E894", &file, &format!("`runsOn` '{r}' is not a TestEnvironment"))),
+                    None => findings.push(error("E894", &file, &format!("`runsOn` '{r}' does not resolve to any model element"))),
+                }
+            }
+            for need in fm.requires_capabilities.iter().flatten() {
+                if !offered.contains(&need.trim().to_ascii_lowercase()) {
+                    findings.push(warning("W891", &file, &format!("requires capability '{need}' which none of its `runsOn` environments offers")));
                 }
             }
         }

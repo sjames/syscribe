@@ -649,6 +649,15 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
 | `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:…`, `pypi:…`, `maven:…`, `nuget:…`, `github:org/repo@v1`) accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
 
+## Test environments (E893–E894, W891–W892)
+
+| Code | Condition |
+|---|---|
+| `E893` | `TestEnvironment` missing `id`, `name` or `status`, `id` not `TE-*`, a `status`/`environmentKind`/`calibrationStatus` outside its enum, or a `calibrationDue` that is not `YYYY-MM-DD` |
+| `E894` | A `runsOn` entry does not resolve to a `TestEnvironment` |
+| `W891` | A test or plan `requiresCapabilities` that none of its `runsOn` environments offers |
+| `W892` | A non-draft test or plan runs on a `retired` environment or one with `calibrationStatus: expired` |
+
 ## TestPlan (E600–E606, W610–W616)
 
 | Code | Severity | Condition |

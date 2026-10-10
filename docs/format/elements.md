@@ -80,6 +80,7 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `Requirement` | `REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `id`, `name`, `status` |
 | `TestCase` | `TC(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `id`, `name`, `status`, `testLevel`, `verifies` |
 | `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
+| `TestEnvironment` | `TE(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
 | `ADR` | `ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `id`, `name`, `status` |
 | `ReviewRecord` | `RR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `reviewType`, `reviews` |
 | `TradeStudy` | `TRD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `criteria`, `alternatives`, `scores` |

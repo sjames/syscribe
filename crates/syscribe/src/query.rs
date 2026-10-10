@@ -4442,6 +4442,20 @@ appliesTo:
 A safety-related application condition (SRAC): a constraint the integrator must
 honour for the referenced goal/argument/requirement to hold.
 "#,
+        "testenvironment" => r#"---
+type: TestEnvironment
+id: TE-PREFIX-001
+name: "[Cluster HIL rig]"
+status: planned        # planned | available | retired
+environmentKind: hil   # hil | bench | chamber | vehicle | simulation | other
+capabilities: [CAN-FD, display-camera]
+calibrationStatus: unknown   # valid | expired | unknown
+calibrationDue: 2027-01-01
+---
+
+The rig a test runs on. Name it from a `TestCase` or `TestPlan` with `runsOn:`; list what
+the test needs with `requiresCapabilities:` (`W891` when the rig lacks one).
+"#,
         "dependentfailureanalysis" => r#"---
 type: DependentFailureAnalysis
 id: DFA-PREFIX-001
@@ -4573,7 +4587,7 @@ const TEMPLATE_GROUPS: &[&str] = &[
 fn template_group(name: &str) -> &'static str {
     match name {
         "Requirement" | "TestCase" | "TestPlan" | "ADR" | "Baseline" | "PlanningItem"
-        | "ReviewRecord" | "TradeStudy" => "Native elements",
+        | "ReviewRecord" | "TradeStudy" | "TestEnvironment" => "Native elements",
         "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"

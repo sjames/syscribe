@@ -296,6 +296,7 @@ Native, id-identified element types for functional safety (ISO 26262, IEC 61508,
 | `AttackStep` | `ATS-*` | Leaf attack step with an attack feasibility. §8.18.5 |
 | `Argument` | `ARG-*` | GSN claim, strategy, or solution node in the safety argument. §8.18.6 |
 | `AssumptionOfUse` | `AOU-*` | Safety-related application condition constraining goals, arguments, or requirements. §8.18.6 |
+| `TestEnvironment` | `TE-*` | The rig a test runs on (HIL, bench, chamber, vehicle); capabilities and calibration. §8.12.7 |
 | `DependentFailureAnalysis` | `DFA-*` | ISO 26262-9 clause 7 independence argument for decomposed or co-hosted elements. §8.18.7 |
 | `Zone` | `ZN-*` | IEC 62443 security zone with a target security level. §13.2 |
 | `Conduit` | `CD-*` | IEC 62443 conduit connecting two zones, with an achieved security level. §13.3 |
@@ -2907,6 +2908,10 @@ Feature: Priority bitmap selection
 ````
 
 **Coexistence with SysML elements:** Native `TestCase` files live in the same directory tree as `VerificationCaseDef`, `AnalysisCaseDef`, and all other SysML element types. The `type: TestCase` value is not a SysML keyword — files with this type are always routed to the dedicated TestCase handler.
+
+#### 8.12.7 Native `TestEnvironment` Type
+
+`TestEnvironment` (`TE-*`, GH #238) is the rig an L4/L5 test needs: a HIL, bench, climatic chamber, vehicle or simulation. `status` is `planned`, `available` or `retired`; `environmentKind` is `hil`, `bench`, `chamber`, `vehicle`, `simulation` or `other`; `capabilities:` lists what it offers; `calibrationStatus` is `valid`, `expired` or `unknown` and `calibrationDue` a `YYYY-MM-DD` date. A `TestCase` or `TestPlan` names the rig(s) with `runsOn:` (string or list, each a `TestEnvironment`, else E894) and what it needs with `requiresCapabilities:`; a missing capability is W891 and a retired or out-of-calibration rig W892.
 
 #### 8.12.6 Native `TestPlan` Type
 
@@ -6495,6 +6500,17 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
+#### Test environments (E893–E894, W891–W892)
+
+`TestEnvironment` (`TE-*`, §8.12.7).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E893 | Error | `TestEnvironment` is missing `id`, `name` or `status`, its `id` is not `TE-*`, a `status` / `environmentKind` / `calibrationStatus` is outside its enum, or `calibrationDue` is not a `YYYY-MM-DD` date |
+| E894 | Error | a `runsOn` entry on a `TestCase`/`TestPlan` does not resolve, or resolves to something that is not a `TestEnvironment` |
+| W891 | Warning | a `TestCase`/`TestPlan` lists `requiresCapabilities` that none of its `runsOn` environments offers (case-insensitive) |
+| W892 | Warning | a non-draft `TestCase`/`TestPlan` runs on a `retired` `TestEnvironment` or one whose `calibrationStatus` is `expired` |
+
 #### Dependent failure analysis (E890–E892, W890)
 
 `DependentFailureAnalysis` (`DFA-*`, §8.18.7).
@@ -8413,6 +8429,11 @@ since `status: in_progress` alone already signals active work.
 | `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
 | `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
 | `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `runsOn` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (E894) — TestEnvironment(s) the test executes on |
+| `requiresCapabilities` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (W891) — capabilities needed from the environment |
+| `capabilities` | TestEnvironment | string or list | absent | 8.12.7 |
+| `environmentKind` | TestEnvironment | enum | absent | 8.12.7, 11.12 (E893) |
+| `calibrationStatus` / `calibrationDue` | TestEnvironment | enum / date | absent | 8.12.7, 11.12 (E893, W892) |
 | `analyses` | DependentFailureAnalysis | string or list (≥2) | absent | 8.18.7, 11.12 (E890, E891) — elements argued independent |
 | `sharedResources` | DependentFailureAnalysis | list of mappings | absent | 8.18.7, 11.12 (E892, W890) — `{resource, kind, initiators, couplingFactor, mitigation}` |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |

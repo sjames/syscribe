@@ -230,6 +230,7 @@ pub enum ElementType {
     Argument,         // ARG-* — a GSN node (claim/strategy/solution)
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     DependentFailureAnalysis, // DFA-* — ISO 26262-9 clause 7 independence argument
+    TestEnvironment,  // TE-* — a rig a test runs on (HIL, bench, chamber, vehicle)
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
     // Single-file feature model (REQ-TRS-FM-005) — a `featureTree:` sheet
@@ -341,6 +342,7 @@ impl ElementType {
         ElementType::Argument,
         ElementType::AssumptionOfUse,
         ElementType::DependentFailureAnalysis,
+        ElementType::TestEnvironment,
         ElementType::TARASheet,
         ElementType::FeatureModel,
         ElementType::Package,
@@ -441,6 +443,7 @@ impl ElementType {
             ElementType::Argument => "Argument",
             ElementType::AssumptionOfUse => "AssumptionOfUse",
             ElementType::DependentFailureAnalysis => "DependentFailureAnalysis",
+            ElementType::TestEnvironment => "TestEnvironment",
             ElementType::TARASheet => "TARASheet",
             ElementType::FeatureModel => "FeatureModel",
             ElementType::Package => "Package",
@@ -500,6 +503,7 @@ impl ElementType {
                 | ElementType::Argument
                 | ElementType::AssumptionOfUse
                 | ElementType::DependentFailureAnalysis
+                | ElementType::TestEnvironment
                 | ElementType::Asset
         )
     }
@@ -1130,6 +1134,21 @@ pub struct ColdFrontmatter {
     pub analyses: Option<Vec<String>>,
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub runs_on: Option<Vec<String>>,
+    /// `TestCase`/`TestPlan.requiresCapabilities` — what the test needs from its environment (W891).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub requires_capabilities: Option<Vec<String>>,
+    /// `TestEnvironment.capabilities` — what the rig offers.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub capabilities: Option<Vec<String>>,
+    /// `TestEnvironment.environmentKind`: hil | bench | chamber | vehicle | simulation | other.
+    pub environment_kind: Option<String>,
+    /// `TestEnvironment.calibrationStatus`: valid | expired | unknown.
+    pub calibration_status: Option<String>,
+    /// `TestEnvironment.calibrationDue` (`YYYY-MM-DD`).
+    pub calibration_due: Option<String>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
     // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
@@ -1689,6 +1708,21 @@ struct ColdWire {
     pub analyses: Option<Vec<String>>,
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub runs_on: Option<Vec<String>>,
+    /// `TestCase`/`TestPlan.requiresCapabilities` — what the test needs from its environment (W891).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub requires_capabilities: Option<Vec<String>>,
+    /// `TestEnvironment.capabilities` — what the rig offers.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub capabilities: Option<Vec<String>>,
+    /// `TestEnvironment.environmentKind`: hil | bench | chamber | vehicle | simulation | other.
+    pub environment_kind: Option<String>,
+    /// `TestEnvironment.calibrationStatus`: valid | expired | unknown.
+    pub calibration_status: Option<String>,
+    /// `TestEnvironment.calibrationDue` (`YYYY-MM-DD`).
+    pub calibration_due: Option<String>,
 
     // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
     // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
@@ -2056,6 +2090,12 @@ impl ColdWire {
             applies_to: w.applies_to,
             analyses: w.analyses,
             shared_resources: w.shared_resources,
+            runs_on: w.runs_on,
+            requires_capabilities: w.requires_capabilities,
+            capabilities: w.capabilities,
+            environment_kind: w.environment_kind,
+            calibration_status: w.calibration_status,
+            calibration_due: w.calibration_due,
             security_test_method: w.security_test_method,
             tier2: Boxed::of(ColdFrontmatter2 {
                 conjugates: w.conjugates,

@@ -1108,6 +1108,18 @@ computed) — mapped back to a label.
 |---|---|
 | E921 | `id` or `name` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
 
+## Test environments (E893–E894, W891–W892)
+
+`TestEnvironment` (`TE-*`, GH #238) models the rig an L4/L5 test runs on; `runsOn:` and
+`requiresCapabilities:` on a `TestCase`/`TestPlan` tie tests to it.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E893 | Error | `TestEnvironment` is missing `id`, `name` or `status`, its `id` is not `TE-*`, a `status` / `environmentKind` / `calibrationStatus` is outside its enum, or `calibrationDue` is not a `YYYY-MM-DD` date |
+| E894 | Error | a `runsOn` entry on a `TestCase`/`TestPlan` does not resolve, or resolves to something that is not a `TestEnvironment` |
+| W891 | Warning | a `TestCase`/`TestPlan` lists `requiresCapabilities` that none of its `runsOn` environments offers (case-insensitive) |
+| W892 | Warning | a non-draft `TestCase`/`TestPlan` runs on a `retired` `TestEnvironment` or one whose `calibrationStatus` is `expired` |
+
 ## TestPlan (E600–E606, W610–W616)
 
 | Code | Condition |

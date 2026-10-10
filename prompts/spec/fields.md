@@ -372,6 +372,9 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` Aâ
 | `supports` | Argument | string or list | SafetyGoal or parent Argument argued for |
 | `evidence` | Argument | list | Requirement/TestCase/Argument/AssumptionOfUse refs (strings) |
 | `appliesTo` | AssumptionOfUse | list | SafetyGoal/Argument/Requirement the SRAC constrains |
+| `runsOn` | TestCase / TestPlan | list | TestEnvironment(s) the test executes on |
+| `requiresCapabilities` | TestCase / TestPlan | list | Capabilities needed from the environment |
+| `capabilities` / `environmentKind` / `calibrationStatus` / `calibrationDue` | TestEnvironment | list / enum / enum / date | What the rig offers and its calibration |
 | `analyses` | DependentFailureAnalysis | list (â‰¥2) | Elements argued independent |
 | `sharedResources` | DependentFailureAnalysis | list | `{resource, kind, initiators, couplingFactor, mitigation}` |
 

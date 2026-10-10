@@ -30,6 +30,7 @@ static ATS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ARG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static AOU_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DFA_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static TE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -207,6 +208,7 @@ pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
     ("Argument", "ARG", true),
     ("AssumptionOfUse", "AOU", true),
     ("DependentFailureAnalysis", "DFA", true),
+    ("TestEnvironment", "TE", true),
     ("FeatureDef", "FEAT", false),
     ("Baseline", "BL", false),
     ("PlanningItem", "PI", true),
@@ -404,6 +406,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || arg_re().is_match(s)
         || aou_re().is_match(s)
         || dfa_re().is_match(s)
+        || te_re().is_match(s)
         || feat_re().is_match(s)
         || bl_re().is_match(s)
         || pi_re().is_match(s)
@@ -472,6 +475,10 @@ fn ats_re() -> &'static regex::Regex {
 fn arg_re() -> &'static regex::Regex {
     ARG_RE.get_or_init(|| regex::Regex::new(r"^ARG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
+fn te_re() -> &'static regex::Regex {
+    TE_RE.get_or_init(|| regex::Regex::new(r"^TE(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
 fn dfa_re() -> &'static regex::Regex {
     DFA_RE.get_or_init(|| regex::Regex::new(r"^DFA(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
@@ -482,6 +489,8 @@ fn aou_re() -> &'static regex::Regex {
 
 /// Returns true for ARG-* IDs (Argument).
 pub fn is_arg_id(s: &str) -> bool { arg_re().is_match(s) || extra_matches("ARG", s) }
+/// Returns true for TE-* IDs (TestEnvironment).
+pub fn is_te_id(s: &str) -> bool { te_re().is_match(s) || extra_matches("TE", s) }
 /// Returns true for DFA-* IDs (DependentFailureAnalysis).
 pub fn is_dfa_id(s: &str) -> bool { dfa_re().is_match(s) || extra_matches("DFA", s) }
 /// Returns true for AOU-* IDs (AssumptionOfUse).
