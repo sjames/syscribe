@@ -269,7 +269,7 @@ pub fn compute_stats(
             if !is_verified(r) {
                 unverified.push(disp_id(r));
             }
-            if !is_satisfied(r) {
+            if !is_satisfied(r) && !r.frontmatter.is_non_allocatable_requirement() {
                 unsatisfied.push(disp_id(r));
             }
         }

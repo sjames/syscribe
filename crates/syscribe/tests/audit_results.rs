@@ -123,3 +123,18 @@ fn plan_scoped_audit_reports_tests_only_and_does_not_apply_goal_verdicts() {
     assert!(v["verification"]["plans"].is_null(), "{v}");
     assert!(!reasons(&v).contains("FAILING"), "{}", reasons(&v));
 }
+
+#[test]
+fn non_allocatable_requirements_are_not_listed_as_unsatisfied_by_audit_or_stats() {
+    // GH #250 review: audit/stats mirror W300 and must honour the same exemption.
+    let root = model(None);
+    std::fs::write(
+        root.join("REQ-AU-PROC.md"),
+        "---\ntype: Requirement\nid: REQ-AU-PROC\nname: p\nstatus: approved\nrequirementKind: process\nreqDomain: system\n---\n\nThe supplier shall.\n",
+    )
+    .unwrap();
+    let v = audit(&root);
+    let ids = v["orphans"]["unsatisfiedRequirements"]["ids"].as_array().unwrap();
+    assert!(!ids.iter().any(|i| i == "REQ-AU-PROC"), "{v}");
+    assert!(ids.iter().any(|i| i == "REQ-AU-001"), "control: an ordinary requirement is still listed: {v}");
+}

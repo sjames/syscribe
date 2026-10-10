@@ -164,7 +164,10 @@ fn requirement_gaps(ix: &Index, r: &RawElement) -> Vec<String> {
             "verified" if active.is_empty() => gaps.push("W003 no test".to_string()),
             _ => {}
         }
-        if matches!(status, "approved" | "implemented") && ix.satisfiers.get(&r.qualified_name).copied().unwrap_or(0) == 0 {
+        if matches!(status, "approved" | "implemented")
+            && !r.frontmatter.is_non_allocatable_requirement()
+            && ix.satisfiers.get(&r.qualified_name).copied().unwrap_or(0) == 0
+        {
             gaps.push("W300 unsatisfied".to_string());
         }
     } else if matches!(status, "approved" | "implemented" | "verified")

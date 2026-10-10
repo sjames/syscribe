@@ -2212,6 +2212,15 @@ tier_deref!(ColdFrontmatter, tier2, ColdFrontmatter2);
 tier_deref!(ColdFrontmatter2, tier3, ColdFrontmatter3);
 
 impl RawFrontmatter {
+    /// A requirement of a kind no architecture element can satisfy (`process`,
+    /// `regulatory`, `deliverable`, GH #250): exempt from `W300`/`W302` and from the
+    /// unsatisfied lists of `audit`, `stats` and the traceability diagram.
+    pub fn is_non_allocatable_requirement(&self) -> bool {
+        matches!(self.requirement_kind.as_deref(), Some("process" | "regulatory" | "deliverable"))
+    }
+}
+
+impl RawFrontmatter {
     /// Whether any rarely-set tier is allocated (memory diagnostics and tests).
     pub fn has_cold_block(&self) -> bool {
         self.cold.0.is_some()
