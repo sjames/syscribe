@@ -277,6 +277,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 | `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG (`{ "svg": "…" }`) to `svgFile:`, setting `svgMode: companion` and the body `<img>` when absent (guarded write) |
 | `POST` | `/api/diagrams/shapes/<qname>` | Add an existing element to a manifest diagram as a shape (unpinned unless `x`/`y` are given; refused for a derived diagram; guarded write) |
 | `GET` | `/api/validation` | Validation findings JSON |
+| `GET` | `/api/req-graph`, `/api/req-graph/overview` | Requirements Explorer data: typed traceability neighbourhood and overview counts (see docs/browser/index.md) |
 | `WS` | `/ws` | Live model-change events |
 
 ### UI Routes

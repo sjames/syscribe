@@ -69,6 +69,8 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG: body `{ "svg": "<svg …>…</svg>" }` is written to `svgFile:` (default `<stem>.svg` beside the `.md`), setting `svgMode: companion`/`svgFile:` and appending an `<img>` to the body when absent (guarded write; refused unless the body is an SVG document) |
 | `POST` | `/api/diagrams/shapes/<qname>` | Add an existing element to a manifest diagram as a shape (unpinned unless `x`/`y` are given; refused for a derived diagram; guarded write) |
 | `GET` | `/api/validation` | Validation findings JSON (includes `qname` per finding) |
+| `GET` | `/api/req-graph?root=<id\|qname>[&depth=N][&edges=k1,k2][&limit=M][&config=C]` | The typed traceability neighbourhood of an element: `{root, nodes[], edges[], truncated}`. Nodes carry type, name, status, `reqClass`, ASIL and a `verification` overlay (`verified` = a non-draft, non-retired verifying TestCase · `planned` = only drafts · `unverified` · `na`); edges carry `from`/`to` (ids) and `fromQname`/`toQname`. `root` is an exact id or qualified name; `depth` ≤ 6; `limit` ≤ 2000; unknown edge kinds or configuration are `400`, an unknown root `404` |
+| `GET` | `/api/req-graph/overview[?config=C]` | Requirement counts by class and status, the verification split, and `unlinked` (requirements with no relation of the listed edge kinds; `appliesWhen` does not count) |
 | `WS` | `/ws` | Live model-change events |
 
 ## Editing through the browser

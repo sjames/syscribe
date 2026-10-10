@@ -71,7 +71,7 @@ async fn a_neighbourhood_is_bounded_by_depth_and_typed() {
     assert!(has_edge(&v, "TC-RG-002", "REQ-RG-002", "verifies"));
     let root = v["nodes"].as_array().unwrap().iter().find(|n| n["root"] == true).unwrap();
     assert_eq!(root["id"], "REQ-RG-002");
-    // depth 2 reaches the satisfier and the active test of REQ-RG-003
+    // depth 3 reaches the satisfier and the active test of REQ-RG-003
     let (_, v) = get(&a, "/api/req-graph?root=REQ-RG-001&depth=3").await;
     let n = ids(&v);
     assert!(n.contains(&"TC-RG-001".to_string()) && n.contains(&"R::Ctl".to_string()), "{n:?}");
@@ -123,4 +123,23 @@ async fn the_overview_counts_classes_statuses_and_unlinked_requirements() {
     assert_eq!(v["byStatus"]["approved"], 5);
     assert_eq!(v["unlinked"], 1, "REQ-RG-009 has no relation: {v}");
     assert_eq!(v["verification"]["verified"], 1);
+}
+
+#[tokio::test]
+async fn root_is_exact_edges_validate_and_non_draft_tests_verify() {
+    let a = app("x");
+    // a display name is not a root
+    assert_eq!(get(&a, "/api/req-graph?root=Ctl").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(get(&a, "/api/req-graph?root=R::Ctl").await.0, StatusCode::OK);
+    // unknown edge kinds are a 400 naming the valid ones
+    let (s, e) = get(&a, "/api/req-graph?root=REQ-RG-001&edges=derivdFrom").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(e["error"].as_str().unwrap().contains("derivedFrom"), "{e}");
+    // edges carry qualified names too, so a client can address either end
+    let (_, v) = get(&a, "/api/req-graph?root=REQ-RG-002").await;
+    let first = &v["edges"][0];
+    assert!(first["fromQname"].is_string() && first["toQname"].is_string(), "{v}");
+    // a gating feature appears as an appliesWhen edge
+    let (_, f) = get(&a, "/api/req-graph?root=REQ-RG-004&edges=appliesWhen").await;
+    assert!(has_edge(&f, "REQ-RG-004", "FEAT-OPT-001", "appliesWhen"), "{f}");
 }

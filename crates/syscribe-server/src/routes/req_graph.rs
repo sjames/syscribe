@@ -10,7 +10,7 @@ use axum::{
 };
 use serde_json::{json, Value};
 use syscribe_model::element::{ElementType, RawElement};
-use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
+use syscribe_model::projection::{resolve_config_flag, SelectionOutcome};
 use syscribe_model::resolver::Resolver;
 
 use crate::state::SharedState;
@@ -33,6 +33,8 @@ fn node_id(e: &RawElement) -> String {
 /// Every relation of the model as `(from element, to element, kind)`, both ends resolved.
 fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a RawElement, &'a RawElement, &'static str)> {
     let mut out = Vec::new();
+    let pkg = syscribe_model::variability::package_conditions(elems);
+    let features: Vec<&RawElement> = elems.iter().filter(|f| f.frontmatter.element_type == Some(ElementType::FeatureDef)).collect();
     for e in elems {
         let fm = &e.frontmatter;
         let mut push = |kind: &'static str, refs: &[String]| {
@@ -44,7 +46,7 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
                 }
             }
         };
-        let lists: [(&'static str, Option<&Vec<String>>); 12] = [
+        let lists: [(&'static str, Option<&Vec<String>>); 11] = [
             ("derivedFrom", fm.derived_from.as_ref()),
             ("satisfies", fm.satisfies.as_ref()),
             ("verifies", fm.verifies.as_ref()),
@@ -56,7 +58,6 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
             ("analyses", fm.analyses.as_ref()),
             ("runsOn", fm.runs_on.as_ref()),
             ("achieves", fm.achieves.as_ref()),
-            ("derivedFromSafetyGoal", None),
         ];
         for (kind, list) in lists {
             if let Some(l) = list {
@@ -82,19 +83,18 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
             }
         }
         push("evidence", &ev);
-        // `appliesWhen` operands that name features.
-        if let Some(aw) = fm.applies_when.as_ref() {
-            let text = match aw {
+        // `appliesWhen` operands (own, else the nearest ancestor package's) that name features.
+        if let Some((aw, _)) = syscribe_model::variability::effective_applies_when(e, &pkg) {
+            let text = match &aw {
                 serde_yaml::Value::String(s) => s.clone(),
-                other => serde_yaml::to_string(other).unwrap_or_default(),
+                serde_yaml::Value::Sequence(seq) => seq.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" "),
+                _ => String::new(),
             };
-            let toks: Vec<String> = text
+            let toks = text
                 .split(|c: char| c.is_whitespace() || "()!&|,[]".contains(c))
-                .filter(|t| !t.is_empty() && !matches!(*t, "and" | "or" | "not" | "AND" | "OR" | "NOT"))
-                .map(String::from)
-                .collect();
+                .filter(|t| !t.is_empty() && !matches!(*t, "and" | "or" | "not" | "AND" | "OR" | "NOT"));
             for t in toks {
-                if let Some(f) = resolver.resolve_ref(elems, &t).filter(|f| f.frontmatter.element_type == Some(ElementType::FeatureDef)) {
+                if let Some(f) = features.iter().find(|f| f.qualified_name == t || f.frontmatter.id.as_deref() == Some(t)) {
                     out.push((e, f, "appliesWhen"));
                 }
             }
@@ -103,11 +103,17 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
     out
 }
 
-/// `qualified name -> (has an active verifying TestCase, has any other verifying TestCase)`.
+/// `qualified name -> (has a non-draft verifying TestCase, has only draft ones)`.
 fn verification_map(elems: &[RawElement], resolver: &Resolver) -> HashMap<String, (bool, bool)> {
     let mut m: HashMap<String, (bool, bool)> = HashMap::new();
     for tc in elems.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::TestCase)) {
-        let active = tc.frontmatter.status.as_deref() == Some("active");
+        // As the matrix/coverage classifier: a draft TestCase is planned intent, a retired one is
+        // out of use, every other status (review, approved, active) counts as evidence.
+        let status = tc.frontmatter.status.as_deref();
+        if status == Some("retired") {
+            continue;
+        }
+        let active = status != Some("draft");
         for r in tc.frontmatter.verifies.iter().flatten() {
             if let Some(t) = resolver.resolve_ref(elems, r) {
                 let slot = m.entry(t.qualified_name.clone()).or_default();
@@ -148,17 +154,24 @@ fn node_json(e: &RawElement, root: bool, vmap: &HashMap<String, (bool, bool)>) -
     })
 }
 
-/// The element set to answer from: the live model, or its projection onto `config`.
-fn view(state_elems: &[RawElement], config: Option<&str>) -> Result<Vec<RawElement>, Err> {
+/// The element set to answer from: the live model borrowed as is, or — for a `config` — its
+/// projection onto that Configuration (owned). No placeholder substitution: bodies are not used.
+fn view<'a>(live: &'a [RawElement], config: Option<&str>) -> Result<std::borrow::Cow<'a, [RawElement]>, Err> {
+    use std::borrow::Cow;
     match config {
-        None => Ok(state_elems.to_vec()),
-        Some(c) => match resolve_config_flag(state_elems, c) {
-            SelectionOutcome::Dormant => Ok(state_elems.to_vec()),
-            SelectionOutcome::Resolved(sel) => Ok(project(state_elems, &sel)),
+        None => Ok(Cow::Borrowed(live)),
+        Some(c) => match resolve_config_flag(live, c) {
+            SelectionOutcome::Dormant => Ok(Cow::Borrowed(live)),
+            SelectionOutcome::Resolved(sel) => Ok(Cow::Owned(syscribe_model::projection::project_raw(live, &sel))),
             SelectionOutcome::Error(m) => Err(bad(StatusCode::BAD_REQUEST, m)),
         },
     }
 }
+
+const EDGE_KINDS: &[&str] = &[
+    "derivedFrom", "satisfies", "verifies", "allocatedTo", "refines", "supersedes", "derivedFromSafetyGoal", "breakdownAdr",
+    "blockedBy", "covers", "analyses", "runsOn", "achieves", "evidence", "appliesWhen",
+];
 
 fn parse_usize(params: &HashMap<String, String>, key: &str) -> Result<Option<usize>, Err> {
     match params.get(key) {
@@ -174,13 +187,29 @@ pub async fn get_req_graph(State(state): State<SharedState>, Query(params): Quer
     let limit = parse_usize(&params, "limit")?.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
     let kinds: Option<BTreeSet<&str>> = params.get("edges").map(|e| e.split(',').map(str::trim).filter(|k| !k.is_empty()).collect());
 
+    if let Some(ks) = &kinds {
+        if let Some(bad_kind) = ks.iter().find(|k| !EDGE_KINDS.contains(k)) {
+            return Err(bad(StatusCode::BAD_REQUEST, format!("unknown edge kind '{bad_kind}' — valid: {}", EDGE_KINDS.join(", "))));
+        }
+    }
+    // Computed while the read guard is held: the live model is borrowed, not cloned.
     let store = state.read().await;
-    let elems = view(&store.elements, params.get("config").map(String::as_str))?;
-    drop(store);
+    let config = params.get("config").map(String::as_str);
+    let elems = view(&store.elements, config)?;
     let resolver = Resolver::new(&elems);
-    let root = resolver
-        .resolve_ref(&elems, &root_q.replace('/', "::"))
-        .ok_or_else(|| bad(StatusCode::NOT_FOUND, format!("'{root_q}' is not an element (or is not active in the configuration)")))?;
+    // The root is an exact stable id or qualified name — never a fuzzy display-name match.
+    let root = elems
+        .iter()
+        .find(|e| e.qualified_name == *root_q || e.frontmatter.id.as_deref() == Some(root_q.as_str()))
+        .ok_or_else(|| {
+            bad(
+                StatusCode::NOT_FOUND,
+                match config {
+                    Some(c) => format!("'{root_q}' is not an element id or qualified name, or is not active in configuration '{c}'"),
+                    None => format!("'{root_q}' is not an element id or qualified name"),
+                },
+            )
+        })?;
 
     let edges: Vec<_> = all_edges(&elems, &resolver).into_iter().filter(|(_, _, k)| kinds.as_ref().is_none_or(|ks| ks.contains(k))).collect();
     // Undirected adjacency, deterministic.
@@ -216,7 +245,7 @@ pub async fn get_req_graph(State(state): State<SharedState>, Query(params): Quer
     let mut out_edges: Vec<Value> = edges
         .iter()
         .filter(|(a, b, _)| seen_set.contains(a.qualified_name.as_str()) && seen_set.contains(b.qualified_name.as_str()))
-        .map(|(a, b, k)| json!({"from": node_id(a), "to": node_id(b), "kind": k}))
+        .map(|(a, b, k)| json!({"from": node_id(a), "to": node_id(b), "fromQname": a.qualified_name, "toQname": b.qualified_name, "kind": k}))
         .collect();
     out_edges.sort_by_key(|e| e.to_string());
     out_edges.dedup();
@@ -227,7 +256,6 @@ pub async fn get_req_graph(State(state): State<SharedState>, Query(params): Quer
 pub async fn get_overview(State(state): State<SharedState>, Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, Err> {
     let store = state.read().await;
     let elems = view(&store.elements, params.get("config").map(String::as_str))?;
-    drop(store);
     let resolver = Resolver::new(&elems);
     let vmap = verification_map(&elems, &resolver);
     let linked: BTreeSet<&str> = all_edges(&elems, &resolver)
