@@ -232,3 +232,97 @@ pub fn cmd_coverage_tree(
     }
     0
 }
+
+/// `matrix --rollup`: one row per native requirement with its own and below-it coverage
+/// (GH #252, REQ-TRS-COVROLL-001). Same semantics as `coverage tree`, applied to every requirement.
+#[allow(clippy::too_many_arguments)]
+pub fn cmd_rollup(
+    elements: &[RawElement],
+    result: &ValidationResult,
+    results: Option<&ResultsData>,
+    policy: &CoveragePolicy,
+    tag: Option<&str>,
+    status: Option<&str>,
+    json_out: bool,
+) -> i32 {
+    if !policy.problems.is_empty() {
+        for p in &policy.problems {
+            eprintln!("matrix --rollup: {p}");
+        }
+        return 1;
+    }
+    let resolver = Resolver::new(elements);
+    let states = crate::matrix::requirement_rollup(elements, results);
+    let mut reqs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| Resolver::is_native_requirement(e))
+        .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
+        .filter(|e| tag.is_none_or(|t| e.frontmatter.tags.iter().flatten().any(|x| x == t)))
+        .collect();
+    reqs.sort_by_key(|e| key(e));
+    let mut violations = Vec::new();
+    let rows: Vec<(&RawElement, Node)> = reqs
+        .into_iter()
+        .map(|e| {
+            let n = build(e, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut violations);
+            (e, n)
+        })
+        .collect();
+    violations.sort();
+    violations.dedup();
+    if !violations.is_empty() {
+        for v in &violations {
+            eprintln!("matrix --rollup: [coverage] policy error: {v}");
+        }
+        return 1;
+    }
+    let mut by_class: BTreeMap<String, BTreeMap<&'static str, usize>> = BTreeMap::new();
+    for (e, n) in &rows {
+        let class = e.frontmatter.req_class.clone().unwrap_or_else(|| "(none)".into());
+        *by_class.entry(class).or_default().entry(n.verdict()).or_default() += 1;
+    }
+    if json_out {
+        let list: Vec<_> = rows
+            .iter()
+            .map(|(e, n)| {
+                json!({
+                    "id": n.id, "name": n.name, "reqClass": e.frontmatter.req_class, "status": n.status, "leaf": n.leaf,
+                    "own": if n.leaf { json!(n.own_label()) } else { Value::Null },
+                    "directTests": n.direct, "leavesActive": n.active(), "leavesPlanned": n.planned(), "leavesUncovered": n.uncovered(),
+                    "verdict": n.verdict(), "glyph": n.glyph().to_string(), "rule": n.rule.as_str(),
+                })
+            })
+            .collect();
+        let foot: BTreeMap<&String, Value> = by_class
+            .iter()
+            .map(|(c, m)| {
+                let g = |k: &str| m.get(k).copied().unwrap_or(0);
+                (c, json!({"complete": g("complete"), "partial": g("partial"), "none": g("none"), "na": g("na")}))
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json!({"rows": list, "byClass": foot})).unwrap_or_default());
+        return 0;
+    }
+    let w0 = rows.iter().map(|(_, n)| n.id.chars().count()).chain([2]).max().unwrap_or(2);
+    println!("{:<w0$}  {:<11} {:<11} {:<14} {:<34} verdict (rule)", "id", "class", "status", "own", "below");
+    for (e, n) in &rows {
+        let own = if n.leaf { n.own_label().to_string() } else { format!("direct {}", n.direct) };
+        let below = if n.leaf { "-".to_string() } else { format!("{}/{} active, {} planned", n.active(), n.leaves.len(), n.planned()) };
+        println!(
+            "{:<w0$}  {:<11} {:<11} {:<14} {:<34} {} ({})",
+            n.id,
+            e.frontmatter.req_class.as_deref().unwrap_or("-"),
+            n.status.as_deref().unwrap_or("-"),
+            own,
+            below,
+            n.glyph(),
+            n.rule.as_str()
+        );
+    }
+    println!("\nBy reqClass:");
+    for (c, m) in &by_class {
+        let g = |k: &str| m.get(k).copied().unwrap_or(0);
+        println!("  {c:<12} ●{} ◐{} ○{} ·{}", g("complete"), g("partial"), g("none"), g("na"));
+    }
+    0
+}

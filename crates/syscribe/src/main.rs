@@ -1404,7 +1404,14 @@ fn main() {
                         });
                     }
                 }
-                if rest.iter().any(|a| a == "--features") {
+                if rest.iter().any(|a| a == "--rollup") {
+                    let result = syscribe_model::validator::validate_with_config(&view, &vcfg);
+                    let results = ResultsData::load_sidecar(model_root);
+                    let code = covtree::cmd_rollup(&view, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), tag, status, json);
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                } else if rest.iter().any(|a| a == "--features") {
                     matrix::cmd_matrix_features(&view, json);
                 } else {
                     // Surface executed-evidence by default when a sidecar exists

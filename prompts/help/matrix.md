@@ -4,6 +4,7 @@
     syscribe -m <root> matrix [--json] [--tag <t>]
         [--status <s>] [--gaps-only] [--linked-only]
         [--config <C>] [--plan TP-X]
+    syscribe -m <root> matrix --rollup [--json] [--tag <t>] [--status <s>] [--config <C>]
     syscribe -m <root> matrix --features [--json]
     syscribe -m <root> matrix --allocations [--json]
 
@@ -20,6 +21,11 @@ its effective (inherited + own) selection, spec §9.8.
     --status <s>    Restrict rows to requirements whose status: equals s.
     --gaps-only     Drop fully-covered and all-N/A rows (keep rows with a gap).
     --linked-only   Ignore ingested results (covered cells stay ✓).
+    --rollup        One row per requirement: own coverage, coverage below it (leaf
+                    descendants active/total/planned), verdict glyph and the
+                    [coverage] rule applied, plus a per-reqClass footer. The
+                    all-requirements view of `coverage tree`. Honours --tag,
+                    --status, --config and --json.
     --features      Show the Feature × Configuration selection grid instead.
     --allocations   Show the MagicGrid Allocation source × target matrix instead:
                     rows are allocation sources, columns are targets, cells mark an
