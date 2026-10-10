@@ -275,7 +275,13 @@ impl ResultsData {
         // A class-qualified reference (`C#N`, `C::N`) is looked up exactly first; JUnit
         // ingestion stores `classname::name` beside the leaf (GH #259). A leaf never
         // contains `:`, so qualified keys cannot collide with leaves.
-        let qualified = function_ref.replace('#', "::");
+        let mut qualified = function_ref.replace('#', "::");
+        if !qualified.contains("::") {
+            // `com.A.test_x` → `com.A::test_x` (the last dot separates class and test).
+            if let Some((class, name)) = qualified.rsplit_once('.') {
+                qualified = format!("{class}::{name}");
+            }
+        }
         let hit = if qualified.contains("::") { self.by_leaf.get(&qualified) } else { None };
         match hit.or_else(|| self.by_leaf.get(function_leaf(function_ref))) {
             Some(Verdict::Pass) => FnVerdict::Pass,

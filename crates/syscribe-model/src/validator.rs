@@ -1904,13 +1904,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             if let serde_yaml::Value::Mapping(map) = tf {
                                 if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
                                     let v = results.verdict_for(func);
-                                    if matches!(v, FnVerdict::Fail | FnVerdict::Missing) {
+                                    if matches!(v, FnVerdict::Fail | FnVerdict::Missing | FnVerdict::Flaky) {
                                         let tc_id = tc
                                             .frontmatter
                                             .id
                                             .as_deref()
                                             .unwrap_or(tc.qualified_name.as_str());
-                                        let what = if v == FnVerdict::Fail { "FAILED" } else { "missing" };
+                                        let what = match v {
+                                            FnVerdict::Fail => "FAILED",
+                                            FnVerdict::Flaky => "flaky",
+                                            _ => "missing",
+                                        };
                                         bad.push((tc_id.to_string(), func.clone(), what));
                                     }
                                 }
@@ -1932,7 +1936,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "W615",
                             &file,
                             &format!(
-                                "approved TestPlan has {} member test function(s) that failed or were missing from the ingested results: {}{}",
+                                "approved TestPlan has {} member test function(s) that failed, were flaky or were missing from the ingested results: {}{}",
                                 bad.len(),
                                 list,
                                 more
