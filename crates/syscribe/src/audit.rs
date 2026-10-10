@@ -483,6 +483,23 @@ pub fn cmd_audit(
             }
             None => view,
         };
+        // Under `--config` keep only the selected Configuration among the Configuration elements, as
+        // `matrix` does, so the roll-up is evaluated for that variant and not ANDed over all of them.
+        let one_config: Vec<RawElement>;
+        let cov_view: &[RawElement] = match sel {
+            Some(s) => {
+                let wanted = syscribe_model::variability::canon_selection(s, &syscribe_model::variability::feature_id_to_qname(elements));
+                let is_cfg = |e: &RawElement| e.frontmatter.element_type == Some(syscribe_model::element::ElementType::Configuration);
+                let matches_sel = |e: &RawElement| syscribe_model::projection::canonical_selection(elements, e) == wanted;
+                if cov_view.iter().any(|e| is_cfg(e) && matches_sel(e)) {
+                    one_config = cov_view.iter().filter(|e| !is_cfg(e) || matches_sel(e)).cloned().collect();
+                    &one_config
+                } else {
+                    cov_view
+                }
+            }
+            None => cov_view,
+        };
         let res = validator::validate_with_config(cov_view, config);
         crate::covtree::class_summary(cov_view, &res, config.results.as_ref(), &config.coverage)
     };
@@ -492,13 +509,14 @@ pub fn cmd_audit(
             for (class, v) in m {
                 let g = |k: &str| v.get(k).copied().unwrap_or(0);
                 let applicable = g("complete") + g("partial") + g("none");
-                let pct = if applicable == 0 { serde_json::Value::Null } else { json!(100.0 * g("complete") as f64 / applicable as f64) };
+                let pct = Coverage::percent(g("complete") as u32, applicable as u32).map_or(serde_json::Value::Null, |p| json!(p));
                 o.insert(class.clone(), json!({"complete": g("complete"), "partial": g("partial"), "none": g("none"), "na": g("na"), "percentComplete": pct}));
             }
             serde_json::Value::Object(o)
         }
-        Err(e) => json!({"error": e}),
+        Err(_) => serde_json::Value::Null,
     };
+    let class_cov_error = class_cov.as_ref().err().cloned();
 
     // ---- Section 4: orphans ----------------------------------------------
     // Satisfaction map: any element's satisfies: target (by qname or id).
@@ -598,6 +616,7 @@ pub fn cmd_audit(
             },
             "coverage": coverage.json(),
             "coverageByClass": class_cov_json,
+            "coverageByClassError": class_cov_error,
             "orphans": {
                 "unverifiedRequirements": orphan_json(&unverified),
                 "unsatisfiedRequirements": orphan_json(&unsatisfied),
@@ -681,11 +700,12 @@ pub fn cmd_audit(
         Err(e) => println!("[coverage] policy problem: {e}"),
         Ok(m) if m.is_empty() => println!("No requirements."),
         Ok(m) => {
-            println!("complete / partial / none (derivation-tree roll-up, as `matrix --rollup`):");
+            println!("complete / partial / none (derivation-tree roll-up; parents are judged by their leaves and the [coverage] rule,");
+            println!("so these figures can differ from the per-configuration grid above):");
             for (class, v) in m {
                 let g = |k: &str| v.get(k).copied().unwrap_or(0);
                 let applicable = g("complete") + g("partial") + g("none");
-                println!("  {class}: {} complete, {} partial, {} none ({})", g("complete"), g("partial"), g("none"), fmt_pct(Coverage::percent(g("complete") as u32, applicable as u32)));
+                println!("  {class}: {} complete, {} partial, {} none, {} n/a ({})", g("complete"), g("partial"), g("none"), g("na"), fmt_pct(Coverage::percent(g("complete") as u32, applicable as u32)));
             }
         }
     }

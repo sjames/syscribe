@@ -43,7 +43,7 @@ fn counts_and_percentages_per_class() {
     let c = &v["coverageByClass"];
     // system: 002 and 003 verified leaves (complete), 004 uncovered (none)
     assert_eq!((c["system"]["complete"].as_u64(), c["system"]["none"].as_u64(), c["system"]["partial"].as_u64()), (Some(2), Some(1), Some(0)), "{c}");
-    assert_eq!(c["system"]["percentComplete"].as_f64().map(|p| p.round()), Some(67.0), "{c}");
+    assert_eq!(c["system"]["percentComplete"].as_f64(), Some(66.7), "rounded like the other coverage figures: {c}");
     // stakeholder parent: all leaves verified but no direct test → partial under the default 'both'
     assert_eq!(c["stakeholder"]["partial"], 1, "{c}");
     let (t, _) = run(&d, &["audit"]);
@@ -58,5 +58,25 @@ fn the_policy_applies_and_an_invalid_table_is_reported() {
     assert_eq!(v["coverageByClass"]["stakeholder"]["complete"], 1, "{j}");
     let (j, _) = run(&model("[coverage]\ndefault = \"x\"\n"), &["audit", "--json"]);
     let v: serde_json::Value = serde_json::from_str(&j).unwrap();
-    assert!(v["coverageByClass"]["error"].as_str().is_some_and(|e| e.contains("default")), "{j}");
+    assert!(v["coverageByClass"].is_null() && v["coverageByClassError"].as_str().is_some_and(|e| e.contains("default")), "{j}");
+}
+
+#[test]
+fn config_evaluates_the_selected_variant_alone() {
+    let d = model("");
+    let w = |rel: &str, c: &str| {
+        let p = d.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, c).unwrap();
+    };
+    w("Features/_index.md", "---\ntype: Package\nname: Features\n---\n");
+    w("Features/Opt.md", "---\ntype: FeatureDef\nid: FEAT-OPT-001\nname: Opt\ngroupKind: optional\n---\n\nO.\n");
+    for (id, v) in [("CONF-A-001", "true"), ("CONF-B-001", "false")] {
+        w(&format!("Configurations/{id}.md"), &format!("---\ntype: Configuration\nid: {id}\nname: {id}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Opt: {v}\n---\n\nC.\n"));
+    }
+    // REQ-AC-004 is verified only by a test that exists when Opt is selected
+    w("R/TC-AC-004.md", "---\nid: TC-AC-004\ntype: TestCase\nname: t4\nstatus: active\ntestLevel: L3\nverifies: [REQ-AC-004]\nappliesWhen: FEAT-OPT-001\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n");
+    let (j, _) = run(&d, &["audit", "--json", "--config", "CONF-A-001"]);
+    let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+    assert_eq!(v["coverageByClass"]["system"]["complete"], 3, "variant A verifies all system requirements: {j}");
 }

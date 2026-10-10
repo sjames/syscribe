@@ -15,5 +15,5 @@ tags:
 ## Behavior
 
 - A section "Coverage by Requirement Class" lists, per `reqClass` (`-` for a requirement without one), the number of requirements whose roll-up verdict is complete, partial, none or n/a, and the percentage complete of those applicable. The verdicts are those of `matrix --rollup` / `coverage tree` including the `[coverage]` policy.
-- `--json` carries `coverageByClass{class: {complete, partial, none, na, percentComplete}}`. The view honours `--config` and `--plan` like the other sections. The verdict (PASS/FAIL) is unchanged by this section.
-- An invalid `[coverage]` table makes the section report the policy problem instead of numbers (the table's own `E898` already fails the verdict).
+- `--json` carries `coverageByClass{class: {complete, partial, none, na, percentComplete}}` (percentages rounded to one decimal like the other coverage figures). The view honours `--config` and `--plan` like the other sections. The verdict (PASS/FAIL) is unchanged by this section.
+- An invalid `[coverage]` table makes the section report the policy problem instead of numbers (the table's own `E898` already fails the verdict); in JSON `coverageByClass` is then null and `coverageByClassError` carries the problem. Under `--config` the roll-up is evaluated for the selected Configuration alone.

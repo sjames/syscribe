@@ -10,7 +10,9 @@ Rolls up a top-level readiness picture (coverage and orphans count non-draft Tes
 `who-verifies` list linked TestCases of any status): requirement status split (overall and
 per top-level package), SIL/ASIL distribution, per-configuration coverage %, coverage by requirement class (the derivation-tree
 roll-up of `matrix --rollup`: complete / partial / none per `reqClass`, honouring the
-`[coverage]` policy; `coverageByClass` in JSON),
+`[coverage]` policy; `coverageByClass` in JSON, or `coverageByClassError` when the policy is invalid; these
+roll-up figures can differ from the per-configuration grid, which counts a parent covered by any
+direct test),
 orphans (requirements with no test / no satisfying element, dangling TestCases,
 no-trace requirements), Safety (hazards, goals by integrity level, FTA, FMEA,
 hardware metrics) and Security (TARA, CAL, vulnerabilities, zones) sections,
