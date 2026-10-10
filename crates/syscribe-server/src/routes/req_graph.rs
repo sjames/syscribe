@@ -64,13 +64,27 @@ fn all_edges<'a>(elems: &'a [RawElement], resolver: &'a Resolver) -> Vec<(&'a Ra
             ("mitigatedBy", fm.mitigated_by.as_ref()),
             ("derivedFromCybersecurityGoal", fm.derived_from_cybersecurity_goal.as_ref()),
         ];
-        let more: [(&'static str, Option<&Vec<String>>); 2] = [("confirms", fm.confirms.as_ref()), ("implementedBy", fm.implemented_by.as_ref())];
+        let more: [(&'static str, Option<&Vec<String>>); 7] = [
+            ("confirms", fm.confirms.as_ref()),
+            ("implementedBy", fm.implemented_by.as_ref()),
+            ("damageScenarios", fm.damage_scenarios.as_ref()),
+            ("assets", fm.assets.as_ref()),
+            ("implementsGoals", fm.implements_goals.as_ref()),
+            ("affectedElements", fm.affected_elements.as_ref()),
+            ("supports", fm.supports.as_ref()),
+        ];
         for (kind, list) in more {
             if let Some(l) = list {
                 push(kind, l);
             }
         }
-        for (kind, one) in [("threatRef", fm.threat_ref.as_ref()), ("relatedSafetyGoal", fm.related_safety_goal.as_ref())] {
+        for (kind, one) in [
+            ("threatRef", fm.threat_ref.as_ref()),
+            ("relatedSafetyGoal", fm.related_safety_goal.as_ref()),
+            ("topEvent", fm.top_event.as_ref()),
+            ("ftaRef", fm.fta_ref.as_ref()),
+            ("assetOwner", fm.asset_owner.as_ref()),
+        ] {
             if let Some(r) = one {
                 push(kind, std::slice::from_ref(r));
             }
@@ -188,6 +202,7 @@ const EDGE_KINDS: &[&str] = &[
     "derivedFrom", "satisfies", "verifies", "allocatedTo", "refines", "supersedes", "derivedFromSafetyGoal", "breakdownAdr",
     "blockedBy", "covers", "analyses", "runsOn", "achieves", "evidence", "appliesWhen", "hazardRef", "hazardousEvents", "threatScenarios",
     "mitigatedBy", "derivedFromCybersecurityGoal", "confirms", "implementedBy", "threatRef", "relatedSafetyGoal",
+    "damageScenarios", "assets", "implementsGoals", "affectedElements", "supports", "topEvent", "ftaRef", "assetOwner",
 ];
 
 fn parse_usize(params: &HashMap<String, String>, key: &str) -> Result<Option<usize>, Err> {
@@ -307,9 +322,17 @@ pub async fn get_search(State(state): State<SharedState>, Query(params): Query<H
     let elems = view(&store.elements, params.get("config").map(String::as_str))?;
     let mut hits: Vec<(u8, String, &RawElement)> = Vec::new();
     for e in elems.iter() {
-        let id = node_id(e).to_lowercase();
+        let id = e.frontmatter.id.as_deref().unwrap_or("").to_lowercase();
         let name = e.frontmatter.name.as_deref().unwrap_or("").to_lowercase();
-        let rank = if id == q {
+        let rank = if id.is_empty() {
+            if name.contains(&q) {
+                3
+            } else if e.qualified_name.to_lowercase().contains(&q) {
+                4
+            } else {
+                continue;
+            }
+        } else if id == q {
             0
         } else if id.starts_with(&q) {
             1

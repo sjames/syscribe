@@ -130,6 +130,7 @@ async fn search_ranks_exact_id_prefix_then_name_and_truncates() {
     assert_eq!(v["results"].as_array().unwrap().len(), 2);
     assert_eq!(v["truncated"], true);
     let (_, _, body) = get(&a, "/api/req-graph/search?q=brake").await;
+    assert!(body.contains("REQ-SRCH-001"), "{body}");
     assert!(body.contains("REQ-SRCH-001") && !body.contains("REQ-ZZ-002"), "{body}");
 }
 
@@ -153,7 +154,7 @@ fn the_filter_hides_non_matching_nodes_and_edges_but_never_the_root() {
         r#"const m = require({js:?});
 const g = {{root:'A', nodes:[
   {{id:'A',type:'Requirement',verification:'unverified',asil:'B'}},
-  {{id:'B',type:'Requirement',verification:'verified',asil:'D'}},
+  {{id:'B',type:'Requirement',verification:'verified',asil:'B(d)'}},
   {{id:'C',type:'TestCase',verification:'na'}},
   {{id:'D',type:'Block',verification:'na'}}],
   edges:[{{from:'B',to:'A',kind:'derivedFrom'}},{{from:'C',to:'B',kind:'verifies'}},{{from:'D',to:'A',kind:'satisfies'}}]}};
@@ -163,6 +164,9 @@ console.log(JSON.stringify({{
   type: run({{types:['Requirement']}}),
   ver: run({{verification:['verified']}}),
   asil: run({{asil:['D']}}),
+  asilb: run({{asil:['B']}}),
+  asild: run({{asil:['D']}}),
+  orphan: (() => {{ const g2 = {{root:'A', nodes:[{{id:'A',type:'Requirement'}},{{id:'C',type:'TestCase'}},{{id:'D',type:'Requirement'}}], edges:[{{from:'A',to:'C',kind:'x'}},{{from:'C',to:'D',kind:'x'}}]}}; return m.filterGraph(g2, {{types:['Requirement']}}).nodes.map(n=>n.id); }})(),
   all: run({{types:['Block'], verification:['verified']}}),
 }}));"#
     );
@@ -175,7 +179,10 @@ console.log(JSON.stringify({{
     assert_eq!(v["type"]["e"], 1);
     assert_eq!(v["type"]["hidden"], 2);
     assert_eq!(v["ver"]["n"], serde_json::json!(["A", "B"]));
-    assert_eq!(v["asil"]["n"], serde_json::json!(["A", "B"]));
+    assert_eq!(v["asil"]["n"], serde_json::json!(["A"]));
+    assert_eq!(v["asilb"]["n"], serde_json::json!(["A", "B"]), "B(d) counts as B");
+    assert_eq!(v["asild"]["n"], serde_json::json!(["A"]), "decomposed B(d) is rated B, not D");
+    assert_eq!(v["orphan"], serde_json::json!(["A"]), "nodes behind a hidden node are not left floating");
     assert_eq!(v["all"]["n"], serde_json::json!(["A"]), "root stays even when nothing matches");
     assert_eq!(v["all"]["e"], 0);
 }
@@ -189,7 +196,7 @@ async fn the_page_has_search_and_filter_controls() {
 
 #[tokio::test]
 async fn safety_and_security_links_are_edges() {
-    let a = "---\ntype: Requirement\nid: REQ-LNK-001\nname: A\nstatus: draft\nreqDomain: software\nreqClass: system\nhazardRef: [REQ-LNK-002]\nhazardousEvents: [REQ-LNK-002]\nthreatRef: REQ-LNK-002\nthreatScenarios: [REQ-LNK-002]\nmitigatedBy: [REQ-LNK-002]\nderivedFromCybersecurityGoal: [REQ-LNK-002]\nrelatedSafetyGoal: REQ-LNK-002\nconfirms: [REQ-LNK-002]\nimplementedBy: [REQ-LNK-002]\n---\n";
+    let a = "---\ntype: Requirement\nid: REQ-LNK-001\nname: A\nstatus: draft\nreqDomain: software\nreqClass: system\nhazardRef: [REQ-LNK-002]\nhazardousEvents: [REQ-LNK-002]\nthreatRef: REQ-LNK-002\nthreatScenarios: [REQ-LNK-002]\nmitigatedBy: [REQ-LNK-002]\nderivedFromCybersecurityGoal: [REQ-LNK-002]\nrelatedSafetyGoal: REQ-LNK-002\nconfirms: [REQ-LNK-002]\nimplementedBy: [REQ-LNK-002]\ndamageScenarios: [REQ-LNK-002]\nassets: [REQ-LNK-002]\nimplementsGoals: [REQ-LNK-002]\naffectedElements: [REQ-LNK-002]\nsupports: [REQ-LNK-002]\ntopEvent: REQ-LNK-002\nftaRef: REQ-LNK-002\nassetOwner: REQ-LNK-002\n---\n";
     let b = "---\ntype: Requirement\nid: REQ-LNK-002\nname: B\nstatus: draft\nreqDomain: software\nreqClass: system\n---\n";
     let app = app_with(&[("a.md", a), ("b.md", b)]);
     let (s, _, body) = get(&app, "/api/req-graph?root=REQ-LNK-001&depth=1").await;
@@ -197,7 +204,7 @@ async fn safety_and_security_links_are_edges() {
     let v: serde_json::Value = serde_json::from_str(&body).unwrap();
     let mut kinds: Vec<&str> = v["edges"].as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
     kinds.sort();
-    let mut want = vec!["confirms", "derivedFromCybersecurityGoal", "hazardRef", "hazardousEvents", "implementedBy", "mitigatedBy", "relatedSafetyGoal", "threatRef", "threatScenarios"];
+    let mut want = vec!["affectedElements", "assetOwner", "assets", "damageScenarios", "ftaRef", "implementsGoals", "supports", "topEvent", "confirms", "derivedFromCybersecurityGoal", "hazardRef", "hazardousEvents", "implementedBy", "mitigatedBy", "relatedSafetyGoal", "threatRef", "threatScenarios"];
     want.sort();
     assert_eq!(kinds, want, "{body}");
     let (s, _, _) = get(&app, "/api/req-graph?root=REQ-LNK-001&edges=mitigatedBy,hazardRef").await;

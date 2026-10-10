@@ -8,7 +8,8 @@
   var NODE_W = 190, NODE_H = 44, GAP_X = 96, GAP_Y = 22, PAD = 24;
   var EDGE_KINDS = ['derivedFrom', 'satisfies', 'verifies', 'allocatedTo', 'refines', 'supersedes',
     'derivedFromSafetyGoal', 'breakdownAdr', 'blockedBy', 'covers', 'analyses', 'runsOn', 'achieves', 'evidence', 'appliesWhen',
-    'hazardRef', 'hazardousEvents', 'threatScenarios', 'mitigatedBy', 'derivedFromCybersecurityGoal', 'confirms', 'implementedBy', 'threatRef', 'relatedSafetyGoal'];
+    'hazardRef', 'hazardousEvents', 'threatScenarios', 'mitigatedBy', 'derivedFromCybersecurityGoal', 'confirms', 'implementedBy', 'threatRef', 'relatedSafetyGoal',
+    'damageScenarios', 'assets', 'implementsGoals', 'affectedElements', 'supports', 'topEvent', 'ftaRef', 'assetOwner'];
   var FILL = { verified: '#e3f4e5', planned: '#fff3d6', unverified: '#fde4e1', na: '#eceff4' };
   var STROKE = { verified: '#2e7d32', planned: '#b7791f', unverified: '#c0392b', na: '#7a869a' };
 
@@ -58,16 +59,32 @@
 
   // Pure filter: keeps the root and every node matching ALL non-empty criteria (types, verification, asil);
   // drops edges touching a hidden node. An empty or missing criterion restricts nothing.
+  // The level a node is rated at: decomposition notation `B(D)` counts as B; case-insensitive.
+  function effectiveAsil(a) { return a ? String(a).split('(')[0].trim().toUpperCase() : undefined; }
+
   function filterGraph(g, f) {
     f = f || {};
     function ok(list, v) { return !list || !list.length || list.indexOf(v) >= 0; }
     var keep = {};
-    var nodes = g.nodes.filter(function (n) {
-      var k = n.id === g.root || (ok(f.types, n.type) && ok(f.verification, n.verification || 'na') && ok(f.asil, n.asil));
-      if (k) keep[n.id] = true;
-      return k;
+    g.nodes.forEach(function (n) {
+      if (n.id === g.root || (ok(f.types, n.type) && ok(f.verification, n.verification || 'na') && ok(f.asil, effectiveAsil(n.asil)))) keep[n.id] = true;
     });
-    var edges = (g.edges || []).filter(function (e) { return keep[e.from] && keep[e.to]; });
+    // Only what is still connected to the root through kept nodes is drawn: hiding an intermediate node
+    // must not leave the nodes behind it floating in a spurious column.
+    var adj = {};
+    (g.edges || []).forEach(function (e) {
+      if (!keep[e.from] || !keep[e.to]) return;
+      (adj[e.from] = adj[e.from] || []).push(e.to);
+      (adj[e.to] = adj[e.to] || []).push(e.from);
+    });
+    var reach = {};
+    var stack = g.root && keep[g.root] ? [g.root] : [];
+    if (stack.length) reach[g.root] = true;
+    while (stack.length) {
+      (adj[stack.pop()] || []).forEach(function (n) { if (!reach[n]) { reach[n] = true; stack.push(n); } });
+    }
+    var nodes = g.nodes.filter(function (n) { return reach[n.id]; });
+    var edges = (g.edges || []).filter(function (e) { return reach[e.from] && reach[e.to]; });
     var out = {};
     Object.keys(g).forEach(function (k) { out[k] = g[k]; });
     out.nodes = nodes; out.edges = edges; out.hidden = g.nodes.length - nodes.length;
@@ -92,6 +109,7 @@
     state.lastGraph = raw;
     syncTypeFilters(raw);
     var graph = filterGraph(raw, state.filters);
+    if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
     var lay = layoutGraph(graph);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.setAttribute('width', lay.width);
@@ -294,12 +312,14 @@
     var timer = null;
     input.addEventListener('input', function () {
       clearTimeout(timer);
+      ++searchSeq; // anything already in flight is superseded, even if this input is empty
       timer = setTimeout(function () {
         var q = input.value.trim();
-        var my = ++searchSeq;
+        var my = searchSeq;
         list.textContent = '';
         if (!q) return;
-        var url = '/api/req-graph/search?q=' + encodeURIComponent(q) + (state.config ? '&config=' + encodeURIComponent(state.config) : '');
+        var cfg = document.getElementById('req-config').value.trim();
+        var url = '/api/req-graph/search?q=' + encodeURIComponent(q) + (cfg ? '&config=' + encodeURIComponent(cfg) : '');
         fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); }).then(function (res) {
           if (my !== searchSeq) return; // a newer search superseded this one
           list.textContent = '';
@@ -310,7 +330,7 @@
             var b = document.createElement('button');
             b.type = 'button';
             b.textContent = r.id + (r.name ? ' — ' + r.name : '') + ' (' + (r.type || '?') + ')';
-            b.addEventListener('click', function () { list.textContent = ''; input.value = ''; focusOn(r.id, true); });
+            b.addEventListener('click', function () { ++searchSeq; clearTimeout(timer); list.textContent = ''; input.value = ''; focusOn(r.id, true); });
             li.appendChild(b);
             list.appendChild(li);
           });
@@ -372,7 +392,7 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { layoutGraph: layoutGraph, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { layoutGraph: layoutGraph, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }
