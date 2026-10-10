@@ -465,6 +465,7 @@ async fn the_overview_lists_unverified_and_unlinked_requirements() {
     let lk = v["unlinkedList"].as_array().unwrap();
     assert_eq!(lk.len(), 25);
     assert_eq!(lk[0]["id"], "REQ-OV-002", "REQ-OV-001 is linked by its test");
+    assert!(lk.iter().all(|e| e["id"] != "REQ-OV-001"), "the linked requirement is in neither list");
     assert_eq!(v["unlinked"], 29);
 }
 
@@ -473,4 +474,22 @@ async fn the_page_has_the_overview_container() {
     let a = app();
     let (_, _, html) = get(&a, "/requirements").await;
     assert!(html.contains("id=\"req-overview\""), "{html}");
+}
+
+#[tokio::test]
+async fn the_overview_lists_are_complete_below_the_cap_and_empty_for_an_empty_model() {
+    let a = app();
+    let (_, _, body) = get(&a, "/api/req-graph/overview").await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["requirements"], 0);
+    assert_eq!(v["unverifiedList"], serde_json::json!([]));
+    assert_eq!(v["unlinkedList"], serde_json::json!([]));
+    let owned: Vec<(String, String)> = (1..=3).map(|i| req(&format!("REQ-OVS-{i:03}"), "n")).collect();
+    let files: Vec<(&str, &str)> = owned.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let b = app_with(&files);
+    let (_, _, body) = get(&b, "/api/req-graph/overview").await;
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["unverifiedList"].as_array().unwrap().len() as u64, v["verification"]["unverified"].as_u64().unwrap_or(0), "uncapped: list equals count");
+    assert_eq!(v["unlinkedList"].as_array().unwrap().len(), 3);
+    assert_eq!(v["unlinkedList"].as_array().unwrap().len() as u64, v["unlinked"].as_u64().unwrap());
 }

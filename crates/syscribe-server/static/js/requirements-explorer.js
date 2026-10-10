@@ -604,6 +604,7 @@
   function loadOverview(my) {
     var ov = document.getElementById('req-overview');
     if (!ov) return Promise.resolve();
+    ov.textContent = 'Loading…'; // never leave the previous model's numbers up while the new ones load
     var url = '/api/req-graph/overview' + (state.config ? '?config=' + encodeURIComponent(state.config) : '');
     return fetch(url)
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
@@ -612,6 +613,7 @@
         ov.textContent = '';
         if (!res.ok) { ov.textContent = (res.body && res.body.error) || 'Overview unavailable.'; return; }
         var o = res.body;
+        setStatus(o.requirements ? 'Pick a requirement from the lists above, or enter an id or qualified name.' : 'This model has no requirements.');
         var h = document.createElement('h2');
         h.textContent = o.requirements + ' requirement(s)';
         ov.appendChild(h);
@@ -637,7 +639,7 @@
     var my = ++seq; // only the newest request may draw: an older response arriving late is dropped
     var ov = document.getElementById('req-overview');
     if (ov) ov.hidden = !!state.focus;
-    if (!state.focus) { clearGraph(); setStatus('Pick a requirement below, or enter an id or qualified name.'); return loadOverview(my); }
+    if (!state.focus) { clearGraph(); setStatus('Loading…'); return loadOverview(my); }
     setStatus('Loading…');
     return fetch('/api/req-graph?' + query().toString())
       .then(function (r) {
