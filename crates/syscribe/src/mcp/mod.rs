@@ -563,6 +563,7 @@ fn fn_verdict_str(v: FnVerdict) -> &'static str {
         FnVerdict::Pass => "pass",
         FnVerdict::Fail => "fail",
         FnVerdict::Ignored => "ignored",
+        FnVerdict::Flaky => "flaky",
         FnVerdict::Missing => "missing",
     }
 }

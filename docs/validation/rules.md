@@ -49,7 +49,7 @@ This page groups every finding code by feature area, with context. The same code
 | W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
 | W008 | Element has no `type:` field — will be ignored by most commands |
 | W009 | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; a planned/draft TestCase reports the informational `I010` instead) |
-| W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
+| W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, was flaky (passed only after a retry), or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 
 ## Cross-reference errors (E101–E106, E110–E128)

@@ -13,7 +13,10 @@ skipped, or were missing from the run.
 Two source shapes, feeding two different verdict axes:
 
 - **`cargo-json`/`junit`** — automated test output, reduced to a per-**function**
-  verdict (matched against a TestCase's `testFunctions[].function`).
+  verdict (matched against a TestCase's `testFunctions[].function`). JUnit results
+  are also keyed by `classname::name`, so a reference like `com.A#test_x` is exact
+  and a bare `test_x` takes the worst of any same-named tests; a testcase with a
+  `flakyFailure`/`rerunFailure` child and no failure is `flaky` (not a pass; `W010`).
 - **`session-log`** — a JSON array of manual/exploratory verification records,
   one per Gherkin scenario actually exercised against a live system (a curl
   session, an MQTT probe client, a CLI walkthrough — anything session-based

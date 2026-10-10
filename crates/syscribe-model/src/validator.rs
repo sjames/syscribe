@@ -2766,6 +2766,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                         tc_status, func
                                     ),
                                 )),
+                                FnVerdict::Flaky => findings.push(warning(
+                                    "W010",
+                                    &file,
+                                    &format!(
+                                        "{} TestCase: test function '{}' is flaky in the ingested results (passed only after a retry)",
+                                        tc_status, func
+                                    ),
+                                )),
                                 FnVerdict::Fail => findings.push(warning(
                                     "W010",
                                     &file,

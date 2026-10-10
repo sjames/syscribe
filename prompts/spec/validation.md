@@ -92,7 +92,7 @@
 | `W006` | Both `silLevel:` and `asilLevel:` set on the same element — incompatible standards |
 | `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
 | `W008` | Element has no `type:` field — it will be ignored by most commands |
-| `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
+| `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, was flaky (passed only after a retry), or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | `W300` | Leaf `Requirement` at `approved`/`implemented` has no satisfying architecture element |
 | `W301` | **Retired** (GH #121) — no longer emitted; a leaf may be satisfied by several elements |
 | `W302` | Leaf `Requirement` at `implemented`/`verified` still has `reqDomain: system` |

@@ -29,6 +29,8 @@ pub enum Verdict {
     Pass,
     Fail,
     Ignored,
+    /// Passed only after a retry (JUnit `flakyFailure`/`rerunFailure`, GH #259): not a pass.
+    Flaky,
 }
 
 /// Provenance of one sidecar section: which ingest last replaced it.
@@ -154,7 +156,7 @@ pub fn testcase_verdict(tc: &crate::element::RawElement, results: Option<&Result
             match results.verdict_for(f) {
                 FnVerdict::Fail => return V::Fail,
                 FnVerdict::Pass => {}
-                FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+                FnVerdict::Ignored | FnVerdict::Missing | FnVerdict::Flaky => all_pass = false,
             }
         }
         return if all_pass { V::Pass } else { V::Unknown };
@@ -169,7 +171,7 @@ pub fn testcase_verdict(tc: &crate::element::RawElement, results: Option<&Result
         match results.scenario_verdict(tc_id, s) {
             FnVerdict::Fail => return V::Fail,
             FnVerdict::Pass => {}
-            FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+            FnVerdict::Ignored | FnVerdict::Missing | FnVerdict::Flaky => all_pass = false,
         }
     }
     if all_pass {
@@ -185,6 +187,8 @@ pub enum FnVerdict {
     Pass,
     Fail,
     Ignored,
+    /// Passed only after a retry (GH #259).
+    Flaky,
     /// The function was not present in the ingested run.
     Missing,
 }
@@ -268,10 +272,16 @@ impl ResultsData {
 
     /// Verdict for a `testFunctions[].function` reference.
     pub fn verdict_for(&self, function_ref: &str) -> FnVerdict {
-        match self.by_leaf.get(function_leaf(function_ref)) {
+        // A class-qualified reference (`C#N`, `C::N`) is looked up exactly first; JUnit
+        // ingestion stores `classname::name` beside the leaf (GH #259). A leaf never
+        // contains `:`, so qualified keys cannot collide with leaves.
+        let qualified = function_ref.replace('#', "::");
+        let hit = if qualified.contains("::") { self.by_leaf.get(&qualified) } else { None };
+        match hit.or_else(|| self.by_leaf.get(function_leaf(function_ref))) {
             Some(Verdict::Pass) => FnVerdict::Pass,
             Some(Verdict::Fail) => FnVerdict::Fail,
             Some(Verdict::Ignored) => FnVerdict::Ignored,
+            Some(Verdict::Flaky) => FnVerdict::Flaky,
             None => FnVerdict::Missing,
         }
     }
@@ -283,18 +293,29 @@ impl ResultsData {
             Some(Verdict::Pass) => FnVerdict::Pass,
             Some(Verdict::Fail) => FnVerdict::Fail,
             Some(Verdict::Ignored) => FnVerdict::Ignored,
+            Some(Verdict::Flaky) => FnVerdict::Flaky,
             None => FnVerdict::Missing,
         }
     }
 
+    /// Worst-wins ordering used when two results share a key: Fail > Flaky > Pass > Ignored.
+    fn rank(v: Verdict) -> u8 {
+        match v {
+            Verdict::Fail => 3,
+            Verdict::Flaky => 2,
+            Verdict::Pass => 1,
+            Verdict::Ignored => 0,
+        }
+    }
+
     fn record(map: &mut HashMap<String, Verdict>, name: &str, verdict: Verdict) {
-        let leaf = function_leaf(name).to_string();
-        map.entry(leaf)
+        Self::record_key(map, function_leaf(name), verdict);
+    }
+
+    fn record_key(map: &mut HashMap<String, Verdict>, key: &str, verdict: Verdict) {
+        map.entry(key.to_string())
             .and_modify(|existing| {
-                // Fail is sticky; otherwise the latest non-ignored wins.
-                if *existing != Verdict::Fail && verdict == Verdict::Fail {
-                    *existing = Verdict::Fail;
-                } else if *existing == Verdict::Ignored {
+                if Self::rank(verdict) > Self::rank(*existing) {
                     *existing = verdict;
                 }
             })
@@ -349,15 +370,28 @@ impl ResultsData {
 
         // Track the current open testcase: (leaf-name, verdict-so-far).
         let mut current: Option<(String, Verdict)> = None;
+        // The open testcase's classname and whether it carried a retry marker.
+        let mut class: String = String::new();
+        let mut retried = false;
         let mut buf = Vec::new();
 
-        let extract_name = |e: &quick_xml::events::BytesStart| -> Option<String> {
+        let extract = |e: &quick_xml::events::BytesStart, key: &[u8]| -> Option<String> {
             for attr in e.attributes().flatten() {
-                if attr.key.as_ref() == b"name" {
+                if attr.key.as_ref() == key {
                     return Some(String::from_utf8_lossy(&attr.value).into_owned());
                 }
             }
             None
+        };
+        // Record a finished testcase: leaf key and, when a classname is known, the
+        // qualified `classname::name` key (GH #259). A retry marker on an otherwise
+        // passing testcase makes it flaky.
+        let finish_case = |by_leaf: &mut HashMap<String, Verdict>, name: &str, class: &str, verdict: Verdict, retried: bool| {
+            let verdict = if retried && verdict == Verdict::Pass { Verdict::Flaky } else { verdict };
+            Self::record(by_leaf, name, verdict);
+            if !class.is_empty() {
+                Self::record_key(by_leaf, &format!("{class}::{}", function_leaf(name)), verdict);
+            }
         };
 
         loop {
@@ -368,14 +402,19 @@ impl ResultsData {
                         b"testcase" => {
                             // Flush a previous (Empty-element edge cases aside).
                             if let Some((name, verdict)) = current.take() {
-                                Self::record(&mut by_leaf, &name, verdict);
+                                finish_case(&mut by_leaf, &name, &class, verdict, retried);
                                 count += 1;
                             }
-                            let name = extract_name(e).unwrap_or_default();
+                            let name = extract(e, b"name").unwrap_or_default();
+                            class = extract(e, b"classname").unwrap_or_default();
+                            retried = false;
                             // A self-closing <testcase .../> (Event::Empty) with no
                             // failure/error child is a pass; it is flushed when the
                             // next testcase opens or at EOF.
                             current = Some((name, Verdict::Pass));
+                        }
+                        b"flakyFailure" | b"flakyError" | b"rerunFailure" | b"rerunError" => {
+                            retried = true;
                         }
                         b"failure" | b"error" => {
                             if let Some((_, v)) = current.as_mut() {
@@ -396,7 +435,7 @@ impl ResultsData {
                     if e.local_name().as_ref() == b"testcase" {
                         if let Some((name, verdict)) = current.take() {
                             if !name.is_empty() {
-                                Self::record(&mut by_leaf, &name, verdict);
+                                finish_case(&mut by_leaf, &name, &class, verdict, retried);
                                 count += 1;
                             }
                         }
@@ -410,7 +449,7 @@ impl ResultsData {
         }
         if let Some((name, verdict)) = current.take() {
             if !name.is_empty() {
-                Self::record(&mut by_leaf, &name, verdict);
+                finish_case(&mut by_leaf, &name, &class, verdict, retried);
                 count += 1;
             }
         }

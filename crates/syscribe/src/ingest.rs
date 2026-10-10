@@ -74,13 +74,22 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
     match data.merge_into_sidecar(model_root) {
         Ok((path, _merged)) => {
             use syscribe_model::results::Verdict;
-            let verdicts = data.by_leaf.values().chain(data.by_scenario.values());
+            // Class-qualified keys (`classname::name`, GH #259) duplicate their leaf entry;
+            // count each test once. A leaf never contains `:`.
+            let verdicts = data
+                .by_leaf
+                .iter()
+                .filter(|(k, _)| !k.contains("::"))
+                .map(|(_, v)| v)
+                .chain(data.by_scenario.values());
             let pass = verdicts.clone().filter(|v| matches!(v, Verdict::Pass)).count();
             let fail = verdicts.clone().filter(|v| matches!(v, Verdict::Fail)).count();
+            let flaky = verdicts.clone().filter(|v| matches!(v, Verdict::Flaky)).count();
             let ign = verdicts.filter(|v| matches!(v, Verdict::Ignored)).count();
+            let flaky_note = if flaky > 0 { format!(", {flaky} flaky") } else { String::new() };
             println!(
-                "Ingested {} test result(s) from {} ({}): {} pass, {} fail, {} ignored.",
-                data.count, file, fmt, pass, fail, ign
+                "Ingested {} test result(s) from {} ({}): {} pass, {} fail{}, {} ignored.",
+                data.count, file, fmt, pass, fail, flaky_note, ign
             );
             // Worded without a parenthesised format so the only `(<format>)`
             // in the output stays the "Ingested … (<format>)" line above.
