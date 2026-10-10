@@ -101,3 +101,19 @@ fn status_and_achieves_keep_working() {
     assert_eq!(c, 0, "{o}");
     assert!(read(&r, "REQ-SG-001.md").contains("status: review"));
 }
+
+#[test]
+fn literal_looking_values_are_quoted_and_duplicate_adds_are_noops() {
+    let r = model();
+    let (o, c) = run(&r, &["set", "REQ-SG-001", "responsibility=null"]);
+    assert_eq!(c, 0, "{o}");
+    let t = read(&r, "REQ-SG-001.md");
+    assert!(t.contains("responsibility: 'null'") || t.contains("responsibility: \"null\""), "{t}");
+    let before = read(&r, "REQ-SG-001.md");
+    let (o, c) = run(&r, &["set", "REQ-SG-001", "tags.add", "alpha"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(o.contains("nothing to do"), "{o}");
+    assert_eq!(before, read(&r, "REQ-SG-001.md"));
+    let (_, c) = run(&r, &["set", "REQ-SG-001", "tags.add"]);
+    assert_eq!(c, 1);
+}

@@ -451,7 +451,7 @@ fn file_errors(elements: &[RawElement], vcfg: &ValidateConfig, rel: &str) -> std
     validator::validate_with_config(elements, vcfg)
         .findings
         .into_iter()
-        .filter(|f| f.severity == validator::Severity::Error && f.file.ends_with(rel))
+        .filter(|f| f.severity == validator::Severity::Error && (f.file == rel || f.file.ends_with(&format!("/{rel}"))))
         .map(|f| (f.code.to_string(), f.message))
         .collect()
 }
@@ -468,8 +468,10 @@ fn validate_candidate(
     let rel = elem
         .file_path
         .strip_prefix(&*model_root.to_string_lossy())
-        .map(|s| s.trim_start_matches(['/', '\\']).to_string())
-        .unwrap_or_else(|| elem.file_path.clone());
+        .map(|s| s.trim_start_matches(['/', '\\']).to_string());
+    let Some(rel) = rel else {
+        return Err(vec![format!("{} is not under the model root", elem.file_path)]);
+    };
     let vcfg = ValidateConfig::with_model_root(model_root);
     let base = file_errors(elements, &vcfg, &rel);
     let rel_apply = rel.clone();
@@ -527,7 +529,7 @@ fn cmd_set_generic(
         list.push(Value::String(value.to_string()));
         append_to_list_field(&content, &elem.file_path, field, &[vec![line_scalar(value)]], json!(list))
     } else {
-        let new_line = format!("{field}: {}", yaml_scalar(value));
+        let new_line = format!("{field}: {}", line_scalar(value));
         let prefix = format!("{field}:");
         let mut found = false;
         let mut lines: Vec<String> = Vec::new();
