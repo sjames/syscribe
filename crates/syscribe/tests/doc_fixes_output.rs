@@ -54,3 +54,18 @@ fn the_cal3_w039_message_says_i2_or_higher() {
     let line = out.lines().find(|l| l.contains("W039") && l.contains("CAL3")).unwrap_or_else(|| panic!("{out}"));
     assert!(line.contains("I2 or higher"), "{line}");
 }
+
+#[test]
+fn the_testplan_legend_does_not_contain_verdict_words_that_would_confuse_text_checks() {
+    // qual/tests/tc/TC-TRS-PLAN-005.sh greps the text output for the verdict word.
+    let out = run(&model(), &["testplan"]);
+    let legend = out.lines().find(|l| l.starts_with("Coverage =")).unwrap();
+    assert!(!legend.to_lowercase().contains("pass") && !legend.to_lowercase().contains("fail"), "{legend}");
+    assert!(legend.contains("non-draft"), "{legend}");
+}
+
+#[test]
+fn the_verification_depth_note_is_accurate_about_manual_tests() {
+    let out = run(&model(), &["verification-depth"]);
+    assert!(out.contains("`active` TestCases only"), "{out}");
+}

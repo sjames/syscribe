@@ -1162,6 +1162,8 @@ $ syscribe -m model_sil/ verification-depth --sil 4
 
 # Verification depth (9 requirements)
 
+Counts `active` TestCases only (draft, approved and retired ones do not count).
+
 | Requirement | SIL/ASIL | Levels | Count | Flag | Failing | Not run |
 |---|---|---|---|---|---|---|
 | REQ-SIL-SAFE-001 | 4 | L4 | 1 | single | — | — |

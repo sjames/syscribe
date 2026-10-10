@@ -129,7 +129,7 @@ pub fn cmd_verification_depth(
     println!();
     println!(
         "Counts `active` TestCases only (draft, approved and retired ones do not count){}.",
-        if results.is_some() { "; with ingested results a failing or unrun test is excluded too" } else { "" }
+        if results.is_some() { "; with ingested results a failing test, and an automated test whose functions did not run, is excluded too" } else { "" }
     );
     println!();
     println!("| Requirement | SIL/ASIL | Levels | Count | Flag | Failing | Not run |");

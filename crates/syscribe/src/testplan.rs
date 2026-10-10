@@ -397,7 +397,7 @@ pub fn cmd_testplan_list(elements: &[RawElement], json: bool, results: Option<&R
     }
     println!();
     println!(
-        "Coverage = requirements in the plan's scope covered by a linked member TestCase, as a percentage of the requirements applicable in the plan's configurations. It is a traceability measure, not an execution result: Verdict (pass / fail / incomplete / empty) folds the ingested results."
+        "Coverage = requirements in the plan's scope covered by a non-draft member TestCase, as a percentage of the requirements applicable in the plan's configurations (with a feature model, a requirement whose only member tests were unsuccessful in the ingested results counts as not covered). Verdict is the separate roll-up of the members' ingested results."
     );
 }
 
