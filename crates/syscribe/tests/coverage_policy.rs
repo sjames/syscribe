@@ -145,3 +145,30 @@ fn a_status_selector_cannot_loosen_a_rated_requirement() {
     let (o, c) = top(&model(t, "asilLevel: B\n"));
     assert_eq!(c, 1, "{o}");
 }
+
+#[test]
+fn new_selectors_are_validated_case_insensitive_any_of_and_anded() {
+    for bad in ["requirementKind = [\"proces\"]", "status = [\"aproved\"]"] {
+        let (o, c) = top(&model(&format!("[[coverage.rule]]\n{bad}\nparent_rule = \"rollup\"\n"), ""));
+        assert_eq!(c, 1, "{bad}: {o}");
+        assert!(o.contains("must be one of"), "{bad}: {o}");
+    }
+    // case-insensitive and any-of
+    let t = "[[coverage.rule]]\nrequirementKind = [\"Hardware\", \"PROCESS\"]\nstatus = [\"draft\", \"APPROVED\"]\nparent_rule = \"rollup\"\n";
+    assert!(top(&model(t, "requirementKind: process\n")).0.contains("(rule: rollup)"));
+    // ANDed with an existing selector: the class does not match, so the default applies
+    let t = "[[coverage.rule]]\nrequirementKind = [\"process\"]\nreqClass = \"stakeholder\"\nparent_rule = \"rollup\"\n";
+    assert!(top(&model(t, "requirementKind: process\n")).0.contains("(rule: both)"));
+}
+
+#[test]
+fn new_selectors_reach_matrix_rollup_and_the_validator_guard() {
+    let t = "[[coverage.rule]]\nrequirementKind = [\"process\"]\nparent_rule = \"rollup\"\n";
+    let r = model(t, "requirementKind: process\n");
+    let (o, _) = run(&r, &["matrix", "--rollup", "--json"]);
+    assert!(o.contains("rollup"), "matrix --rollup names the applied rule: {o}");
+    // a rated requirement selected by the new selector is still refused by the validator (E898)
+    let r = model(t, "requirementKind: process\nasilLevel: B\n");
+    let (o, _) = run(&r, &["validate"]);
+    assert!(o.contains("E898"), "{o}");
+}

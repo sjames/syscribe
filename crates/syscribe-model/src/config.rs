@@ -1535,6 +1535,10 @@ impl ParentRule {
     }
 }
 
+/// The `requirementKind` vocabulary (E022) and the Requirement lifecycle, as accepted by rule selectors.
+const COVERAGE_REQUIREMENT_KINDS: &[&str] = &["stakeholder", "system", "software", "hardware", "process", "regulatory", "deliverable"];
+const COVERAGE_REQUIREMENT_STATUSES: &[&str] = &["draft", "review", "approved", "implemented", "verified"];
+
 /// One `[[coverage.rule]]`; every given selector must match.
 #[derive(Debug, Clone)]
 pub struct CoverageRule {
@@ -1642,8 +1646,22 @@ impl CoveragePolicy {
                                     None => p.problems.push(format!("{at}: parent_rule {rv} must be \"direct\", \"rollup\" or \"both\"")),
                                 },
                                 ("reqClass", Some(l)) => rule.req_class = Some(l),
-                                ("requirementKind", Some(l)) => rule.requirement_kind = Some(l),
-                                ("status", Some(l)) => rule.status = Some(l),
+                                ("requirementKind", Some(l)) => {
+                                    let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_lowercase()).collect();
+                                    if l.iter().all(|x| COVERAGE_REQUIREMENT_KINDS.contains(&x.as_str())) {
+                                        rule.requirement_kind = Some(l);
+                                    } else {
+                                        p.problems.push(format!("{at}: requirementKind entries must be one of {}", COVERAGE_REQUIREMENT_KINDS.join(", ")));
+                                    }
+                                }
+                                ("status", Some(l)) => {
+                                    let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_lowercase()).collect();
+                                    if l.iter().all(|x| COVERAGE_REQUIREMENT_STATUSES.contains(&x.as_str())) {
+                                        rule.status = Some(l);
+                                    } else {
+                                        p.problems.push(format!("{at}: status entries must be one of {}", COVERAGE_REQUIREMENT_STATUSES.join(", ")));
+                                    }
+                                }
                                 ("tag", Some(l)) => rule.tag = Some(l),
                                 ("asil", Some(l)) => {
                                     let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();

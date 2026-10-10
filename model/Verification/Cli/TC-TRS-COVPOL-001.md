@@ -18,7 +18,7 @@ Feature: coverage policy
     Then a parent with all leaves verified and no direct test is complete under rollup and partial by default
 
   Scenario: selectors and order
-    Then reqClass, tag and sil selectors match and the first matching rule wins
+    Then reqClass, requirementKind, status, tag and sil selectors match and the first matching rule wins
 
   Scenario: misconfiguration
     Then loosening an ASIL requirement or an invalid value exits 1 naming the cause

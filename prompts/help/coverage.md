@@ -44,6 +44,10 @@ How a parent is judged complete is a policy, `both` by default:
     reqClass = "stakeholder"     # also requirementKind = ["process"], status = ["approved"], tag = ["function"] (any of)
     parent_rule = "rollup"
 
+A requirement without the field never matches a requirementKind/status selector;
+unknown values are errors. A status rule that reaches a rated requirement when it
+moves to that status becomes a configuration error then.
+
 `direct`: a direct active test is enough. `rollup`: every leaf below verified.
 `both`: a direct test and every leaf. A rule that loosens an integrity-rated
 requirement (ASIL A-D, CAL1-4, SIL >= 1) is a configuration error — the command
