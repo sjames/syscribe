@@ -13,8 +13,6 @@
   var FILL = { verified: '#e3f4e5', planned: '#fff3d6', unverified: '#fde4e1', na: '#eceff4' };
   var STROKE = { verified: '#2e7d32', planned: '#b7791f', unverified: '#c0392b', na: '#7a869a' };
 
-  // Pure layout: layers by hop distance from the root over the undirected edges. Nodes unreachable from
-  // the root (the API never returns any) go one column past the last. Deterministic: ids sorted per column.
   var VM_LABELS = ['Stakeholder requirements', 'System requirements', 'Other requirements', 'Architecture', 'Tests', 'Other elements'];
 
   // The V-model column of a node (0 stakeholder .. 5 everything else); a pure function of the node.
@@ -25,8 +23,11 @@
     return 5;
   }
 
-  // `colOf(node)` (optional) assigns raw columns instead of hop distance; only occupied columns are used.
-  function layoutGraph(g, colOf) {
+  // Pure layout: layers by hop distance from the root over the undirected edges. Nodes unreachable from
+  // the root (the API never returns any) go one column past the last. Deterministic: ids sorted per column.
+  // `colOf(node)` (optional) assigns raw columns instead (a non-finite value counts as 0); only occupied
+  // columns are used, in order, and `labels[raw]` names the header of each (blank when absent).
+  function layoutGraph(g, colOf, labels) {
     var ids = g.nodes.map(function (n) { return n.id; });
     var adj = {};
     ids.forEach(function (id) { adj[id] = []; });
@@ -47,12 +48,13 @@
     var headers;
     if (colOf) {
       var raws = [];
-      g.nodes.forEach(function (n) { var r = colOf(n); if (raws.indexOf(r) < 0) raws.push(r); });
+      var raw = function (n) { var r = Number(colOf(n)); return isFinite(r) ? r : 0; };
+      g.nodes.forEach(function (n) { var r = raw(n); if (raws.indexOf(r) < 0) raws.push(r); });
       raws.sort(function (a, b) { return a - b; });
       var rank = {};
       raws.forEach(function (r, i) { rank[r] = i; });
-      g.nodes.forEach(function (n) { col[n.id] = rank[colOf(n)]; });
-      headers = raws.map(function (r, i) { return { col: i, label: VM_LABELS[r] || '' }; });
+      g.nodes.forEach(function (n) { col[n.id] = rank[raw(n)]; });
+      headers = raws.map(function (r, i) { return { col: i, label: (labels && labels[r]) || '' }; });
     }
     var byCol = {};
     g.nodes.forEach(function (n) { (byCol[col[n.id]] = byCol[col[n.id]] || []).push(n); });
@@ -269,7 +271,7 @@
     syncTypeFilters(raw);
     var graph = filterGraph(raw, state.filters);
     if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
-    var lay = layoutGraph(graph, state.layout === 'v-model' ? vmodelColumn : undefined);
+    var lay = layoutGraph(graph, state.layout === 'v-model' ? vmodelColumn : undefined, VM_LABELS);
     var tr = null;
     if (state.trace) {
       var start = state.selected && graph.nodes.some(function (n) { return n.id === state.selected; }) ? state.selected : graph.root;
@@ -316,12 +318,12 @@
       svg.appendChild(path);
       var pk = [e.from, e.to].sort().join('|');
       var k = seenPair[pk] = (seenPair[pk] || 0) + 1;
-      labels.push(el('text', { x: (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: (y1 + y2) / 2 - 4 + (k - 1) * 12, 'text-anchor': 'middle', class: 'rg-edge-label' + (tr && !tr.edgeSet[ei] ? ' dim' : '') }, e.kind));
+      labels.push(el('text', { x: Math.abs(a.col - b.col) > 1 ? x1 + GAP_X / 2 : (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: Math.abs(a.col - b.col) > 1 ? y1 - 4 + (k - 1) * 12 : (y1 + y2) / 2 - 4 + (k - 1) * 12, 'text-anchor': 'middle', class: 'rg-edge-label' + (tr && !tr.edgeSet[ei] ? ' dim' : '') }, e.kind));
     });
     lay.nodes.forEach(function (n) {
       var v = n.verification || 'na';
       var vlabel = { verified: 'verified', planned: 'verification planned', unverified: 'not verified', na: '' }[v] || '';
-      var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '') + (tr && tr.nodeSet[n.id] ? (tr.targetSet[n.id] ? ', trace target' : ', on trace') : '');
+      var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '') + (tr && tr.nodeSet[n.id] ? (tr.targetSet[n.id] ? ', trace target' : ', on trace') : '') + (state.layout === 'v-model' ? ', ' + VM_LABELS[vmodelColumn(n)] : '');
       var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (tr ? (tr.targetSet[n.id] ? ' target hl' : tr.nodeSet[n.id] ? ' hl' : ' dim') : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0', role: 'button', 'aria-label': summary, 'aria-pressed': state.selected === n.id ? 'true' : 'false' });
       g.appendChild(el('title', {}, summary));
       g.appendChild(el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, fill: FILL[v] || FILL.na, stroke: STROKE[v] || STROKE.na }));
@@ -738,6 +740,7 @@
     });
     setView('graph');
     var lo = document.getElementById('req-layout');
+    if (lo) state.layout = lo.value || 'hops'; // a restored form value must match what is drawn
     if (lo) lo.addEventListener('change', function () { state.layout = lo.value; if (state.lastGraph) draw(state.lastGraph); });
     var ts = document.getElementById('req-trace');
     if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); });

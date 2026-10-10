@@ -376,14 +376,17 @@ const nodes = [{{id:'S',type:'Requirement',reqClass:'stakeholder'}},{{id:'Y',typ
 const cols = Object.fromEntries(nodes.map(n => [n.id, m.vmodelColumn(n)]));
 // no stakeholder, no tests: columns 0 and 4 are empty and must not be drawn
 const g = {{root:'Y', nodes:[nodes[1],nodes[2],nodes[4],nodes[6]], edges:[{{from:'W',to:'Y',kind:'x'}},{{from:'Y',to:'P',kind:'x'}}]}};
-const l = m.layoutGraph(g, m.vmodelColumn);
+const l = m.layoutGraph(g, m.vmodelColumn, ['Stakeholder requirements','System requirements','Other requirements','Architecture','Tests','Other elements']);
+const many = {{root:'S', nodes:[nodes[0],nodes[1],nodes[2],nodes[3],nodes[4],nodes[5],nodes[6],nodes[7],{{id:'T2',type:'TestCase'}},{{id:'T3',type:'TestCase'}}], edges:[{{from:'T',to:'S',kind:'verifies'}},{{from:'N',to:'W',kind:'x'}}]}};
+const lm = m.layoutGraph(many, m.vmodelColumn, ['Stakeholder requirements']);
+const odd = m.layoutGraph({{root:'a', nodes:[{{id:'a'}},{{id:'b'}}], edges:[]}}, n => n.id === 'a' ? undefined : NaN);
 let overlap = false;
 for (let i = 0; i < l.nodes.length; i++) for (let j = i+1; j < l.nodes.length; j++) {{
   const a = l.nodes[i], b = l.nodes[j];
   if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) overlap = true;
 }}
 const used = Object.fromEntries(l.nodes.map(n => [n.id, n.col]));
-console.log(JSON.stringify({{ cols, used, headers: (l.headers || []).map(h => [h.col, h.label]), overlap, hop: m.layoutGraph(g).headers || null }}));"#
+console.log(JSON.stringify({{ cols, used, headers: (l.headers || []).map(h => [h.col, h.label]), overlap, manyCols: [...new Set(lm.nodes.map(n => n.col))].sort(), manyHeaders: lm.headers.map(h => h.label), manyOverlap: (() => {{ for (let i = 0; i < lm.nodes.length; i++) for (let j = i+1; j < lm.nodes.length; j++) {{ const a = lm.nodes[i], b = lm.nodes[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) return true; }} return false; }})(), odd: odd.nodes.map(n => n.col), oddHeaders: odd.headers, hop: m.layoutGraph(g).headers || null }}));"#
     );
     let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
@@ -393,6 +396,11 @@ console.log(JSON.stringify({{ cols, used, headers: (l.headers || []).map(h => [h
     assert_eq!(v["used"], serde_json::json!({"Y": 0, "W": 1, "P": 2, "H": 3}), "{v}");
     assert_eq!(v["headers"], serde_json::json!([[0, "System requirements"], [1, "Other requirements"], [2, "Architecture"], [3, "Other elements"]]));
     assert_eq!(v["overlap"], false);
+    assert_eq!(v["manyCols"], serde_json::json!([0, 1, 2, 3, 4, 5]), "all six columns occupied");
+    assert_eq!(v["manyHeaders"][0], "Stakeholder requirements");
+    assert_eq!(v["manyOverlap"], false, "tall columns do not overlap");
+    assert_eq!(v["odd"], serde_json::json!([0, 0]), "non-finite columns count as 0");
+    assert_eq!(v["oddHeaders"], serde_json::json!([{"col": 0, "label": ""}]), "no labels given, blank header");
     assert!(v["hop"].is_null(), "the default layout has no headers");
 }
 
