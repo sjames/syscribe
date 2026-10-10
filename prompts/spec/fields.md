@@ -178,7 +178,7 @@ computed by the tool and never authored.
 | Field | Type | Notes |
 |---|---|---|
 | `parent` | string | At most one other `PlanningItem` (strict tree; cycle `E712`) |
-| `achieves` | string or list | `Requirement`s this work realises — **required** on a top-level item (`E713`–`E715`) |
+| `achieves` | string or list | What this work realises — a `Requirement`, or a `SafetyGoal`/`CybersecurityGoal`/`ADR`/`Argument`/`TestPlan`/`Baseline` — **required** on a top-level item (`E713`–`E715`; `W315` when `done` but the target is still draft/review/proposed) |
 | `itemType` | string | `bug` · `task` · `feature` (`E709`) |
 | `blockedBy` | string or list | Any elements it waits on (`E720` dangling, `E721` cycle, `W308` if set while not `blocked`) |
 | `assignedTo` | string | Unix-style username (`E723`); checked against `[users]` when that roster is non-empty (`E722`) |

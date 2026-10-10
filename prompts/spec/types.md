@@ -76,7 +76,7 @@
 | `ADR` | Record | Architecture Decision Record — stable `ADR-*` ID |
 | `ReviewRecord` | Record | Formal review event + traceability anchor — stable `RR-*` ID |
 | `TradeStudy` | Record | Weighted-criteria evaluation of alternatives — stable `TRD-*` ID |
-| `PlanningItem` | Record | Native work-item tracking (§23) — stable `PI-*` ID; single-parent tree, `achieves:` a Requirement, `evidence:` proves `status: done` |
+| `PlanningItem` | Record | Native work-item tracking (§23) — stable `PI-*` ID; single-parent tree, `achieves:` a Requirement (or goal / ADR / argument / plan / baseline), `evidence:` proves `status: done` |
 | `Baseline` | Record | Sealed release snapshot — stable `BL-*` ID (need not end in a number, e.g. `BL-2026-07`); written by `baseline create`, drift-checked on every validate (`E520`–`E522`, `W520`) |
 | `FeatureModel` | PLE | Single-file feature model: a flat `featureTree:` list (dotted `name:` paths) exploded into ordinary `FeatureDef` elements (§9.6a); optional `crossTreeConstraints:` / `parameterConstraints:` |
 | `Package` | Namespace | Named container; `_index.md` in a directory |

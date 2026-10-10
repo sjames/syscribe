@@ -409,9 +409,9 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
-## Native PlanningItem (E706–E717, E719–E723, W308–W311, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E723, W308–W311, W315, §23, ADR-SYS-PLANITEM-001)
 
-A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
+A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) — or goal, ADR, argument, plan or baseline — it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
 
 | Code | Condition |
 |---|---|
@@ -424,7 +424,7 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | E712 | A `parent:` chain forms a cycle. |
 | E713 | A top-level item (no `parent:`) has no `achieves:` entry. |
 | E714 | An `achieves:` entry does not resolve. |
-| E715 | An `achieves:` entry does not resolve to a native `Requirement`. |
+| E715 | An `achieves:` entry does not resolve to a native `Requirement`, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline`. |
 | E716 | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`). |
 | E717 | An `evidence[].path` does not exist on disk (and is not waived). |
 | E719 | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect. |
@@ -436,6 +436,7 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | W309 | A `[users]` key in `.syscribe.toml` is not a valid username — the entry is ignored (excluded from the roster `E722` checks against). |
 | W310 | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly on its own file — an active `TestCase` for a leaf Requirement, an active integration-level (`L3`/`L4`/`L5`) `TestCase` for a parent one (mirrors `W002`/`W305` exactly, just scoped to the specific `PlanningItem` about to claim `done` — a distinct finding, not a duplicate, since it lands on the `PlanningItem`'s own file). Never fires for `todo`/`in_progress`/`blocked`, and never re-flags an `E714`/`E715` target. |
 | W311 | Two `PlanningItem`s that are both "active" (`status: in_progress`, or explicitly claimed via `claimedBy:`) share an `achieves:` Requirement, or an `evidence[].path` resolving to the same repo-relative path — very likely two agents about to (or already) step on the same work. Fires once per overlapping pair, per overlap kind, attached to the lexically-first item's file (by stable id). |
+| W315 | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 
 `blockedBy:` is resolved permissively, like `evidence.ref:` — any model element, not restricted to `PlanningItem` — since an undecided `ADR` or any other unmet dependency is an equally legitimate blocker. It is graded the opposite way from `evidence:`: `status: blocked` with an **empty** `blockedBy:` raises nothing (being blocked needs no proof), while `status: done` on a leaf with no evidence does (`E719`).
 

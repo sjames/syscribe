@@ -103,6 +103,7 @@
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |
 | `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
+| `W315` | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 | `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
@@ -398,7 +399,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E712` | A `parent:` chain forms a cycle |
 | `E713` | A top-level item (no `parent:`) has no `achieves:` entry |
 | `E714` | An `achieves:` entry does not resolve |
-| `E715` | An `achieves:` entry does not resolve to a native Requirement |
+| `E715` | An `achieves:` entry does not resolve to a native Requirement, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` |
 | `E716` | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect |

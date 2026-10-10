@@ -688,7 +688,8 @@ pub struct RawFrontmatter {
     /// (id-or-qname); the reverse `children` index and cycle detection are
     /// computed the same way `derivedChildren`/`E017` are for `Requirement`.
     pub parent: Option<String>,
-    /// `achieves:` — one or more native `Requirement`s this `PlanningItem` exists
+    /// `achieves:` — one or more native `Requirement`s (or a `SafetyGoal`, `CybersecurityGoal`,
+    /// `ADR`, `Argument`, `TestPlan` or `Baseline`, GH #240) this `PlanningItem` exists
     /// to achieve (REQ-TRS-PLANITEM-003). Unlike `parent:`, legitimately a list
     /// (scalar or list accepted, like `derivedFrom`). Required (non-empty) on a
     /// top-level item (no `parent:`); optional otherwise. A distinct field from

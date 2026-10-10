@@ -3257,7 +3257,8 @@ id: PI-PREFIX-001
 name: "Short description of the work"
 status: todo               # todo | in_progress | blocked | done
 itemType: task              # bug | task | feature (optional)
-# A top-level item (no parent:) MUST set achieves: (E713/E714/E715).
+# A top-level item (no parent:) MUST set achieves: (E713/E714/E715): a Requirement, or a
+# SafetyGoal | CybersecurityGoal | ADR | Argument | TestPlan | Baseline.
 achieves:
   - REQ-PREFIX-001
 # A child item sets parent: instead of achieves: (single-parent tree, E712 cycle check).

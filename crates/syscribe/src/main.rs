@@ -1860,7 +1860,7 @@ fn main() {
             "set" => {
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 if key.is_empty() || rest.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>  [--dry-run]");
+                    eprintln!("Usage: syscribe --model <root> set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <ref>  [--dry-run]");
                     std::process::exit(1);
                 }
                 let dry_run = rest.iter().any(|a| a == "--dry-run");

@@ -148,7 +148,7 @@ fn achieves_add_refuses_a_non_requirement_target() {
     );
     let (_out, stderr, code) = run(&root, &["set", "PI-SET-001", "achieves.add", "PartX"]);
     assert_ne!(code, 0);
-    assert!(stderr.contains("native Requirement"), "{stderr}");
+    assert!(stderr.contains("native Requirement") && stderr.contains("ADR"), "{stderr}");
 }
 
 #[test]
@@ -244,4 +244,19 @@ fn planning_item_status_done_warns_on_the_w310_condition_but_still_writes() {
     assert!(stderr.contains("REQ-SET-012"), "should surface the under-verified achieves target: {stderr}");
     let after = read(&root, "PI-SET-005.md");
     assert!(after.contains("status: done"), "{after}");
+}
+
+#[test]
+fn achieves_add_accepts_an_adr() {
+    // GH #240: non-Requirement outcomes are valid `achieves:` targets.
+    let root = new_model();
+    write(&root, "ADR-SET-001.md", "---\nid: ADR-SET-001\ntype: ADR\nname: \"D\"\nstatus: accepted\n---\n\nBody.\n");
+    write(
+        &root,
+        "PI-SET-003.md",
+        "---\nid: PI-SET-003\ntype: PlanningItem\nname: \"An item\"\nstatus: in_progress\nparent: ADR-SET-001\n---\n\nBody.\n",
+    );
+    let (_out, err, code) = run(&root, &["set", "PI-SET-003", "achieves.add", "ADR-SET-001"]);
+    assert_eq!(code, 0, "{err}");
+    assert!(read(&root, "PI-SET-003.md").contains("ADR-SET-001"));
 }

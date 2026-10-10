@@ -662,6 +662,23 @@ impl Resolver {
         self.resolve_ref(elements, r)
     }
 
+    /// True if a `PlanningItem.achieves:` may name `elem`: a native Requirement or one of the
+    /// work products a plan can deliver without a requirement (GH #240).
+    pub fn is_achievable_target(elem: &RawElement) -> bool {
+        Self::is_native_requirement(elem)
+            || matches!(
+                elem.frontmatter.element_type,
+                Some(
+                    ElementType::SafetyGoal
+                        | ElementType::CybersecurityGoal
+                        | ElementType::ADR
+                        | ElementType::Argument
+                        | ElementType::TestPlan
+                        | ElementType::Baseline
+                )
+            )
+    }
+
     /// True if `elem` is a native Requirement (type: Requirement with a REQ-* id).
     pub fn is_native_requirement(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::Requirement))

@@ -6123,6 +6123,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
 | `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
+| `W315` | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 | `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
@@ -8128,7 +8129,7 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `status` | enum | **Required** | — | `todo` / `in_progress` / `blocked` / `done` — GitHub Projects' three built-in defaults plus `blocked`, needed so a consumer (human or LLM) can distinguish "not started" from "can't proceed." |
 | `itemType` | enum | optional | absent | `bug` / `task` / `feature` — exactly GitHub's own current default Issue Types. |
 | `parent` | string | optional | absent | A single other `PlanningItem` (id or qname) this one is a child of. Absent means top-level. Resolved like `derivedFrom:`; cycles are detected the same way. |
-| `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
+| `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s — or a `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` (GH #240) — (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
 | `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
 | `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
 | `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
@@ -8169,7 +8170,7 @@ evidence:
 | `E712` | A `parent:` chain forms a cycle |
 | `E713` | A top-level `PlanningItem` (no `parent:`) has no `achieves:` entry |
 | `E714` | An `achieves:` entry does not resolve to any element |
-| `E715` | An `achieves:` entry resolves to a real element that is not a native `Requirement` |
+| `E715` | An `achieves:` entry resolves to a real element that is not a native `Requirement`, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` |
 | `E716` | An `evidence[].ref` does not resolve to any model element (and is not waived) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A **leaf** `PlanningItem` (empty computed `children` — see §23.5) at `status: done` has no non-waived, resolving `evidence:` entry |

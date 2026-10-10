@@ -282,8 +282,8 @@ fn cmd_set_status(
     }
 }
 
-/// `achieves.add <req-id>` — the target must resolve to a native `Requirement`
-/// (mirrors `E714`/`E715`) before anything is written; appends without
+/// `achieves.add <ref>` — the target must resolve to a native `Requirement` or another
+/// achievable work product (mirrors `E714`/`E715`) before anything is written; appends without
 /// disturbing existing order.
 fn cmd_achieves_add(
     model_root: &Path,
@@ -298,9 +298,9 @@ fn cmd_achieves_add(
             eprintln!("Refusing to add achieves '{}' on {} — it does not resolve to any model element.", req_ref, elem.qualified_name);
             std::process::exit(1);
         }
-        Some(target) if !Resolver::is_native_requirement(target) => {
+        Some(target) if !Resolver::is_achievable_target(target) => {
             eprintln!(
-                "Refusing to add achieves '{}' on {} — it does not resolve to a native Requirement.",
+                "Refusing to add achieves '{}' on {} — it does not resolve to a native Requirement, SafetyGoal, CybersecurityGoal, ADR, Argument, TestPlan, or Baseline.",
                 req_ref, elem.qualified_name
             );
             std::process::exit(1);

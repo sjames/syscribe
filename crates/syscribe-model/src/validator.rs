@@ -4708,11 +4708,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             &elem.file_path,
                             &format!("unresolved PlanningItem achieves reference '{}'", a),
                         )),
-                        Some(target) if !Resolver::is_native_requirement(target) => {
+                        Some(target) if !Resolver::is_achievable_target(target) => {
                             findings.push(error(
                                 "E715",
                                 &elem.file_path,
-                                &format!("PlanningItem `achieves` '{}' does not resolve to a native Requirement", a),
+                                &format!(
+                                    "PlanningItem `achieves` '{}' does not resolve to a native Requirement, SafetyGoal, CybersecurityGoal, ADR, Argument, TestPlan, or Baseline",
+                                    a
+                                ),
                             ));
                         }
                         Some(_) => {}
@@ -4932,6 +4935,22 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         for a in ach {
             let Some(target) = resolver.resolve_ref(elements, a) else { continue };
             if !Resolver::is_native_requirement(target) {
+                // W315: a non-Requirement outcome (GH #240) is complete once its own status
+                // has moved past draft/review/proposed.
+                if Resolver::is_achievable_target(target)
+                    && matches!(target.frontmatter.status.as_deref(), None | Some("draft" | "review" | "proposed"))
+                {
+                    findings.push(warning(
+                        "W315",
+                        &elem.file_path,
+                        &format!(
+                            "PlanningItem '{}' is 'done', but achieves '{}' whose status is '{}' — the work product is not complete",
+                            pi_id,
+                            a,
+                            target.frontmatter.status.as_deref().unwrap_or("(none)")
+                        ),
+                    ));
+                }
                 continue;
             }
             let req_id = target.frontmatter.id.as_deref().unwrap_or(a.as_str());

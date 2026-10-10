@@ -124,7 +124,7 @@ rankings. Validation `E869`–`E877`, `W061`–`W064`; command `trade-study`.
 work of getting from `Requirement` to satisfied/verified — the shape a Jira epic/story/task or a
 GitHub issue hierarchy fills today, made durable and structurally part of the traceability graph.
 A strict **single-parent tree** (`parent:`, at most one — not a DAG); a top-level item (no
-`parent:`) must set `achieves:` (one or more `Requirement`s this branch of work exists to realise,
+`parent:`) must set `achieves:` (one or more `Requirement`s (or a goal, ADR, argument, plan or baseline) this branch of work exists to realise,
 deliberately a separate field from `satisfies:`, which stays scoped to architecture semantics).
 `status` (`todo`/`in_progress`/`blocked`/`done`) and `itemType` (`bug`/`task`/`feature`) reuse
 GitHub's own current vocabulary verbatim. `blockedBy:` names one or more elements it's waiting on —
