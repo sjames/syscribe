@@ -270,6 +270,28 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
     let exc = excludes_of(fd);
     let gk = fd.frontmatter.group_kind.as_deref().unwrap_or("optional");
 
+    // Placeholder consumers and per-configuration parameter values (GH #267).
+    let resolver = syscribe_model::resolver::Resolver::new(elements);
+    let consumers = syscribe_model::placeholders::consumers(elements, &resolver, q);
+    let selecting_cfgs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| is_type(e, ElementType::Configuration))
+        .filter(|c| {
+            syscribe_model::projection::canonical_selection(elements, c).get(q.as_str()).copied() == Some(true)
+        })
+        .collect();
+    let cfg_id = |c: &RawElement| c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone());
+    let values: std::collections::BTreeMap<String, std::collections::BTreeMap<String, Option<String>>> = params
+        .iter()
+        .map(|p| {
+            let per: std::collections::BTreeMap<String, Option<String>> = selecting_cfgs
+                .iter()
+                .map(|c| (cfg_id(c), syscribe_model::placeholders::value_in_config(elements, &resolver, c, q, p)))
+                .collect();
+            (p.clone(), per)
+        })
+        .collect();
+
     if json {
         let gate_items: Vec<_> = gates
             .iter()
@@ -284,6 +306,8 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
             "parameters": params,
             "gates": gate_items,
             "selectedIn": selecting,
+            "parameterConsumers": consumers,
+            "parameterValues": values,
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
         return;
@@ -312,6 +336,23 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
     } else {
         for (qn, ty) in &gates {
             println!("- {} ({})", qn, ty);
+        }
+    }
+    if !params.is_empty() {
+        println!();
+        println!("## Consumers");
+        if consumers.is_empty() {
+            println!("(no element references a parameter of this feature)");
+        }
+        for (p, els) in &consumers {
+            println!("- {p}: {}", els.join(", "));
+        }
+        println!();
+        println!("## Parameter values");
+        for (p, per) in &values {
+            let cells: Vec<String> =
+                per.iter().map(|(c, v)| format!("{c} = {}", v.as_deref().unwrap_or("(unbound)"))).collect();
+            println!("- {p}: {}", if cells.is_empty() { "(no configuration selects this feature)".to_string() } else { cells.join("; ") });
         }
     }
     println!();

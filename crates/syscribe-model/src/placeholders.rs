@@ -351,3 +351,31 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
     }
     out
 }
+
+/// For the feature `feature_qname`: parameter name -> qualified names of the elements whose
+/// body or name references it (`{{feature.param}}`), sorted.
+pub fn consumers(elements: &[RawElement], resolver: &Resolver, feature_qname: &str) -> std::collections::BTreeMap<String, Vec<String>> {
+    let mut out: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    for e in elements {
+        for ph in of_element(e) {
+            let q = resolver.resolve_ref(elements, &ph.feature).map(|f| f.qualified_name.as_str()).unwrap_or(&ph.feature);
+            if q == feature_qname {
+                let v = out.entry(ph.param.clone()).or_default();
+                if !v.contains(&e.qualified_name) {
+                    v.push(e.qualified_name.clone());
+                }
+            }
+        }
+    }
+    for v in out.values_mut() {
+        v.sort();
+    }
+    out
+}
+
+/// The value parameter `param` of `feature_qname` takes in configuration `cfg` (its binding,
+/// else the fixed `value:`, else the `default:`), `None` when unbound.
+pub fn value_in_config(elements: &[RawElement], resolver: &Resolver, cfg: &RawElement, feature_qname: &str, param: &str) -> Option<String> {
+    let ph = Placeholder { raw: String::new(), feature: feature_qname.to_string(), param: param.to_string(), unit: false };
+    value_for(elements, resolver, Some(cfg), &ph)
+}

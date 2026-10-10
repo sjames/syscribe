@@ -446,6 +446,12 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref sat) = fm.satisfies {
         for s in sat { out.push(("satisfies".into(), s.clone())); }
     }
+    // Feature-parameter placeholders in the body or name (GH #267).
+    for ph in syscribe_model::placeholders::of_element(elem) {
+        if !out.iter().any(|(l, t)| l == "placeholder" && t == &ph.feature) {
+            out.push(("placeholder".into(), ph.feature));
+        }
+    }
     if matches!(fm.element_type, Some(ElementType::ADR)) {
         for s in fm.supersedes.iter().flatten() { out.push(("supersedes".into(), s.clone())); }
     }
