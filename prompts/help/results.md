@@ -1,11 +1,12 @@
 # results — retained test runs and run-to-run diffs
 
 ## SYNOPSIS
-    syscribe -m <root> ingest-results [--format F] --run <run-id> <file>
     syscribe -m <root> results runs [--json]
     syscribe -m <root> results diff <runA> <runB> [--json] [--fail-on-regression]
 
 ## DESCRIPTION
+Retain a run with `syscribe -m <root> ingest-results --run <run-id> <file>`.
+
 `ingest-results` keeps only the latest verdict per function and scenario. With
 `--run <id>` it additionally retains that ingest under a run identity in
 `.syscribe/results-history.json` (the sidecar `results.json` is unchanged).
