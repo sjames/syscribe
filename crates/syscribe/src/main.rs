@@ -1097,7 +1097,7 @@ fn main() {
                 };
                 let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
                 let results = ResultsData::load_sidecar(model_root);
-                let code = covtree::cmd_coverage_tree(&elems, &result, results.as_ref(), root, json);
+                let code = covtree::cmd_coverage_tree(&elems, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), root, json);
                 if code != 0 {
                     std::process::exit(code);
                 }

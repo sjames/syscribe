@@ -3,6 +3,7 @@
 
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
+use syscribe_model::config::{is_integrity_rated, CoveragePolicy, ParentRule};
 use syscribe_model::element::RawElement;
 use syscribe_model::resolver::Resolver;
 use syscribe_model::results::ResultsData;
@@ -18,6 +19,7 @@ struct Node {
     /// Distinct leaf descendants (id -> state); a leaf holds itself. A diamond counts once.
     leaves: BTreeMap<String, &'static str>,
     direct: usize,
+    rule: ParentRule,
     children: Vec<Node>,
 }
 
@@ -45,9 +47,15 @@ impl Node {
             };
         }
         let total = self.leaves.len();
+        let all_leaves = total > 0 && self.active() == total;
+        let complete = match self.rule {
+            ParentRule::Both => all_leaves && self.direct > 0,
+            ParentRule::Rollup => all_leaves,
+            ParentRule::Direct => self.direct > 0,
+        };
         if total == 0 && self.direct == 0 {
             '·'
-        } else if total > 0 && self.active() == total && self.direct > 0 {
+        } else if complete {
             '●'
         } else if self.active() == 0 && self.planned() == 0 && self.direct == 0 {
             '○'
@@ -82,9 +90,19 @@ fn build(
     result: &ValidationResult,
     states: &std::collections::HashMap<String, &'static str>,
     path: &mut HashSet<String>,
+    policy: &CoveragePolicy,
+    violations: &mut Vec<String>,
 ) -> Node {
     let k = key(e);
     path.insert(k.clone());
+    let (rule, source) = policy.rule_for(&e.frontmatter);
+    let leaf_now = result.derived_children.get(&k).is_none_or(|v| v.is_empty());
+    if !leaf_now && rule != ParentRule::Both && is_integrity_rated(&e.frontmatter) {
+        violations.push(format!(
+            "{k} is integrity-rated (ASIL/CAL/SIL) but {source} sets parent_rule = \"{}\"; an integrity-rated parent needs \"both\"",
+            rule.as_str()
+        ));
+    }
     let mut child_ids: Vec<&String> = result.derived_children.get(&k).map(|v| v.iter().collect()).unwrap_or_default();
     child_ids.sort();
     // A leaf is a requirement with nothing derived from it — children skipped only because they
@@ -96,7 +114,7 @@ fn build(
             continue;
         }
         if let Some(c) = resolver.resolve_ref(elements, cid) {
-            kids.push(build(c, elements, resolver, result, states, path));
+            kids.push(build(c, elements, resolver, result, states, path, policy, violations));
         }
     }
     path.remove(&k);
@@ -129,6 +147,7 @@ fn build(
         own,
         leaves,
         direct,
+        rule,
         children: kids,
     }
 }
@@ -141,12 +160,13 @@ fn render(n: &Node, depth: usize, out: &mut String) {
     } else {
         let total = n.leaves.len();
         out.push_str(&format!(
-            "{ind}{} {}  leaves {}/{total} active, {} planned | direct tests {} [{st}]\n",
+            "{ind}{} {}  leaves {}/{total} active, {} planned | direct tests {} [{st}] (rule: {})\n",
             n.glyph(),
             n.id,
             n.active(),
             n.planned(),
-            n.direct
+            n.direct,
+            n.rule.as_str()
         ));
     }
     for c in &n.children {
@@ -163,6 +183,7 @@ fn to_json(n: &Node) -> Value {
         "own": if n.leaf { json!(n.own_label()) } else { Value::Null },
         "verdict": n.verdict(),
         "glyph": n.glyph().to_string(),
+        "rule": if n.leaf { Value::Null } else { json!(n.rule.as_str()) },
         "leavesActive": n.active(),
         "leavesPlanned": n.planned(),
         "leavesUncovered": n.uncovered(),
@@ -176,16 +197,30 @@ pub fn cmd_coverage_tree(
     elements: &[RawElement],
     result: &ValidationResult,
     results: Option<&ResultsData>,
+    policy: &CoveragePolicy,
     root: &str,
     json_out: bool,
 ) -> i32 {
+    if !policy.problems.is_empty() {
+        for p in &policy.problems {
+            eprintln!("coverage tree: {p}");
+        }
+        return 1;
+    }
     let resolver = Resolver::new(elements);
     let Some(r) = resolver.resolve_ref(elements, root).filter(|e| Resolver::is_native_requirement(e)) else {
         eprintln!("coverage tree: '{root}' does not resolve to a requirement.");
         return 1;
     };
     let states = crate::matrix::requirement_rollup(elements, results);
-    let tree = build(r, elements, &resolver, result, &states, &mut HashSet::new());
+    let mut violations = Vec::new();
+    let tree = build(r, elements, &resolver, result, &states, &mut HashSet::new(), policy, &mut violations);
+    if !violations.is_empty() {
+        for v in &violations {
+            eprintln!("coverage tree: [coverage] policy error: {v}");
+        }
+        return 1;
+    }
     if json_out {
         println!("{}", serde_json::to_string_pretty(&to_json(&tree)).unwrap_or_default());
     } else {

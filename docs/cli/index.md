@@ -766,7 +766,7 @@ $ syscribe -m model/ find . --where custom.supplier                  # presence
 syscribe -m <root> coverage tree <req> [--json]
 ```
 
-Shows how well a requirement and every requirement derived below it is verified: per node the leaf counts (`leaves 1/3 active, 1 planned`), the number of direct verifying TestCases and a verdict glyph (`●` complete, `◐` partial, `○` nothing). Roll-up never replaces a parent's own test: a parent whose leaves are all verified but which has no direct test shows `◐`. Exit `1` when `<req>` does not resolve to a requirement.
+Shows how well a requirement and every requirement derived below it is verified: per node the leaf counts (`leaves 1/3 active, 1 planned`), the number of direct verifying TestCases and a verdict glyph (`●` complete, `◐` partial, `○` nothing). Roll-up never replaces a parent's own test: a parent whose leaves are all verified but which has no direct test shows `◐`. How a parent is judged complete is set by an optional `[coverage]` table in `.syscribe.toml` (`default` and ordered `[[coverage.rule]]` entries selecting by `reqClass`, `tag`, `asil`, `cal`, `sil`; `parent_rule` = `direct` | `rollup` | `both`, default `both`). Loosening an integrity-rated requirement (ASIL/CAL/SIL) is a configuration error. See `syscribe help coverage`. Exit `1` when `<req>` does not resolve to a requirement or the policy is invalid.
 
 ## Large-model overview & search (`stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`)
 

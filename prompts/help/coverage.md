@@ -32,6 +32,25 @@ test.
 configurations of the model, as `matrix` does); the policy rules of GH #253 and
 `matrix --rollup` build on this command later.
 
+## POLICY (`[coverage]` in `.syscribe.toml`)
+How a parent is judged complete is a policy, `both` by default:
+
+    [coverage]
+    default = "both"             # direct | rollup | both
+    [[coverage.rule]]            # first matching rule wins; selectors are ANDed
+    asil = ["A","B","C","D"]     # also cal = ["CAL1".."CAL4"], sil = ["QM", 1, ...]
+    parent_rule = "both"
+    [[coverage.rule]]
+    reqClass = "stakeholder"     # also tag = ["function"] (any of)
+    parent_rule = "rollup"
+
+`direct`: a direct active test is enough. `rollup`: every leaf below verified.
+`both`: a direct test and every leaf. A rule that loosens an integrity-rated
+requirement (ASIL A-D, CAL1-4, SIL >= 1) is a configuration error — the command
+names the requirement and exits 1 — as are invalid values and unknown selectors.
+The applied rule is printed on each parent line, `(rule: <rule>)`, and carried
+in `--json` as `rule`.
+
 ## OPTIONS
     --json     the same tree as JSON (leavesActive/leavesPlanned/leavesUncovered,
                directTests, verdict = complete|partial|none|na, glyph, children)

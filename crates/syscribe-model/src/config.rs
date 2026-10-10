@@ -1501,3 +1501,181 @@ mod tests {
         p
     }
 }
+
+/// How a parent requirement is judged complete by `coverage tree` (GH #253).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParentRule {
+    /// A direct active test.
+    Direct,
+    /// Every leaf below verified.
+    Rollup,
+    /// Both (the strict default).
+    Both,
+}
+
+impl ParentRule {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ParentRule::Direct => "direct",
+            ParentRule::Rollup => "rollup",
+            ParentRule::Both => "both",
+        }
+    }
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "direct" => Some(ParentRule::Direct),
+            "rollup" => Some(ParentRule::Rollup),
+            "both" => Some(ParentRule::Both),
+            _ => None,
+        }
+    }
+}
+
+/// One `[[coverage.rule]]`; every given selector must match.
+#[derive(Debug, Clone)]
+pub struct CoverageRule {
+    pub req_class: Option<Vec<String>>,
+    pub tag: Option<Vec<String>>,
+    pub asil: Option<Vec<String>>,
+    pub cal: Option<Vec<String>>,
+    /// `"QM"` (not integrity-rated) and/or integers.
+    pub sil: Option<Vec<String>>,
+    pub rule: ParentRule,
+}
+
+/// `[coverage]` from `.syscribe.toml` (REQ-TRS-COVPOL-001).
+#[derive(Debug, Clone)]
+pub struct CoveragePolicy {
+    pub default: ParentRule,
+    pub rules: Vec<CoverageRule>,
+    /// Configuration defects; any entry makes the policy unusable.
+    pub problems: Vec<String>,
+}
+
+impl Default for CoveragePolicy {
+    fn default() -> Self {
+        Self { default: ParentRule::Both, rules: Vec::new(), problems: Vec::new() }
+    }
+}
+
+/// Integrity rating of a requirement: an ASIL A–D, a CAL1–4 or a SIL ≥ 1.
+pub fn is_integrity_rated(fm: &crate::element::RawFrontmatter) -> bool {
+    let asil = fm.asil_level.as_deref().map(|a| a.trim().to_ascii_uppercase());
+    asil.is_some_and(|a| matches!(a.chars().next(), Some('A'..='D')))
+        || fm.cal_level.as_deref().is_some_and(|c| c.trim().to_ascii_uppercase().starts_with("CAL"))
+        || fm.sil_level.is_some_and(|s| s >= 1)
+}
+
+impl CoveragePolicy {
+    pub fn load(model_root: &Path) -> Self {
+        let mut p = Self::default();
+        let Some(text) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok() else { return p };
+        let Ok(root) = toml::from_str::<toml::Value>(&text) else { return p };
+        let Some(tbl) = root.get("coverage").and_then(|v| v.as_table()) else { return p };
+        let strings = |v: &toml::Value| -> Option<Vec<String>> {
+            match v {
+                toml::Value::String(s) => Some(vec![s.clone()]),
+                toml::Value::Integer(i) => Some(vec![i.to_string()]),
+                toml::Value::Array(a) => a
+                    .iter()
+                    .map(|x| match x {
+                        toml::Value::String(s) => Some(s.clone()),
+                        toml::Value::Integer(i) => Some(i.to_string()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => None,
+            }
+        };
+        for (k, v) in tbl {
+            match k.as_str() {
+                "default" => match v.as_str().and_then(ParentRule::parse) {
+                    Some(r) => p.default = r,
+                    None => p.problems.push(format!("[coverage] default {v} must be \"direct\", \"rollup\" or \"both\"")),
+                },
+                "rule" => {
+                    let Some(arr) = v.as_array() else {
+                        p.problems.push("[coverage] rule must be an array of tables ([[coverage.rule]])".into());
+                        continue;
+                    };
+                    for (i, r) in arr.iter().enumerate() {
+                        let at = format!("[[coverage.rule]] #{}", i + 1);
+                        let Some(t) = r.as_table() else {
+                            p.problems.push(format!("{at} must be a table"));
+                            continue;
+                        };
+                        let mut rule = CoverageRule { req_class: None, tag: None, asil: None, cal: None, sil: None, rule: ParentRule::Both };
+                        let mut have_rule = false;
+                        for (rk, rv) in t {
+                            let list = strings(rv);
+                            match (rk.as_str(), list) {
+                                ("parent_rule", _) => match rv.as_str().and_then(ParentRule::parse) {
+                                    Some(x) => {
+                                        rule.rule = x;
+                                        have_rule = true;
+                                    }
+                                    None => p.problems.push(format!("{at}: parent_rule {rv} must be \"direct\", \"rollup\" or \"both\"")),
+                                },
+                                ("reqClass", Some(l)) => rule.req_class = Some(l),
+                                ("tag", Some(l)) => rule.tag = Some(l),
+                                ("asil", Some(l)) => {
+                                    let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();
+                                    if l.iter().all(|x| ["A", "B", "C", "D"].contains(&x.as_str())) {
+                                        rule.asil = Some(l);
+                                    } else {
+                                        p.problems.push(format!("{at}: asil entries must be A-D"));
+                                    }
+                                }
+                                ("cal", Some(l)) => {
+                                    let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();
+                                    if l.iter().all(|x| ["CAL1", "CAL2", "CAL3", "CAL4"].contains(&x.as_str())) {
+                                        rule.cal = Some(l);
+                                    } else {
+                                        p.problems.push(format!("{at}: cal entries must be CAL1-CAL4"));
+                                    }
+                                }
+                                ("sil", Some(l)) => {
+                                    let l: Vec<String> = l.iter().map(|x| x.trim().to_ascii_uppercase()).collect();
+                                    if l.iter().all(|x| x == "QM" || x.parse::<u8>().is_ok()) {
+                                        rule.sil = Some(l);
+                                    } else {
+                                        p.problems.push(format!("{at}: sil entries must be \"QM\" or integers"));
+                                    }
+                                }
+                                (other, _) => p.problems.push(format!("{at}: unknown or malformed selector '{other}'")),
+                            }
+                        }
+                        if !have_rule {
+                            p.problems.push(format!("{at}: parent_rule is required"));
+                        }
+                        p.rules.push(rule);
+                    }
+                }
+                other => p.problems.push(format!("[coverage] unknown key '{other}'")),
+            }
+        }
+        p
+    }
+
+    /// The rule applying to a requirement and its source (`"default"` or `"rule #N"`).
+    pub fn rule_for(&self, fm: &crate::element::RawFrontmatter) -> (ParentRule, String) {
+        let any = |sel: &Option<Vec<String>>, have: &[String]| sel.as_ref().is_none_or(|s| s.iter().any(|x| have.iter().any(|h| h.eq_ignore_ascii_case(x))));
+        let tags = fm.tags.clone().unwrap_or_default();
+        let class: Vec<String> = fm.req_class.iter().cloned().collect();
+        let asil: Vec<String> = fm.asil_level.as_deref().map(|a| a.trim().chars().take(1).collect::<String>().to_ascii_uppercase()).into_iter().collect();
+        let cal: Vec<String> = fm.cal_level.iter().cloned().collect();
+        let mut sil: Vec<String> = Vec::new();
+        if !is_integrity_rated(fm) {
+            sil.push("QM".into());
+        }
+        if let Some(s) = fm.sil_level {
+            sil.push(s.to_string());
+        }
+        for (i, r) in self.rules.iter().enumerate() {
+            if any(&r.req_class, &class) && any(&r.tag, &tags) && any(&r.asil, &asil) && any(&r.cal, &cal) && any(&r.sil, &sil) {
+                return (r.rule, format!("rule #{}", i + 1));
+            }
+        }
+        (self.default, "default".into())
+    }
+}
