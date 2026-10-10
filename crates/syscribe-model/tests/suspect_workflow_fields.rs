@@ -33,3 +33,14 @@ fn workflow_fields_do_not_change_the_hash() {
 fn content_fields_still_change_the_hash() {
     assert_ne!(hash_of("status: todo\n"), hash_of("status: todo\ntags: [x]\n"));
 }
+
+#[test]
+fn retiring_or_disposing_status_stays_in_the_projection() {
+    // Progress through the lifecycle is silent, but retiring a target (or a
+    // disposition such as wont_fix) is a change links must see.
+    let live = hash_of("status: todo\n");
+    for st in ["deprecated", "superseded", "obsolete", "rejected", "withdrawn", "wont_fix", "false_positive", "not_affected"] {
+        assert_ne!(live, hash_of(&format!("status: {st}\n")), "status {st} must change the hash");
+    }
+    assert_ne!(hash_of("status: deprecated\n"), hash_of("status: superseded\n"));
+}

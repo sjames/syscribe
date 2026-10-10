@@ -34,11 +34,28 @@ const EXCLUDED_KEYS: &[&str] = &[
     "svgFile",        // rendered-artifact pointer
     "pumlFile",       // rendered-artifact pointer
     // Workflow state (GH #251): promoting or claiming an element is not a change to
-    // the content a downstream link depends on.
+    // the content a downstream link depends on. `status` is excluded only while it is
+    // ordinary lifecycle progress; see `RETIRING_STATUSES`.
     "status",
     "claimedBy",
     "claimedAt",
     "assignedTo",
+];
+
+/// Statuses that retire or dispose of an element rather than progress it. A link to a
+/// target in one of these states must still go suspect, so `status` stays in the
+/// projection for them (GH #251 review): a requirement or ADR being deprecated or
+/// superseded, a threat/vulnerability being closed as `wont_fix`/`false_positive`/
+/// `not_affected`.
+const RETIRING_STATUSES: &[&str] = &[
+    "deprecated",
+    "superseded",
+    "obsolete",
+    "rejected",
+    "withdrawn",
+    "wont_fix",
+    "false_positive",
+    "not_affected",
 ];
 
 /// State of a single trace link relative to its stored baseline.
@@ -94,7 +111,13 @@ impl SuspectLink {
 /// canonicalization hash identically; a change confined to an excluded field
 /// does not change the hash.
 pub fn projection_hash(elem: &RawElement) -> String {
-    element_hash(elem, EXCLUDED_KEYS)
+    match elem.frontmatter.status.as_deref() {
+        Some(st) if RETIRING_STATUSES.contains(&st) => {
+            let keys: Vec<&str> = EXCLUDED_KEYS.iter().copied().filter(|k| *k != "status").collect();
+            element_hash(elem, &keys)
+        }
+        _ => element_hash(elem, EXCLUDED_KEYS),
+    }
 }
 
 /// Full-content hash of an element for release baselines (REQ-TRS-BL-002): freezes

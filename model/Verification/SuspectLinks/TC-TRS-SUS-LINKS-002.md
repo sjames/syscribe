@@ -39,6 +39,11 @@ Feature: Content projection and BLAKE3 hashing
     When only E's status, claimedBy, claimedAt or assignedTo is changed
     Then the recomputed projection hash equals H
 
+  Scenario: Retiring status stays in the hash (GH #251)
+    Given an element E with a computed projection hash H
+    When E's status becomes deprecated, superseded, obsolete, rejected, withdrawn, wont_fix, false_positive or not_affected
+    Then the recomputed projection hash differs from H
+
   Scenario: Cosmetic reformatting is canonicalized away
     Given two elements with identical projected content but different key order and line endings
     Then their projection hashes are equal

@@ -106,7 +106,7 @@ on. Default surface, then per-type overrides:
 
 > **Resolved (§8, decision 2):** v1 ships the default projection — the body plus
 > all frontmatter except editorial/presentation fields (`name`, `displayOrder`,
-> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251), the removed `title`, `traceBaselines`, and diagram
+> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251; `status` stays in the projection for retiring values such as `deprecated`/`superseded`), the removed `title`, `traceBaselines`, and diagram
 > `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`). Per-type surfaces are deferred
 > until false positives justify them.
 
@@ -245,7 +245,8 @@ the one-time switch that baselines them all.
    `traceBaselines` map on the source covers every kind, keyed by target.
 2. **Projection** — **default projection** (REQ-TRS-SUS-LINKS-002): body +
    normative frontmatter, excluding `name`/`displayOrder`/`extRef`/`title`/
-   `traceBaselines` and diagram `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`.
+   `traceBaselines`, the workflow-state fields `status` (except retiring statuses such as
+   `deprecated`/`superseded`)/`claimedBy`/`claimedAt`/`assignedTo` (GH #251), and diagram `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`.
    Per-type surfaces deferred to a later phase.
 3. **Hash** — **BLAKE3**, stored `blake3:<hex>`.
 4. **Missing-baseline** — **not treated as suspect and silent during

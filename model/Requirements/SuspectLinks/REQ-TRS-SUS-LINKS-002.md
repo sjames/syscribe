@@ -27,7 +27,9 @@ A single default projection shall apply to all element types:
   and comments — and the `traceBaselines` field itself.
 - **Excluded (workflow state, GH #251):** `status`, `claimedBy`, `claimedAt`, `assignedTo`. Promoting a
   requirement `draft → review → approved`, or claiming a work item, is lifecycle state and shall not make every
-  baselined link to it suspect. Consequence: baselines captured before this change hash a different surface and
+  baselined link to it suspect. `status` stays in the projection when it retires or disposes of the element
+  (`deprecated`, `superseded`, `obsolete`, `rejected`, `withdrawn`, `wont_fix`, `false_positive`, `not_affected`), so links
+  to a retired target still go suspect. Consequence: baselines captured before this change hash a different surface and
   show one `W090` each until re-accepted (`suspect accept --all`).
 
 Per-type projection surfaces may be refined in a later phase without changing the storage

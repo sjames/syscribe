@@ -33,8 +33,9 @@ link's target, captured at review time and compared at validation:
   is recovered from VCS history, avoiding duplication and diff churn.
 - **What is hashed.** A canonical *projection* of the target — its markdown body plus the
   normative frontmatter fields — **not** the whole file. Editorial/presentation fields
-  (`displayOrder`, `extRef`, `name`, layout, comments) and `traceBaselines` itself are
-  excluded. v1 uses a single default projection for all element types; per-type surfaces
+  (`displayOrder`, `extRef`, `name`, layout, comments), workflow state (`status` while it is
+  lifecycle progress, `claimedBy`, `claimedAt`, `assignedTo`; GH #251) and `traceBaselines` itself
+  are excluded. v1 uses a single default projection for all element types; per-type surfaces
   may be refined later.
 - **Digest.** BLAKE3, stored algorithm-prefixed (`blake3:<hex>`) so the digest — and, if
   needed, the projection version — can be migrated without ambiguity.
