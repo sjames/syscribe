@@ -60,6 +60,23 @@ fn multiplicity_problem(text: &str) -> Option<String> {
     }
 }
 
+/// How to fix an `E123`: the common data-record mistake first (an `Attribute` typed by an
+/// `ItemDef`, or the mirror), else the definition kinds that can type the usage (GH #254).
+fn e123_remedy(usage: &T, def: &T, def_name: &str, allowed: &[T]) -> String {
+    match (usage, def) {
+        (T::Attribute, T::ItemDef) => format!(
+            "Define '{def_name}' as an `AttributeDef` (a data record or value type); change the usage to `type: Item` only if it is a flowing item (sent/received or carried by a flow)."
+        ),
+        (T::Item, T::AttributeDef) => format!(
+            "Define '{def_name}' as an `ItemDef` if it is something that flows, or change the usage to `type: Attribute` if it is a data record or value."
+        ),
+        _ => {
+            let names: Vec<String> = allowed.iter().map(|t| format!("{t:?}")).collect();
+            format!("A {usage:?} must be typed by one of: {}.", names.join(", "))
+        }
+    }
+}
+
 fn usage_expected_defs(t: &T) -> Option<&'static [T]> {
     Some(match t {
         T::Part | T::Item | T::Individual | T::Occurrence => {
@@ -352,7 +369,7 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
                     out.push(error(
                         "E123",
                         file,
-                        format!("{ctx} is typed by '{r}', a {tt:?}, which cannot type a {ty:?}"),
+                        format!("{ctx} is typed by '{r}', a {tt:?}, which cannot type a {ty:?}. {}", e123_remedy(ty, tt, r, allowed)),
                     ));
                 }
             };
@@ -373,7 +390,10 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
                 out.push(error(
                     "E123",
                     file,
-                    format!("inline feature '{n}' ({kind:?}) is typed by '{tb}', a {tt:?}, which cannot type it"),
+                    format!(
+                        "inline feature '{n}' ({kind:?}) is typed by '{tb}', a {tt:?}, which cannot type it. {}",
+                        e123_remedy(&kind, tt, tb, allowed)
+                    ),
                 ));
             }
         }

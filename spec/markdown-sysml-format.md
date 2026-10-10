@@ -1325,6 +1325,18 @@ Ports and interfaces are the most error-prone area to model. Orient first, then 
 
 **End-to-end shape.** A supplier `PartDef` exposes a `Port` typed by a source `PortDef`; a consumer `PartDef` exposes a `Port` typed by the **conjugate** PortDef; an `InterfaceDef` ties the two PortDefs as its ends; a parent `PartDef` holds both as sub-parts and wires them in `connections:` (`from: supplier.outPort`, `to: consumer.inPort`, `typedBy:` the InterfaceDef). A `FlowDef`/`flowConnections:` may carry the items that move across.
 
+#### 8.3.0a Data records versus flowing items (`E123`)
+
+A usage is typed by a definition of the matching kind (`E123` otherwise): `Attribute` ← `AttributeDef` or `EnumerationDef`; `Item`/`Part` ← `ItemDef`/`PartDef`/`OccurrenceDef`/…; `Port` ← `PortDef`; `Connection` ← `ConnectionDef`/`InterfaceDef`; `Interface` ← `InterfaceDef`; `Action` ← `ActionDef`; `State` ← `StateDef`.
+
+| You are modelling | Define | Use |
+|---|---|---|
+| A data record or value type (a CRC record, a decision, a request's fields) | `AttributeDef` | `type: Attribute` |
+| Something that flows between parts or is sent/received (signal, message, material; a `send:`/`accept:` payload; a flow's type) | `ItemDef` | `type: Item` |
+| A fixed set of literals | `EnumerationDef` | `type: Attribute` (or `Enumeration`) |
+
+An `Attribute` typed by an `ItemDef` is the common mistake. Do not silence it by changing the usage to `type: Item` unless the thing really flows; define the record as an `AttributeDef`. The `E123` message states this remedy.
+
 #### 8.3.1 `PortDef` — Port Definition
 
 Defines an interaction point. Ports can be conjugated.
@@ -6070,7 +6082,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E120` | `supertype:` is declared on a usage (`Part`, `Port`, `Attribute`, …) — type it with `typedBy:` and specialize with `subsets:` |
 | `E121` | `isVariant: true` on an element that is neither a member of an `isVariation: true` element nor names one in `variantOf:` |
 | `E122` | An `EnumerationDef` has no `values:`, or specializes another `EnumerationDef` |
-| `E123` | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
+| `E123` | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, an `Attribute` by an `ItemDef`, …; the message names the fix, see §8.3.0a), or `conjugates:` is not a `PortDef` naming a `PortDef` |
 | `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
