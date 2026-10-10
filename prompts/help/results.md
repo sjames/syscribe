@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> results runs [--json]
-    syscribe -m <root> results failures [--json]
+    syscribe -m <root> results failures [--json] [--config <CONF-id>]
     syscribe -m <root> results diff <runA> <runB> [--json] [--fail-on-regression]
 
 ## DESCRIPTION
@@ -16,7 +16,9 @@ function-level and the session-log sections are independent); other runs are kep
 Without `--run` nothing is retained.
 
 `results failures` lists the failing, skipped and flaky functions of the latest
-ingest with the retained JUnit `message` and `time` (passing cases keep no detail).
+ingest with the retained JUnit `message` and `time` (passing cases keep no detail). With
+per-configuration evidence (`ingest-results --config`) it lists every configuration's
+failures as `<function> @ <config>`, or one configuration's effective results under `--config`.
 
 `results runs` lists the retained runs, oldest first. `results diff A B` compares
 two runs per test:

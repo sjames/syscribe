@@ -321,6 +321,9 @@ impl ResultsData {
     pub fn merge_config_into_sidecar(&self, model_root: &Path, config: &str) -> std::io::Result<(PathBuf, ResultsData)> {
         let existing = Self::load_sidecar(model_root);
         let mut out = existing.clone().unwrap_or_else(|| ResultsData {
+            // No global ingest has happened: say so rather than borrowing this ingest's format and source.
+            format: "per-configuration".to_string(),
+            source: String::new(),
             by_leaf: HashMap::new(),
             by_scenario: HashMap::new(),
             details: HashMap::new(),
@@ -348,10 +351,20 @@ impl ResultsData {
             out.by_leaf.extend(c.by_leaf.iter().map(|(k, v)| (k.clone(), *v)));
             out.by_scenario.extend(c.by_scenario.iter().map(|(k, v)| (k.clone(), *v)));
             out.details.extend(c.details.iter().map(|(k, v)| (k.clone(), v.clone())));
-            // A configuration that reports a function has no use for the global failure detail of it.
+            // A configuration that reports a function has no use for the global failure detail of it,
+            // and a bare leaf it reports supersedes the global class-qualified entries of that leaf
+            // (`verdict_for` tries the qualified key first, which would otherwise mask the override).
             for k in c.by_leaf.keys() {
                 if !c.details.contains_key(k) {
                     out.details.remove(k);
+                }
+                if !k.contains("::") {
+                    let suffix = format!("::{k}");
+                    let masked: Vec<String> = out.by_leaf.keys().filter(|g| g.ends_with(&suffix) && !c.by_leaf.contains_key(*g)).cloned().collect();
+                    for g in masked {
+                        out.by_leaf.remove(&g);
+                        out.details.remove(&g);
+                    }
                 }
             }
         }
@@ -368,8 +381,35 @@ impl ResultsData {
         Ok(path)
     }
 
-    /// Verdict for a `testFunctions[].function` reference.
+    /// Worst-wins ordering of lookup outcomes: Fail > Flaky > Pass > Ignored > Missing.
+    fn fn_rank(v: &FnVerdict) -> u8 {
+        match v {
+            FnVerdict::Fail => 4,
+            FnVerdict::Flaky => 3,
+            FnVerdict::Pass => 2,
+            FnVerdict::Ignored => 1,
+            FnVerdict::Missing => 0,
+        }
+    }
+
+    fn worse(a: FnVerdict, b: FnVerdict) -> FnVerdict {
+        if Self::fn_rank(&b) > Self::fn_rank(&a) { b } else { a }
+    }
+
+    /// Verdict for a `testFunctions[].function` reference. With per-Configuration evidence present
+    /// (`by_config`, GH #258) and no configuration chosen this is the worst outcome over the global
+    /// sections and every configuration, so a failure on any variant is never hidden; a view taken
+    /// with [`Self::for_config`] has no `by_config` and answers for that one configuration.
     pub fn verdict_for(&self, function_ref: &str) -> FnVerdict {
+        let mut v = self.verdict_here(function_ref);
+        for c in self.by_config.values() {
+            v = Self::worse(v, c.verdict_here(function_ref));
+        }
+        v
+    }
+
+    /// [`Self::verdict_for`] over this layer's own sections only.
+    fn verdict_here(&self, function_ref: &str) -> FnVerdict {
         // A class-qualified reference (`C#N`, `C::N`) is looked up exactly first; JUnit
         // ingestion stores `classname::name` beside the leaf (GH #259). A leaf never
         // contains `:`, so qualified keys cannot collide with leaves.
@@ -393,6 +433,10 @@ impl ResultsData {
     /// The retained detail (JUnit message / time) of a `testFunctions[].function` reference, looked
     /// up like [`Self::verdict_for`]: the class-qualified key first, then the leaf.
     pub fn detail_for(&self, function_ref: &str) -> Option<&TestDetail> {
+        self.detail_here(function_ref).or_else(|| self.by_config.values().find_map(|c| c.detail_here(function_ref)))
+    }
+
+    fn detail_here(&self, function_ref: &str) -> Option<&TestDetail> {
         let mut qualified = function_ref.replace('#', "::");
         if !qualified.contains("::") {
             if let Some((class, name)) = qualified.rsplit_once('.') {
@@ -410,6 +454,14 @@ impl ResultsData {
     /// Verdict for one (`TestCase`, Gherkin scenario) pair, as recorded by a
     /// `session-log` ingestion (issue #113).
     pub fn scenario_verdict(&self, tc_id: &str, scenario: &str) -> FnVerdict {
+        let mut v = self.scenario_here(tc_id, scenario);
+        for c in self.by_config.values() {
+            v = Self::worse(v, c.scenario_here(tc_id, scenario));
+        }
+        v
+    }
+
+    fn scenario_here(&self, tc_id: &str, scenario: &str) -> FnVerdict {
         match self.by_scenario.get(&format!("{tc_id}::{scenario}")) {
             Some(Verdict::Pass) => FnVerdict::Pass,
             Some(Verdict::Fail) => FnVerdict::Fail,
@@ -1068,16 +1120,24 @@ impl RunRecord {
         }
     }
 
+    /// This run's results as Configuration `c` sees them: its own sections over the global ones.
+    fn effective(&self, c: &str) -> (std::collections::BTreeMap<String, Verdict>, std::collections::BTreeMap<String, Verdict>) {
+        let (mut leaf, mut scn) = (self.by_leaf.clone(), self.by_scenario.clone());
+        if let Some(sec) = self.by_config.get(c) {
+            leaf.extend(sec.by_leaf.iter().map(|(k, v)| (k.clone(), *v)));
+            scn.extend(sec.by_scenario.iter().map(|(k, v)| (k.clone(), *v)));
+        }
+        (leaf, scn)
+    }
+
     /// The verdicts of the sections both runs hold (a run that only ingested function results is
-    /// not compared against scenarios the other run recorded), with the sections of every
-    /// Configuration both runs hold under `<test> @ <config>`.
+    /// not compared against scenarios the other run recorded), plus, for every Configuration either
+    /// run holds evidence for, the *effective* results of both runs under `<test> @ <config>` — a
+    /// run without its own section for that configuration contributes its global results, so a
+    /// failure that appears only under one configuration is a regression, not an invisible change.
     fn comparable(&self, other: &RunRecord) -> std::collections::BTreeMap<String, Verdict> {
-        fn sections(
-            m: &mut std::collections::BTreeMap<String, Verdict>,
-            (a_leaf, a_scn): (&std::collections::BTreeMap<String, Verdict>, &std::collections::BTreeMap<String, Verdict>),
-            (b_leaf, b_scn): (&std::collections::BTreeMap<String, Verdict>, &std::collections::BTreeMap<String, Verdict>),
-            suffix: &str,
-        ) {
+        type Sec = std::collections::BTreeMap<String, Verdict>;
+        fn sections(m: &mut Sec, (a_leaf, a_scn): (&Sec, &Sec), (b_leaf, b_scn): (&Sec, &Sec), suffix: &str) {
             if !a_leaf.is_empty() && !b_leaf.is_empty() {
                 m.extend(a_leaf.iter().map(|(k, v)| (format!("{k}{suffix}"), *v)));
             }
@@ -1085,12 +1145,14 @@ impl RunRecord {
                 m.extend(a_scn.iter().map(|(k, v)| (format!("{k}{suffix}"), *v)));
             }
         }
-        let mut m = std::collections::BTreeMap::new();
+        let mut m = Sec::new();
         sections(&mut m, (&self.by_leaf, &self.by_scenario), (&other.by_leaf, &other.by_scenario), "");
-        for (c, mine) in &self.by_config {
-            if let Some(theirs) = other.by_config.get(c) {
-                sections(&mut m, (&mine.by_leaf, &mine.by_scenario), (&theirs.by_leaf, &theirs.by_scenario), &format!(" @ {c}"));
-            }
+        let mut configs: Vec<&String> = self.by_config.keys().chain(other.by_config.keys()).collect();
+        configs.sort();
+        configs.dedup();
+        for c in configs {
+            let (mine, theirs) = (self.effective(c), other.effective(c));
+            sections(&mut m, (&mine.0, &mine.1), (&theirs.0, &theirs.1), &format!(" @ {c}"));
         }
         m
     }

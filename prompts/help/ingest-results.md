@@ -22,6 +22,8 @@ otherwise the global one applies; no configuration inherits another's). Each `ma
 uses its own, and under `--config CONF-X` `validate`, `audit`, `trace`, `safety-case`,
 `coverage tree`, `matrix --rollup` and the other evidence readers do too. With `--run`, the run
 keeps the configuration sections; `results diff` names a changed test `<test> @ <config>`.
+A syscribe older than this feature ignores the configuration sections and drops them when it
+rewrites the sidecar (`ingest-results`), so keep tool versions consistent.
 
 Two source shapes, feeding two different verdict axes:
 

@@ -2991,6 +2991,16 @@ pub fn cmd_validate_all_configs(
     let mut rows: Vec<Row> = Vec::new();
     for cfg in &configs {
         let sel = cfg.frontmatter.feature_selections();
+        // Each variant is judged on its own evidence (GH #258, REQ-TRS-CFGRES-001).
+        let own;
+        let config = if config.results.as_ref().is_some_and(|r| !r.by_config.is_empty()) {
+            let mut c = config.clone();
+            c.results = c.results.as_ref().map(|r| r.for_config(&cfg_id(cfg)));
+            own = c;
+            &own
+        } else {
+            config
+        };
         let all = syscribe_model::projection::validate_projected(elements, config, &sel);
         let findings = filter_by_file(&all, file_filter);
         let eval = evaluate_gate(&findings, gate, profile, elements);

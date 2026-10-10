@@ -119,7 +119,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "import-reqif" => &[("--into", Value), ("--id-prefix", Value), ("--class", Value), ("--domain", Value), ("--update", Switch), ("--dry-run", Switch)],
         "mechanisms" => &[("--json", Switch), ("--uncovered", Switch)],
         "compliance" => &[("--standard", Value), LENS, ("--json", Switch), ("--fail-on-missing", Switch)],
-        "results" => &[("--json", Switch), ("--fail-on-regression", Switch)],
+        "results" => &[("--json", Switch), ("--fail-on-regression", Switch), LENS],
         "digest" => &[
             ("--json", Switch),
             ("--status", Value),

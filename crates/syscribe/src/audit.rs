@@ -358,7 +358,17 @@ pub fn cmd_audit_all_configs(
             SelectionOutcome::Resolved(s) => Some(s),
             _ => None,
         };
-        let (pass, reasons) = audit_verdict(elements, config, profile, sel.as_ref(), None);
+        // Each variant is judged on its own evidence (GH #258, REQ-TRS-CFGRES-001).
+        let own;
+        let cfg_config = if config.results.as_ref().is_some_and(|r| !r.by_config.is_empty()) {
+            let mut c = config.clone();
+            c.results = c.results.as_ref().map(|r| r.for_config(&cid));
+            own = c;
+            &own
+        } else {
+            config
+        };
+        let (pass, reasons) = audit_verdict(elements, cfg_config, profile, sel.as_ref(), None);
         rows.push((cid, pass, reasons));
     }
     let any_fail = rows.iter().any(|(_, pass, _)| !pass);

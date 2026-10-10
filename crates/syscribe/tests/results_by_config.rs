@@ -5,6 +5,10 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn model() -> PathBuf {
+    model_with_fn("t_one")
+}
+
+fn model_with_fn(func: &str) -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
     let d = std::env::temp_dir().join(format!("syscribe-cfgres-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
     let r = d.join("model");
@@ -20,7 +24,7 @@ fn model() -> PathBuf {
         w(&format!("Configurations/{id}.md"), &format!("---\ntype: Configuration\nid: {id}\nname: {id}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Opt: {v}\n---\n\nC.\n"));
     }
     w("REQ-PC-001.md", "---\nid: REQ-PC-001\ntype: Requirement\nname: r\nstatus: approved\nreqDomain: software\nreqClass: system\n---\n\nShall.\n");
-    w("TC-PC-001.md", "---\nid: TC-PC-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-PC-001]\ntestFunctions:\n  - function: \"t_one\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n");
+    w("TC-PC-001.md", &"---\nid: TC-PC-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-PC-001]\ntestFunctions:\n  - function: \"FUNC\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n".replace("FUNC", func));
     d
 }
 
@@ -143,7 +147,89 @@ fn config_lens_commands_judge_the_evidence_of_that_configuration() {
     let (tb, _) = run(&d, &["coverage", "tree", "REQ-PC-001", "--config", "CONF-B-001", "--json"]);
     let (ja, jb): (serde_json::Value, serde_json::Value) = (serde_json::from_str(&ta).unwrap(), serde_json::from_str(&tb).unwrap());
     assert_ne!(ja, jb, "the tree reads different evidence per configuration");
-    // without a lens only the global sections apply: no global verdict at all
+    // without a lens the reader is conservative: a failure on any configuration is shown
     let (g, _) = run(&d, &["trace", "REQ-PC-001"]);
-    assert!(!g.to_lowercase().contains("fail"), "{g}");
+    assert!(g.to_lowercase().contains("fail"), "{g}");
+}
+
+#[test]
+fn validate_all_configs_judges_each_configuration_on_its_own_evidence() {
+    let d = model();
+    ingest(&d, Some("CONF-A-001"), "fail", &[]);
+    ingest(&d, Some("CONF-B-001"), "pass", &[]);
+    let (o, _) = run(&d, &["validate", "--all-configs", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&o).unwrap_or_else(|e| panic!("{e}: {o}"));
+    let rows = v.as_array().unwrap_or_else(|| panic!("{o}"));
+    let warn = |id: &str| rows.iter().find(|r| r["configuration"] == id).map(|r| r["warnings"].as_u64().unwrap_or(0)).unwrap_or_else(|| panic!("{id} in {o}"));
+    assert!(warn("CONF-A-001") > warn("CONF-B-001"), "A (failing) carries W010, B (passing) does not: {o}");
+}
+
+#[test]
+fn rollups_and_the_unlensed_readers_do_not_hide_a_failing_configuration() {
+    let d = model();
+    ingest(&d, Some("CONF-A-001"), "fail", &[]);
+    ingest(&d, Some("CONF-B-001"), "pass", &[]);
+    // coverage tree without a lens must not call the requirement verified while A fails
+    let (t, c) = run(&d, &["coverage", "tree", "REQ-PC-001", "--json"]);
+    assert_eq!(c, 0, "{t}");
+    let tree: serde_json::Value = serde_json::from_str(&t).unwrap();
+    assert_ne!(tree["verdict"], "complete", "{t}");
+    let (m, _) = run(&d, &["matrix", "--rollup", "--json"]);
+    assert!(!m.contains("\"verdict\": \"complete\""), "{m}");
+    // trace without a lens reports the failure (conservative across configurations)
+    let (tr, _) = run(&d, &["trace", "REQ-PC-001"]);
+    assert!(tr.to_lowercase().contains("fail"), "{tr}");
+}
+
+#[test]
+fn a_global_qualified_key_does_not_mask_a_configuration_failure() {
+    let d = model_with_fn("C#t_one");
+    // global JUnit run stores both `C::t_one` and `t_one` as pass …
+    ingest(&d, None, "pass", &[]);
+    // … and CONF-A reports the bare function as failed from a cargo-json run
+    let cargo = d.join("a.json");
+    std::fs::write(&cargo, "{\"type\":\"test\",\"event\":\"failed\",\"name\":\"t_one\"}\n").unwrap();
+    let (o, c) = run(&d, &["ingest-results", "--format", "cargo-json", "--config", "CONF-A-001", &cargo.to_string_lossy()]);
+    assert_eq!(c, 0, "{o}");
+    assert_eq!(cell(&d, "CONF-A-001"), "failing");
+    assert_eq!(cell(&d, "CONF-B-001"), "passing");
+}
+
+#[test]
+fn diff_compares_a_configuration_against_the_other_runs_global_results() {
+    let d = model();
+    ingest(&d, None, "pass", &["--run", "R1"]);
+    ingest(&d, Some("CONF-A-001"), "fail", &["--run", "R2"]);
+    let (o, c) = run(&d, &["results", "diff", "R1", "R2", "--json"]);
+    assert_eq!(c, 0, "{o}");
+    let v: serde_json::Value = serde_json::from_str(&o).unwrap();
+    let reg: Vec<&str> = v["regressions"].as_array().unwrap().iter().map(|x| x["test"].as_str().unwrap()).collect();
+    assert_eq!(reg, vec!["t_one @ CONF-A-001"], "{o}");
+    assert_eq!(run(&d, &["results", "diff", "R1", "R2", "--fail-on-regression"]).1, 1);
+}
+
+#[test]
+fn runs_failures_and_the_lens_see_configuration_sections() {
+    let d = model();
+    ingest(&d, Some("CONF-A-001"), "fail", &["--run", "R1"]);
+    let (o, _) = run(&d, &["results", "runs", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&o).unwrap();
+    assert_eq!(v["runs"][0]["configurations"]["CONF-A-001"]["functions"], 1, "{o}");
+    let (f, c) = run(&d, &["results", "failures", "--json"]);
+    assert_eq!(c, 0, "{f}");
+    assert!(f.contains("t_one"), "unlensed failures include any configuration's: {f}");
+    let (fb, _) = run(&d, &["results", "failures", "--json", "--config", "CONF-B-001"]);
+    assert!(!fb.contains("t_one"), "B has no failure: {fb}");
+    let (fa, _) = run(&d, &["results", "failures", "--json", "--config", "CONF-A-001"]);
+    assert!(fa.contains("t_one"), "{fa}");
+}
+
+#[test]
+fn a_first_ingest_with_only_a_configuration_leaves_no_phantom_global_data() {
+    let d = model();
+    ingest(&d, Some("CONF-A-001"), "fail", &[]);
+    let s = sidecar(&d);
+    assert!(s["by_leaf"].as_object().is_none_or(|m| m.is_empty()));
+    assert_eq!(s["count"], 0, "{s}");
+    assert!(s.get("leaf_meta").is_none() || s["leaf_meta"].is_null(), "{s}");
 }

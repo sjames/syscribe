@@ -810,9 +810,10 @@ fn main() {
     // `--config C` on an evidence-reading command judges the evidence as C sees it (GH #258): the
     // global results overlaid with C's own. `diff` names two configurations and `ingest-results`
     // *writes* one, so neither takes the lens.
-    if matches!(
+    let results_failures = subcommand_args.first().map(String::as_str) == Some("results") && subcommand_args.get(1).map(String::as_str) == Some("failures");
+    if results_failures || matches!(
         subcommand_args.first().map(String::as_str),
-        Some("validate" | "audit" | "trace" | "why" | "who-verifies" | "safety-case" | "coverage" | "matrix" | "testplan" | "verification-depth" | "stats" | "digest")
+        Some("validate" | "audit" | "trace" | "why" | "who-verifies" | "safety-case" | "coverage" | "matrix" | "testplan" | "verification-depth" | "stats" | "digest" | "trace-export" | "hara")
     ) {
         if let Some(key) = subcommand_args.windows(2).find(|w| w[0] == "--config").and_then(|w| runhist::config_key(&elems, &w[1])) {
             runhist::set_lens_config(&key);

@@ -96,34 +96,38 @@ fn failures(model_root: &Path, json_out: bool) -> i32 {
         eprintln!("results failures: no results sidecar (run `ingest-results` first).");
         return 1;
     };
-    let mut rows: Vec<(&String, Verdict)> = data
-        .by_leaf
-        .iter()
-        .filter(|(k, v)| !k.contains("::") && **v != Verdict::Pass)
-        .map(|(k, v)| (k, *v))
-        .collect();
-    rows.sort_by(|a, b| a.0.cmp(b.0));
+    // The global sections, then every configuration's own (named `<function> @ <config>`); under a
+    // `--config` lens the loaded data is already that configuration's effective view.
+    let mut layers: Vec<(Option<&str>, &syscribe_model::results::ResultsData)> = vec![(None, &data)];
+    layers.extend(data.by_config.iter().map(|(c, d)| (Some(c.as_str()), d)));
+    let mut rows: Vec<(String, Verdict, Option<&syscribe_model::results::TestDetail>)> = Vec::new();
+    for (cfg, layer) in layers {
+        for (k, vd) in layer.by_leaf.iter().filter(|(k, v)| !k.contains("::") && **v != Verdict::Pass) {
+            let name = match cfg {
+                Some(c) => format!("{k} @ {c}"),
+                None => k.clone(),
+            };
+            rows.push((name, *vd, layer.details.get(k)));
+        }
+    }
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
     if json_out {
         let list: Vec<_> = rows
             .iter()
-            .map(|(k, vd)| {
-                let d = data.details.get(*k);
-                json!({"function": k, "verdict": v(Some(*vd)), "message": d.and_then(|d| d.message.clone()), "time": d.and_then(|d| d.time)})
-            })
+            .map(|(k, vd, d)| json!({"function": k, "verdict": v(Some(*vd)), "message": d.and_then(|d| d.message.clone()), "time": d.and_then(|d| d.time)}))
             .collect();
         println!("{}", serde_json::to_string_pretty(&json!({ "failures": list })).unwrap_or_default());
     } else if rows.is_empty() {
         println!("No failing, skipped or flaky functions.");
     } else {
-        for (k, vd) in rows {
-            let d = data.details.get(k);
+        for (k, vd, d) in &rows {
             let time = d.and_then(|d| d.time).map(|t| format!("  {t}s")).unwrap_or_default();
             // One line per function: fold any line breaks of a multi-line assertion message.
             let msg = d
                 .and_then(|d| d.message.as_deref())
                 .map(|m| format!("  — {}", syscribe_model::results::one_line(m)))
                 .unwrap_or_default();
-            println!("{k}  {}{time}{msg}", v(Some(vd)));
+            println!("{k}  {}{time}{msg}", v(Some(*vd)));
         }
     }
     0
@@ -133,11 +137,27 @@ fn failures(model_root: &Path, json_out: bool) -> i32 {
 pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
     let json_out = args.iter().any(|a| a == "--json");
     let gate = args.iter().any(|a| a == "--fail-on-regression");
-    if let Some(bad) = args.iter().skip(1).find(|a| a.starts_with("--") && !["--json", "--fail-on-regression"].contains(&a.as_str())) {
+    if let Some(bad) = args.iter().skip(1).find(|a| a.starts_with("--") && !["--json", "--fail-on-regression", "--config"].contains(&a.as_str())) {
         eprintln!("results: unknown option '{bad}'\n{USAGE}");
         return 1;
     }
-    let pos: Vec<&str> = args.iter().map(|s| s.as_str()).filter(|a| !a.starts_with("--")).collect();
+    // `--config <id>` (only `results failures` honours it, as the evidence lens set in main) takes a value.
+    let mut skip_next = false;
+    let pos: Vec<&str> = args
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|a| {
+            if skip_next {
+                skip_next = false;
+                return false;
+            }
+            if *a == "--config" {
+                skip_next = true;
+                return false;
+            }
+            !a.starts_with("--")
+        })
+        .collect();
     if pos.as_slice() == ["failures"] {
         return failures(model_root, json_out);
     }
@@ -160,6 +180,7 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
                             "ingestedAtUnix": r.ingested_at_unix,
                             "functions": r.by_leaf.len(),
                             "scenarios": r.by_scenario.len(),
+                            "configurations": r.by_config.iter().map(|(c, sec)| (c.clone(), json!({"functions": sec.by_leaf.len(), "scenarios": sec.by_scenario.len()}))).collect::<serde_json::Map<_, _>>(),
                             "sources": r.sources,
                         })
                     })
@@ -169,7 +190,15 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
                 println!("No runs retained (ingest with --run <id>).");
             } else {
                 for r in &history.runs {
-                    println!("{}  at {}  {} function(s), {} scenario(s)", r.run, r.ingested_at_unix, r.by_leaf.len(), r.by_scenario.len());
+                    let cfgs = if r.by_config.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            "; {}",
+                            r.by_config.iter().map(|(c, s)| format!("{c}: {} function(s), {} scenario(s)", s.by_leaf.len(), s.by_scenario.len())).collect::<Vec<_>>().join("; ")
+                        )
+                    };
+                    println!("{}  at {}  {} function(s), {} scenario(s){cfgs}", r.run, r.ingested_at_unix, r.by_leaf.len(), r.by_scenario.len());
                 }
             }
             0
