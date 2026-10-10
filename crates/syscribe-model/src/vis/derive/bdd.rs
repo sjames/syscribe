@@ -78,8 +78,11 @@ pub fn generate(
             if v.iter().any(|e| &e.qualified_name == entry || short_name(&e.qualified_name) == entry) {
                 continue;
             }
+            // A qualified name relative to the subject, a full qualified name or a stable id — never
+            // a bare display name (that would match an unrelated definition elsewhere).
             let rel = format!("{}::{entry}", subject.qualified_name);
-            let hit = resolver.resolve_ref(elements, &rel).or_else(|| resolver.resolve_ref(elements, entry));
+            let by_exact = |q: &str| elements.iter().find(|e| e.qualified_name == q || e.frontmatter.id.as_deref() == Some(q));
+            let hit = by_exact(&rel).or_else(|| by_exact(entry));
             if let Some(t) = hit.filter(|t| t.frontmatter.element_type.as_ref().map(is_bdd_block).unwrap_or(false)) {
                 if !v.iter().any(|e| e.qualified_name == t.qualified_name) {
                     v.push(t);
@@ -110,7 +113,7 @@ pub fn generate(
         .map(|e| (e.qualified_name.clone(), short_name(&e.qualified_name).to_string()))
         .collect();
     let filters = &*filters;
-    filters.unmatched_issues(&names, issues);
+    let cand_names: std::collections::HashSet<String> = candidates.iter().map(|e| e.qualified_name.clone()).collect();
     let blocks: Vec<&RawElement> = candidates
         .into_iter()
         .filter(|e| filters.keeps(&e.qualified_name, short_name(&e.qualified_name)))
@@ -121,6 +124,9 @@ pub fn generate(
     let mut have: std::collections::HashSet<String> = blocks.iter().map(|e| e.qualified_name.clone()).collect();
     let mut externals: Vec<&RawElement> = Vec::new();
     let mut frontier: Vec<&RawElement> = blocks.clone();
+    // Names an `exclude:` entry may legitimately name although they are not members: the
+    // external blocks it keeps out (so `W417` does not fire for them).
+    let mut excluded_externals: Vec<(String, String)> = Vec::new();
     for _ in 0..depth {
         let mut next: Vec<&RawElement> = Vec::new();
         for e in &frontier {
@@ -128,8 +134,16 @@ pub fn generate(
                 let Some(tb) = typed_by else { continue };
                 let Some(t) = resolver.resolve_ref(elements, &tb) else { continue };
                 let is_block = t.frontmatter.element_type.as_ref().map(is_bdd_block).unwrap_or(false);
+                // A member the `include:`/`exclude:` lists left out stays out; it is not "external".
+                if !is_block || cand_names.contains(&t.qualified_name) {
+                    continue;
+                }
                 let excluded = filters.exclude.iter().any(|x| x == &t.qualified_name || x == short_name(&t.qualified_name));
-                if is_block && !excluded && have.insert(t.qualified_name.clone()) {
+                if excluded {
+                    excluded_externals.push((t.qualified_name.clone(), short_name(&t.qualified_name).to_string()));
+                    continue;
+                }
+                if have.insert(t.qualified_name.clone()) {
                     externals.push(t);
                     next.push(t);
                 }
@@ -140,6 +154,9 @@ pub fn generate(
         }
         frontier = next;
     }
+    let mut known = names.clone();
+    known.extend(excluded_externals);
+    filters.unmatched_issues(&known, issues);
     let all_blocks: Vec<&RawElement> = blocks.iter().chain(externals.iter()).copied().collect();
 
     // ── nodes ───────────────────────────────────────────────────────────
@@ -382,7 +399,23 @@ mod tests {
         assert!(g.node("s-xp-sub-box").unwrap().mark.is_none());
         // exclude keeps an external block out
         let d = diagram("BDD", "Xp", |fm| fm.exclude = Some(vec!["Xp::Sub::Box".into()]));
-        let (g, _) = derive_it(&d);
+        let (g, issues) = derive_it(&d);
         assert_eq!(block_refs(&g), vec!["Xp::Top"]);
+        assert!(issues.is_empty(), "excluding an external block is not a W417: {issues:?}");
+    }
+
+    #[test]
+    fn include_still_narrows_and_never_matches_a_bare_display_name_elsewhere() {
+        // Sys has Base, Engine, Motor, …; Xp::Top is outside it. `include: [Engine]` keeps Engine only:
+        // Base (Engine's supertype) is a member the list left out, so it is neither a block nor external.
+        let d = diagram("BDD", "Sys", |fm| fm.include = Some(vec!["Engine".into()]));
+        let (g, _) = derive_it(&d);
+        assert_eq!(block_refs(&g), vec!["Sys::Engine"]);
+        assert!(g.nodes.iter().all(|n| n.mark.is_none()));
+        // A bare name of a definition that is not a member of the subject does not resolve.
+        let d = diagram("BDD", "Xp", |fm| fm.include = Some(vec!["Top".into(), "Leaf".into()]));
+        let (g, issues) = derive_it(&d);
+        assert_eq!(block_refs(&g), vec!["Xp::Top", "Xp::Sub::Box"], "Leaf is not a direct member; only depth reaches Box");
+        assert!(issues.iter().any(|i| i.message.contains("'Leaf'")), "{issues:?}");
     }
 }

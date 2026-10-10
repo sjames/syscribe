@@ -279,10 +279,11 @@ fn render_bdd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
     for node in &graph.nodes {
         let url = element_url(&node.element_ref, cfg);
         out.push_str(&format!(
-            "class \"{}\" as {} <<{}>> {}\n",
+            "class \"{}\" as {} <<{}>>{} {}\n",
             node.label,
             sanitize_id(&node.id),
             class_stereotype(node),
+            if node.mark.as_ref().and_then(|m| m.status.as_deref()) == Some("external") { " <<external>>" } else { "" },
             url
         ));
     }

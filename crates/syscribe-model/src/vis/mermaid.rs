@@ -126,13 +126,17 @@ fn render_class(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) ->
         let label = text(&n.label);
         let lines = class_lines(graph, n);
         let stereotype = class_stereotype(n);
-        if stereotype.is_none() && lines.is_empty() {
+        let external = n.mark.as_ref().and_then(|m| m.status.as_deref()) == Some("external");
+        if stereotype.is_none() && lines.is_empty() && !external {
             out.push_str(&format!("  class {id}[\"{label}\"]\n"));
             continue;
         }
         out.push_str(&format!("  class {id}[\"{label}\"] {{\n"));
         if let Some(st) = stereotype {
             out.push_str(&format!("    <<{}>>\n", member(&st)));
+        }
+        if n.mark.as_ref().and_then(|m| m.status.as_deref()) == Some("external") {
+            out.push_str("    <<external>>\n");
         }
         for l in lines {
             out.push_str(&format!("    +{}\n", member(l)));
