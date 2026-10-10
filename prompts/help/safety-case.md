@@ -11,7 +11,9 @@ It always folds in the implicit SafetyGoal ← Requirement (derivedFromSafetyGoa
 derivedChildren* ← TestCase (verifies) chain (even when a goal has Arguments; a
 requirement an Argument already cites is shown once). Nodes with no evidence are
 marked [UNDEVELOPED]; each goal gets a SUPPORTED/INCOMPLETE/FAILING verdict and a
-Completeness summary follows. An unknown <SG-id> exits 1.
+Completeness summary follows. In the text output a Requirement or Argument subtree that
+was already printed under the same goal is shown again as a single line marked
+`(see above)`; JSON, DOT and Mermaid keep the full tree. An unknown <SG-id> exits 1.
 
 ## OPTIONS
     --config <C>   Project onto a Configuration (id/qname or 'Features::A,…') —

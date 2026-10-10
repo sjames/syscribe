@@ -133,14 +133,23 @@ fn node_line(n: &SafetyCaseNode) -> String {
     s
 }
 
-fn print_children(children: &[SafetyCaseNode], indent: &str) {
+/// Print a goal's subtree. A Requirement or Argument node that has children and was already
+/// printed earlier in this goal's tree is shown once more as `… (see above)` without its
+/// children (GH #247), as `connectivity` does with `(*)`. Leaves (a TestCase) always print.
+fn print_children(children: &[SafetyCaseNode], indent: &str, expanded: &mut std::collections::HashSet<String>) {
     let total = children.len();
     for (i, c) in children.iter().enumerate() {
         let last = i + 1 == total;
         let conn = if last { "└──" } else { "├──" };
+        let key = format!("{}|{}", c.kind.label(), c.id);
+        let repeat = !c.children.is_empty() && !expanded.insert(key);
+        if repeat {
+            println!("{}{} {} (see above)", indent, conn, node_line(c));
+            continue;
+        }
         println!("{}{} {}", indent, conn, node_line(c));
         let child_indent = format!("{}{}", indent, if last { "    " } else { "│   " });
-        print_children(&c.children, &child_indent);
+        print_children(&c.children, &child_indent, expanded);
     }
 }
 
@@ -153,7 +162,7 @@ fn render_text(case: &SafetyCase, sidecar_loaded: bool) {
             g.verdict.as_str().to_uppercase(),
             if g.root.undeveloped { " [UNDEVELOPED]" } else { "" }
         );
-        print_children(&g.root.children, "");
+        print_children(&g.root.children, "", &mut std::collections::HashSet::new());
         println!();
     }
     print_completeness(&case.completeness);
