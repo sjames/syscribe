@@ -51,6 +51,10 @@ names the requirement and exits 1 — as are invalid values and unknown selector
 The applied rule is printed on each parent line, `(rule: <rule>)`, and carried
 in `--json` as `rule`.
 
+`validate` applies the same policy to `W305` (which names the rule applied; under `rollup` a
+parent whose every leaf has an active verifying test is accepted) and reports an invalid table or a
+loosened integrity-rated parent as `E898`.
+
 ## OPTIONS
     --json     the same tree as JSON (leavesActive/leavesPlanned/leavesUncovered,
                directTests, verdict = complete|partial|none|na, glyph, children)

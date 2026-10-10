@@ -657,6 +657,12 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
 | `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:…`, `pypi:…`, `maven:…`, `nuget:…`, `github:org/repo@v1`) accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
 
+## Coverage policy (E898)
+
+| Code | Condition |
+|---|---|
+| `E898` | The `[coverage]` table is invalid, or an integrity-rated parent requirement is judged by a rule looser than `both` (`W305` names the rule applied) |
+
 ## Timing quantities and budgets (E895, W893)
 
 | Code | Condition |

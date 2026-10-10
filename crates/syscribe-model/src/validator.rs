@@ -5292,6 +5292,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // E898: an invalid `[coverage]` table (GH #253).
+    if let Some(root) = &config.model_root {
+        for p in &config.coverage.problems {
+            findings.push(error("E898", &root.join(".syscribe.toml").to_string_lossy(), p));
+        }
+    }
+
     // W002/W003: coverage checks for native Requirements
     for elem in elements {
         if !Resolver::is_native_requirement(elem) {
@@ -5542,6 +5549,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // (L3 system test, L4 system integration test, or L5 HIL/acceptance).
         // Leaf-level test cases (L1/L2) on derived requirements are not sufficient to
         // verify the emergent, composed behaviour expressed by the parent.
+        let (cov_rule, cov_source) = config.coverage.rule_for(&elem.frontmatter);
+        if is_parent && cov_rule != crate::config::ParentRule::Both && crate::config::is_integrity_rated(&elem.frontmatter) {
+            findings.push(error("E898", &elem.file_path, &format!(
+                "{req_id} is integrity-rated (ASIL/CAL/SIL) but {cov_source} of [coverage] sets parent_rule = \"{}\"; an integrity-rated parent needs \"both\"",
+                cov_rule.as_str())));
+        }
         if is_parent && matches!(status, "approved" | "implemented" | "verified") {
             let has_integration_tc = active_tcs.iter().any(|tc_id| {
                 resolver
@@ -5549,13 +5562,35 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .and_then(|e| e.frontmatter.test_level.as_deref())
                     .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
             });
-            if !has_integration_tc {
+            // Under `rollup` a parent whose every leaf descendant has an active verifying TestCase
+            // is covered through them (GH #253); never for an integrity-rated parent (E898 above).
+            let rolled_up = cov_rule == crate::config::ParentRule::Rollup && !crate::config::is_integrity_rated(&elem.frontmatter) && {
+                let mut leaves: Vec<String> = Vec::new();
+                let mut stack: Vec<String> = vec![req_id.to_string()];
+                let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+                while let Some(id) = stack.pop() {
+                    if !seen.insert(id.clone()) {
+                        continue;
+                    }
+                    match derived_children.get(&id).filter(|c| !c.is_empty()) {
+                        Some(cs) => stack.extend(cs.iter().cloned()),
+                        None => leaves.push(id),
+                    }
+                }
+                !leaves.is_empty()
+                    && leaves.iter().all(|l| {
+                        verified_by.get(l).is_some_and(|tcs| {
+                            tcs.iter().any(|t| resolver.get_by_id(elements, t).and_then(|e| e.frontmatter.status.as_deref()) == Some("active"))
+                        })
+                    })
+            };
+            if !has_integration_tc && !rolled_up {
                 findings.push(warning(
                     "W305",
                     &elem.file_path,
                     &format!(
-                        "parent Requirement '{}' (status: {}) has no active system integration TestCase (testLevel: L3, L4, or L5)",
-                        req_id, status
+                        "parent Requirement '{}' (status: {}) has no active system integration TestCase (testLevel: L3, L4, or L5) (rule: {})",
+                        req_id, status, cov_rule.as_str()
                     ),
                 ));
             }

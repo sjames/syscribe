@@ -6509,6 +6509,14 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
+#### Coverage policy (E898)
+
+The `[coverage]` table of `.syscribe.toml` (§12.11).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E898 | Error | the `[coverage]` table of `.syscribe.toml` is invalid (unparseable, unknown key, bad rule or selector value), or an integrity-rated (ASIL/CAL/SIL) parent requirement is judged by a rule looser than `both` |
+
 #### Timing quantities and budgets (E895, W893)
 
 `quantities:` (§8.18.8).

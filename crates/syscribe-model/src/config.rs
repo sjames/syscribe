@@ -141,6 +141,9 @@ pub struct ValidateConfig {
     /// [`AuditConfig::default`] (W306 always; W033/W805 at ASIL C/D).
     pub audit: AuditConfig,
 
+    /// `[coverage]` parent-requirement policy (GH #253, REQ-TRS-COVVAL-001): which rule judges W305.
+    pub coverage: CoveragePolicy,
+
     /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
     /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
     /// `simple` rank-sum method, so existing models validate byte-identically.
@@ -719,6 +722,7 @@ impl ValidateConfig {
             users,
             link_types,
             audit,
+            coverage: CoveragePolicy::load(&root_for_cyber),
             cyber: crate::cyber_config::CyberConfig::load(&root_for_cyber),
         }
     }

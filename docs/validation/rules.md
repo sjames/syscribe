@@ -1119,6 +1119,16 @@ computed) — mapped back to a label.
 |---|---|
 | E921 | `id` or `name` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
 
+## Coverage policy (E898)
+
+The `[coverage]` table of `.syscribe.toml` (GH #253) sets how `W305` judges a parent requirement
+(`both` by default; `rollup` accepts a parent whose every leaf descendant has an active
+verifying TestCase; `direct` needs the parent's own test). `W305` names the rule applied.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E898 | Error | the `[coverage]` table of `.syscribe.toml` is invalid (unparseable, unknown key, bad rule or selector value), or an integrity-rated (ASIL/CAL/SIL) parent requirement is judged by a rule looser than `both` |
+
 ## Timing quantities and budgets (E895, W893)
 
 `quantities:` (GH #237) states FTTI, latency, WCET and reaction time as `{kind, value, unit}`;
