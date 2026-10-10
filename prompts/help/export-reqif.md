@@ -9,7 +9,7 @@ Exports native `Requirement` elements (and their packages) as a ReqIF 1.2 XML do
 (§21) for import into DOORS Next / Jama / Polarion / PTC. Each requirement becomes a
 `SPEC-OBJECT` (id/name/status/sil/asil/domain attributes + an XHTML `DESC` from the body);
 packages become a nested `SPEC-HIERARCHY`; `derivedFrom:` links become `DERIVED_FROM`
-`SPEC-RELATION`s. Export-only — importing ReqIF is out of scope.
+`SPEC-RELATION`s. See `import-reqif` for the reverse direction.
 
 ## OPTIONS
     --output file     Write to <file>.reqif (or <file>.reqifz with --zip); default stdout.

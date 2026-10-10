@@ -50,6 +50,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         &[
             ("export", include_str!("../../../prompts/help/export.md")),
             ("export-html", include_str!("../../../prompts/help/export-html.md")),
+            ("import-reqif", include_str!("../../../prompts/help/import-reqif.md")),
             ("export-reqif", include_str!("../../../prompts/help/export-reqif.md")),
             ("export-sysml", include_str!("../../../prompts/help/export-sysml.md")),
             ("sbom", include_str!("../../../prompts/help/sbom.md")),

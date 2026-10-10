@@ -11,6 +11,7 @@ mod coanalysis;
 mod coverage;
 mod covtree;
 mod runhist;
+mod reqif_import;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
@@ -1200,6 +1201,27 @@ fn main() {
                         eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
                         std::process::exit(1);
                     }
+                }
+            }
+            "import-reqif" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let val = |k: &str| rest.windows(2).find(|w| w[0] == k).map(|w| w[1].as_str());
+                let Some(file) = first_positional(rest, &["--into", "--id-prefix", "--class", "--domain"]) else {
+                    eprintln!("Usage: syscribe --model <root> import-reqif <file.reqif> [--into <package>] [--id-prefix <PFX>] [--class <reqClass>] [--domain <reqDomain>] [--update] [--dry-run]");
+                    std::process::exit(1);
+                };
+                let opts = reqif_import::ImportOptions {
+                    file,
+                    into: val("--into").unwrap_or("Requirements"),
+                    id_prefix: val("--id-prefix").unwrap_or("REQ-IMP"),
+                    req_class: val("--class").unwrap_or("stakeholder"),
+                    req_domain: val("--domain").unwrap_or("system"),
+                    update: rest.iter().any(|a| a == "--update"),
+                    dry_run: rest.iter().any(|a| a == "--dry-run"),
+                };
+                let code = reqif_import::cmd_import_reqif(model_root, &elems, &opts);
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             "results" => {

@@ -537,6 +537,14 @@ Two ways to let a package's subtree come from something other than Syscribe Mark
 syscribe -m examples/stdio-plugins/toy-python/model/ plugins run toydsl --dry-run
 ```
 
+## ReqIF import (`import-reqif`)
+
+```
+syscribe -m <root> import-reqif <file.reqif> [--into <package>] [--id-prefix <PFX>] [--class <reqClass>] [--domain <reqDomain>] [--update] [--dry-run]
+```
+
+Creates one draft `Requirement` per SPEC-OBJECT (folders and test cases skipped), keeping the OEM identifier in `extRef: ["reqif:<id>"]`. Re-importing is idempotent; `--update` rewrites the name and body of already-imported requirements. A custom `--id-prefix` must be registered under `[ids.prefixes]`. CSV/Excel mapping is not implemented yet (GH #241). See `syscribe help import-reqif`.
+
 ## ReqIF export (`export-reqif`)
 
 ```bash
