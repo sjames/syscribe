@@ -362,3 +362,43 @@ async fn the_page_has_matrix_controls() {
         assert!(html.contains(&format!("id=\"{id}\"")), "{id} missing: {html}");
     }
 }
+
+#[test]
+fn vmodel_columns_classify_nodes_and_the_layout_honours_them() {
+    if Command::new("node").arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
+        panic!("node is required for the explorer client tests");
+    }
+    let js = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/js/requirements-explorer.js");
+    let script = format!(
+        r#"const m = require({js:?});
+const nodes = [{{id:'S',type:'Requirement',reqClass:'stakeholder'}},{{id:'Y',type:'Requirement',reqClass:'system'}},{{id:'W',type:'Requirement',reqClass:'software'}},
+  {{id:'N',type:'Requirement'}},{{id:'P',type:'PartDef'}},{{id:'T',type:'TestCase'}},{{id:'H',type:'HazardousEvent'}},{{id:'X'}}];
+const cols = Object.fromEntries(nodes.map(n => [n.id, m.vmodelColumn(n)]));
+// no stakeholder, no tests: columns 0 and 4 are empty and must not be drawn
+const g = {{root:'Y', nodes:[nodes[1],nodes[2],nodes[4],nodes[6]], edges:[{{from:'W',to:'Y',kind:'x'}},{{from:'Y',to:'P',kind:'x'}}]}};
+const l = m.layoutGraph(g, m.vmodelColumn);
+let overlap = false;
+for (let i = 0; i < l.nodes.length; i++) for (let j = i+1; j < l.nodes.length; j++) {{
+  const a = l.nodes[i], b = l.nodes[j];
+  if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) overlap = true;
+}}
+const used = Object.fromEntries(l.nodes.map(n => [n.id, n.col]));
+console.log(JSON.stringify({{ cols, used, headers: (l.headers || []).map(h => [h.col, h.label]), overlap, hop: m.layoutGraph(g).headers || null }}));"#
+    );
+    let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["cols"], serde_json::json!({"S": 0, "Y": 1, "W": 2, "N": 2, "P": 3, "T": 4, "H": 5, "X": 5}));
+    // occupied: Y(1)->0, W(2)->1, P(3)->2, H(5)->3
+    assert_eq!(v["used"], serde_json::json!({"Y": 0, "W": 1, "P": 2, "H": 3}), "{v}");
+    assert_eq!(v["headers"], serde_json::json!([[0, "System requirements"], [1, "Other requirements"], [2, "Architecture"], [3, "Other elements"]]));
+    assert_eq!(v["overlap"], false);
+    assert!(v["hop"].is_null(), "the default layout has no headers");
+}
+
+#[tokio::test]
+async fn the_page_has_the_layout_selector() {
+    let a = app();
+    let (_, _, html) = get(&a, "/requirements").await;
+    assert!(html.contains("id=\"req-layout\"") && html.contains("v-model"), "{html}");
+}

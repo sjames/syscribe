@@ -15,7 +15,18 @@
 
   // Pure layout: layers by hop distance from the root over the undirected edges. Nodes unreachable from
   // the root (the API never returns any) go one column past the last. Deterministic: ids sorted per column.
-  function layoutGraph(g) {
+  var VM_LABELS = ['Stakeholder requirements', 'System requirements', 'Other requirements', 'Architecture', 'Tests', 'Other elements'];
+
+  // The V-model column of a node (0 stakeholder .. 5 everything else); a pure function of the node.
+  function vmodelColumn(n) {
+    if (n.type === 'Requirement') return n.reqClass === 'stakeholder' ? 0 : n.reqClass === 'system' ? 1 : 2;
+    if (CATEGORIES.architecture.indexOf(n.type) >= 0) return 3;
+    if (CATEGORIES.tests.indexOf(n.type) >= 0) return 4;
+    return 5;
+  }
+
+  // `colOf(node)` (optional) assigns raw columns instead of hop distance; only occupied columns are used.
+  function layoutGraph(g, colOf) {
     var ids = g.nodes.map(function (n) { return n.id; });
     var adj = {};
     ids.forEach(function (id) { adj[id] = []; });
@@ -33,6 +44,16 @@
     }
     var maxCol = Object.keys(col).reduce(function (m, k) { return Math.max(m, col[k]); }, 0);
     ids.forEach(function (id) { if (col[id] === undefined) col[id] = maxCol + 1; });
+    var headers;
+    if (colOf) {
+      var raws = [];
+      g.nodes.forEach(function (n) { var r = colOf(n); if (raws.indexOf(r) < 0) raws.push(r); });
+      raws.sort(function (a, b) { return a - b; });
+      var rank = {};
+      raws.forEach(function (r, i) { rank[r] = i; });
+      g.nodes.forEach(function (n) { col[n.id] = rank[colOf(n)]; });
+      headers = raws.map(function (r, i) { return { col: i, label: VM_LABELS[r] || '' }; });
+    }
     var byCol = {};
     g.nodes.forEach(function (n) { (byCol[col[n.id]] = byCol[col[n.id]] || []).push(n); });
     var cols = Object.keys(byCol).map(Number).sort(function (a, b) { return a - b; });
@@ -54,7 +75,9 @@
       });
     });
     var width = PAD * 2 + (cols.length ? cols[cols.length - 1] + 1 : 1) * NODE_W + (cols.length ? cols[cols.length - 1] : 0) * GAP_X;
-    return { nodes: nodes, edges: g.edges || [], width: width, height: height };
+    var out = { nodes: nodes, edges: g.edges || [], width: width, height: height };
+    if (headers) out.headers = headers;
+    return out;
   }
 
   // Pure filter: keeps the root and every node matching ALL non-empty criteria (types, verification, asil);
@@ -236,7 +259,7 @@
 
   function truncate(s, n) { s = s || ''; return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '', drawn: null, view: 'graph' };
+  var state = { focus: '', depth: 1, config: '', kinds: null, selected: null, lastGraph: null, filters: {}, trace: '', drawn: null, view: 'graph', layout: 'hops' };
   var root, svg, statusEl, detailEl;
 
   function setStatus(t) { if (statusEl) statusEl.textContent = t || ''; }
@@ -246,7 +269,7 @@
     syncTypeFilters(raw);
     var graph = filterGraph(raw, state.filters);
     if (state.selected && !graph.nodes.some(function (n) { return n.id === state.selected; })) resetDetail();
-    var lay = layoutGraph(graph);
+    var lay = layoutGraph(graph, state.layout === 'v-model' ? vmodelColumn : undefined);
     var tr = null;
     if (state.trace) {
       var start = state.selected && graph.nodes.some(function (n) { return n.id === state.selected; }) ? state.selected : graph.root;
@@ -264,6 +287,9 @@
     marker.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: '#7a869a' }));
     defs.appendChild(marker);
     svg.appendChild(defs);
+    (lay.headers || []).forEach(function (h) {
+      svg.appendChild(el('text', { x: PAD + h.col * (NODE_W + GAP_X), y: PAD - 8, class: 'rg-colhead' }, h.label));
+    });
     var pos = {};
     lay.nodes.forEach(function (n) { pos[n.id] = n; });
     var labels = [];
@@ -426,7 +452,7 @@
   var SVG_STYLE = '.rg-node text{font:12px sans-serif}.rg-node .rg-sub{font-size:10px;fill:#555}.rg-node rect{stroke-width:1.5}' +
     '.rg-node.root rect{stroke-width:3.5}.rg-node.selected rect{stroke:#1a4fd6;stroke-width:3}.rg-edge{fill:none;stroke:#7a869a;stroke-width:1.4}' +
     '.rg-edge-label{font:10px sans-serif;fill:#2b3550;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}' +
-    '.dim{opacity:.18}.rg-edge.hl{stroke-width:2.5px}.rg-node.target rect{stroke-width:3px;stroke-dasharray:5 2}';
+    '.rg-colhead{font:bold 11px sans-serif;fill:#2b3550}.dim{opacity:.18}.rg-edge.hl{stroke-width:2.5px}.rg-node.target rect{stroke-width:3px;stroke-dasharray:5 2}';
 
   function svgText() {
     var c = svg.cloneNode(true);
@@ -711,6 +737,8 @@
       if (b) b.addEventListener('click', function () { exportAs(k); });
     });
     setView('graph');
+    var lo = document.getElementById('req-layout');
+    if (lo) lo.addEventListener('change', function () { state.layout = lo.value; if (state.lastGraph) draw(state.lastGraph); });
     var ts = document.getElementById('req-trace');
     if (ts) ts.addEventListener('change', function () { state.trace = ts.value; if (state.lastGraph) draw(state.lastGraph); });
     initSearch();
@@ -719,7 +747,7 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { matrixModel: matrixModel, tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
+    module.exports = { vmodelColumn: vmodelColumn, matrixModel: matrixModel, tableRows: tableRows, csvCell: csvCell, toCsv: toCsv, exportName: exportName, CATEGORIES: CATEGORIES, layoutGraph: layoutGraph, tracePath: tracePath, categoryOf: categoryOf, jumpLinks: jumpLinks, effectiveAsil: effectiveAsil, filterGraph: filterGraph, EDGE_KINDS: EDGE_KINDS };
   } else if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   }

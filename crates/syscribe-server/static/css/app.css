@@ -685,3 +685,4 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 .req-table th, .req-table td { border: 1px solid #c9d1e0; padding: 2px 6px; text-align: left; }
 .req-table caption { font-weight: bold; text-align: left; }
 .req-table button { background: none; border: 0; cursor: pointer; text-decoration: underline; color: inherit; font: inherit; }
+#req-graph .rg-colhead { font: bold 11px sans-serif; fill: #2b3550; }
