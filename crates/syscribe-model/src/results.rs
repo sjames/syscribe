@@ -908,6 +908,23 @@ impl RunHistory {
 }
 
 impl RunRecord {
+    /// This retained run as a results sidecar value, for `--results-as-of` (GH #258). Class-qualified
+    /// keys are not retained, so a qualified reference resolves through its leaf name.
+    pub fn to_results(&self) -> ResultsData {
+        ResultsData {
+            schema_version: "1.0".to_string(),
+            format: "history".to_string(),
+            source: format!("run {}", self.run),
+            ingested_at_unix: self.ingested_at_unix,
+            count: self.by_leaf.len() + self.by_scenario.len(),
+            by_leaf: self.by_leaf.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+            by_scenario: self.by_scenario.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+            leaf_meta: None,
+            scenario_meta: None,
+            details: HashMap::new(),
+        }
+    }
+
     /// The verdicts of the sections both runs hold (a run that only ingested function results is
     /// not compared against scenarios the other run recorded).
     fn comparable(&self, other: &RunRecord) -> std::collections::BTreeMap<String, Verdict> {

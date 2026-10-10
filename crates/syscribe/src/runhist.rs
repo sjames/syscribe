@@ -4,6 +4,32 @@ use serde_json::json;
 use std::path::Path;
 use syscribe_model::results::{RunDiff, RunHistory, TestChange, Verdict};
 
+static AS_OF: std::sync::OnceLock<syscribe_model::results::ResultsData> = std::sync::OnceLock::new();
+
+/// Activate `--results-as-of <run>`: every later [`load_results`] returns that retained run.
+pub fn set_as_of(model_root: &Path, run: &str) -> Result<(), String> {
+    let history = RunHistory::load(model_root)?;
+    let Some(rec) = history.get(run) else {
+        let have: Vec<&str> = history.runs.iter().map(|r| r.run.as_str()).collect();
+        return Err(format!(
+            "--results-as-of: run '{run}' is not retained ({}). Retain a run with `ingest-results --run <id>`.",
+            if have.is_empty() { "no runs retained".to_string() } else { format!("retained: {}", have.join(", ")) }
+        ));
+    };
+    let _ = AS_OF.set(rec.to_results());
+    Ok(())
+}
+
+/// The run `--results-as-of` selected, if any.
+pub fn as_of() -> Option<&'static syscribe_model::results::ResultsData> {
+    AS_OF.get()
+}
+
+/// The results the evidence-reading commands use: the selected retained run, else the sidecar.
+pub fn load_results(model_root: &Path) -> Option<syscribe_model::results::ResultsData> {
+    as_of().cloned().or_else(|| syscribe_model::results::ResultsData::load_sidecar(model_root))
+}
+
 const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results failures [--json] | results diff <runA> <runB> [--json] [--fail-on-regression]";
 
 fn v(x: Option<Verdict>) -> &'static str {

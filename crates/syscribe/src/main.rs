@@ -72,7 +72,6 @@ use syscribe_model::{
     config::ValidateConfig,
     element::{ElementType, RawElement},
     resolver::{is_adr_id, is_req_id, is_tc_id, Resolver},
-    results::ResultsData,
     validator,
     walker,
 };
@@ -672,10 +671,21 @@ fn main() {
     // Strip --model <path> or --model=<path> from args; collect remaining args.
     let mut remaining: Vec<String> = Vec::new();
     let mut model_flag: Option<String> = None;
+    let mut results_as_of: Option<String> = None;
     {
         let mut iter = args[1..].iter();
         while let Some(a) = iter.next() {
-            if a == "--model" || a == "-m" {
+            if a == "--results-as-of" {
+                match iter.next() {
+                    Some(v) if !v.starts_with('-') => results_as_of = Some(v.clone()),
+                    _ => {
+                        eprintln!("--results-as-of needs a run id (a run retained with `ingest-results --run <id>`)");
+                        std::process::exit(1);
+                    }
+                }
+            } else if let Some(v) = a.strip_prefix("--results-as-of=") {
+                results_as_of = Some(v.to_string());
+            } else if a == "--model" || a == "-m" {
                 model_flag = iter.next().cloned();
             } else if let Some(val) = a.strip_prefix("--model=") {
                 model_flag = Some(val.to_string());
@@ -769,7 +779,15 @@ fn main() {
 
     // Validation config rooted at the model directory so on-disk references
     // (e.g. `sourceFile:`) resolve correctly per spec §11.12.
-    let vcfg = ValidateConfig::with_model_root(model_root);
+    let mut vcfg = ValidateConfig::with_model_root(model_root);
+    // `--results-as-of <run>` (GH #258): evaluate evidence against a retained run, not the latest sidecar.
+    if let Some(run) = &results_as_of {
+        if let Err(e) = runhist::set_as_of(model_root, run) {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        vcfg.results = runhist::as_of().cloned();
+    }
 
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     // `report` (and a bare invocation with no subcommand) fall through to the default
@@ -1100,7 +1118,7 @@ fn main() {
                     std::process::exit(1);
                 };
                 let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
-                let results = ResultsData::load_sidecar(model_root);
+                let results = runhist::load_results(model_root);
                 let code = covtree::cmd_coverage_tree(&elems, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), root, json);
                 if code != 0 {
                     std::process::exit(code);
@@ -1406,7 +1424,7 @@ fn main() {
                 }
                 if rest.iter().any(|a| a == "--rollup") {
                     let result = syscribe_model::validator::validate_with_config(&view, &vcfg);
-                    let results = ResultsData::load_sidecar(model_root);
+                    let results = runhist::load_results(model_root);
                     let code = covtree::cmd_rollup(&view, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), tag, status, json);
                     if code != 0 {
                         std::process::exit(code);
@@ -1416,7 +1434,7 @@ fn main() {
                 } else {
                     // Surface executed-evidence by default when a sidecar exists
                     // (issue #21); absent results, behaves exactly as before.
-                    let results = ResultsData::load_sidecar(model_root);
+                    let results = runhist::load_results(model_root);
                     matrix::cmd_matrix(
                         &view,
                         json,
@@ -1543,7 +1561,7 @@ fn main() {
                     goal = rest[gi].as_str();
                     break;
                 }
-                let results = ResultsData::load_sidecar(model_root);
+                let results = runhist::load_results(model_root);
                 let sidecar_loaded = results.is_some();
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
@@ -1556,7 +1574,7 @@ fn main() {
                 // Read-only TestPlan surface (GH #38 / REQ-TRS-PLAN-005).
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
-                let results = ResultsData::load_sidecar(model_root);
+                let results = runhist::load_results(model_root);
                 // First non-flag positional = optional TP-id.
                 let tp = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
                 match tp {
@@ -2006,7 +2024,7 @@ fn main() {
                         let linked_only = rest.iter().any(|a| a == "--linked-only");
                         // Annotate verifying TestCases with ingested verdicts when a
                         // sidecar exists (issue #21).
-                        let results = ResultsData::load_sidecar(model_root);
+                        let results = runhist::load_results(model_root);
                         query::cmd_trace(
                             &elems,
                             &resolver,
@@ -2074,7 +2092,7 @@ fn main() {
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 let code = if sub == "trace" {
                     // GH #223: the hazard-to-test graph with the ingested test verdicts.
-                    let results = ResultsData::load_sidecar(model_root);
+                    let results = runhist::load_results(model_root);
                     let cyber = syscribe_model::cyber_config::CyberConfig::load(model_root);
                     analysis_cmd::cmd_hara_trace(&elems, &cyber, results.as_ref(), rest)
                 } else {

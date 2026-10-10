@@ -31,8 +31,14 @@ or was skipped in B (CI gate). Only the sections (function-level, session-log) t
 both runs hold are compared. Run ids must be non-empty and not start with `-`. An unknown
 run id exits 1.
 
-Not yet: per-configuration verdicts, a `--results-as-of <run>` lens on
-`matrix`/`trace`/`audit`, and retained failure messages (GH #258).
+**`--results-as-of <run>`** is a global option (like `-m`, anywhere on the command line): the
+evidence-reading commands (`matrix`, `trace`, `testplan`, `safety-case`, `audit`, `validate`, …)
+then use that retained run's verdicts instead of the latest sidecar, e.g.
+`syscribe -m model validate --results-as-of SW-0.9.0-rc3`. An unknown run exits 1 and lists
+the retained ones. Class-qualified JUnit keys are not retained, so a qualified reference resolves
+through its leaf name. Nothing on disk changes.
+
+Not yet: per-configuration verdicts (GH #258).
 
 ## SEE ALSO
     ingest-results, audit, matrix
