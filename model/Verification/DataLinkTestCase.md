@@ -11,7 +11,7 @@ tags:
   - telemetry
   - flight-test
 traceBaselines:
-  REQ-UAV-COMM-001: "blake3:e5a6b109b67408b0fe44e8a00fcec9cb5df9ab8f3b80ad3ae95b90a2b3c852a2"
+  REQ-UAV-COMM-001: "blake3:89e22bebfd41090bb63f97032c558f9972d4e86dda84149cddab9b820e795902"
 ---
 
 Field test measuring command uplink and telemetry downlink connectivity at incremental standoff distances up to 5 km. Packet error rate is logged at each distance station.

@@ -33,6 +33,12 @@ const EXCLUDED_KEYS: &[&str] = &[
     "edges",          // diagram geometry
     "svgFile",        // rendered-artifact pointer
     "pumlFile",       // rendered-artifact pointer
+    // Workflow state (GH #251): promoting or claiming an element is not a change to
+    // the content a downstream link depends on.
+    "status",
+    "claimedBy",
+    "claimedAt",
+    "assignedTo",
 ];
 
 /// State of a single trace link relative to its stored baseline.

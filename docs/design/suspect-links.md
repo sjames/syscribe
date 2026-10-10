@@ -99,14 +99,14 @@ normalize line endings/whitespace) and worse signal.
 The projection should contain the fields a downstream consumer actually depends
 on. Default surface, then per-type overrides:
 
-- **Requirement**: normative body text + `status` + `reqDomain` + safety fields
-  (SIL/ASIL). *Not* editorial doc prose, `displayOrder`, `extRef`, layout.
+- **Requirement**: normative body text + `reqDomain` + safety fields
+  (SIL/ASIL). `status` and the claim/assignment fields are workflow state and are excluded (GH #251). *Not* editorial doc prose, `displayOrder`, `extRef`, layout.
 - **TestCase**: scenario/Gherkin body + `testLevel` + `testFunctions`.
 - **Part / PartDef**: ports/interface surface, not doc prose.
 
 > **Resolved (§8, decision 2):** v1 ships the default projection — the body plus
 > all frontmatter except editorial/presentation fields (`name`, `displayOrder`,
-> `extRef`, the removed `title`, `traceBaselines`, and diagram
+> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251), the removed `title`, `traceBaselines`, and diagram
 > `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`). Per-type surfaces are deferred
 > until false positives justify them.
 

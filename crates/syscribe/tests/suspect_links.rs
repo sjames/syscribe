@@ -501,23 +501,30 @@ fn write_req_full(root: &Path, id: &str, name: &str, status: &str, body: &str) {
 
 #[test]
 fn editing_normative_frontmatter_field_makes_link_suspect() {
-    // The projection must include normative frontmatter (status/reqDomain/safety),
-    // not just the body. Baseline while `status: draft`, then flip ONLY `status`
-    // (body and name held identical) → the link must go suspect.
+    // The projection must include normative frontmatter (reqDomain/safety), not
+    // just the body. Baseline, then flip ONLY `reqDomain` → the link goes suspect.
     let root = base_pair(None);
     let _ = run(&root, &["suspect", "accept", "TC-SL-001", "REQ-SL-001"]);
     assert!(!has_w090(&root), "precondition: freshly baselined link is current");
-    write_req_full(
-        &root,
-        "REQ-SL-001",
-        "Req REQ-SL-001",
-        "approved", // was `draft`
-        "Original requirement body.",
-    );
+    let p = root.join("Requirements/REQ-SL-001.md");
+    let t = std::fs::read_to_string(&p).unwrap();
+    assert!(t.contains("reqDomain: software"));
+    std::fs::write(&p, t.replace("reqDomain: software", "reqDomain: hardware")).unwrap();
     assert!(
         has_w090(&root),
-        "changing a normative frontmatter field (status) must make the link suspect"
+        "changing a normative frontmatter field (reqDomain) must make the link suspect"
     );
+}
+
+#[test]
+fn promoting_status_keeps_link_current() {
+    // GH #251: `status` is workflow state, not content.
+    let root = base_pair(None);
+    let _ = run(&root, &["suspect", "accept", "TC-SL-001", "REQ-SL-001"]);
+    for st in ["review", "approved"] {
+        write_req_full(&root, "REQ-SL-001", "Req REQ-SL-001", st, "Original requirement body.");
+        assert!(!has_w090(&root), "status -> {st} must not flip the link suspect");
+    }
 }
 
 #[test]

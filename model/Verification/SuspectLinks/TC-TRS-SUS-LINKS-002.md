@@ -31,8 +31,13 @@ Feature: Content projection and BLAKE3 hashing
 
   Scenario: Editing a normative field changes the hash
     Given an element E with a computed projection hash H
-    When E's status (or reqDomain, or a SIL/ASIL field) is changed
+    When E's reqDomain (or a SIL/ASIL field) is changed
     Then the recomputed projection hash differs from H
+
+  Scenario: Editing workflow state does not change the hash (GH #251)
+    Given an element E with a computed projection hash H
+    When only E's status, claimedBy, claimedAt or assignedTo is changed
+    Then the recomputed projection hash equals H
 
   Scenario: Cosmetic reformatting is canonicalized away
     Given two elements with identical projected content but different key order and line endings

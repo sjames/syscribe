@@ -11,7 +11,7 @@ tags:
   - contingency
   - landing
 traceBaselines:
-  REQ-UAV-SAFE-001: "blake3:1ddab032f461ca70042ed2933e1a02455f0862d533301cdaa01c537f721cb6e9"
+  REQ-UAV-SAFE-001: "blake3:164544823cbd146704b0cd7cde084ed16f6978ed248ecc3e0b2669db33d80ef9"
 ---
 
 Hardware-in-the-loop test. A simulated battery-critical alert is injected at 30 m AGL while the UAV is in autonomous hover. Descent rate is measured via barometric altimeter log at 10 Hz.
