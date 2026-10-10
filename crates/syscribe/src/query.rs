@@ -1914,7 +1914,7 @@ pub fn cmd_trace(
         for tc_id in &sorted_v {
             if let Some(tc) = resolve(elements, resolver, tc_id) {
                 for n in syscribe_model::results::failure_notes(tc, evidence) {
-                    let msg = n.message.as_deref().map(|m| format!(" — {}", m.split_whitespace().collect::<Vec<_>>().join(" "))).unwrap_or_default();
+                    let msg = n.message.as_deref().map(|m| format!(" — {}", syscribe_model::results::one_line(m))).unwrap_or_default();
                     let time = n.time.map(|t| format!(" ({t}s)")).unwrap_or_default();
                     failing.push(format!("- {tc_id}: {}{msg}{time}", n.function));
                 }

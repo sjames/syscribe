@@ -93,7 +93,7 @@ fn failures(model_root: &Path, json_out: bool) -> i32 {
             // One line per function: fold any line breaks of a multi-line assertion message.
             let msg = d
                 .and_then(|d| d.message.as_deref())
-                .map(|m| format!("  — {}", m.split_whitespace().collect::<Vec<_>>().join(" ")))
+                .map(|m| format!("  — {}", syscribe_model::results::one_line(m)))
                 .unwrap_or_default();
             println!("{k}  {}{time}{msg}", v(Some(vd)));
         }

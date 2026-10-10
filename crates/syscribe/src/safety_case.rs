@@ -183,7 +183,7 @@ fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(Stri
     if !failure_details.is_empty() {
         println!("Failure details:");
         for (tc, n) in failure_details {
-            let msg = n.message.as_deref().map(|m| format!(" — {}", m.split_whitespace().collect::<Vec<_>>().join(" "))).unwrap_or_default();
+            let msg = n.message.as_deref().map(|m| format!(" — {}", syscribe_model::results::one_line(m))).unwrap_or_default();
             let time = n.time.map(|t| format!(" ({t}s)")).unwrap_or_default();
             println!("  {tc}: {}{msg}{time}", n.function);
         }

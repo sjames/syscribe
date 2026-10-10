@@ -50,3 +50,30 @@ fn safety_case_prints_and_serialises_the_details() {
     assert_eq!(ok["failureDetails"].as_array().map(|a| a.len()), Some(0), "{ok}");
     assert!(!run(&model(false), &["safety-case"]).contains("Failure details"));
 }
+
+#[test]
+fn control_characters_a_bare_failure_and_class_collisions_are_handled() {
+    let d = std::env::temp_dir().join(format!("syscribe-fnote2-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    let m = d.join("model");
+    let w = |rel: &str, c: &str| {
+        let p = m.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, c).unwrap();
+    };
+    w("_index.md", "---\ntype: Package\nname: Root\n---\n");
+    w("S/REQ-FN-001.md", "---\nid: REQ-FN-001\ntype: Requirement\nname: r\nstatus: approved\nreqDomain: software\nreqClass: system\n---\n\nShall.\n");
+    w("S/TC-FN-001.md", "---\nid: TC-FN-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-FN-001]\ntestFunctions:\n  - function: \"B#t\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n");
+    let x = d.join("r.xml");
+    // A::t fails with an ANSI-laden message; B::t fails with no message and no time
+    std::fs::write(&x, "<testsuite><testcase classname=\"A\" name=\"t\" time=\"2\"><failure message=\"boom \u{1b}[2K\u{7}A\"/></testcase><testcase classname=\"B\" name=\"t\"><failure/></testcase></testsuite>").unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&m).args(["ingest-results", "--format", "junit"]).arg(&x).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let t = run(&m, &["trace", "REQ-FN-001"]);
+    assert!(!t.contains('\u{1b}') && !t.contains('\u{7}'), "no raw control characters: {t:?}");
+    assert!(!t.contains("boom"), "B#t must not inherit A's message: {t}");
+    // A's own message is shown, sanitised
+    std::fs::write(m.join("S/TC-FN-001.md"), std::fs::read_to_string(m.join("S/TC-FN-001.md")).unwrap().replace("B#t", "A#t")).unwrap();
+    let t = run(&m, &["trace", "REQ-FN-001"]);
+    assert!(t.contains("boom") && !t.contains('\u{1b}'), "{t:?}");
+}

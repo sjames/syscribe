@@ -96,6 +96,12 @@ pub struct ResultsData {
     pub details: HashMap<String, TestDetail>,
 }
 
+/// Collapse whitespace and drop control characters (ESC, BEL, C1, …) of text taken from a test
+/// report before it is stored or printed.
+pub fn one_line(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control() || c.is_whitespace()).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Longest retained JUnit `message` (characters).
 const MAX_DETAIL_MESSAGE: usize = 500;
 
@@ -341,7 +347,12 @@ impl ResultsData {
                 qualified = format!("{class}::{name}");
             }
         }
-        (if qualified.contains("::") { self.details.get(&qualified) } else { None }).or_else(|| self.details.get(function_leaf(function_ref)))
+        // A reference the run knows by its class-qualified key owns that key's detail (possibly none);
+        // the leaf entry may belong to another class's test of the same name.
+        if qualified.contains("::") && self.by_leaf.contains_key(&qualified) {
+            return self.details.get(&qualified);
+        }
+        self.details.get(function_leaf(function_ref))
     }
 
     /// Verdict for one (`TestCase`, Gherkin scenario) pair, as recorded by a
@@ -465,8 +476,10 @@ impl ResultsData {
             if let Some(q) = &qualified {
                 Self::record_key(by_leaf, q, verdict);
             }
-            if verdict != Verdict::Pass && (time.is_some() || message.is_some()) {
-                // Cap runaway messages (assertion diffs, stack traces) at a char boundary.
+            if verdict != Verdict::Pass {
+                // Cap runaway messages (assertion diffs, stack traces) at a char boundary, and drop
+                // terminal control characters (a test message must not drive the terminal).
+                let message = message.map(|m| one_line(&m)).filter(|m| !m.is_empty());
                 let message = message.map(|m| {
                     if m.chars().count() > MAX_DETAIL_MESSAGE {
                         let cut: String = m.chars().take(MAX_DETAIL_MESSAGE).collect();
@@ -477,9 +490,14 @@ impl ResultsData {
                 });
                 let d = TestDetail { message, time };
                 for key in std::iter::once(function_leaf(name).to_string()).chain(qualified) {
-                    // Keep the detail of the case whose verdict won the leaf (Fail beats Flaky beats Ignored).
+                    // The case whose verdict won the leaf owns its detail (Fail beats Flaky beats Ignored);
+                    // a winner with nothing to keep clears a weaker case's detail rather than inheriting it.
                     if by_leaf.get(&key) == Some(&verdict) {
-                        details.insert(key, d.clone());
+                        if d.message.is_some() || d.time.is_some() {
+                            details.insert(key, d.clone());
+                        } else {
+                            details.remove(&key);
+                        }
                     }
                 }
             }
