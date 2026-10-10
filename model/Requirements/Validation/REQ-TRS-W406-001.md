@@ -10,10 +10,10 @@ tags:
   - diagrams
 ---
 
-A manifest diagram (`shapes:` entries bound to model elements with `ref:`) renders its SVG from the manifest, so a body with no inline ` ```svg ` block shall not raise `W406`/`W407` (GH #263).
+A manifest diagram (a non-null `shapes:` in list or mapping form, the same rule that selects the manifest as the diagram's source) renders its SVG from the manifest, so a body with no inline ` ```svg ` block shall not raise `W406`/`W407` (GH #263).
 
 ## Behavior
 
-- A diagram whose `shapes:` sequence contains at least one entry with `ref:` and whose body has no ` ```svg ` block is skipped by the inline-SVG id check.
+- A diagram with a non-null `shapes:` (list or mapping) and no ` ```svg ` block is skipped by the inline-SVG id check.
 - A manifest diagram that does carry an inline ` ```svg ` block is still checked.
-- A hand-drawn diagram (shape ids without `ref:`) with no SVG block is still checked.
+- A diagram with no `shapes:` has no ids to compare and raises nothing.

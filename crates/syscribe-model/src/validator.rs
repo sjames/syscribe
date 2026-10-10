@@ -176,7 +176,7 @@ struct StateEdge {
 /// are the source of truth), companion SVG (`svgMode: companion` or
 /// `svgFile:`), Mermaid / inline PlantUML (`diagramKind: Mermaid|PlantUML`),
 /// a structured `layout:` diagram whose body has no ` ```svg ` block, and a
-/// manifest diagram (`shapes:` with `ref:`) with no ` ```svg ` block (the server
+/// manifest diagram (any `shapes:` list or mapping, per `vis::source_of`) with no ` ```svg ` block (the server
 /// renders its SVG from the manifest).
 fn diagram_has_inline_svg(fm: &crate::element::RawFrontmatter, doc: &str) -> bool {
     if fm.puml_mode.as_deref() == Some("companion") {
@@ -194,18 +194,12 @@ fn diagram_has_inline_svg(fm: &crate::element::RawFrontmatter, doc: &str) -> boo
     if fm.layout.is_some() && !doc.contains("```svg") {
         return false;
     }
-    // A manifest diagram (shapes bound to model elements with `ref:`) is rendered from
-    // the manifest, so a body with no inline SVG has nothing to compare (GH #263).
-    if is_manifest_diagram(fm) && !doc.contains("```svg") {
+    // A manifest diagram (any non-null `shapes:`, list or mapping form, the same rule as
+    // `vis::source_of`) is rendered from the manifest, so a body with no inline SVG has nothing to compare (GH #263).
+    if crate::vis::source_of(fm) == crate::vis::Source::Manifest && !doc.contains("```svg") {
         return false;
     }
     true
-}
-
-/// A diagram whose `shapes:` list binds at least one shape to a model element (`ref:`).
-fn is_manifest_diagram(fm: &crate::element::RawFrontmatter) -> bool {
-    let Some(serde_yaml::Value::Sequence(seq)) = &fm.shapes else { return false };
-    seq.iter().any(|s| matches!(s, serde_yaml::Value::Mapping(m) if yaml_field(m, "ref").is_some()))
 }
 
 fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {

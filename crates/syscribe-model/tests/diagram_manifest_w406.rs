@@ -31,8 +31,15 @@ fn manifest_diagram_with_an_inline_svg_is_still_checked() {
 }
 
 #[test]
-fn hand_drawn_diagram_without_svg_is_still_checked() {
-    let fm = "---\ntype: Diagram\nname: D\ndiagramKind: BDD\nshapes:\n  - {id: s-a}\n---\n\nNo svg here.\n";
+fn mapping_form_manifest_without_inline_svg_raises_neither() {
+    let fm = "---\ntype: Diagram\nname: D\ndiagramKind: BDD\nsubject: Arch::Unit\nshapes:\n  s-a: {ref: Arch::Unit}\n  s-b: Arch::Unit\nedges:\n  e-1: {source: s-a, target: s-b, kind: connection}\n---\n\nNo svg.\n";
+    let c = codes(fm);
+    assert!(!c.iter().any(|x| x == "W406" || x == "W407"), "{c:?}");
+}
+
+#[test]
+fn mapping_form_manifest_with_a_stale_inline_svg_is_still_checked() {
+    let fm = "---\ntype: Diagram\nname: D\ndiagramKind: BDD\nsubject: Arch::Unit\nshapes:\n  s-a: {ref: Arch::Unit}\n  s-b: Arch::Unit\n---\n\n```svg\n<svg xmlns=\"http://www.w3.org/2000/svg\"><g id=\"s-a\"/></svg>\n```\n";
     let c = codes(fm);
     assert!(c.iter().any(|x| x == "W406"), "{c:?}");
 }
