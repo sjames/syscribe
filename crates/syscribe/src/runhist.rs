@@ -64,7 +64,11 @@ fn failures(model_root: &Path, json_out: bool) -> i32 {
         for (k, vd) in rows {
             let d = data.details.get(k);
             let time = d.and_then(|d| d.time).map(|t| format!("  {t}s")).unwrap_or_default();
-            let msg = d.and_then(|d| d.message.as_deref()).map(|m| format!("  — {m}")).unwrap_or_default();
+            // One line per function: fold any line breaks of a multi-line assertion message.
+            let msg = d
+                .and_then(|d| d.message.as_deref())
+                .map(|m| format!("  — {}", m.split_whitespace().collect::<Vec<_>>().join(" ")))
+                .unwrap_or_default();
             println!("{k}  {}{time}{msg}", v(Some(vd)));
         }
     }
@@ -80,6 +84,9 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
         return 1;
     }
     let pos: Vec<&str> = args.iter().map(|s| s.as_str()).filter(|a| !a.starts_with("--")).collect();
+    if pos.as_slice() == ["failures"] {
+        return failures(model_root, json_out);
+    }
     let history = match RunHistory::load(model_root) {
         Ok(h) => h,
         Err(e) => {
@@ -113,7 +120,6 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
             }
             0
         }
-        ["failures"] => failures(model_root, json_out),
         ["diff", a, b] => {
             let (Some(ra), Some(rb)) = (history.get(a), history.get(b)) else {
                 let missing = if history.get(a).is_none() { a } else { b };

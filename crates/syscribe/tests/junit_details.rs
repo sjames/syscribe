@@ -91,3 +91,30 @@ fn a_session_log_ingest_keeps_function_details() {
     let (o, _) = run(&d, &["results", "failures"]);
     assert!(o.contains("latency 61 ms"), "{o}");
 }
+
+#[test]
+fn the_winning_duplicate_keeps_its_own_message_and_long_messages_are_capped() {
+    let d = model();
+    let long = "x".repeat(2000);
+    let p = d.join("dup.xml");
+    std::fs::write(
+        &p,
+        format!(
+            r#"<testsuite><testcase classname="A" name="t_x" time="1"><failure message="boom&#10;second line"/></testcase>
+<testcase classname="B" name="t_x" time="2"><skipped message="rig offline"/></testcase>
+<testcase classname="A" name="t_long"><failure message="{long}"/></testcase></testsuite>"#
+        ),
+    )
+    .unwrap();
+    run(&d, &["ingest-results", "--format", "junit", p.to_str().unwrap()]);
+    let (j, _) = run(&d, &["results", "failures", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+    let f = v["failures"].as_array().unwrap();
+    let tx = f.iter().find(|x| x["function"] == "t_x").unwrap();
+    assert_eq!(tx["verdict"], "fail");
+    assert!(tx["message"].as_str().unwrap().starts_with("boom"), "{j}");
+    let tl = f.iter().find(|x| x["function"] == "t_long").unwrap();
+    assert!(tl["message"].as_str().unwrap().chars().count() <= 501, "{j}");
+    let (o, _) = run(&d, &["results", "failures"]);
+    assert!(o.lines().any(|l| l.starts_with("t_x") && l.contains("boom second line")), "{o}");
+}

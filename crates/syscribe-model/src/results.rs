@@ -96,6 +96,9 @@ pub struct ResultsData {
     pub details: HashMap<String, TestDetail>,
 }
 
+/// Longest retained JUnit `message` (characters).
+const MAX_DETAIL_MESSAGE: usize = 500;
+
 /// Retained evidence of one non-passing JUnit testcase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestDetail {
@@ -429,9 +432,21 @@ impl ResultsData {
                 Self::record_key(by_leaf, q, verdict);
             }
             if verdict != Verdict::Pass && (time.is_some() || message.is_some()) {
+                // Cap runaway messages (assertion diffs, stack traces) at a char boundary.
+                let message = message.map(|m| {
+                    if m.chars().count() > MAX_DETAIL_MESSAGE {
+                        let cut: String = m.chars().take(MAX_DETAIL_MESSAGE).collect();
+                        format!("{cut}…")
+                    } else {
+                        m
+                    }
+                });
                 let d = TestDetail { message, time };
                 for key in std::iter::once(function_leaf(name).to_string()).chain(qualified) {
-                    details.insert(key, d.clone());
+                    // Keep the detail of the case whose verdict won the leaf (Fail beats Flaky beats Ignored).
+                    if by_leaf.get(&key) == Some(&verdict) {
+                        details.insert(key, d.clone());
+                    }
                 }
             }
         };
@@ -467,6 +482,7 @@ impl ResultsData {
                             if let Some((_, v)) = current.as_mut() {
                                 *v = Verdict::Fail;
                             }
+                            // A failure's message outranks a retry/skip message already seen.
                             if let Some(m) = extract(e, b"message") {
                                 message = Some(m);
                             }
@@ -506,6 +522,8 @@ impl ResultsData {
                 count += 1;
             }
         }
+        // A later passing duplicate wins the leaf: drop the stale detail of the earlier non-pass.
+        details.retain(|k, _| by_leaf.get(k) != Some(&Verdict::Pass));
         let mut data = Self::finish(by_leaf, count, "junit", source);
         data.details = details;
         data
