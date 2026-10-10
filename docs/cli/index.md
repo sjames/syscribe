@@ -776,7 +776,7 @@ syscribe -m <root> results runs [--json]
 syscribe -m <root> results diff <runA> <runB> [--json] [--fail-on-regression]
 ```
 
-`--run` additionally retains the ingest under a run identity in `.syscribe/results-history.json` (the `results.json` sidecar is unchanged); without it nothing is retained. `results diff` reports regressions (failing in B, not in A — including tests new in B), fixed, still failing and other changes; `--fail-on-regression` exits 1 on a regression. Per-configuration verdicts and a `--results-as-of` lens are not implemented yet (GH #258).
+`results failures [--json]` lists the failing, skipped and flaky functions of the latest ingest with the retained JUnit message and time. After a function-level ingest a summary line reports how many `testFunctions` of active TestCases were missing from the report and how many were skipped. `--run` additionally retains the ingest under a run identity in `.syscribe/results-history.json` (the `results.json` sidecar is unchanged); without it nothing is retained. `results diff` reports regressions (failing in B, not in A — including tests new in B), fixed, still failing and other changes; `--fail-on-regression` exits 1 on a regression. Per-configuration verdicts and a `--results-as-of` lens are not implemented yet (GH #258).
 
 ## Large-model overview & search (`stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`)
 

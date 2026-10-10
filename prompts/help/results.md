@@ -2,6 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> results runs [--json]
+    syscribe -m <root> results failures [--json]
     syscribe -m <root> results diff <runA> <runB> [--json] [--fail-on-regression]
 
 ## DESCRIPTION
@@ -13,6 +14,9 @@ Retain a run with `syscribe -m <root> ingest-results --run <run-id> <file>`.
 Re-ingesting the same run id replaces that run's section of the same kind (the
 function-level and the session-log sections are independent); other runs are kept.
 Without `--run` nothing is retained.
+
+`results failures` lists the failing, skipped and flaky functions of the latest
+ingest with the retained JUnit `message` and `time` (passing cases keep no detail).
 
 `results runs` lists the retained runs, oldest first. `results diff A B` compares
 two runs per test:

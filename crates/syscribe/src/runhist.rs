@@ -4,7 +4,7 @@ use serde_json::json;
 use std::path::Path;
 use syscribe_model::results::{RunDiff, RunHistory, TestChange, Verdict};
 
-const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results diff <runA> <runB> [--json] [--fail-on-regression]";
+const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results failures [--json] | results diff <runA> <runB> [--json] [--fail-on-regression]";
 
 fn v(x: Option<Verdict>) -> &'static str {
     match x {
@@ -34,6 +34,41 @@ fn render(d: &RunDiff) -> String {
 
 fn change_json(c: &TestChange) -> serde_json::Value {
     json!({"test": c.test, "from": v(c.from), "to": v(c.to)})
+}
+
+/// `results failures`: the non-passing functions of the latest ingest with retained message/time.
+fn failures(model_root: &Path, json_out: bool) -> i32 {
+    let Some(data) = syscribe_model::results::ResultsData::load_sidecar(model_root) else {
+        eprintln!("results failures: no results sidecar (run `ingest-results` first).");
+        return 1;
+    };
+    let mut rows: Vec<(&String, Verdict)> = data
+        .by_leaf
+        .iter()
+        .filter(|(k, v)| !k.contains("::") && **v != Verdict::Pass)
+        .map(|(k, v)| (k, *v))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(b.0));
+    if json_out {
+        let list: Vec<_> = rows
+            .iter()
+            .map(|(k, vd)| {
+                let d = data.details.get(*k);
+                json!({"function": k, "verdict": v(Some(*vd)), "message": d.and_then(|d| d.message.clone()), "time": d.and_then(|d| d.time)})
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&json!({ "failures": list })).unwrap_or_default());
+    } else if rows.is_empty() {
+        println!("No failing, skipped or flaky functions.");
+    } else {
+        for (k, vd) in rows {
+            let d = data.details.get(k);
+            let time = d.and_then(|d| d.time).map(|t| format!("  {t}s")).unwrap_or_default();
+            let msg = d.and_then(|d| d.message.as_deref()).map(|m| format!("  — {m}")).unwrap_or_default();
+            println!("{k}  {}{time}{msg}", v(Some(vd)));
+        }
+    }
+    0
 }
 
 /// Entry point for `results …`. Returns the process exit code.
@@ -78,6 +113,7 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
             }
             0
         }
+        ["failures"] => failures(model_root, json_out),
         ["diff", a, b] => {
             let (Some(ra), Some(rb)) = (history.get(a), history.get(b)) else {
                 let missing = if history.get(a).is_none() { a } else { b };

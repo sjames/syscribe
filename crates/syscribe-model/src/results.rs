@@ -90,6 +90,20 @@ pub struct ResultsData {
     /// Provenance of `by_scenario` (the last session-log ingest).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scenario_meta: Option<SectionMeta>,
+    /// Failure/skip/flaky evidence of the function-level section (GH #259), keyed like `by_leaf`
+    /// (leaf and class-qualified key). Only non-passing testcases have an entry.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub details: HashMap<String, TestDetail>,
+}
+
+/// Retained evidence of one non-passing JUnit testcase.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TestDetail {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// Testcase `time` in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<f64>,
 }
 
 /// One `session-log` input record (issue #113): a single Gherkin scenario
@@ -242,6 +256,7 @@ impl ResultsData {
                 out.scenario_meta = own;
                 if let Some(old) = existing {
                     out.by_leaf = old.by_leaf.clone();
+                    out.details = old.details.clone();
                     out.leaf_meta = old.leaf_meta.clone().or_else(|| legacy_meta(old, Section::Leaf));
                 }
             }
@@ -376,6 +391,10 @@ impl ResultsData {
 
         // Track the current open testcase: (leaf-name, verdict-so-far).
         let mut current: Option<(String, Verdict)> = None;
+        let mut details: HashMap<String, TestDetail> = HashMap::new();
+        // The open testcase's `time` and the first `message` of a failure/skip/retry child.
+        let mut time: Option<f64> = None;
+        let mut message: Option<String> = None;
         // The open testcase's classname and whether it carried a retry marker.
         let mut class: String = String::new();
         let mut retried = false;
@@ -384,7 +403,10 @@ impl ResultsData {
         let extract = |e: &quick_xml::events::BytesStart, key: &[u8]| -> Option<String> {
             for attr in e.attributes().flatten() {
                 if attr.key.as_ref() == key {
-                    return Some(String::from_utf8_lossy(&attr.value).into_owned());
+                    return Some(match attr.normalized_value(quick_xml::XmlVersion::Implicit1_0) {
+                        Ok(v) => v.into_owned(),
+                        Err(_) => String::from_utf8_lossy(&attr.value).into_owned(),
+                    });
                 }
             }
             None
@@ -392,11 +414,25 @@ impl ResultsData {
         // Record a finished testcase: leaf key and, when a classname is known, the
         // qualified `classname::name` key (GH #259). A retry marker on an otherwise
         // passing testcase makes it flaky.
-        let finish_case = |by_leaf: &mut HashMap<String, Verdict>, name: &str, class: &str, verdict: Verdict, retried: bool| {
+        let finish_case = |by_leaf: &mut HashMap<String, Verdict>,
+                           details: &mut HashMap<String, TestDetail>,
+                           name: &str,
+                           class: &str,
+                           verdict: Verdict,
+                           retried: bool,
+                           time: Option<f64>,
+                           message: Option<String>| {
             let verdict = if retried && verdict == Verdict::Pass { Verdict::Flaky } else { verdict };
             Self::record(by_leaf, name, verdict);
-            if !class.is_empty() {
-                Self::record_key(by_leaf, &format!("{class}::{}", function_leaf(name)), verdict);
+            let qualified = (!class.is_empty()).then(|| format!("{class}::{}", function_leaf(name)));
+            if let Some(q) = &qualified {
+                Self::record_key(by_leaf, q, verdict);
+            }
+            if verdict != Verdict::Pass && (time.is_some() || message.is_some()) {
+                let d = TestDetail { message, time };
+                for key in std::iter::once(function_leaf(name).to_string()).chain(qualified) {
+                    details.insert(key, d.clone());
+                }
             }
         };
 
@@ -408,11 +444,13 @@ impl ResultsData {
                         b"testcase" => {
                             // Flush a previous (Empty-element edge cases aside).
                             if let Some((name, verdict)) = current.take() {
-                                finish_case(&mut by_leaf, &name, &class, verdict, retried);
+                                finish_case(&mut by_leaf, &mut details, &name, &class, verdict, retried, time.take(), message.take());
                                 count += 1;
                             }
                             let name = extract(e, b"name").unwrap_or_default();
                             class = extract(e, b"classname").unwrap_or_default();
+                            time = extract(e, b"time").and_then(|t| t.trim().parse::<f64>().ok());
+                            message = None;
                             retried = false;
                             // A self-closing <testcase .../> (Event::Empty) with no
                             // failure/error child is a pass; it is flushed when the
@@ -421,10 +459,16 @@ impl ResultsData {
                         }
                         b"flakyFailure" | b"flakyError" | b"rerunFailure" | b"rerunError" => {
                             retried = true;
+                            if message.is_none() {
+                                message = extract(e, b"message");
+                            }
                         }
                         b"failure" | b"error" => {
                             if let Some((_, v)) = current.as_mut() {
                                 *v = Verdict::Fail;
+                            }
+                            if let Some(m) = extract(e, b"message") {
+                                message = Some(m);
                             }
                         }
                         b"skipped" => {
@@ -432,6 +476,9 @@ impl ResultsData {
                                 if *v != Verdict::Fail {
                                     *v = Verdict::Ignored;
                                 }
+                            }
+                            if message.is_none() {
+                                message = extract(e, b"message");
                             }
                         }
                         _ => {}
@@ -441,7 +488,7 @@ impl ResultsData {
                     if e.local_name().as_ref() == b"testcase" {
                         if let Some((name, verdict)) = current.take() {
                             if !name.is_empty() {
-                                finish_case(&mut by_leaf, &name, &class, verdict, retried);
+                                finish_case(&mut by_leaf, &mut details, &name, &class, verdict, retried, time.take(), message.take());
                                 count += 1;
                             }
                         }
@@ -455,11 +502,13 @@ impl ResultsData {
         }
         if let Some((name, verdict)) = current.take() {
             if !name.is_empty() {
-                finish_case(&mut by_leaf, &name, &class, verdict, retried);
+                finish_case(&mut by_leaf, &mut details, &name, &class, verdict, retried, time.take(), message.take());
                 count += 1;
             }
         }
-        Self::finish(by_leaf, count, "junit", source)
+        let mut data = Self::finish(by_leaf, count, "junit", source);
+        data.details = details;
+        data
     }
 
     /// Parse a `session-log` report (issue #113): a JSON array of per-scenario
@@ -536,6 +585,7 @@ impl ResultsData {
             by_scenario: HashMap::new(),
             leaf_meta: None,
             scenario_meta: None,
+            details: HashMap::new(),
         }
     }
 }

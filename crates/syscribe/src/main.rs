@@ -1195,7 +1195,7 @@ fn main() {
                     }
                 }
                 match file {
-                    Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str())),
+                    Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str()), &elems),
                     None => {
                         eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
                         std::process::exit(1);

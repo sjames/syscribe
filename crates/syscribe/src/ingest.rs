@@ -62,7 +62,7 @@ pub fn parse_file(format: &str, file: &str) -> Option<ResultsData> {
 /// `model_root` (REQ-TRS-INGEST-001). The format's own section (`by_leaf` for
 /// cargo-json/junit, `by_scenario` for session-log) is replaced; the other is
 /// kept. A malformed input exits before anything is written.
-pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>) {
+pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>, elems: &[syscribe_model::element::RawElement]) {
     let fmt = match pick_format(format, file) {
         Some(f) => f,
         None => std::process::exit(1),
@@ -114,6 +114,9 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
                 "Ingested {} test result(s) from {} ({}): {} pass, {} fail{}, {} ignored.",
                 data.count, file, fmt, pass, fail, flaky_note, ign
             );
+            if fmt != "session-log" {
+                print_expected_summary(elems, &data);
+            }
             // Worded without a parenthesised format so the only `(<format>)`
             // in the output stays the "Ingested … (<format>)" line above.
             let (own, other) = if fmt == "session-log" {
@@ -136,6 +139,43 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
         Err(e) => {
             eprintln!("Cannot write results sidecar: {}", e);
             std::process::exit(1);
+        }
+    }
+}
+
+/// One line on the `testFunctions` of native `active` TestCases that the run did not execute:
+/// missing (not in the report) vs skipped (reported as ignored). Silent when there are none.
+fn print_expected_summary(elems: &[syscribe_model::element::RawElement], data: &syscribe_model::results::ResultsData) {
+    use syscribe_model::element::ElementType;
+    use syscribe_model::results::FnVerdict;
+    let mut funcs: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for e in elems {
+        if e.frontmatter.element_type != Some(ElementType::TestCase) || e.frontmatter.status.as_deref() != Some("active") {
+            continue;
+        }
+        for f in e.frontmatter.test_functions.iter().flatten() {
+            if let Some(name) = f.get("function").and_then(|x| x.as_str()) {
+                funcs.insert(name.to_string());
+            }
+        }
+    }
+    if funcs.is_empty() {
+        return;
+    }
+    let (mut missing, mut skipped) = (Vec::new(), Vec::new());
+    for f in &funcs {
+        match data.verdict_for(f) {
+            FnVerdict::Missing => missing.push(f.as_str()),
+            FnVerdict::Ignored => skipped.push(f.as_str()),
+            _ => {}
+        }
+    }
+    println!("Expected functions: {}; not run: {} missing, {} skipped", funcs.len(), missing.len(), skipped.len());
+    for (label, list) in [("missing", &missing), ("skipped", &skipped)] {
+        if !list.is_empty() {
+            let shown: Vec<&str> = list.iter().take(10).copied().collect();
+            let more = if list.len() > 10 { format!(" … +{}", list.len() - 10) } else { String::new() };
+            println!("  {label}: {}{more}", shown.join(", "));
         }
     }
 }

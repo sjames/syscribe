@@ -57,6 +57,12 @@ Two source shapes, feeding two different verdict axes:
   coverage leaves it unannotated (unknown) — the same "all-or-fail" rule
   `testFunctions:` verdicts already follow.
 
+After a function-level ingest, a line `Expected functions: N; not run: M missing,
+K skipped` (with the first names) summarises the `testFunctions` of native `active`
+TestCases that the report lacks (missing) or reports as skipped. For JUnit, the
+`message` attribute of a failure/error/skipped/flakyFailure child and the testcase
+`time` are kept for every non-passing case (see `results failures`).
+
 ## MERGE SEMANTICS
 The sidecar holds two independent sections, and each ingest **merges** into the
 existing sidecar, replacing only its own section:
