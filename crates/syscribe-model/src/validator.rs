@@ -1913,6 +1913,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                     if !bad.is_empty() {
                         bad.sort();
+                        bad.dedup();
                         const SHOWN: usize = 10;
                         let list = bad
                             .iter()
@@ -4329,8 +4330,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // TestCase sets are redundant (GH #255): one contains the other (equal sets
     // included) or their Jaccard overlap is at least 0.5. The config set is the
     // resolved/declared bound configurations (qualified names, order-independent);
-    // absent `configurations:` (config-agnostic) is its own distinct key. Plans with
-    // no members are skipped (W612 reports them).
+    // Plans with no members are skipped (W612 reports them).
     {
         type Bucket<'a> = Vec<(&'a str, std::collections::BTreeSet<String>)>;
         let mut seen: HashMap<(Vec<String>, Option<String>), Bucket> = HashMap::new();

@@ -141,3 +141,29 @@ fn w615_caps_the_listed_functions() {
     assert!(w[0].message.contains("12 "), "{}", w[0].message);
     assert!(w[0].message.contains("and 2 more"), "{}", w[0].message);
 }
+
+#[test]
+fn w615_lists_a_function_once_even_if_declared_twice() {
+    let mut files = vec![req()];
+    files.push((
+        "TC/TC-TPN-001.md".into(),
+        "---\ntype: TestCase\nid: TC-TPN-001\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-TPN-001]\ntestFunctions:\n  - function: \"fn_one\"\n  - function: \"fn_one\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n".into(),
+    ));
+    files.push(plan("TP-ALPHA-001", "integration", &[1]));
+    let f = findings(files, Some(RESULTS));
+    let w: Vec<_> = f.iter().filter(|x| x.code == "W615").collect();
+    assert_eq!(w.len(), 1);
+    assert!(w[0].message.contains("has 1 member"), "{}", w[0].message);
+}
+
+#[test]
+fn w616_chain_reports_each_later_plan_once() {
+    let mut files = vec![req()];
+    for n in 1..=3 {
+        files.push(tc(n, None));
+    }
+    files.push(plan("TP-ALPHA-001", "smoke", &[1, 2, 3]));
+    files.push(plan("TP-BRAVO-001", "smoke", &[1, 2, 3]));
+    files.push(plan("TP-CHARLIE-001", "smoke", &[1, 2, 3]));
+    assert_eq!(count(&findings(files, None), "W616"), 2);
+}
