@@ -1108,6 +1108,16 @@ computed) — mapped back to a label.
 |---|---|
 | E921 | `id` or `name` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
 
+## Timing quantities and budgets (E895, W893)
+
+`quantities:` (GH #237) states FTTI, latency, WCET and reaction time as `{kind, value, unit}`;
+a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), or a non-positive / non-numeric `value` |
+| W893 | Warning | a timing budget is exceeded: the sum of a kind over the requirements derived from a `Requirement`/`SafetyGoal` (a serial chain) is larger than its own value, or a derived requirement's `latency` + `reaction` exceeds the goal's FTTI (draft-suppressed) |
+
 ## Test environments (E893–E894, W891–W892)
 
 `TestEnvironment` (`TE-*`, GH #238) models the rig an L4/L5 test runs on; `runsOn:` and

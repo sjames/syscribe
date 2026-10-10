@@ -4539,6 +4539,10 @@ Security/Attacks/AT-TORQUE-001/
 
 **Feasibility roll-up (weakest-link):** rank `very_low`=0, `low`=1, `medium`=2, `high`=3. An `AttackStep` is its `attackFeasibility` rank; an `AND` gate (sequential path) is the **MIN** of its children; an `OR` gate (alternatives) is the **MAX** of its children; the `AttackTree`'s feasibility is the value of its root node — the one gate/step of the tree that no other gate lists in its `inputs:`, independent of file order (no unique root → not computable, no W035) — mapped back to a label. When the computed feasibility differs from the linked `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs declared).
 
+#### 8.18.8 Structured timing quantities (`quantities:`)
+
+Any element may carry `quantities:` (GH #237), a list of `{kind, value, unit}`: `kind` is `ftti`, `latency`, `wcet` or `reaction`; `value` a positive number; `unit` `s`, `ms`, `us` or `ns`. A `SafetyGoal`'s `ftti:` string is read as an `ftti` quantity. Malformed entries are E895. `validate` compares budgets after normalising units (W893): for a `Requirement` or `SafetyGoal` with a quantity of a kind, the sum of that kind over the requirements derived from it (`derivedFrom:`, or `derivedFromSafetyGoal:` for a goal) — treated as a serial chain — must not exceed it, and for a goal with an `ftti` each derived requirement's `latency` plus `reaction` must fit. A parent whose children state no quantity of the kind raises nothing; draft elements are not checked.
+
 #### 8.18.7 Dependent failure analysis (`DependentFailureAnalysis`)
 
 `DependentFailureAnalysis` (`DFA-*`, GH #235) records why the elements of an ASIL decomposition or a mixed-criticality co-hosting cannot fail from a common cause (ISO 26262-9 clause 7). `status` is `draft`, `review`, `approved` or `retired`. `analyses:` (string or list, at least two) names the elements argued independent. `sharedResources:` is a list of mappings `{resource, kind, initiators, couplingFactor, mitigation}`: `resource` the shared item (a power rail, clock, memory, bus master), `kind` one of `power`, `clock`, `memory`, `bus`, `software`, `other`, `initiators` the triggering events, `couplingFactor` a number in 0..1 and `mitigation` how the coupling is controlled. An `approved` analysis excuses `W034` for every pair of its `analyses`. Missing fields, an unknown status, fewer than two entries → E890; an unresolved entry → E891; a malformed shared resource → E892; an approved analysis with an unmitigated shared resource → W890.
@@ -6500,6 +6504,15 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
+#### Timing quantities and budgets (E895, W893)
+
+`quantities:` (§8.18.8).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), or a non-positive / non-numeric `value` |
+| W893 | Warning | a timing budget is exceeded: the sum of a kind over the requirements derived from a `Requirement`/`SafetyGoal` (a serial chain) is larger than its own value, or a derived requirement's `latency` + `reaction` exceeds the goal's FTTI (draft-suppressed) |
+
 #### Test environments (E893–E894, W891–W892)
 
 `TestEnvironment` (`TE-*`, §8.12.7).
@@ -8429,6 +8442,7 @@ since `status: in_progress` alone already signals active work.
 | `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
 | `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
 | `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `quantities` | any (SafetyGoal / Requirement / TestCase) | list of mappings | absent | 8.18.8, 11.12 (E895, W893) — `{kind, value, unit}` |
 | `runsOn` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (E894) — TestEnvironment(s) the test executes on |
 | `requiresCapabilities` | TestCase / TestPlan | string or list | absent | 8.12.7, 11.12 (W891) — capabilities needed from the environment |
 | `capabilities` | TestEnvironment | string or list | absent | 8.12.7 |

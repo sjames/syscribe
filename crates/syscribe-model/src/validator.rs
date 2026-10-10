@@ -7567,6 +7567,121 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // E895 / W893 (GH #237, REQ-TRS-QUANT-001): structured timing quantities and their budgets.
+    {
+        use std::collections::BTreeMap;
+        const KINDS: &[&str] = &["ftti", "latency", "wcet", "reaction"];
+        let to_ms = |v: f64, unit: &str| -> Option<f64> {
+            Some(match unit {
+                "s" => v * 1000.0,
+                "ms" => v,
+                "us" => v / 1000.0,
+                "ns" => v / 1_000_000.0,
+                _ => return None,
+            })
+        };
+        let mut by_elem: BTreeMap<String, Vec<(String, f64)>> = BTreeMap::new();
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            let mut list: Vec<(String, f64)> = Vec::new();
+            for (i, entry) in fm.quantities.iter().flatten().enumerate() {
+                let n = i + 1;
+                let bad = |why: &str| error("E895", &elem.file_path, &format!("quantities entry {n}: {why}"));
+                let Some(m) = entry.as_mapping() else {
+                    findings.push(bad("must be a mapping {kind, value, unit}"));
+                    continue;
+                };
+                let kind = yaml_field(m, "kind").and_then(|v| v.as_str()).unwrap_or("");
+                let unit = yaml_field(m, "unit").and_then(|v| v.as_str()).unwrap_or("");
+                let value = yaml_field(m, "value").and_then(|v| v.as_f64());
+                if !KINDS.contains(&kind) {
+                    findings.push(bad(&format!("`kind` must be one of {}", KINDS.join(", "))));
+                } else if value.is_none_or(|v| !(v.is_finite() && v > 0.0)) {
+                    findings.push(bad("`value` must be a positive number"));
+                } else if let Some(ms) = value.and_then(|v| to_ms(v, unit)) {
+                    list.push((kind.to_string(), ms));
+                } else {
+                    findings.push(bad("`unit` must be one of s, ms, us, ns"));
+                }
+            }
+            // A SafetyGoal's `ftti:` string counts as an ftti quantity.
+            if !list.iter().any(|(k, _)| k == "ftti") {
+                if let Some(ms) = fm.ftti.as_deref().and_then(crate::asil::ftti_millis) {
+                    list.push(("ftti".to_string(), ms));
+                }
+            }
+            if !list.is_empty() {
+                by_elem.insert(elem.qualified_name.clone(), list);
+            }
+        }
+        let sum_of = |qn: &str, kinds: &[&str]| -> Option<f64> {
+            let q = by_elem.get(qn)?;
+            let mut hit = false;
+            let mut s = 0.0;
+            for (k, v) in q {
+                if kinds.contains(&k.as_str()) {
+                    hit = true;
+                    s += v;
+                }
+            }
+            hit.then_some(s)
+        };
+        for elem in elements {
+            let Some(own) = by_elem.get(&elem.qualified_name) else { continue };
+            if elem.frontmatter.status.as_deref() == Some("draft") {
+                continue;
+            }
+            let is_goal = matches!(elem.frontmatter.element_type, Some(ElementType::SafetyGoal));
+            let is_req = Resolver::is_native_requirement(elem);
+            if !is_goal && !is_req {
+                continue;
+            }
+            // The elements derived from this one.
+            let mut children: Vec<&RawElement> = Vec::new();
+            if is_goal {
+                for c in elements {
+                    if let Some(r) = c.frontmatter.derived_from_safety_goal.as_deref() {
+                        if resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == elem.qualified_name) {
+                            children.push(c);
+                        }
+                    }
+                }
+            } else if let Some(ids) = elem.frontmatter.id.as_deref().and_then(|id| derived_children.get(id)) {
+                children.extend(ids.iter().filter_map(|c| resolver.resolve_ref(elements, c)));
+            }
+            let label = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+            let mut seen_kind: Vec<&str> = Vec::new();
+            for (kind, budget) in own {
+                if seen_kind.contains(&kind.as_str()) {
+                    continue;
+                }
+                seen_kind.push(kind);
+                let sums: Vec<f64> = children.iter().filter_map(|c| sum_of(&c.qualified_name, &[kind.as_str()])).collect();
+                if sums.is_empty() {
+                    continue;
+                }
+                let total: f64 = sums.iter().sum();
+                if total > budget * (1.0 + 1e-9) {
+                    findings.push(warning("W893", &elem.file_path, &format!(
+                        "{label}: the {kind} budget {budget} ms is exceeded by the chain derived from it ({total} ms over {} requirement(s))", sums.len())));
+                }
+            }
+            if is_goal {
+                if let Some((_, ftti)) = own.iter().find(|(k, _)| k == "ftti") {
+                    for c in &children {
+                        if let Some(t) = sum_of(&c.qualified_name, &["latency", "reaction"]) {
+                            if t > ftti * (1.0 + 1e-9) {
+                                findings.push(warning("W893", &c.file_path, &format!(
+                                    "latency + reaction of '{}' is {t} ms, over the {ftti} ms FTTI of {label}",
+                                    c.frontmatter.id.as_deref().unwrap_or(&c.qualified_name))));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // W300: leaf requirement coverage by satisfying architecture elements. `W301`
     // (more than one satisfier) is RETIRED (GH #121): a leaf may be jointly
     // satisfied by several elements — structural, behavioural or a mix — and

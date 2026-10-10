@@ -649,6 +649,13 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
 | `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:…`, `pypi:…`, `maven:…`, `nuget:…`, `github:org/repo@v1`) accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
 
+## Timing quantities and budgets (E895, W893)
+
+| Code | Condition |
+|---|---|
+| `E895` | A `quantities` entry is not a mapping, has an unknown `kind` or `unit`, or a non-positive / non-numeric `value` |
+| `W893` | A timing budget is exceeded: the chain derived from a requirement/goal sums over its value, or a derived requirement's latency + reaction exceeds the goal's FTTI (draft-suppressed) |
+
 ## Test environments (E893–E894, W891–W892)
 
 | Code | Condition |

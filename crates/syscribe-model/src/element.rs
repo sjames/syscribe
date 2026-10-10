@@ -1163,6 +1163,10 @@ pub struct ColdFrontmatter {
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `quantities:` — structured timing values `{kind, value, unit}` (kind ftti | latency | wcet |
+    /// reaction; unit s | ms | us | ns). E895 / W893.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
+    pub quantities: Option<Vec<serde_yaml::Value>>,
     /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
     #[serde(default, deserialize_with = "named_string_or_vec::runs_on")]
     pub runs_on: Option<Vec<String>>,
@@ -1741,6 +1745,10 @@ struct ColdWire {
     /// `DependentFailureAnalysis.sharedResources` — `{resource, kind, initiators, couplingFactor, mitigation}`.
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub shared_resources: Option<Vec<serde_yaml::Value>>,
+    /// `quantities:` — structured timing values `{kind, value, unit}` (kind ftti | latency | wcet |
+    /// reaction; unit s | ms | us | ns). E895 / W893.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
+    pub quantities: Option<Vec<serde_yaml::Value>>,
     /// `TestCase`/`TestPlan.runsOn` — the `TestEnvironment`(s) the test executes on (E894).
     #[serde(default, deserialize_with = "named_string_or_vec::runs_on")]
     pub runs_on: Option<Vec<String>>,
@@ -2126,6 +2134,7 @@ impl ColdWire {
             applies_to: w.applies_to,
             analyses: w.analyses,
             shared_resources: w.shared_resources,
+            quantities: w.quantities,
             runs_on: w.runs_on,
             requires_capabilities: w.requires_capabilities,
             capabilities: w.capabilities,
