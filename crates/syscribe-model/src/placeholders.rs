@@ -359,7 +359,8 @@ pub fn consumers(elements: &[RawElement], resolver: &Resolver, feature_qname: &s
     for e in elements {
         for ph in of_element(e) {
             let q = resolver.resolve_ref(elements, &ph.feature).map(|f| f.qualified_name.as_str()).unwrap_or(&ph.feature);
-            if q == feature_qname {
+            // Only declared parameters; a mistyped one is E241, not a consumer.
+            if q == feature_qname && decl(elements, resolver, feature_qname, &ph.param).is_ok() {
                 let v = out.entry(ph.param.clone()).or_default();
                 if !v.contains(&e.qualified_name) {
                     v.push(e.qualified_name.clone());
@@ -378,4 +379,12 @@ pub fn consumers(elements: &[RawElement], resolver: &Resolver, feature_qname: &s
 pub fn value_in_config(elements: &[RawElement], resolver: &Resolver, cfg: &RawElement, feature_qname: &str, param: &str) -> Option<String> {
     let ph = Placeholder { raw: String::new(), feature: feature_qname.to_string(), param: param.to_string(), unit: false };
     value_for(elements, resolver, Some(cfg), &ph)
+}
+
+/// Whether the parameter takes its value from another parameter (`derivedFrom:`/`bindTo:`)
+/// rather than from a binding, so "unbound" would be the wrong thing to report.
+pub fn is_derived(elements: &[RawElement], resolver: &Resolver, feature_qname: &str, param: &str) -> bool {
+    decl(elements, resolver, feature_qname, param)
+        .map(|d| d.entry.get("derivedFrom").is_some() || d.entry.get("bindTo").is_some())
+        .unwrap_or(false)
 }

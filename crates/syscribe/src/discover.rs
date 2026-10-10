@@ -286,7 +286,14 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
         .map(|p| {
             let per: std::collections::BTreeMap<String, Option<String>> = selecting_cfgs
                 .iter()
-                .map(|c| (cfg_id(c), syscribe_model::placeholders::value_in_config(elements, &resolver, c, q, p)))
+                .map(|c| {
+                    let v = if syscribe_model::placeholders::is_derived(elements, &resolver, q, p) {
+                        Some("(derived)".to_string())
+                    } else {
+                        syscribe_model::placeholders::value_in_config(elements, &resolver, c, q, p)
+                    };
+                    (cfg_id(c), v)
+                })
                 .collect();
             (p.clone(), per)
         })

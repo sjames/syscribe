@@ -13,7 +13,7 @@ fn model() -> PathBuf {
         std::fs::write(p, c).unwrap();
     };
     w("_index.md", "---\ntype: Package\nname: Root\n---\n");
-    w("Features/Display.md", "---\ntype: FeatureDef\nid: FEAT-PD-100\nname: Display\ngroupKind: optional\nparameters:\n  - {name: sizeInch, type: ScalarValues::Real, unit: in}\n  - {name: refreshHz, type: ScalarValues::Real, unit: Hz, default: 60}\n---\n\nD.\n");
+    w("Features/Display.md", "---\ntype: FeatureDef\nid: FEAT-PD-100\nname: Display\ngroupKind: optional\nparameters:\n  - {name: sizeInch, type: ScalarValues::Real, unit: in}\n  - {name: refreshHz, type: ScalarValues::Real, unit: Hz, default: 60}\n  - {name: pixels, type: ScalarValues::Real, derivedFrom: \"sizeInch * 100\"}\n---\n\nD.\n");
     for (id, v) in [("CONF-PD-ALPHA-001", Some("8")), ("CONF-PD-BRAVO-001", None)] {
         let b = v.map(|v| format!("parameterBindings:\n  Features::Display.sizeInch: {v}\n")).unwrap_or_default();
         w(
@@ -58,5 +58,40 @@ fn links_and_refs_show_placeholder_references() {
     let links = run(&r, &["links", "REQ-PD-001"]);
     assert!(links.contains("placeholder") && links.contains("Features::Display"), "{links}");
     let refs = run(&r, &["refs", "Features::Display"]);
+    assert!(refs.contains("REQ-PD-001"), "{refs}");
+}
+
+#[test]
+fn a_derived_parameter_shows_as_derived_not_unbound() {
+    let out = run(&model(), &["feature", "Features::Display", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["parameterValues"]["pixels"]["CONF-PD-ALPHA-001"], "(derived)", "{v}");
+    let text = run(&model(), &["feature", "Features::Display"]);
+    assert!(text.contains("(derived)"), "{text}");
+}
+
+#[test]
+fn a_mistyped_parameter_is_not_listed_as_a_consumer() {
+    let r = model();
+    std::fs::write(
+        r.join("Reqs/REQ-PD-002.md"),
+        "---\nid: REQ-PD-002\ntype: Requirement\nname: r\nstatus: draft\nreqDomain: software\nappliesWhen: Features::Display\n---\n\nShall {{Features::Display.sizeInchh}}.\n",
+    )
+    .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&run(&r, &["feature", "Features::Display", "--json"])).unwrap();
+    assert!(v["parameterConsumers"].get("sizeInchh").is_none(), "{v}");
+}
+
+#[test]
+fn a_feature_without_parameters_keeps_its_card_unchanged() {
+    let r = model();
+    std::fs::write(r.join("Features/Plain.md"), "---\ntype: FeatureDef\nid: FEAT-PD-101\nname: Plain\ngroupKind: optional\n---\n\nP.\n").unwrap();
+    let text = run(&r, &["feature", "Features::Plain"]);
+    assert!(!text.contains("Consumers") && !text.contains("Parameter values"), "{text}");
+}
+
+#[test]
+fn refs_accepts_the_feature_by_id() {
+    let refs = run(&model(), &["refs", "FEAT-PD-100"]);
     assert!(refs.contains("REQ-PD-001"), "{refs}");
 }
