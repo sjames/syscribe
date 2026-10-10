@@ -657,6 +657,33 @@ pub async fn diagram(
 
 
 #[derive(Template)]
+#[template(path = "requirements.html")]
+pub struct RequirementsTemplate {
+    pub focus: String,
+    pub depth: u8,
+    pub config: String,
+}
+
+#[derive(serde::Deserialize, Default)]
+pub struct RequirementsQuery {
+    pub focus: Option<String>,
+    pub depth: Option<String>,
+    pub config: Option<String>,
+}
+
+/// `GET /requirements[?focus=&depth=&config=]` — the Requirements Explorer (GH #269). The query only
+/// seeds the page's initial state (HTML-escaped by the template); the graph itself comes from
+/// `/api/req-graph`. A depth that is not an integer is 1, one above 6 is 6.
+pub async fn requirements_page(Query(q): Query<RequirementsQuery>) -> Html<String> {
+    let depth = q.depth.as_deref().and_then(|d| d.trim().parse::<i64>().ok()).map_or(1, |d| d.clamp(1, 6)) as u8;
+    Html(
+        RequirementsTemplate { focus: q.focus.unwrap_or_default(), depth, config: q.config.unwrap_or_default() }
+            .render()
+            .unwrap_or_default(),
+    )
+}
+
+#[derive(Template)]
 #[template(path = "heat.html")]
 pub struct HeatTemplate {
     pub css: &'static str,

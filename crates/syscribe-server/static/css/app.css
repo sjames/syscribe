@@ -646,3 +646,28 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 .fm-impact ul { margin: 2px 0 2px 18px; padding: 0; }
 .fm-impact button { margin-top: 6px; padding: 3px 10px; font-size: 12px; border: 1px solid var(--color-border); background: #fff; border-radius: 4px; cursor: pointer; }
 .fm-impact .fm-removal { margin-top: 6px; color: #444; }
+
+/* ── Requirements Explorer (/requirements, GH #269) ── */
+.req-explorer { grid-column: 1 / -1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; background: #fff; }
+.req-controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #d5d9e6; background: #f5f6fb; }
+.req-controls label { font-size: 13px; }
+.req-status { font-size: 12px; color: #555; }
+.req-kinds { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; }
+.req-kinds legend { float: left; margin-right: 8px; font-weight: 600; }
+.req-body { display: flex; flex: 1; min-height: 0; }
+.req-canvas { flex: 1; overflow: auto; position: relative; background: #fff; }
+.req-detail { width: 340px; border-left: 1px solid #d5d9e6; overflow: auto; padding: 8px 12px; font-size: 13px; }
+.req-legend { position: sticky; left: 8px; bottom: 6px; font-size: 11px; display: flex; gap: 8px; padding: 4px 8px; }
+.req-legend .lg { padding: 1px 6px; border-radius: 3px; border: 1px solid #999; }
+.lg-verified { background: #e3f4e5; border-color: #2e7d32 !important; }
+.lg-planned { background: #fff3d6; border-color: #b7791f !important; }
+.lg-unverified { background: #fde4e1; border-color: #c0392b !important; }
+.lg-na { background: #eceff4; border-color: #7a869a !important; }
+#req-graph .rg-node { cursor: pointer; }
+#req-graph .rg-node rect { stroke-width: 1.5; }
+#req-graph .rg-node.root rect { stroke-width: 3.5; }
+#req-graph .rg-node.selected rect { stroke: #1a4fd6; stroke-width: 3; }
+#req-graph .rg-node text { font: 12px sans-serif; pointer-events: none; }
+#req-graph .rg-node .rg-sub { font-size: 10px; fill: #555; }
+#req-graph .rg-edge { fill: none; stroke: #7a869a; stroke-width: 1.4; }
+#req-graph .rg-edge-label { font: 10px sans-serif; fill: #46526b; }

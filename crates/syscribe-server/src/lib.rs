@@ -65,6 +65,7 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
         .route("/api/diagrams/svg/{*qname}", put(put_svg))
         .route("/api/diagrams/model/{*qname}", get(get_diagram_model))
         .route("/api/validation", get(get_validation))
+        .route("/requirements", get(routes::ui::requirements_page))
         .route("/api/req-graph", get(routes::req_graph::get_req_graph))
         .route("/api/req-graph/overview", get(routes::req_graph::get_overview))
         .route("/ws", get(ws_handler))

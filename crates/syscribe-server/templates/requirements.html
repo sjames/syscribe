@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="req-explorer" class="req-explorer" data-focus="{{ focus }}" data-depth="{{ depth }}" data-config="{{ config }}">
+  <form id="req-controls" class="req-controls" autocomplete="off">
+    <label>Root <input id="req-root" type="text" size="26" placeholder="REQ-… or qualified name" value="{{ focus }}"></label>
+    <label>Depth
+      <select id="req-depth">
+        <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
+      </select>
+    </label>
+    <label>Configuration <input id="req-config" type="text" size="14" placeholder="CONF-… (optional)" value="{{ config }}"></label>
+    <button type="submit">Show</button>
+    <span id="req-status" class="req-status" role="status"></span>
+    <fieldset id="req-kinds" class="req-kinds"><legend>Relations</legend></fieldset>
+  </form>
+  <div class="req-body">
+    <div class="req-canvas"><svg id="req-graph" role="img" aria-label="Traceability graph" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="req-legend">
+        <span class="lg lg-verified">verified</span><span class="lg lg-planned">planned</span>
+        <span class="lg lg-unverified">unverified</span><span class="lg lg-na">other element</span>
+      </div>
+    </div>
+    <aside id="req-detail" class="req-detail"><p class="req-hint">Select a node to see its element card.</p></aside>
+  </div>
+</div>
+<script src="/static/js/requirements-explorer.js" defer></script>
+{% endblock %}
