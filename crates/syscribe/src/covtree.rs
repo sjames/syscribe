@@ -2,7 +2,7 @@
 //! Read-only; reuses the matrix classifier for leaves and the validator's reverse indices.
 
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use syscribe_model::element::RawElement;
 use syscribe_model::resolver::Resolver;
 use syscribe_model::results::ResultsData;
@@ -15,14 +15,26 @@ struct Node {
     leaf: bool,
     /// `verified` | `planned` | `unverified` | `na` — own state for a leaf.
     own: &'static str,
-    active: usize,
-    planned: usize,
-    uncovered: usize,
+    /// Distinct leaf descendants (id -> state); a leaf holds itself. A diamond counts once.
+    leaves: BTreeMap<String, &'static str>,
     direct: usize,
     children: Vec<Node>,
 }
 
 impl Node {
+    fn count(&self, state: &str) -> usize {
+        self.leaves.values().filter(|s| **s == state).count()
+    }
+    fn active(&self) -> usize {
+        self.count("verified")
+    }
+    fn planned(&self) -> usize {
+        self.count("planned")
+    }
+    fn uncovered(&self) -> usize {
+        self.count("unverified")
+    }
+    /// `●` complete · `◐` partial · `○` nothing · `·` not applicable in any configuration.
     fn glyph(&self) -> char {
         if self.leaf {
             return match self.own {
@@ -32,13 +44,29 @@ impl Node {
                 _ => '○',
             };
         }
-        let total = self.active + self.planned + self.uncovered;
-        if total > 0 && self.active == total && self.direct > 0 {
+        let total = self.leaves.len();
+        if total == 0 && self.direct == 0 {
+            '·'
+        } else if total > 0 && self.active() == total && self.direct > 0 {
             '●'
-        } else if self.active == 0 && self.planned == 0 && self.direct == 0 {
+        } else if self.active() == 0 && self.planned() == 0 && self.direct == 0 {
             '○'
         } else {
             '◐'
+        }
+    }
+    fn verdict(&self) -> &'static str {
+        match self.glyph() {
+            '●' => "complete",
+            '◐' => "partial",
+            '○' => "none",
+            _ => "na",
+        }
+    }
+    fn own_label(&self) -> &'static str {
+        match self.own {
+            "unverified" => "uncovered",
+            o => o,
         }
     }
 }
@@ -53,40 +81,44 @@ fn build(
     resolver: &Resolver,
     result: &ValidationResult,
     states: &std::collections::HashMap<String, &'static str>,
-    seen: &mut HashSet<String>,
+    path: &mut HashSet<String>,
 ) -> Node {
     let k = key(e);
-    seen.insert(k.clone());
-    let mut kids: Vec<Node> = Vec::new();
+    path.insert(k.clone());
     let mut child_ids: Vec<&String> = result.derived_children.get(&k).map(|v| v.iter().collect()).unwrap_or_default();
     child_ids.sort();
+    // A leaf is a requirement with nothing derived from it — children skipped only because they
+    // close a cycle on the current path do not make it one.
+    let leaf = child_ids.is_empty();
+    let mut kids: Vec<Node> = Vec::new();
     for cid in child_ids {
-        if seen.contains(cid) {
-            continue; // cycle or diamond already shown on this path
+        if path.contains(cid) {
+            continue;
         }
         if let Some(c) = resolver.resolve_ref(elements, cid) {
-            kids.push(build(c, elements, resolver, result, states, seen));
+            kids.push(build(c, elements, resolver, result, states, path));
         }
     }
-    for c in &kids {
-        seen.remove(&c.id);
-    }
-    let direct = result.verified_by.get(&k).map(|v| v.len()).unwrap_or(0);
-    let leaf = kids.is_empty();
+    path.remove(&k);
+    // Only active TestCases count as a direct test (a draft one is intent, not evidence).
+    let direct = result
+        .verified_by
+        .get(&k)
+        .map(|v| {
+            v.iter()
+                .filter(|tc| resolver.resolve_ref(elements, tc).is_some_and(|t| t.frontmatter.status.as_deref() == Some("active")))
+                .count()
+        })
+        .unwrap_or(0);
     let own = states.get(&k).copied().unwrap_or("na");
-    let (mut active, mut planned, mut uncovered) = (0, 0, 0);
+    let mut leaves: BTreeMap<String, &'static str> = BTreeMap::new();
     if leaf {
-        match own {
-            "verified" => active = 1,
-            "planned" => planned = 1,
-            "unverified" => uncovered = 1,
-            _ => {}
+        if own != "na" {
+            leaves.insert(k.clone(), own);
         }
     } else {
         for c in &kids {
-            active += c.active;
-            planned += c.planned;
-            uncovered += c.uncovered;
+            leaves.extend(c.leaves.iter().map(|(a, b)| (a.clone(), *b)));
         }
     }
     Node {
@@ -95,9 +127,7 @@ fn build(
         status: e.frontmatter.status.clone(),
         leaf,
         own,
-        active,
-        planned,
-        uncovered,
+        leaves,
         direct,
         children: kids,
     }
@@ -107,15 +137,15 @@ fn render(n: &Node, depth: usize, out: &mut String) {
     let ind = "  ".repeat(depth);
     let st = n.status.as_deref().unwrap_or("-");
     if n.leaf {
-        out.push_str(&format!("{ind}{} {}  {} | direct tests {} [{st}]\n", n.glyph(), n.id, n.own, n.direct));
+        out.push_str(&format!("{ind}{} {}  {} | direct tests {} [{st}]\n", n.glyph(), n.id, n.own_label(), n.direct));
     } else {
-        let total = n.active + n.planned + n.uncovered;
+        let total = n.leaves.len();
         out.push_str(&format!(
             "{ind}{} {}  leaves {}/{total} active, {} planned | direct tests {} [{st}]\n",
             n.glyph(),
             n.id,
-            n.active,
-            n.planned,
+            n.active(),
+            n.planned(),
             n.direct
         ));
     }
@@ -130,11 +160,12 @@ fn to_json(n: &Node) -> Value {
         "name": n.name,
         "status": n.status,
         "leaf": n.leaf,
-        "own": n.own,
-        "verdict": n.glyph().to_string(),
-        "leavesActive": n.active,
-        "leavesPlanned": n.planned,
-        "leavesUncovered": n.uncovered,
+        "own": if n.leaf { json!(n.own_label()) } else { Value::Null },
+        "verdict": n.verdict(),
+        "glyph": n.glyph().to_string(),
+        "leavesActive": n.active(),
+        "leavesPlanned": n.planned(),
+        "leavesUncovered": n.uncovered(),
         "directTests": n.direct,
         "children": n.children.iter().map(to_json).collect::<Vec<_>>(),
     })

@@ -87,3 +87,44 @@ fn json_carries_counts_and_children_and_unknown_root_fails() {
     let (_, c) = run(&r, &["coverage", "bogus"]);
     assert_eq!(c, 1);
 }
+
+fn base(extra: &[(&str, String)]) -> PathBuf {
+    let r = model(true);
+    for (f, c) in extra {
+        std::fs::write(r.join(f), c).unwrap();
+    }
+    r
+}
+
+fn req_with(id: &str, parents: &[&str]) -> String {
+    let d = if parents.is_empty() { String::new() } else { format!("derivedFrom: [{}]\n", parents.join(", ")) };
+    format!("---\nid: {id}\ntype: Requirement\nname: \"{id}\"\nstatus: approved\nreqDomain: software\nreqClass: system\n{d}---\n\nShall.\n")
+}
+
+#[test]
+fn a_shared_descendant_is_counted_once_and_the_tree_does_not_depend_on_id_order() {
+    // 002 is a child of both 001 and 003; 003 is a child of 001 (the sort-order trap).
+    let r = base(&[("REQ-CT-003.md", req_with("REQ-CT-003", &["REQ-CT-001"])), ("REQ-CT-002.md", req_with("REQ-CT-002", &["REQ-CT-001", "REQ-CT-003"]))]);
+    let (o, _) = run(&r, &["coverage", "tree", "REQ-CT-001", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&o).unwrap();
+    // distinct leaves: 002 (verified), 004 (verified) — 003 is a parent of 002
+    assert_eq!(v["leavesActive"], 2, "{o}");
+    let kids = v["children"].as_array().unwrap();
+    let k3 = kids.iter().find(|k| k["id"] == "REQ-CT-003").unwrap();
+    assert_eq!(k3["leaf"], false, "{o}");
+    assert_eq!(k3["children"].as_array().unwrap().len(), 1, "{o}");
+}
+
+#[test]
+fn a_cycle_terminates_and_a_draft_only_direct_test_does_not_complete_a_parent() {
+    let r = base(&[("REQ-CT-001.md", req_with("REQ-CT-001", &["REQ-CT-002"]))]);
+    let (o, c) = run(&r, &["coverage", "tree", "REQ-CT-001"]);
+    assert_eq!(c, 0, "{o}");
+    // draft-only direct test on the parent: all leaves verified but no active direct test
+    let r = model(true);
+    let t = std::fs::read_to_string(r.join("TC-CT-004.md")).unwrap().replace("status: active", "status: draft");
+    std::fs::write(r.join("TC-CT-004.md"), t).unwrap();
+    let (o, _) = run(&r, &["coverage", "tree", "REQ-CT-001"]);
+    assert!(o.lines().next().unwrap().starts_with("◐ REQ-CT-001"), "{o}");
+    assert!(o.lines().next().unwrap().contains("direct tests 0"), "{o}");
+}

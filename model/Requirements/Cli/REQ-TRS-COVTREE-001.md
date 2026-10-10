@@ -14,7 +14,7 @@ tags:
 
 ## Behavior
 
-- Per node, never stored: a leaf is `verified` (an active verifying TestCase), `planned` (only planned TestCases) or `uncovered`, using the same classifier as `matrix` and `coverage`. A parent aggregates its leaf descendants (`active/total`, `planned`, `uncovered`) and the number of direct verifying TestCases.
-- Verdict glyph: `●` all leaves verified and the node has a direct test (a leaf: verified); `○` nothing verified, planned or direct; `◐` anything between.
-- Leaves not applicable in every configuration (`na`) are excluded from the counts. A cycle in `derivedFrom` terminates.
+- Per node, never stored: a leaf is `verified` (an active verifying TestCase), `planned` (only draft TestCases) or `uncovered`, using the same classifier as `matrix` and `coverage`. A parent aggregates its leaf descendants (`active/total`, `planned`, `uncovered`) and the number of direct *active* verifying TestCases. A leaf reachable by several paths is counted once.
+- Verdict glyph: `●` all leaves verified and the node has a direct test (a leaf: verified); `○` nothing verified, planned or direct; `·` nothing applies; `◐` anything between.
+- Leaves not applicable in every configuration (`na`) are excluded from the counts. A cycle in `derivedFrom` terminates, and the tree does not depend on id order.
 - `--json` emits the same tree. An unresolvable root exits 1. The rule does not replace direct tests: a parent covered only through children shows `◐`.
