@@ -87,3 +87,18 @@ fn quiet_when_not_failing_or_not_applicable() {
     let f = run("verified", &[("TC-VR-001", "active", Some("fn_bad"))], None);
     assert_eq!(n(&f, "W312") + n(&f, "E319"), 0);
 }
+
+#[test]
+fn session_log_scenario_failures_are_caught_too() {
+    // A TestCase with no testFunctions is scored from per-scenario session-log verdicts.
+    let res = r#"{"schema_version":"1.0","format":"session-log","source":"x","ingested_at_unix":1,"count":1,
+     "by_leaf":{}, "by_scenario":{"TC-VR-001::s":"fail"}}"#;
+    let f = run("approved", &[("TC-VR-001", "active", None)], Some(res));
+    assert_eq!(n(&f, "W312"), 1, "{f:?}");
+}
+
+#[test]
+fn a_failing_verifier_beside_a_passing_one_still_flags_verified() {
+    let f = run("verified", &[("TC-VR-001", "active", Some("fn_ok")), ("TC-VR-002", "active", Some("fn_bad"))], Some(RES));
+    assert_eq!(n(&f, "E319"), 1, "{f:?}");
+}

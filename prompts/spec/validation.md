@@ -79,7 +79,7 @@
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` or behavioral `ActionDef`/`Action`/`StateDef`/`State` does not resolve, or resolves to a non-`Requirement`/`RequirementDef` |
 | `E319` | Results-gated: `Requirement` at `verified` has an active verifying `TestCase` whose ingested verdict is Fail |
 
-## Warnings — core (W001–W007, W300–W305)
+## Warnings — core (W001–W007, W300–W305, W312)
 
 | Code | Condition |
 |---|---|

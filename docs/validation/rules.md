@@ -234,7 +234,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | W306 | **Unsatisfied safety mechanism** — a high-integrity Requirement (`silLevel >= 4` or `asilLevel: D`) that is **not** a fully integrated safety mechanism: `status: draft`, **or** (for a **leaf**) no element satisfies it, **or** (with a feature model) active in no `Configuration`. The "unsatisfied" sub-condition applies to leaves only — a **parent** (has `derivedChildren`) is satisfied transitively and can't be satisfied directly (`E312`), so it is never flagged unsatisfied. Message names the triggering sub-condition(s). Gate with `--deny W306`. (Threshold/sub-condition tuning rides with severity profiles, #18.) |
 | W307 | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gate with `--deny W307` and promote it to a gate failure via the `[profiles.magicgrid]` profile. See the [MagicGrid](#magicgrid-overlay-e316-w307-mg010mg070) section. |
 
-## §12 Traceability errors (E310–E316)
+## §12 Traceability errors (E310–E316, E319)
 
 | Code | Condition |
 |---|---|
