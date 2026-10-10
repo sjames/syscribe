@@ -83,6 +83,8 @@
     svg.appendChild(defs);
     var pos = {};
     lay.nodes.forEach(function (n) { pos[n.id] = n; });
+    var labels = [];
+    var seenPair = {};
     lay.edges.forEach(function (e) {
       var a = pos[e.from], b = pos[e.to];
       if (!a || !b) return;
@@ -103,21 +105,26 @@
       var path = el('path', { d: d, class: 'rg-edge', 'marker-end': 'url(#rg-arrow)', 'data-kind': e.kind });
       path.appendChild(el('title', {}, e.from + ' → ' + e.to + ' (' + e.kind + ')'));
       svg.appendChild(path);
-      svg.appendChild(el('text', { x: (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: (y1 + y2) / 2 - 4, 'text-anchor': 'middle', class: 'rg-edge-label' }, e.kind));
+      var pk = [e.from, e.to].sort().join('|');
+      var k = seenPair[pk] = (seenPair[pk] || 0) + 1;
+      labels.push(el('text', { x: (x1 + x2) / 2 + (a.col === b.col ? 44 : 0), y: (y1 + y2) / 2 - 4 + (k - 1) * 12, 'text-anchor': 'middle', class: 'rg-edge-label' }, e.kind));
     });
     lay.nodes.forEach(function (n) {
       var v = n.verification || 'na';
-      var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0' });
-      g.appendChild(el('title', {}, (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '')));
+      var vlabel = { verified: 'verified', planned: 'verification planned', unverified: 'not verified', na: '' }[v] || '';
+      var summary = (n.type || '') + ' ' + n.id + (n.name ? ' — ' + n.name : '') + (n.status ? ' [' + n.status + ']' : '') + (vlabel ? ', ' + vlabel : '');
+      var g = el('g', { class: 'rg-node' + (n.root ? ' root' : '') + (state.selected === n.id ? ' selected' : ''), 'data-id': n.id, tabindex: '0', role: 'button', 'aria-label': summary, 'aria-pressed': state.selected === n.id ? 'true' : 'false' });
+      g.appendChild(el('title', {}, summary));
       g.appendChild(el('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 6, fill: FILL[v] || FILL.na, stroke: STROKE[v] || STROKE.na }));
       g.appendChild(el('text', { x: n.x + 8, y: n.y + 18 }, truncate(n.id, 28)));
-      var sub = [n.type, n.asil ? 'ASIL ' + n.asil : null, n.status].filter(Boolean).join(' · ');
+      var sub = [n.type, n.asil ? 'ASIL ' + n.asil : null, n.status, v === 'verified' ? '✓' : v === 'unverified' ? '✗' : v === 'planned' ? '◐' : null].filter(Boolean).join(' · ');
       g.appendChild(el('text', { x: n.x + 8, y: n.y + 34, class: 'rg-sub' }, truncate(sub, 34)));
       g.addEventListener('click', function () { select(n); });
-      g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') select(n); });
+      g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n); } });
       svg.appendChild(g);
     });
-    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.truncated ? ' — truncated, raise the limit or narrow the relations' : ''));
+    labels.forEach(function (t) { svg.appendChild(t); }); // above the nodes, with a halo (see the stylesheet)
+    setStatus(graph.nodes.length + ' element(s), ' + (graph.edges || []).length + ' relation(s)' + (graph.truncated ? ' — truncated at the server node limit — lower the depth or untick relations' : ''));
   }
 
   function qnamePath(q) { return q.split('::').map(encodeURIComponent).join('/'); }
@@ -125,7 +132,9 @@
   function select(n) {
     state.selected = n.id;
     Array.prototype.forEach.call(svg.querySelectorAll('.rg-node'), function (g) {
-      g.classList.toggle('selected', g.getAttribute('data-id') === n.id);
+      var on = g.getAttribute('data-id') === n.id;
+      g.classList.toggle('selected', on);
+      g.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     detailEl.textContent = '';
     var bar = document.createElement('p');
@@ -138,7 +147,13 @@
     var holder = document.createElement('div');
     detailEl.appendChild(holder);
     fetch('/ui/element-card/' + qnamePath(n.qname)).then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
-      .then(function (html) { holder.innerHTML = html; }) // the server's own, escaped fragment
+      .then(function (html) {
+        holder.innerHTML = html; // the server's own, escaped fragment
+        // The card carries htmx buttons and may carry a mermaid block: wire them as the diagram panel does.
+        if (window.htmx && window.htmx.process) window.htmx.process(holder);
+        var mm = holder.querySelectorAll('pre.mermaid');
+        if (window.mermaid && mm.length) { try { window.mermaid.run({ nodes: mm }); } catch (e) { /* leave the source text */ } }
+      })
       .catch(function () { holder.textContent = 'No element card for ' + n.qname + '.'; });
   }
 
@@ -159,27 +174,62 @@
     return p;
   }
 
+  var seq = 0;
+
+  function clearGraph() { while (svg.firstChild) svg.removeChild(svg.firstChild); state.lastGraph = null; }
+
   function load() {
-    if (!state.focus) { setStatus('Enter a requirement id or qualified name.'); return Promise.resolve(); }
+    var my = ++seq; // only the newest request may draw: an older response arriving late is dropped
+    if (!state.focus) { clearGraph(); setStatus('Enter a requirement id or qualified name.'); return Promise.resolve(); }
     setStatus('Loading…');
     return fetch('/api/req-graph?' + query().toString())
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-      .then(function (res) {
-        if (!res.ok) { while (svg.firstChild) svg.removeChild(svg.firstChild); setStatus((res.body && res.body.error) || 'Request failed.'); return; }
-        draw(res.body);
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = JSON.parse(t); } catch (e) { /* a plain-text or HTML error body */ }
+          return { ok: r.ok && j !== null, body: j, text: t, status: r.status };
+        });
       })
-      .catch(function () { setStatus('Request failed.'); });
+      .then(function (res) {
+        if (my !== seq) return;
+        if (!res.ok) {
+          clearGraph();
+          setStatus((res.body && res.body.error) || ('Request failed (' + res.status + '): ' + (res.text || '').slice(0, 160)));
+          return;
+        }
+        try { draw(res.body); } catch (e) { setStatus('Could not draw the graph: ' + e.message); }
+      }, function () { if (my === seq) setStatus('Request failed (network).'); });
   }
 
-  function pushUrl() {
+  function urlFor() {
     var p = new URLSearchParams();
     p.set('focus', state.focus);
     p.set('depth', String(state.depth));
     if (state.config) p.set('config', state.config);
-    history.pushState({ focus: state.focus, depth: state.depth, config: state.config }, '', '/requirements?' + p.toString());
+    return '/requirements?' + p.toString();
+  }
+
+  function snapshot() { return { focus: state.focus, depth: state.depth, config: state.config }; }
+
+  // Push a history entry only when the view actually changed.
+  function pushUrl() {
+    var cur = history.state || {};
+    var s = snapshot();
+    if (cur.focus === s.focus && cur.depth === s.depth && cur.config === s.config) return;
+    history.pushState(s, '', urlFor());
+  }
+
+  function resetDetail() {
+    state.selected = null;
+    detailEl.textContent = '';
+    var hint = document.createElement('p');
+    hint.className = 'req-hint';
+    hint.textContent = 'Select a node to see its element card.';
+    detailEl.appendChild(hint);
   }
 
   function focusOn(id, push) {
+    resetDetail();
     state.focus = id;
     document.getElementById('req-root').value = id;
     if (push) pushUrl();
@@ -208,20 +258,24 @@
     });
     document.getElementById('req-controls').addEventListener('submit', function (ev) {
       ev.preventDefault();
+      resetDetail();
       state.focus = document.getElementById('req-root').value.trim();
       state.depth = parseInt(document.getElementById('req-depth').value, 10) || 1;
       state.config = document.getElementById('req-config').value.trim();
       pushUrl();
       load();
     });
+    // The initial entry gets the seeded state, so Back to it restores focus, depth and configuration.
+    history.replaceState(snapshot(), '', location.href);
     window.addEventListener('popstate', function (ev) {
-      var s = ev.state || {};
-      state.focus = s.focus || root.getAttribute('data-focus') || '';
-      state.depth = s.depth || state.depth;
+      var s = ev.state || snapshot();
+      state.focus = s.focus === undefined ? '' : s.focus;
+      state.depth = s.depth || 1;
       state.config = s.config || '';
       document.getElementById('req-root').value = state.focus;
       document.getElementById('req-depth').value = String(state.depth);
       document.getElementById('req-config').value = state.config;
+      resetDetail();
       load();
     });
     document.addEventListener('syscribe:reload', load);

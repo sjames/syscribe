@@ -670,4 +670,5 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 #req-graph .rg-node text { font: 12px sans-serif; pointer-events: none; }
 #req-graph .rg-node .rg-sub { font-size: 10px; fill: #555; }
 #req-graph .rg-edge { fill: none; stroke: #7a869a; stroke-width: 1.4; }
-#req-graph .rg-edge-label { font: 10px sans-serif; fill: #46526b; }
+#req-graph .rg-edge-label { font: 10px sans-serif; fill: #2b3550; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+#req-graph .rg-node:focus-visible rect { outline: 3px solid #1a4fd6; outline-offset: 2px; }

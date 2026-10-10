@@ -14,7 +14,8 @@ use syscribe_server::build_router;
 use syscribe_server::state::new_state;
 
 fn app() -> axum::Router {
-    let root = std::env::temp_dir().join(format!("syscribe-reqexpl-{}", std::process::id()));
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let root = std::env::temp_dir().join(format!("syscribe-reqexpl-{}-{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::SeqCst)));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
