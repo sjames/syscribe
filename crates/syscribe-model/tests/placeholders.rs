@@ -181,3 +181,61 @@ fn placeholders_in_code_spans_and_fences_are_literal() {
     let r = model(&[("REQ-PH-001.md", "---\nid: REQ-PH-001\ntype: Requirement\nname: r\nstatus: draft\nreqDomain: software\n---\n\nUse `{{Features::X.y}}`.\n")]);
     assert_eq!(n(&codes(&r), "E240"), 0);
 }
+
+#[test]
+fn template_syntax_that_is_not_a_feature_path_is_ignored() {
+    use syscribe_model::placeholders::find;
+    assert!(find("Hello {{ user.name }} and {{item.id}}").is_empty());
+    let r = model(&[("REQ-PH-001.md", "---\nid: REQ-PH-001\ntype: Requirement\nname: r\nstatus: draft\nreqDomain: software\n---\n\nTemplate {{ user.name }}.\n")]);
+    let f = codes(&r);
+    assert_eq!(n(&f, "E240") + n(&f, "E241"), 0, "{f:?}");
+}
+
+#[test]
+fn tilde_fences_and_double_backtick_spans_are_code() {
+    use syscribe_model::placeholders::find;
+    assert!(find("~~~\n{{Features::Display.sizeInch}}\n~~~").is_empty());
+    assert!(find("see ``a ` b {{Features::Display.sizeInch}}`` here").is_empty());
+}
+
+#[test]
+fn a_derived_parameter_is_not_reported_unbound() {
+    let feat = (
+        "Features/Display.md",
+        "---\ntype: FeatureDef\nid: FEAT-PH-100\nname: Display\ngroupKind: optional\nparameters:\n  - {name: a, type: ScalarValues::Real, default: 2}\n  - {name: twice, type: ScalarValues::Real, derivedFrom: \"a * 2\"}\n---\n\nD.\n",
+    );
+    let r = model(&[
+        feat,
+        CONF_A,
+        ("Reqs/REQ-PH-001.md", "---\nid: REQ-PH-001\ntype: Requirement\nname: r\nstatus: approved\nreqDomain: software\nappliesWhen: Features::Display\n---\n\nTwice {{Features::Display.twice}}.\n"),
+    ]);
+    let f = codes(&r);
+    assert_eq!(n(&f, "E243") + n(&f, "W245"), 0, "{f:?}");
+}
+
+#[test]
+fn projected_validation_does_not_report_false_suspect_drift_for_substituted_text() {
+    use syscribe_model::config::ValidateConfig;
+    use syscribe_model::projection::validate_projected;
+    // A test case baselined (traceBaselines) against a requirement whose body has a placeholder.
+    let r = base_model(vec![req("REQ-PH-001", "approved", "appliesWhen: Features::Display\n", "Size {{Features::Display.sizeInch}}.")]);
+    let els = walk_model(&r).unwrap();
+    let req_el = els.iter().find(|e| e.frontmatter.id.as_deref() == Some("REQ-PH-001")).unwrap();
+    let h = syscribe_model::suspect::projection_hash(req_el);
+    std::fs::write(
+        r.join("Tests/TC-PH-001.md"),
+        format!("---\nid: TC-PH-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-PH-001]\ntraceBaselines:\n  REQ-PH-001: \"{h}\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n"),
+    )
+    .unwrap_or_else(|_| {
+        std::fs::create_dir_all(r.join("Tests")).unwrap();
+        std::fs::write(
+            r.join("Tests/TC-PH-001.md"),
+            format!("---\nid: TC-PH-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-PH-001]\ntraceBaselines:\n  REQ-PH-001: \"{h}\"\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n"),
+        )
+        .unwrap();
+    });
+    let els = walk_model(&r).unwrap();
+    let SelectionOutcome::Resolved(sel) = resolve_selection(&els, "CONF-PH-ALPHA-001") else { panic!() };
+    let f = validate_projected(&els, &ValidateConfig::with_model_root(&r), &sel);
+    assert_eq!(n(&f, "W090"), 0, "{f:?}");
+}

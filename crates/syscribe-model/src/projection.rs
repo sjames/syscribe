@@ -169,13 +169,21 @@ pub fn canonical_selection(elements: &[RawElement], cfg: &RawElement) -> Selecti
 
 /// The projected (active) element set for a selection.
 pub fn project(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
-    let pkg = variability::package_conditions(elements);
-    let alias = variability::feature_id_to_qname(elements);
-    let sel = variability::canon_selection(sel, &alias);
-    let mut view: Vec<RawElement> = elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect();
+    let sel = variability::canon_selection(sel, &variability::feature_id_to_qname(elements));
+    let mut view = project_raw(elements, &sel);
     // Feature-parameter placeholders ({{Feature.param}}) take this variant's values (GH #265).
     crate::placeholders::substitute(&mut view, elements, &sel);
     view
+}
+
+/// The projected (active) element set with placeholders left symbolic. Validation, suspect-link
+/// and baseline checks use this: their recorded hashes were taken on the base model, so a
+/// substituted body would read as drift (GH #265 review).
+pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
+    let pkg = variability::package_conditions(elements);
+    let alias = variability::feature_id_to_qname(elements);
+    let sel = variability::canon_selection(sel, &alias);
+    elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect()
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────
@@ -301,7 +309,7 @@ pub fn validate_projected(
     sel: &Selection,
 ) -> Vec<Finding> {
     let mut findings = escaping_refs(full, sel);
-    let mut active = project(full, sel);
+    let mut active = project_raw(full, sel);
     // Per-configuration findings (W015) are about the selected variant only: keep the
     // stored Configuration(s) whose selection is this one, drop the others so a
     // requirement is not reported against configurations outside the lens (GH #245).

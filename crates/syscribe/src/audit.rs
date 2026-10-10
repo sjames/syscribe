@@ -219,7 +219,7 @@ pub fn audit_verdict(
     plan_scope: Option<&std::collections::HashSet<String>>,
 ) -> (bool, Vec<String>) {
     let findings = audit_findings(elements, config, sel, plan_scope);
-    let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project(elements, s));
+    let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project_raw(elements, s));
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let resolver = Resolver::new(view);
     let failing = failing_goals(view, &resolver, config, plan_scope.is_some());
@@ -407,7 +407,7 @@ pub fn cmd_audit(
     // set of file paths in the plan's scope: references resolve against the full
     // model (so nothing escapes), while the section rows and the verdict count only
     // in-scope elements.
-    let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project(elements, s));
+    let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project_raw(elements, s));
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let resolver = Resolver::new(view);
     let full_resolver = Resolver::new(elements);

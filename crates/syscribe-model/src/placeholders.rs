@@ -33,29 +33,67 @@ fn re() -> &'static Regex {
 fn code_ranges(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut pos = 0;
-    let mut fence_start: Option<usize> = None;
+    let mut fence: Option<(usize, char)> = None;
     for line in text.split_inclusive('\n') {
         let end = pos + line.len();
-        if line.trim_start().starts_with("```") {
-            match fence_start.take() {
-                Some(s) => out.push((s, end)),
-                None => fence_start = Some(pos),
+        let t = line.trim_start();
+        let fence_char = if t.starts_with("```") {
+            Some('`')
+        } else if t.starts_with("~~~") {
+            Some('~')
+        } else {
+            None
+        };
+        match (fence, fence_char) {
+            (Some((s, c)), Some(fc)) if c == fc => {
+                out.push((s, end));
+                fence = None;
             }
-        } else if fence_start.is_none() {
-            // Inline spans on this line.
-            let mut open: Option<usize> = None;
-            for (i, ch) in line.char_indices() {
-                if ch == '`' {
-                    match open.take() {
-                        Some(o) => out.push((pos + o, pos + i + 1)),
-                        None => open = Some(i),
+            (None, Some(fc)) => fence = Some((pos, fc)),
+            (None, None) => {
+                // Inline spans on this line: a run of N backticks closes at the next run of N.
+                let b = line.as_bytes();
+                let mut i = 0;
+                while i < b.len() {
+                    if b[i] == b'`' {
+                        let start = i;
+                        while i < b.len() && b[i] == b'`' {
+                            i += 1;
+                        }
+                        let n = i - start;
+                        let mut j = i;
+                        let mut close = None;
+                        while j < b.len() {
+                            if b[j] == b'`' {
+                                let cs = j;
+                                while j < b.len() && b[j] == b'`' {
+                                    j += 1;
+                                }
+                                if j - cs == n {
+                                    close = Some(j);
+                                    break;
+                                }
+                            } else {
+                                j += 1;
+                            }
+                        }
+                        match close {
+                            Some(c) => {
+                                out.push((pos + start, pos + c));
+                                i = c;
+                            }
+                            None => break,
+                        }
+                    } else {
+                        i += 1;
                     }
                 }
             }
+            _ => {}
         }
         pos = end;
     }
-    if let Some(s) = fence_start {
+    if let Some((s, _)) = fence {
         out.push((s, text.len())); // an unterminated fence runs to the end
     }
     out
@@ -71,6 +109,8 @@ pub fn find(text: &str) -> Vec<Placeholder> {
     re()
         .captures_iter(text)
         .filter(|c| !in_code(&code, c.get(0).map(|m| m.start()).unwrap_or(0)))
+        // Only feature-shaped references count; `{{ user.name }}` template text is not ours.
+        .filter(|c| c[1].contains("::") || c[1].starts_with("FEAT-"))
         .map(|c| Placeholder {
             raw: c[0].to_string(),
             feature: c[1].to_string(),
@@ -165,6 +205,9 @@ fn substitute_text(text: &str, f: &dyn Fn(&Placeholder) -> Option<String>) -> St
             if in_code(&code, c.get(0).map(|m| m.start()).unwrap_or(0)) {
                 return c[0].to_string();
             }
+            if !(c[1].contains("::") || c[1].starts_with("FEAT-")) {
+                return c[0].to_string();
+            }
             let ph = Placeholder { raw: c[0].to_string(), feature: c[1].to_string(), param: c[2].to_string(), unit: c.get(3).is_some() };
             f(&ph).unwrap_or_else(|| ph.raw.clone())
         })
@@ -224,6 +267,8 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
         elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)).collect();
     let pkg = variability::package_conditions(elements);
     let alias = variability::feature_id_to_qname(elements);
+    let sels: Vec<crate::projection::Selection> =
+        configs.iter().map(|c| variability::canon_selection(&c.frontmatter.feature_selections(), &alias)).collect();
     for e in elements {
         let phs = of_element(e);
         if phs.is_empty() {
@@ -263,15 +308,17 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
             }
             let mut escapes: Vec<String> = Vec::new();
             let mut unbound: Vec<String> = Vec::new();
-            for c in &configs {
-                let sel = crate::projection::canonical_selection(elements, c);
-                if !crate::projection::is_active_canon(e, &sel, &pkg, &alias) {
+            for (c, sel) in configs.iter().zip(&sels) {
+                if !crate::projection::is_active_canon(e, sel, &pkg, &alias) {
                     continue;
                 }
                 let cid = c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone());
                 if sel.get(&d.feature_qname).copied() != Some(true) {
                     escapes.push(cid);
-                } else if value_for(elements, resolver, Some(c), ph).is_none() {
+                } else if d.entry.get("derivedFrom").is_none()
+                    && d.entry.get("bindTo").is_none()
+                    && value_for(elements, resolver, Some(c), ph).is_none()
+                {
                     unbound.push(cid);
                 }
             }
