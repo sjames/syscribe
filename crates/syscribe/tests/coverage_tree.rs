@@ -128,3 +128,34 @@ fn a_cycle_terminates_and_a_draft_only_direct_test_does_not_complete_a_parent() 
     assert!(o.lines().next().unwrap().starts_with("◐ REQ-CT-001"), "{o}");
     assert!(o.lines().next().unwrap().contains("direct tests 0"), "{o}");
 }
+
+fn with_plan(root: &Path, test_cases: &str) {
+    let p = root.join("TP-CT-001.md");
+    std::fs::write(p, format!("---\ntype: TestPlan\nid: TP-CT-001\nname: p\nstatus: approved\nscope: integration\ntestCases: [{test_cases}]\n---\n\nPlan.\n")).unwrap();
+}
+
+#[test]
+fn plan_lens_counts_only_the_plans_tests() {
+    let r = model(true);
+    let (all, _) = run(&r, &["coverage", "tree", "REQ-CT-001"]);
+    assert!(all.lines().next().unwrap().contains("leaves 3/3 active"), "{all}");
+    with_plan(&r, "TC-CT-001, TC-CT-004");
+    let (o, c) = run(&r, &["coverage", "tree", "REQ-CT-001", "--plan", "TP-CT-001"]);
+    assert_eq!(c, 0, "{o}");
+    let first = o.lines().next().unwrap();
+    assert!(first.contains("leaves 1/") && first.contains("active"), "only TC-CT-001's leaf is verified under the plan: {o}");
+    assert!(first.contains("direct tests 1"), "TC-CT-004 is in the plan: {o}");
+}
+
+#[test]
+fn a_root_outside_the_lens_or_an_unknown_plan_exits_one() {
+    let r = model(true);
+    with_plan(&r, "TC-CT-001");
+    let (_, c) = run(&r, &["coverage", "tree", "REQ-CT-001", "--plan", "TP-NOPE"]);
+    assert_eq!(c, 1);
+    let (o, c) = Command::new(env!("CARGO_BIN_EXE_syscribe"))
+        .arg("-m").arg(&r).args(["coverage", "tree", "REQ-CT-003", "--plan", "TP-CT-001"]).output()
+        .map(|o| (format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)), o.status.code().unwrap_or(-1))).unwrap();
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("does not resolve") && o.contains("TP-CT-001"), "names the lens: {o}");
+}

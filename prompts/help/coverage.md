@@ -1,7 +1,7 @@
 # coverage — roll test coverage up the derivation tree
 
 ## SYNOPSIS
-    syscribe -m <root> coverage tree <req> [--json]
+    syscribe -m <root> coverage tree <req> [--plan <TP-id>] [--config <id>] [--json]
 
 ## DESCRIPTION
 `coverage tree` shows how well a requirement and everything derived below it
@@ -28,9 +28,11 @@ test.
       ◐ REQ-A-003  planned | direct tests 0 [approved]
       ○ REQ-A-004  uncovered | direct tests 0 [approved]
 
-`--config` and `--plan` lenses are not supported yet (leaves are classified over all
-configurations of the model, as `matrix` does); the policy rules of GH #253 and
-`matrix --rollup` build on this command later.
+`--plan TP-X` evaluates the tree on the test-plan lens: only the plan's in-scope
+requirements and effective TestCases exist, so a test outside the plan does not
+count and a requirement outside it is absent (a root outside the plan exits 1,
+naming the lens). `--config <id>` projects the model onto a Configuration first;
+both compose, plan first. Without them leaves are classified over the whole model.
 
 ## POLICY (`[coverage]` in `.syscribe.toml`)
 How a parent is judged complete is a policy, `both` by default:

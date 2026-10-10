@@ -262,6 +262,7 @@ pub fn cmd_coverage_tree(
     results: Option<&ResultsData>,
     policy: &CoveragePolicy,
     root: &str,
+    lens: &str,
     json_out: bool,
 ) -> i32 {
     if !policy.problems.is_empty() {
@@ -272,7 +273,11 @@ pub fn cmd_coverage_tree(
     }
     let resolver = Resolver::new(elements);
     let Some(r) = resolver.resolve_ref(elements, root).filter(|e| Resolver::is_native_requirement(e)) else {
-        eprintln!("coverage tree: '{root}' does not resolve to a requirement.");
+        if lens.is_empty() {
+            eprintln!("coverage tree: '{root}' does not resolve to a requirement.");
+        } else {
+            eprintln!("coverage tree: '{root}' does not resolve to a requirement in the lens ({lens}).");
+        }
         return 1;
     };
     let states = crate::matrix::requirement_rollup(elements, results);

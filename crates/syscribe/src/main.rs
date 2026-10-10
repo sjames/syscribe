@@ -1132,13 +1132,18 @@ fn main() {
                 }
                 let rest = &rest[1..];
                 let json = rest.iter().any(|a| a == "--json");
-                let Some(root) = first_positional(rest, &[]) else {
-                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--json]");
+                let Some(root) = first_positional(rest, &["--plan", "--config"]) else {
+                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
                     std::process::exit(1);
                 };
-                let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
+                // --plan / --config lenses (REQ-TRS-COVPLAN-001), composed as for `matrix`.
+                let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let lens = [plan.map(|p| format!("plan {p}")), config.map(|c| format!("configuration {c}"))].into_iter().flatten().collect::<Vec<_>>().join(", ");
+                let view = if plan.is_some() || config.is_some() { lensed_elements(&elems, plan, config) } else { elems.clone() };
+                let result = syscribe_model::validator::validate_with_config(&view, &vcfg);
                 let results = runhist::load_results(model_root);
-                let code = covtree::cmd_coverage_tree(&elems, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), root, json);
+                let code = covtree::cmd_coverage_tree(&view, &result, results.as_ref(), &syscribe_model::config::CoveragePolicy::load(model_root), root, &lens, json);
                 if code != 0 {
                     std::process::exit(code);
                 }
