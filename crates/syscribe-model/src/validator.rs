@@ -91,6 +91,9 @@ pub struct ValidationResult {
     /// by the target's stable id when present, else its qualified name; each
     /// source is labelled by its stable id else qname.
     pub allocated_from: HashMap<String, Vec<String>>,
+    /// Ids of parent requirements accepted as covered through their leaves by the `[coverage]`
+    /// `rollup` rule (GH #253) — the coverage report must not list them as missing an integration test.
+    pub rolled_up: std::collections::HashSet<String>,
 }
 
 impl ValidationResult {
@@ -5124,6 +5127,40 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // `[coverage]` parent_rule = "rollup" (GH #253): a parent is covered through its leaves when every
+    // live leaf descendant has an active verifying TestCase. Never for an integrity-rated parent
+    // (E898), and draft / rejected / obsolete leaves are skipped. Shared by W305 and W310.
+    let parent_rolled_up = |req_id: &str, fm: &crate::element::RawFrontmatter| -> bool {
+        if config.coverage.rule_for(fm).0 != crate::config::ParentRule::Rollup || crate::config::is_integrity_rated(fm) {
+            return false;
+        }
+        let live = |id: &str| {
+            !resolver
+                .get_by_id(elements, id)
+                .and_then(|e| e.frontmatter.status.as_deref())
+                .is_some_and(|s| matches!(s, "draft" | "rejected" | "obsolete" | "retired" | "deprecated" | "superseded"))
+        };
+        let mut leaves: Vec<String> = Vec::new();
+        let mut stack: Vec<String> = vec![req_id.to_string()];
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            match derived_children.get(&id).filter(|c| !c.is_empty()) {
+                Some(cs) => stack.extend(cs.iter().cloned()),
+                None if live(&id) => leaves.push(id),
+                None => {}
+            }
+        }
+        !leaves.is_empty()
+            && leaves.iter().all(|l| {
+                verified_by.get(l).is_some_and(|tcs| {
+                    tcs.iter().any(|t| resolver.get_by_id(elements, t).and_then(|e| e.frontmatter.status.as_deref()) == Some("active"))
+                })
+            })
+    };
+
     // W310 (issue #114): PlanningItem-scoped completion check. W002/W003/W305
     // already warn from the Requirement's own file when it lacks verification
     // coverage, but nothing ties "this specific PlanningItem you're about to
@@ -5197,6 +5234,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             } else {
                 !active_tcs.is_empty()
             };
+            let covered = covered || (is_parent && parent_rolled_up(req_id, &target.frontmatter));
             if !covered {
                 let need = if is_parent {
                     "active system-integration TestCase (testLevel L3, L4, or L5)"
@@ -5291,6 +5329,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
     }
+
+    let mut rolled_up: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     // E898: an invalid `[coverage]` table (GH #253).
     if let Some(root) = &config.model_root {
@@ -5562,34 +5602,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .and_then(|e| e.frontmatter.test_level.as_deref())
                     .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
             });
-            // Under `rollup` a parent whose every leaf descendant has an active verifying TestCase
-            // is covered through them (GH #253); never for an integrity-rated parent (E898 above).
-            let rolled_up = cov_rule == crate::config::ParentRule::Rollup && !crate::config::is_integrity_rated(&elem.frontmatter) && {
-                let mut leaves: Vec<String> = Vec::new();
-                let mut stack: Vec<String> = vec![req_id.to_string()];
-                let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-                while let Some(id) = stack.pop() {
-                    if !seen.insert(id.clone()) {
-                        continue;
-                    }
-                    match derived_children.get(&id).filter(|c| !c.is_empty()) {
-                        Some(cs) => stack.extend(cs.iter().cloned()),
-                        None => leaves.push(id),
-                    }
-                }
-                !leaves.is_empty()
-                    && leaves.iter().all(|l| {
-                        verified_by.get(l).is_some_and(|tcs| {
-                            tcs.iter().any(|t| resolver.get_by_id(elements, t).and_then(|e| e.frontmatter.status.as_deref()) == Some("active"))
-                        })
-                    })
-            };
-            if !has_integration_tc && !rolled_up {
+            // Under `rollup` a parent whose every live leaf descendant has an active verifying
+            // TestCase is covered through them (GH #253); never an integrity-rated parent (E898).
+            let is_rolled_up = !has_integration_tc && parent_rolled_up(req_id, &elem.frontmatter);
+            if is_rolled_up {
+                rolled_up.insert(req_id.to_string());
+            }
+            if !has_integration_tc && !is_rolled_up {
                 findings.push(warning(
                     "W305",
                     &elem.file_path,
                     &format!(
-                        "parent Requirement '{}' (status: {}) has no active system integration TestCase (testLevel: L3, L4, or L5) (rule: {})",
+                        "parent Requirement '{}' (status: {}) has no active system integration TestCase (testLevel: L3, L4, or L5); coverage rule: {}",
                         req_id, status, cov_rule.as_str()
                     ),
                 ));
@@ -8839,6 +8863,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         actor_in,
         mop_refined_by,
         allocated_from,
+        rolled_up,
     }
 }
 

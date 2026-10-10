@@ -374,7 +374,9 @@ pub fn validate_projected(
     findings.extend(
         res.findings
             .into_iter()
-            .filter(|f| !LENS_SUPPRESS.contains(&f.code)),
+            // The `[coverage]` table's own findings are about the file, not the variant: reported once by
+            // plain `validate`, not once per projected configuration.
+            .filter(|f| !LENS_SUPPRESS.contains(&f.code) && !(f.code == "E898" && f.file.ends_with(".syscribe.toml"))),
     );
     findings
 }

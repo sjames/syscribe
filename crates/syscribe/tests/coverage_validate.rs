@@ -41,15 +41,15 @@ const ROLLUP: &str = "[[coverage.rule]]\nreqClass = \"system\"\nparent_rule = \"
 #[test]
 fn w305_names_the_rule_and_rollup_silences_a_fully_verified_parent() {
     let v = validate(&model("", true, ""));
-    assert!(v.contains("W305") && v.contains("(rule: both)"), "{v}");
+    assert!(v.contains("W305") && v.contains("rule: both"), "{v}");
     let v = validate(&model(ROLLUP, true, ""));
     assert!(!v.contains("W305"), "{v}");
     // one leaf unverified: the parent is not covered through its children
     let v = validate(&model(ROLLUP, false, ""));
-    assert!(v.contains("W305") && v.contains("(rule: rollup)"), "{v}");
+    assert!(v.contains("W305") && v.contains("rule: rollup"), "{v}");
     // direct behaves as before
     let v = validate(&model("[coverage]\ndefault = \"direct\"\n", true, ""));
-    assert!(v.contains("W305") && v.contains("(rule: direct)"), "{v}");
+    assert!(v.contains("W305") && v.contains("rule: direct"), "{v}");
 }
 
 #[test]
@@ -62,4 +62,38 @@ fn an_invalid_policy_or_a_loosened_rated_parent_is_e898() {
     let ok = "[[coverage.rule]]\nasil = [\"A\",\"B\",\"C\",\"D\"]\nparent_rule = \"both\"\n[[coverage.rule]]\nreqClass = \"system\"\nparent_rule = \"rollup\"\n";
     assert!(!validate(&model(ok, true, "asilLevel: B\n")).contains("E898"));
     assert!(!validate(&model("", true, "asilLevel: B\n")).contains("E898"));
+}
+
+#[test]
+fn w310_and_draft_leaves_follow_the_same_rollup() {
+    let with_pi = |toml: &str, tested: bool| {
+        let d = model(toml, tested, "");
+        std::fs::create_dir_all(d.join("P")).unwrap();
+        std::fs::write(d.join("P/PI-CV-001.md"), "---\nid: PI-CV-001\ntype: PlanningItem\nname: p\nstatus: done\nitemType: task\nachieves: [REQ-CV-001]\nevidence:\n  - ref: TC-CV-002\n---\n\nDone.\n").unwrap();
+        d
+    };
+    assert!(validate(&with_pi("", true)).contains("W310"));
+    assert!(!validate(&with_pi(ROLLUP, true)).contains("W310"));
+    // a draft leaf without a test does not keep a rolled-up parent uncovered
+    let d = model(ROLLUP, false, "");
+    let p = d.join("R/REQ-CV-003.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("status: approved", "status: draft")).unwrap();
+    assert!(!validate(&d).contains("W305"), "{}", validate(&d));
+}
+
+#[test]
+fn an_invalid_policy_is_reported_once_not_per_configuration() {
+    let d = model("[coverage]\ndefault = \"sometimes\"\n", true, "");
+    std::fs::create_dir_all(d.join("Features")).unwrap();
+    std::fs::write(d.join("Features/_index.md"), "---\ntype: Package\nname: Features\n---\n").unwrap();
+    std::fs::write(d.join("Features/Opt.md"), "---\ntype: FeatureDef\nid: FEAT-OPT-001\nname: Opt\ngroupKind: optional\n---\n\nO.\n").unwrap();
+    for (id, v) in [("CONF-ON-001", "true"), ("CONF-OFF-001", "false")] {
+        std::fs::create_dir_all(d.join("Configurations")).unwrap();
+        std::fs::write(d.join(format!("Configurations/{id}.md")), format!("---\ntype: Configuration\nid: {id}\nname: {id}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Opt: {v}\n---\n\nC.\n")).unwrap();
+    }
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&d).args(["validate", "--all-configs"]).output().unwrap();
+    let out = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    let plain = validate(&d);
+    assert!(plain.contains("E898"));
+    assert!(out.matches("E898").count() <= 1, "{out}");
 }

@@ -82,7 +82,7 @@ pub fn coverage_summary(
                         .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
                 })
             });
-            if has_integration_tc {
+            if has_integration_tc || result.rolled_up.contains(id) {
                 verified_count += 1;
             } else if reportable {
                 parents_missing_integration.push(entry(e, Some(child_count)));

@@ -6511,7 +6511,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 
 #### Coverage policy (E898)
 
-The `[coverage]` table of `.syscribe.toml` (§12.11).
+The `[coverage]` table of `.syscribe.toml` (see `syscribe help coverage`).
 
 | Code | Severity | Condition |
 |---|---|---|
