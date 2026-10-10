@@ -9,7 +9,8 @@ model elements are **present** and **approved** (status approved, implemented, v
 active, done, completed, accepted or closed). Per item: `complete` (at least one, all
 approved), `partial` (some present, not all approved) or `missing`.
 
-Built in: `aspice` (SYS.2/SYS.3/SWE.1/SWE.2/SWE.4/SWE.5/SYS.5/SUP.4/SUP.8), `iso26262`
+Built in: `aspice` (ASPICE PAM 3.1: SYS.2/SYS.3/SWE.1/SWE.2/SWE.4/SWE.5/SYS.5/SUP.4/SUP.8; test
+levels L1–L3 → SWE.4, L4 → SWE.5, L4/L5 → SYS.5), `iso26262`
 (hazardous events, safety goals, technical safety requirements, FMEA, FTA, DFA, confirmation
 measures, verification) and `iso21434` (TARA, damage/threat scenarios, cybersecurity goals,
 security controls, vulnerability reports). A `[standards.<name>]` table in `.syscribe.toml`
@@ -19,9 +20,14 @@ replaces the items of that standard and may define a new one:
     process = "SWE.1"
     workProduct = "Software requirements"
     type = "Requirement"          # element type
-    reqClass = "software"         # optional
+    reqClass = "system"           # optional
+    reqDomain = "software"        # optional
     tag = ["sw"]                  # optional, any of
-    testLevel = "L1"              # optional (TestCase)
+    testLevel = ["L1", "L2"]      # optional (TestCase); a string or a list
+
+Unknown keys, wrongly typed values, an unknown element `type` and an empty item list are
+errors (a typo must not silently widen a selector). Elements that are `retired`,
+`deprecated`, `superseded` or `rejected` are not counted.
 
 With `--config` the model is projected first, so elements gated off are absent.
 

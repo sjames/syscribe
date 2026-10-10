@@ -80,3 +80,28 @@ fn errors_exit_one() {
     assert_eq!(run(&model("[standards.x]\nitem = 3\n"), &["compliance", "--standard", "x"]).1, 1);
     assert_eq!(run(&model("[[standards.x.item]]\nprocess = \"P\"\n"), &["compliance", "--standard", "x"]).1, 1);
 }
+
+#[test]
+fn selectors_are_strict_retired_elements_do_not_count_and_aspice_matches_a_real_model() {
+    // mistyped key / wrong type / unknown element type / no items are errors, not widened selectors
+    for t in [
+        "[[standards.x.item]]\nprocess = \"P\"\nworkProduct = \"W\"\ntype = \"Requirement\"\ntags = [\"a\"]\n",
+        "[[standards.x.item]]\nprocess = \"P\"\nworkProduct = \"W\"\ntype = \"Requirement\"\nreqClass = 5\n",
+        "[[standards.x.item]]\nprocess = \"P\"\nworkProduct = \"W\"\ntype = \"Requirment\"\n",
+        "[standards.x]\nitem = []\n",
+        "standards = 3\n",
+    ] {
+        let (o, c) = run(&model(t), &["compliance", "--standard", "x"]);
+        assert_eq!(c, 1, "{t}: {o}");
+    }
+    // built-in ASPICE: SWE.1 keys on reqDomain, SWE.4 accepts L1-L3, a retired test is not counted
+    let d = model("");
+    std::fs::create_dir_all(d.join("Tests")).unwrap();
+    std::fs::write(d.join("Tests/TC-CP-001.md"), "---\nid: TC-CP-001\ntype: TestCase\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-CP-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n").unwrap();
+    std::fs::write(d.join("Tests/TC-CP-002.md"), "---\nid: TC-CP-002\ntype: TestCase\nname: t2\nstatus: retired\ntestLevel: L3\nverifies: [REQ-CP-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n").unwrap();
+    let v = items(&run(&d, &["compliance", "--standard", "aspice", "--json"]).0);
+    let row = |p: &str| v["items"].as_array().unwrap().iter().find(|i| i["process"] == p).unwrap().clone();
+    assert_eq!(row("SWE.1")["present"], 2);
+    let swe4 = row("SWE.4");
+    assert_eq!((swe4["present"].as_u64(), swe4["status"].as_str()), (Some(1), Some("complete")), "{swe4}");
+}

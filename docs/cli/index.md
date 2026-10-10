@@ -774,7 +774,7 @@ $ syscribe -m model/ find . --where custom.supplier                  # presence
 syscribe -m <root> compliance --standard aspice|iso26262|iso21434 [--config <C>] [--json] [--fail-on-missing]
 ```
 
-Per process area, the expected work product and how many matching elements are present and approved (`complete` / `partial` / `missing`). A `[standards.<name>]` table in `.syscribe.toml` replaces the built-in items. See `syscribe help compliance`.
+Per process area, the expected work product and how many matching elements are present and approved (`complete` / `partial` / `missing`). A `[standards.<name>]` table in `.syscribe.toml` replaces the built-in items (selectors: `type`, `reqClass`, `reqDomain`, `tag`, `testLevel`; strictly validated; retired/superseded elements are not counted). See `syscribe help compliance`.
 
 ## Coverage roll-up (`coverage tree`)
 
