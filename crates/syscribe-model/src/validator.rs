@@ -5657,6 +5657,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // every operand must resolve to a FeatureDef. A bare QName or a list (legacy
     // AND) are the trivial cases; `and`/`or`/`not`/parentheses are also accepted.
     for elem in elements {
+        if elem.frontmatter.applies_when_inherited {
+            continue; // copy of the sheet's declaration; the sheet is checked itself (GH #229)
+        }
         if let Some(ref aw) = elem.frontmatter.applies_when {
             match crate::variability::applies_when_expr(aw) {
                 Err(msg) => findings.push(error(
@@ -5766,7 +5769,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             _ => "element",
         };
         for e in elements {
-            let own = e.frontmatter.applies_when.is_some();
+            let own = e.frontmatter.applies_when.is_some() && !e.frontmatter.applies_when_inherited;
             let et = &e.frontmatter.element_type;
             let qn = if e.qualified_name.is_empty() { "<root>" } else { &e.qualified_name };
             // (a) forbidden target — own appliesWhen on a FeatureDef / Configuration

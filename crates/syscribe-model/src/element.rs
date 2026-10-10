@@ -798,6 +798,11 @@ pub struct RawFrontmatter {
     /// [`RawFrontmatter::effective_parameter_bindings`].
     #[serde(skip)]
     pub inherited: Option<Box<InheritedConfiguration>>,
+    /// `applies_when` was copied from the owning TARA/FMEA sheet, not authored on this
+    /// row (GH #229). The sheet already carries the authored declaration, so per-element
+    /// validity and nesting checks skip the copy rather than repeat the finding.
+    #[serde(skip)]
+    pub applies_when_inherited: bool,
     /// Rarely-set fields, boxed so an element that uses none of them pays one
     /// pointer instead of ~6 KB of empty `Option`s (`REQ-TRS-MCP-MEM-000`). Read and
     /// written as if they were fields of this struct, through `Deref`/`DerefMut`.

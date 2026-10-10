@@ -516,14 +516,16 @@ fn attach_about_comments(elements: &mut Vec<RawElement>) {
 
 /// Common fields a sheet states once for all its rows (GH #229, REQ-TRS-SHEET-001):
 /// `responsibility`, `appliesWhen` and `tags` are inherited by a row that does not set
-/// them; a row's own value (including its own `tags` list) wins. `status` is handled by
+/// them; a row's own value (including its own `tags` list) wins. For TARA rows that is any
+/// of the three; FMEA entries have no per-row keys for them, so they always inherit. `status` is handled by
 /// the callers.
 fn inherit_sheet_common_fields(row: &mut RawFrontmatter, sheet: &RawFrontmatter) {
     if row.responsibility.is_none() {
         row.responsibility = sheet.responsibility.clone();
     }
-    if row.applies_when.is_none() {
+    if row.applies_when.is_none() && sheet.applies_when.is_some() {
         row.applies_when = sheet.applies_when.clone();
+        row.applies_when_inherited = true;
     }
     if row.tags.is_none() {
         row.tags = sheet.tags.clone();

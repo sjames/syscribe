@@ -86,3 +86,27 @@ fn w038_does_not_fire_per_row_when_the_sheet_declares_responsibility() {
     let n = res.findings.iter().filter(|f| f.code == "W038" && f.message.contains("CSG-X")).count();
     assert_eq!(n, 0, "{:?}", res.findings.iter().filter(|f| f.code == "W038").collect::<Vec<_>>());
 }
+
+#[test]
+fn a_bad_sheet_applies_when_is_reported_once_not_once_per_row() {
+    // Review of GH #229: the copy on each row must not repeat the sheet's own finding.
+    let bad = TARA.replace("appliesWhen: FEAT-A", "appliesWhen: Nope::Missing");
+    let r = model(&[("T/TARA-X-001.md", &bad)]);
+    let els = walk_model(&r).unwrap();
+    let res = validate(&els);
+    let n = res.findings.iter().filter(|f| f.code == "E209").count();
+    assert_eq!(n, 1, "{:?}", res.findings.iter().filter(|f| f.code == "E209").collect::<Vec<_>>());
+}
+
+#[test]
+fn an_inherited_applies_when_does_not_repeat_the_nesting_finding() {
+    // Sheet and its package both declare appliesWhen: the sheet is the one nested
+    // declaration (E228 once); the rows' inherited copy is not reported again.
+    let pkg = "---\ntype: Package\nname: T\nappliesWhen: FEAT-A\n---\n";
+    let feat = "---\ntype: FeatureDef\nid: FEAT-A\nname: A\n---\n";
+    let r = model(&[("T/_index.md", pkg), ("Features/A.md", feat), ("T/TARA-X-001.md", TARA)]);
+    let els = walk_model(&r).unwrap();
+    let res = validate(&els);
+    let n = res.findings.iter().filter(|f| f.code == "E228").count();
+    assert_eq!(n, 1, "{:?}", res.findings.iter().filter(|f| f.code == "E228").collect::<Vec<_>>());
+}

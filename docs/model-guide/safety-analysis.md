@@ -110,6 +110,8 @@ syscribe -m model/ template SafetyGoal     > Safety/HARA/SG-BRAKE-001.md
 
 ## Threat Analysis and Risk Assessment (TARA)
 
+> **Sheet-level common fields.** A `TARASheet` (and an `FMEASheet`) can state `responsibility`, `appliesWhen` and `tags` once; every exploded row inherits them unless the row sets its own (TARA rows only — a row's `tags` list replaces the sheet's). FMEA entries have no per-row keys for these and always inherit. Inheriting `appliesWhen` is what gates the rows in a projected variant; the copy is not re-validated per row (only the sheet is). Upgrading note: row content now includes the inherited values, so a baseline sealed over such rows needs re-sealing.
+
 The `TARASheet` is an **exploded container** (Option B). You write one file holding four section tables; the parser synthesises a first-class element for each row at parse time, so all cross-reference checks, graph edges, and validation rules apply automatically.
 
 ```yaml

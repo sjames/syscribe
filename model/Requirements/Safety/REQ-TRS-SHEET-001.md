@@ -17,3 +17,5 @@ A row exploded from a `TARASheet` (`assetTable`, `damageTable`, `threatTable`, `
 - A row that sets the field itself keeps its own value (override). For `tags`, a row's list replaces the sheet's list, it is not merged.
 - Applies to TARA rows. For FMEA entries it applies to `responsibility`, `appliesWhen`, `tags` and `status` taken from the sheet; FMEA rows have no per-row override of the first three.
 - `W038` (missing `responsibility`) therefore does not fire once per row when the sheet declares it.
+- An inherited `appliesWhen` is a copy of the sheet's declaration: findings about it (`E209`, `E228`) are reported once, on the sheet, not repeated per row.
+- Compatibility: row content now includes the inherited values, so baselines sealed over rows of a sheet that sets these fields drift once (`E520`/`W520`) until re-created or re-accepted.
