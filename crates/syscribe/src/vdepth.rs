@@ -16,12 +16,15 @@ pub fn cmd_verification_depth(
     status: Option<&str>,
     min_levels: Option<usize>,
     json: bool,
+    results: Option<&syscribe_model::results::ResultsData>,
 ) -> bool {
     struct Row<'a> {
         id: &'a str,
         sil: Option<u8>,
         asil: Option<&'a str>,
         levels: Vec<String>,
+        failing: Vec<String>,
+        not_run: Vec<String>,
         flag: &'static str,
     }
 
@@ -45,11 +48,29 @@ pub fn cmd_verification_depth(
         }
         let req_id = fm.id.as_deref().unwrap_or(&e.qualified_name);
         // Distinct testLevels among the *active* TestCases that verify this req.
+        // With results ingested, a failing test, or an automated test whose functions did
+        // not run, contributes no level and is listed separately (GH #257 b, c).
         let mut levels: BTreeSet<String> = BTreeSet::new();
+        let mut failing: BTreeSet<String> = BTreeSet::new();
+        let mut not_run: BTreeSet<String> = BTreeSet::new();
         if let Some(tcs) = val.verified_by.get(req_id) {
             for tc_id in tcs {
                 if let Some(tc) = resolver.get_by_id(elements, tc_id) {
                     if tc.frontmatter.status.as_deref() == Some("active") {
+                        if results.is_some() {
+                            use syscribe_model::safety_case::Verdict;
+                            match syscribe_model::results::testcase_verdict(tc, results) {
+                                Verdict::Fail => {
+                                    failing.insert(tc_id.clone());
+                                    continue;
+                                }
+                                Verdict::Unknown if tc.frontmatter.test_functions.as_ref().is_some_and(|f| !f.is_empty()) => {
+                                    not_run.insert(tc_id.clone());
+                                    continue;
+                                }
+                                _ => {}
+                            }
+                        }
                         if let Some(lvl) = tc.frontmatter.test_level.as_deref() {
                             levels.insert(lvl.to_string());
                         }
@@ -72,6 +93,8 @@ pub fn cmd_verification_depth(
             sil: fm.sil_level,
             asil: fm.asil_level.as_deref(),
             levels,
+            failing: failing.into_iter().collect(),
+            not_run: not_run.into_iter().collect(),
             flag,
         });
     }
@@ -92,6 +115,8 @@ pub fn cmd_verification_depth(
                     "asilLevel": r.asil,
                     "levels": r.levels,
                     "count": r.levels.len(),
+                    "failing": r.failing,
+                    "notRun": r.not_run,
                     "flag": r.flag,
                 })
             })
@@ -102,8 +127,8 @@ pub fn cmd_verification_depth(
 
     println!("# Verification depth ({} requirements)", rows.len());
     println!();
-    println!("| Requirement | SIL/ASIL | Levels | Count | Flag |");
-    println!("|---|---|---|---|---|");
+    println!("| Requirement | SIL/ASIL | Levels | Count | Flag | Failing | Not run |");
+    println!("|---|---|---|---|---|---|---|");
     for r in &rows {
         let integ = r
             .sil
@@ -115,7 +140,17 @@ pub fn cmd_verification_depth(
         } else {
             r.levels.join(",")
         };
-        println!("| {} | {} | {} | {} | {} |", r.id, integ, lv, r.levels.len(), r.flag);
+        let dash = |v: &Vec<String>| if v.is_empty() { "—".to_string() } else { v.join(",") };
+        println!(
+            "| {} | {} | {} | {} | {} | {} | {} |",
+            r.id,
+            integ,
+            lv,
+            r.levels.len(),
+            r.flag,
+            dash(&r.failing),
+            dash(&r.not_run)
+        );
     }
     if let Some(n) = min_levels {
         println!();

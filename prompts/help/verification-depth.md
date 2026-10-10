@@ -11,6 +11,11 @@ active verifying TestCases), a count, and a depth flag: none (no active test),
 hil-only (only L5), single (one level), or ok (≥2 levels). Diversity of
 verification is a core SIL-4 expectation.
 
+When test results are ingested, a failing test, and an automated test whose functions
+did not run (skipped or missing), do not count as a level; they are listed in the
+`Failing` and `Not run` columns instead. A manually verified test (no `testFunctions`)
+still counts. Without results the report is unchanged.
+
 ## OPTIONS
     --sil <v>        Restrict to requirements at silLevel/asilLevel v.
     --status <s>     Restrict to requirements whose status: equals s.
@@ -19,7 +24,7 @@ verification is a core SIL-4 expectation.
                      only requirements active in that variant are reported.
     --plan TP-X      Restrict to a TestPlan's in-scope requirements and member
                      TestCases; composes with --config.
-    --json           Emit {id, silLevel, asilLevel, levels, count, flag} array.
+    --json           Emit {id, silLevel, asilLevel, levels, count, failing, notRun, flag} array.
 
 ## EXAMPLES
     syscribe -m model/ verification-depth --sil 4

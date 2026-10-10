@@ -1944,7 +1944,7 @@ fn main() {
                 let view_resolver = Resolver::new(&view);
                 let result = validator::validate_with_config(&view, &vcfg);
                 let ok = vdepth::cmd_verification_depth(
-                    &view, &view_resolver, &result, sil, status, min_levels, json,
+                    &view, &view_resolver, &result, sil, status, min_levels, json, vcfg.results.as_ref(),
                 );
                 if !ok {
                     std::process::exit(2);
