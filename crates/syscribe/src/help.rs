@@ -16,6 +16,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("audit", include_str!("../../../prompts/help/audit.md")),
             ("lint-docs", include_str!("../../../prompts/help/lint-docs.md")),
             ("coverage", include_str!("../../../prompts/help/coverage.md")),
+            ("compliance", include_str!("../../../prompts/help/compliance.md")),
         ],
     ),
     (

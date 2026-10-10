@@ -44,7 +44,7 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 **Command routing.** The top-level command line is parsed by a clap router whose subcommand registry is derived from the man-page list, so an **unknown command is rejected** with a clear error and a **non-zero** exit (`error: unrecognized subcommand '<name>'`), independent of whether a model directory is present. Each command's own flags are passed through to it unchanged.
 
-**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth`, `trace-export` (plus `lint-docs`, `follow` and `connectivity`, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
+**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `coverage`, `compliance`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth`, `trace-export` (plus `lint-docs`, `follow` and `connectivity`, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
 
 ---
 
@@ -767,6 +767,14 @@ $ syscribe -m model/ find . --where custom.supplier                  # presence
 `=`, `=~`, `~=` and the bare presence form are the **only** operators. Any other spelling — `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` — is a usage error (exit `1`, a message listing the supported forms, nothing on stdout) rather than a predicate that silently matches nothing.
 
 ---
+
+## Standards compliance (`compliance`)
+
+```
+syscribe -m <root> compliance --standard aspice|iso26262|iso21434 [--config <C>] [--json] [--fail-on-missing]
+```
+
+Per process area, the expected work product and how many matching elements are present and approved (`complete` / `partial` / `missing`). A `[standards.<name>]` table in `.syscribe.toml` replaces the built-in items. See `syscribe help compliance`.
 
 ## Coverage roll-up (`coverage tree`)
 

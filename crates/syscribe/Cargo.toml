@@ -11,6 +11,7 @@ path = "src/main.rs"
 syscribe-model = { path = "../syscribe-model" }
 serde_yaml = { workspace = true }
 quick-xml = { workspace = true }
+toml = { workspace = true }
 regex = { workspace = true }
 walkdir = { workspace = true }
 taffy = "0.11"

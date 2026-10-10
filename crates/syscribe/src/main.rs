@@ -12,6 +12,7 @@ mod coverage;
 mod covtree;
 mod runhist;
 mod reqif_import;
+mod compliance;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
@@ -1201,6 +1202,21 @@ fn main() {
                         eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
                         std::process::exit(1);
                     }
+                }
+            }
+            "compliance" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let val = |k: &str| rest.windows(2).find(|w| w[0] == k).map(|w| w[1].as_str());
+                let view = projected_elements(&elems, val("--config"));
+                let code = compliance::cmd_compliance(
+                    model_root,
+                    &view,
+                    val("--standard"),
+                    rest.iter().any(|a| a == "--json"),
+                    rest.iter().any(|a| a == "--fail-on-missing"),
+                );
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             "import-reqif" => {

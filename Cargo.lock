@@ -2280,6 +2280,7 @@ dependencies = [
  "syscribe-model",
  "taffy",
  "tokio",
+ "toml",
  "tower-lsp",
  "walkdir",
 ]
