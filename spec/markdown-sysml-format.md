@@ -2564,7 +2564,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
 | `reqClass` | enum | optional | Position in the stakeholder→system **decomposition**: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. Informational only: the value is **not** validated and drives no rule. |
-| `requirementKind` | enum | optional | **Kind of requirement by its subject**: `stakeholder`, `system`, `software`, or `hardware`. Emitted by `syscribe template Requirement`. The value **is** validated — anything else is error `E022`. It drives no traceability rule; the domain rules of §12.5 use `reqDomain`. |
+| `requirementKind` | enum | optional | **Kind of requirement by its subject**: `stakeholder`, `system`, `software`, `hardware`, `process`, `regulatory`, or `deliverable` (the last three — process capability, regulatory compliance, deliverables — are not architecture-allocatable: a leaf of such a kind raises neither `W300` nor `W302`). Emitted by `syscribe template Requirement`. The value **is** validated — anything else is error `E022`. It drives no traceability rule; the domain rules of §12.5 use `reqDomain`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
@@ -6042,7 +6042,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E019` | `dalLevel:` value is not in `A`–`E` (DO-178C) |
 | `E020` | `verificationMethod:` is not `test`/`inspection`/`analysis`/`demonstration` |
 | `E021` | `coverageTarget:` is not `statement`/`branch`/`MCDC` |
-| `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware` |
+| `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware`/`process`/`regulatory`/`deliverable` |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8; the minimum of 3 is enforced by `E006`) |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type — id-identified or name-identified). The `title` field is removed; rename it to `name`. |

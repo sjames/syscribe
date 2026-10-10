@@ -178,6 +178,16 @@ struct StateEdge {
 /// a structured `layout:` diagram whose body has no ` ```svg ` block, and a
 /// manifest diagram (any `shapes:` list or mapping, per `vis::source_of`) with no ` ```svg ` block (the server
 /// renders its SVG from the manifest).
+/// The `requirementKind` vocabulary (E022). The last three are not architecture-allocatable.
+const REQUIREMENT_KINDS: &[&str] =
+    &["stakeholder", "system", "software", "hardware", "process", "regulatory", "deliverable"];
+
+/// Kinds of requirement no architecture element can satisfy (process capability, regulatory
+/// compliance, deliverables): exempt from `W300`/`W302` (GH #250).
+fn is_non_allocatable_kind(fm: &crate::element::RawFrontmatter) -> bool {
+    matches!(fm.requirement_kind.as_deref(), Some("process" | "regulatory" | "deliverable"))
+}
+
 fn diagram_has_inline_svg(fm: &crate::element::RawFrontmatter, doc: &str) -> bool {
     if fm.puml_mode.as_deref() == Some("companion") {
         return false;
@@ -2026,9 +2036,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // E022: requirementKind enum
         if let Some(ref rk) = fm.requirement_kind {
-            const KINDS: &[&str] = &["stakeholder", "system", "software", "hardware"];
-            if !KINDS.contains(&rk.as_str()) {
-                findings.push(error("E022", &file, &format!("unknown requirementKind '{}' — must be stakeholder, system, software, or hardware", rk)));
+            if !REQUIREMENT_KINDS.contains(&rk.as_str()) {
+                findings.push(error("E022", &file, &format!("unknown requirementKind '{}' — must be one of {}", rk, REQUIREMENT_KINDS.join(", "))));
             }
         }
 
@@ -7309,7 +7318,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let status = elem.frontmatter.status.as_deref().unwrap_or("");
         let satisfiers = satisfied_reqs.get(&elem.qualified_name).map(|v| v.len()).unwrap_or(0);
 
-        if matches!(status, "approved" | "implemented") && satisfiers == 0 {
+        let allocatable = !is_non_allocatable_kind(&elem.frontmatter);
+        if matches!(status, "approved" | "implemented") && satisfiers == 0 && allocatable {
             findings.push(warning(
                 "W300",
                 &elem.file_path,
@@ -7318,7 +7328,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // W302: leaf requirement still has reqDomain: system at implemented/verified
-        if matches!(status, "implemented" | "verified") {
+        if matches!(status, "implemented" | "verified") && allocatable {
             let req_domain = elem.frontmatter.req_domain.as_deref().unwrap_or("system");
             if req_domain == "system" {
                 findings.push(warning(

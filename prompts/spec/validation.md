@@ -23,7 +23,7 @@
 | `E019` | `dalLevel:` is not in `A`–`E` (DO-178C) |
 | `E020` | `verificationMethod:` is not `test`/`inspection`/`analysis`/`demonstration` |
 | `E021` | `coverageTarget:` is not `statement`/`branch`/`MCDC` |
-| `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware` |
+| `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware`/`process`/`regulatory`/`deliverable` |
 | `E050` | Two selected features export the same `buildExports` variable name, unresolved by `buildOverrides:` (opt-in; §9.9) |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
@@ -93,9 +93,9 @@
 | `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
 | `W008` | Element has no `type:` field — it will be ignored by most commands |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, was flaky (passed only after a retry), or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
-| `W300` | Leaf `Requirement` at `approved`/`implemented` has no satisfying architecture element |
+| `W300` | Leaf `Requirement` at `approved`/`implemented` has no satisfying architecture element (not raised for `requirementKind` `process`/`regulatory`/`deliverable`) |
 | `W301` | **Retired** (GH #121) — no longer emitted; a leaf may be satisfied by several elements |
-| `W302` | Leaf `Requirement` at `implemented`/`verified` still has `reqDomain: system` |
+| `W302` | Leaf `Requirement` at `implemented`/`verified` still has `reqDomain: system` (not raised for non-allocatable kinds) |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed` |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` |
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |

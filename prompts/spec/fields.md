@@ -138,7 +138,7 @@ computed by the tool and never authored.
 | `derivedFromSafetyGoal` | string | SafetyGoal ID/QName |
 | `derivedFromCybersecurityGoal` | string | CybersecurityGoal ID/QName |
 | `reqClass` | string | `stakeholder` · `system` · `derived` — position in the stakeholder/system decomposition (informational, not validated) |
-| `requirementKind` | string | `stakeholder` · `system` · `software` · `hardware` (`E022` if other) |
+| `requirementKind` | string | `stakeholder` · `system` · `software` · `hardware` · `process` · `regulatory` · `deliverable` (`E022` if other); the last three are not architecture-allocatable (no `W300`/`W302`) |
 | `dalLevel` | string | `A`–`E` (DO-178C, `E019`); with `asilLevel` warns `W703` |
 | `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
 | `decomposedFrom` | string | Original ASIL (A–D) before decomposition; the notation `asilLevel: B(D)` sets it implicitly. `asilLevel` also accepts `QM` (E878, E879) |

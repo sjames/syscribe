@@ -32,7 +32,7 @@ This page groups every finding code by feature area, with context. The same code
 | E019 | Any | `dalLevel` is not one of `A · B · C · D · E` (DO-178C) |
 | E020 | Any | `verificationMethod` is not one of `test · inspection · analysis · demonstration` |
 | E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
-| E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
+| E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware · process · regulatory · deliverable` |
 | E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006). Applies identically to ids under a configured additional prefix (see W046) |
 | E024 | — | **RETIRED.** Formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is **no longer emitted** — a `Requirement` carrying `id` + `name` validates clean. |
 | E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
