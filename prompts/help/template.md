@@ -1,7 +1,7 @@
 # template — print a frontmatter skeleton for a type
 
 ## SYNOPSIS
-    syscribe -m <root> template <type>
+    syscribe -m <root> template <type> [--prefix <id-prefix>]
 
 ## DESCRIPTION
 Prints a ready-to-fill YAML frontmatter skeleton for the given element type, with
@@ -14,6 +14,10 @@ current schema — e.g. `StateDef` transitions use `source`/`target`/`accept`/`g
 `effect` and mark an `isInitial` state; `Baseline` shows the fields `baseline create`
 writes (prefer that command, which computes the seal). An unknown type exits 1 and
 lists every known type.
+
+`template Requirement` prints an `id:` using the first prefix configured under
+`[ids.prefixes] Requirement` (else `REQ`); `--prefix P` picks `REQ` or any configured
+prefix and rejects others. `--prefix` is valid for `Requirement` only.
 
 ## EXAMPLES
     syscribe -m model/ template Requirement

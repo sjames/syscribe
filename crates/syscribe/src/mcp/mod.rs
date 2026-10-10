@@ -46,7 +46,7 @@ use syscribe_model::walker::walk_model;
 use crate::lint_docs::lint_docs_findings;
 use crate::matrix::matrix_json;
 use crate::mv;
-use crate::query::{fuzzy_score, next_id_value, tc_verdict, template_str, type_label, TcVerdict};
+use crate::query::{fuzzy_score, next_id_value, tc_verdict, type_label, TcVerdict};
 use crate::spec;
 use syscribe_model::results::{FnVerdict, ResultsData};
 use store::McpStore;
@@ -157,6 +157,9 @@ struct DescribeTypeArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct TemplateArgs {
     r#type: String,
+    /// Requirement only: id prefix (`REQ` or one configured in `[ids.prefixes]`).
+    #[serde(default)]
+    prefix: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1477,16 +1480,18 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Return a starter frontmatter+body skeleton for an element type.",
+        description = "Return a starter frontmatter+body skeleton for an element type. For Requirement the id uses the first configured [ids.prefixes] prefix, or the optional `prefix`.",
         annotations(read_only_hint = true)
     )]
     async fn template(
         &self,
         Parameters(args): Parameters<TemplateArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        match template_str(&args.r#type) {
-            Some(content) => ok(json!({ "content": content })),
-            None => tool_error(format!("unknown element type: {}", args.r#type)),
+        let root = self.store.read().await.model_root.clone();
+        match crate::query::template_for_model(&args.r#type, &root, args.prefix.as_deref()) {
+            Ok(Some(content)) => ok(json!({ "content": content })),
+            Ok(None) => tool_error(format!("unknown element type: {}", args.r#type)),
+            Err(msg) => tool_error(msg),
         }
     }
 

@@ -50,6 +50,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             LENS,
             ("--all-configs", Switch),
         ],
+        "template" => &[("--prefix", Value)],
         "list" => &[
             ("--tag", Value),
             LENS,

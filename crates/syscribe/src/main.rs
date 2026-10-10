@@ -1815,11 +1815,28 @@ fn main() {
                 query::cmd_next_id(&elems, key);
             }
             "template" => {
-                if key.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> template <type>");
+                // The type is the first argument that is neither `--prefix` nor its value,
+                // so `template --prefix SYS Requirement` works too.
+                let mut ty = "";
+                let mut it = subcommand_args.iter().skip(1);
+                while let Some(a) = it.next() {
+                    if a == "--prefix" {
+                        it.next();
+                    } else if !a.starts_with("--") {
+                        ty = a.as_str();
+                        break;
+                    }
+                }
+                if ty.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> template <type> [--prefix <id-prefix>]");
                     std::process::exit(1);
                 }
-                query::cmd_template(key);
+                let prefix = subcommand_args
+                    .iter()
+                    .position(|a| a == "--prefix")
+                    .and_then(|i| subcommand_args.get(i + 1))
+                    .map(|s| s.as_str());
+                query::cmd_template(ty, model_root, prefix);
             }
             "move" => {
                 let dest = subcommand_args.get(2).map(|s| s.as_str()).unwrap_or("");

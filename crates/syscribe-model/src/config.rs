@@ -1025,6 +1025,12 @@ fn resolve_id_prefixes(model_root: &Path) -> HashMap<String, Vec<String>> {
         .unwrap_or_default()
 }
 
+/// The `[ids.prefixes]` table of `<model_root>/.syscribe.toml`, keyed by element-type
+/// name (REQ-TRS-ID-007). Empty when the file or table is absent.
+pub fn load_id_prefixes(model_root: &Path) -> HashMap<String, Vec<String>> {
+    resolve_id_prefixes(model_root)
+}
+
 /// Load the `[links]` table from `<model_root>/.syscribe.toml` (REQ-TRS-LINK-001).
 /// Returns `Some` only when at least one of `base_url`/`url_template` is set;
 /// `None` (the feature inert) otherwise, including when the file is absent.

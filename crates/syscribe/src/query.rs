@@ -4332,12 +4332,59 @@ honour for the referenced goal/argument/requirement to hold.
     Some(out)
 }
 
-pub fn cmd_template(type_name: &str) {
+/// `template_str` with the `Requirement` id prefix resolved against the model's
+/// `[ids.prefixes]` (REQ-TRS-TMPL-001, GH #246). `prefix` is an explicit choice and
+/// must be `REQ` or a configured prefix; `None` defaults to the first configured
+/// `Requirement` prefix, else the built-in `REQ`. Other types ignore both.
+pub fn template_for_model(
+    type_name: &str,
+    model_root: &std::path::Path,
+    prefix: Option<&str>,
+) -> Result<Option<String>, String> {
+    let Some(base) = template_str(type_name) else { return Ok(None) };
+    if !type_name.eq_ignore_ascii_case("requirement") {
+        if prefix.is_some() {
+            return Err(format!("--prefix applies only to the Requirement template, not {type_name}"));
+        }
+        return Ok(Some(base.to_string()));
+    }
+    let configured = syscribe_model::config::load_id_prefixes(model_root)
+        .remove("Requirement")
+        .unwrap_or_default()
+        .into_iter()
+        // Malformed prefixes are ignored by the resolver (and flagged W046), so never offer one.
+        .filter(|p| syscribe_model::resolver::is_valid_id_prefix(p))
+        .collect::<Vec<_>>();
+    let chosen = match prefix {
+        Some(p) => {
+            if p != "REQ" && !configured.iter().any(|c| c == p) {
+                let mut valid = vec!["REQ".to_string()];
+                valid.extend(configured);
+                return Err(format!(
+                    "unknown Requirement id prefix '{p}' (prefixes are uppercase). Valid prefixes: {}",
+                    valid.join(", ")
+                ));
+            }
+            p.to_string()
+        }
+        None => configured.first().cloned().unwrap_or_else(|| "REQ".to_string()),
+    };
+    Ok(Some(base.replacen("id: REQ-PREFIX-001", &format!("id: {chosen}-PREFIX-001"), 1)))
+}
+
+pub fn cmd_template(type_name: &str, model_root: &std::path::Path, prefix: Option<&str>) {
     if type_name.eq_ignore_ascii_case("fmeaentry") {
         eprintln!("FMEAEntry elements are synthesised from FMEASheet entries — use `template FMEASheet` instead.");
         std::process::exit(1);
     }
-    match template_str(type_name) {
+    let found = match template_for_model(type_name, model_root, prefix) {
+        Ok(f) => f,
+        Err(msg) => {
+            eprintln!("{msg}");
+            std::process::exit(1);
+        }
+    };
+    match found {
         Some(out) => print!("{}", out),
         None => {
             eprintln!("Unknown type '{}'. Known types:", type_name);

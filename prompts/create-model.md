@@ -152,7 +152,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ validate` | Validation findings only — errors and warnings |
 | `syscribe -m model/ validate --json` | Same, machine-readable JSON |
 | `syscribe -m model/ validate --file <path>` | Findings for a single file only |
-| `syscribe -m model/ template <type>` | Print a ready-to-fill frontmatter skeleton |
+| `syscribe -m model/ template <type> [--prefix P]` | Print a ready-to-fill frontmatter skeleton (`Requirement` defaults to the first `[ids.prefixes]` prefix; `--prefix` picks another) |
 | `syscribe -m model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
 | `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
 | `syscribe -m model/ path-for <qname\|id>` | Print the file path for an element |
