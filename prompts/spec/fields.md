@@ -171,6 +171,7 @@ computed by the tool and never authored.
 |---|---|---|
 | `date` | string | ISO-8601 date the decision was made |
 | `deciders` | string or list | Decision-makers: stakeholder `PartDef` qnames or free-text names. Display metadata, not resolved; shown by `show`. ADR-only (`W047` on any other type) |
+| `supersedes` | string or list | The `ADR`(s) this one replaces (`E320` unresolved/non-ADR, `E321` cycle, `W313` target not `superseded`, `W314` a `breakdownAdr:` still cites a superseded ADR). `supersededBy` is computed and shown by `show`/`links` |
 
 ## PlanningItem fields (§23)
 
@@ -194,7 +195,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | `date` / `approver` / `gitTag` / `gitCommit` | Baseline | string | `gitCommit` captured by `baseline create`; `gitTag` is distinct from the `BL-*` id |
 | `frozenScope` | Baseline | map | `{package, config, closureFrom, types, status, tags}`; omit for the whole model |
 | `seal` | Baseline | map | `{aggregateHash, elementCount, manifest}` — generated, never hand-edit (`E520`/`E521`) |
-| `supersedes` | Baseline | string | Earlier `BL-*` (`E522` if unresolved) |
+| `supersedes` | Baseline | string or list | Earlier `BL-*` (`E522` if unresolved) |
 | `reviewType` | ReviewRecord | string | **required** — `design_review`·`requirements_review`·`hazard_review`·`test_readiness_review`·`inspection`·`walk_through` |
 | `reviews` | ReviewRecord | list | **required** — elements covered by the review |
 | `reviewDate` / `reviewedBy` / `recordedAt` | ReviewRecord | string / list / string | `recordedAt` points to the external review (e.g. a PR URL) |

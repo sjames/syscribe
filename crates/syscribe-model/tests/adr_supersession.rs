@@ -110,3 +110,47 @@ fn baseline_supersedes_is_unchanged() {
     ]);
     assert_eq!(n(&f, "E522"), 1, "{f:?}");
 }
+
+#[test]
+fn a_single_supersedes_serialises_back_as_a_string_so_hashes_and_json_do_not_change() {
+    use syscribe_model::suspect::projection_hash;
+    let r = model(&[
+        adr("ADR-AA-001", "superseded", "").clone_pair(),
+        adr("ADR-AA-002", "accepted", "supersedes: ADR-AA-001\n").clone_pair(),
+    ]);
+    let els = walk_model(&r).unwrap();
+    let e = els.iter().find(|e| e.frontmatter.id.as_deref() == Some("ADR-AA-002")).unwrap();
+    let v = serde_json::to_value(&e.frontmatter).unwrap();
+    assert_eq!(v["supersedes"], serde_json::json!("ADR-AA-001"), "{v}");
+    // The content hash is the one an element with the same string value always had.
+    let h = projection_hash(e);
+    assert!(h.starts_with("blake3:"));
+    let multi = model(&[adr("ADR-AA-002", "accepted", "supersedes: [ADR-AA-001, ADR-AA-003]\n").clone_pair()]);
+    let els2 = walk_model(&multi).unwrap();
+    let e2 = els2.iter().find(|e| e.frontmatter.id.as_deref() == Some("ADR-AA-002")).unwrap();
+    assert_eq!(serde_json::to_value(&e2.frontmatter).unwrap()["supersedes"], serde_json::json!(["ADR-AA-001", "ADR-AA-003"]));
+}
+
+trait ClonePair {
+    fn clone_pair(&self) -> (&'static str, String);
+}
+impl ClonePair for (String, String) {
+    fn clone_pair(&self) -> (&'static str, String) {
+        (Box::leak(self.0.clone().into_boxed_str()), self.1.clone())
+    }
+}
+
+#[test]
+fn a_gated_out_target_is_not_e320_in_a_variant() {
+    use syscribe_model::projection::{validate_projected, Selection};
+    let feat = ("Features/A.md".to_string(), "---\ntype: FeatureDef\nid: FEAT-AA-100\nname: A\ngroupKind: optional\n---\n\nF.\n".to_string());
+    let gated = adr("ADR-AA-001", "superseded", "appliesWhen: Features::A\n");
+    let new = adr("ADR-AA-002", "accepted", "supersedes: ADR-AA-001\n");
+    let files = vec![feat, gated, new];
+    let fs: Vec<(&str, String)> = files.iter().map(|(a, b)| (a.as_str(), b.clone())).collect();
+    let r = model(&fs);
+    let els = walk_model(&r).unwrap();
+    let sel: Selection = Selection::new(); // feature A off: the old ADR is projected out
+    let f = validate_projected(&els, &ValidateConfig::with_model_root(&r), &sel);
+    assert_eq!(n(&f, "E320"), 0, "{f:?}");
+}

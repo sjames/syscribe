@@ -40,3 +40,16 @@ fn links_lists_the_supersedes_edge_both_ways() {
     let old = run(&r, &["links", "ADR-AA-001"]);
     assert!(old.contains("ADR-AA-002") && old.contains("supersedes"), "inbound: {old}");
 }
+
+#[test]
+fn superseded_by_follows_the_same_resolution_as_validation() {
+    // `supersedes: Old` (a display name) resolves in validate, so show must find it too.
+    let r = model();
+    std::fs::write(
+        r.join("Decisions/ADR-AA-003.md"),
+        "---\ntype: ADR\nid: ADR-AA-003\nname: Newer\nstatus: accepted\nsupersedes: New\n---\n\nN.\n",
+    )
+    .unwrap();
+    let out = run(&r, &["show", "ADR-AA-002"]);
+    assert!(out.contains("supersededBy") && out.contains("ADR-AA-003"), "{out}");
+}

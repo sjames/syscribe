@@ -3,6 +3,20 @@ use serde::{Deserialize, Serialize};
 /// Serde helper: accept either a plain YAML string or a sequence of strings.
 /// Allows `allocatedFrom: SC-001` and `allocatedFrom: [SC-001, SC-002]` both to
 /// deserialize into `Option<Vec<String>>`.
+/// Serialises a one-element list as a bare string, so a field authored as a single
+/// reference keeps the JSON shape and content hash it had when it was a `String`
+/// (GH #232: `supersedes` became a list without changing existing elements' hashes).
+mod one_or_many {
+    use serde::Serializer;
+    pub fn serialize<S: Serializer>(v: &Option<Vec<String>>, s: S) -> Result<S::Ok, S::Error> {
+        match v {
+            None => s.serialize_none(),
+            Some(list) if list.len() == 1 => s.serialize_str(&list[0]),
+            Some(list) => serde::Serialize::serialize(list, s),
+        }
+    }
+}
+
 mod string_or_vec {
     use serde::{Deserialize, Deserializer};
     pub fn deserialize<'de, D>(d: D) -> Result<Option<Vec<String>>, D::Error>
@@ -1286,6 +1300,7 @@ pub struct ColdFrontmatter3 {
     /// What this element replaces: the `Baseline` a baseline replaces (REQ-TRS-BL-005), or the
     /// `ADR`s an ADR supersedes (GH #232). One reference or a list. Resolver-checked, not a
     /// suspect-tracked trace link.
+    #[serde(default, serialize_with = "one_or_many::serialize")]
     pub supersedes: Option<Vec<String>>,
     pub is_composite: Option<bool>,
     pub portion_kind: Option<String>,
@@ -1821,7 +1836,7 @@ struct ColdWire {
     /// What this element replaces: the `Baseline` a baseline replaces (REQ-TRS-BL-005), or the
     /// `ADR`s an ADR supersedes (GH #232). One reference or a list. Resolver-checked, not a
     /// suspect-tracked trace link.
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    #[serde(default, deserialize_with = "string_or_vec::deserialize", serialize_with = "one_or_many::serialize")]
     pub supersedes: Option<Vec<String>>,
     pub is_composite: Option<bool>,
     pub portion_kind: Option<String>,

@@ -269,7 +269,7 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
 /// subsets/redefines/satisfies, REQ-TRS-XREF-007) are the structural members:
 /// a target pruned from the variant is E226/W019 here, never a dangling ref.
 const LENS_SUPPRESS: &[&str] = &[
-    "E102", "E103", "E104", "E105", "E106", "E110", "E111", "E112", "E113", "E114", "E632",
+    "E102", "E103", "E104", "E105", "E106", "E110", "E111", "E112", "E113", "E114", "E320", "E632",
 ];
 
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the

@@ -637,14 +637,16 @@ pub fn cmd_show(
         if let Some(s) = fm.supersedes.as_ref().filter(|v| !v.is_empty()) {
             println!("| **supersedes** | {} |", s.join(", "));
         }
-        let me_id = fm.id.as_deref();
         let by: Vec<String> = elements
             .iter()
             .filter(|o| matches!(o.frontmatter.element_type, Some(ElementType::ADR)))
             .filter(|o| {
-                o.frontmatter.supersedes.iter().flatten().any(|t| {
-                    t == &elem.qualified_name || me_id == Some(t.as_str())
-                })
+                // Same resolution as validation (`resolve_ref`: id, qualified name or name).
+                o.frontmatter
+                    .supersedes
+                    .iter()
+                    .flatten()
+                    .any(|t| resolver.resolve_ref(elements, t).is_some_and(|x| std::ptr::eq(x, elem)))
             })
             .map(|o| o.frontmatter.id.clone().unwrap_or_else(|| o.qualified_name.clone()))
             .collect();

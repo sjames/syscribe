@@ -4612,7 +4612,7 @@ A `Baseline` (`ADR-SYS-BASELINE-001`) is a named, dated, approved, frozen snapsh
 | `gitCommit` | string | yes | The commit the baseline was sealed at. `create` expects a clean working tree (`--allow-dirty` overrides). |
 | `frozenScope` | map | yes (`--frozen-scope`) | Scope selector; all keys optional and ANDed: `package` (a package subtree; absent → whole model), `types`, `status`, `tags` (lists), `config` (freeze a projected product-line variant, §9.10), `closureFrom` (list of seeds whose transitive trace closure is the scope). `Baseline` elements are never in scope. |
 | `seal` | map | yes | Generated: `aggregateHash` (`blake3:<hex>`), `elementCount`, `manifest` (manifest path). Never edit by hand. |
-| `supersedes` | string | no | The `Baseline` this one replaces (id or qualified name). Unresolved → `E522`. |
+| `supersedes` | string or list | no | The `Baseline`(s) this one replaces (id or qualified name). Unresolved → `E522`. (On an `ADR`, `supersedes:` names the ADRs it replaces: `E320`/`E321`/`W313`/`W314`.) |
 
 **Validation.** Whenever a `Baseline` exists, `validate` recomputes the in-scope aggregate and compares it with the seal. Drift is graded by `status:`: `released` → error `E520`, `approved` → warning `W520`, `draft` → silent, `superseded` → not checked. A seal that disagrees with its manifest is `E521`. The full-content hash reuses the suspect-link hashing (§12.10.6) over the whole element rather than its normative projection. `baseline verify`, `baseline diff`, `baseline list` and `baseline show` operate on existing baselines.
 
