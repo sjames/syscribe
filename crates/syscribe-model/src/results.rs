@@ -94,6 +94,11 @@ pub struct ResultsData {
     /// (leaf and class-qualified key). Only non-passing testcases have an entry.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub details: HashMap<String, TestDetail>,
+    /// Evidence recorded for one Configuration (`ingest-results --config`, GH #258, REQ-TRS-CFGRES-001),
+    /// keyed by the Configuration's id. Each entry holds that configuration's own sections only (its
+    /// `by_config` is empty); read it through [`ResultsData::for_config`].
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub by_config: std::collections::BTreeMap<String, ResultsData>,
 }
 
 /// Collapse whitespace and drop control characters (ESC, BEL, C1, …) of text taken from a test
@@ -274,6 +279,9 @@ impl ResultsData {
     /// `existing = None` (no or unreadable sidecar) is treated as empty.
     pub fn merged_over(&self, existing: Option<&ResultsData>) -> ResultsData {
         let mut out = self.clone();
+        if let Some(old) = existing {
+            out.by_config = old.by_config.clone();
+        }
         let own = Some(self.meta());
         match self.section() {
             Section::Leaf => {
@@ -304,6 +312,50 @@ impl ResultsData {
         let merged = self.merged_over(Self::load_sidecar(model_root).as_ref());
         let path = merged.write_sidecar(model_root)?;
         Ok((path, merged))
+    }
+
+    /// Merge this ingest into the sidecar as the evidence of Configuration `config`
+    /// (REQ-TRS-CFGRES-001): that configuration's own section of this ingest's kind is replaced, its
+    /// other section, every other configuration and the global sections stay. With no sidecar yet the
+    /// global sections start empty.
+    pub fn merge_config_into_sidecar(&self, model_root: &Path, config: &str) -> std::io::Result<(PathBuf, ResultsData)> {
+        let existing = Self::load_sidecar(model_root);
+        let mut out = existing.clone().unwrap_or_else(|| ResultsData {
+            by_leaf: HashMap::new(),
+            by_scenario: HashMap::new(),
+            details: HashMap::new(),
+            leaf_meta: None,
+            scenario_meta: None,
+            count: 0,
+            by_config: Default::default(),
+            ..self.clone()
+        });
+        let mut own = self.clone();
+        own.by_config = Default::default();
+        let merged = own.merged_over(out.by_config.get(config));
+        out.by_config.insert(config.to_string(), merged);
+        let path = out.write_sidecar(model_root)?;
+        Ok((path, out))
+    }
+
+    /// The results as Configuration `config` sees them: the global sections overlaid with that
+    /// configuration's own — per function, scenario and detail its own entry wins, otherwise the
+    /// global one applies. No configuration inherits another's evidence.
+    pub fn for_config(&self, config: &str) -> ResultsData {
+        let mut out = self.clone();
+        out.by_config = Default::default();
+        if let Some(c) = self.by_config.get(config) {
+            out.by_leaf.extend(c.by_leaf.iter().map(|(k, v)| (k.clone(), *v)));
+            out.by_scenario.extend(c.by_scenario.iter().map(|(k, v)| (k.clone(), *v)));
+            out.details.extend(c.details.iter().map(|(k, v)| (k.clone(), v.clone())));
+            // A configuration that reports a function has no use for the global failure detail of it.
+            for k in c.by_leaf.keys() {
+                if !c.details.contains_key(k) {
+                    out.details.remove(k);
+                }
+            }
+        }
+        out
     }
 
     /// Persist this data to the sidecar, creating `.syscribe/` as needed.
@@ -656,6 +708,7 @@ impl ResultsData {
             leaf_meta: None,
             scenario_meta: None,
             details: HashMap::new(),
+            by_config: Default::default(),
         }
     }
 }
@@ -865,6 +918,18 @@ pub struct RunRecord {
     pub by_scenario: std::collections::BTreeMap<String, Verdict>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<String>,
+    /// The per-Configuration sections of this run (`ingest-results --run … --config …`).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub by_config: std::collections::BTreeMap<String, ConfigSections>,
+}
+
+/// One Configuration's sections of a retained run.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ConfigSections {
+    #[serde(default)]
+    pub by_leaf: std::collections::BTreeMap<String, Verdict>,
+    #[serde(default)]
+    pub by_scenario: std::collections::BTreeMap<String, Verdict>,
 }
 
 /// `.syscribe/results-history.json`: retained runs, oldest first.
@@ -932,6 +997,11 @@ impl RunHistory {
     /// Record an ingest under `run`: replaces that run's section of the same kind, keeps the other
     /// section and other runs. Class-qualified `by_leaf` duplicates are not stored.
     pub fn record(&mut self, run: &str, data: &ResultsData) {
+        self.record_for(run, data, None);
+    }
+
+    /// [`Self::record`] for the evidence of one Configuration (`Some`) or the global sections (`None`).
+    pub fn record_for(&mut self, run: &str, data: &ResultsData, config: Option<&str>) {
         let idx = match self.runs.iter().position(|r| r.run == run) {
             Some(i) => i,
             None => {
@@ -941,13 +1011,13 @@ impl RunHistory {
         };
         let rec = &mut self.runs[idx];
         rec.ingested_at_unix = data.ingested_at_unix;
-        match data.section() {
-            Section::Leaf => {
-                rec.by_leaf = data.by_leaf.iter().filter(|(k, _)| !k.contains("::")).map(|(k, v)| (k.clone(), *v)).collect();
-            }
-            Section::Scenario => {
-                rec.by_scenario = data.by_scenario.iter().map(|(k, v)| (k.clone(), *v)).collect();
-            }
+        let leaves = || data.by_leaf.iter().filter(|(k, _)| !k.contains("::")).map(|(k, v)| (k.clone(), *v)).collect();
+        let scenarios = || data.by_scenario.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        match (config, data.section()) {
+            (None, Section::Leaf) => rec.by_leaf = leaves(),
+            (None, Section::Scenario) => rec.by_scenario = scenarios(),
+            (Some(c), Section::Leaf) => rec.by_config.entry(c.to_string()).or_default().by_leaf = leaves(),
+            (Some(c), Section::Scenario) => rec.by_config.entry(c.to_string()).or_default().by_scenario = scenarios(),
         }
         if !data.source.is_empty() && !rec.sources.contains(&data.source) {
             rec.sources.push(data.source.clone());
@@ -974,18 +1044,53 @@ impl RunRecord {
             leaf_meta: None,
             scenario_meta: None,
             details: HashMap::new(),
+            by_config: self
+                .by_config
+                .iter()
+                .map(|(c, sec)| {
+                    let mut r = ResultsData {
+                        schema_version: "1.0".to_string(),
+                        format: "history".to_string(),
+                        source: format!("run {}", self.run),
+                        ingested_at_unix: self.ingested_at_unix,
+                        count: sec.by_leaf.len() + sec.by_scenario.len(),
+                        by_leaf: sec.by_leaf.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+                        by_scenario: sec.by_scenario.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+                        leaf_meta: None,
+                        scenario_meta: None,
+                        details: HashMap::new(),
+                        by_config: Default::default(),
+                    };
+                    r.count = r.by_leaf.len() + r.by_scenario.len();
+                    (c.clone(), r)
+                })
+                .collect(),
         }
     }
 
     /// The verdicts of the sections both runs hold (a run that only ingested function results is
-    /// not compared against scenarios the other run recorded).
+    /// not compared against scenarios the other run recorded), with the sections of every
+    /// Configuration both runs hold under `<test> @ <config>`.
     fn comparable(&self, other: &RunRecord) -> std::collections::BTreeMap<String, Verdict> {
-        let mut m = std::collections::BTreeMap::new();
-        if !self.by_leaf.is_empty() && !other.by_leaf.is_empty() {
-            m.extend(self.by_leaf.iter().map(|(k, v)| (k.clone(), *v)));
+        fn sections(
+            m: &mut std::collections::BTreeMap<String, Verdict>,
+            (a_leaf, a_scn): (&std::collections::BTreeMap<String, Verdict>, &std::collections::BTreeMap<String, Verdict>),
+            (b_leaf, b_scn): (&std::collections::BTreeMap<String, Verdict>, &std::collections::BTreeMap<String, Verdict>),
+            suffix: &str,
+        ) {
+            if !a_leaf.is_empty() && !b_leaf.is_empty() {
+                m.extend(a_leaf.iter().map(|(k, v)| (format!("{k}{suffix}"), *v)));
+            }
+            if !a_scn.is_empty() && !b_scn.is_empty() {
+                m.extend(a_scn.iter().map(|(k, v)| (format!("{k}{suffix}"), *v)));
+            }
         }
-        if !self.by_scenario.is_empty() && !other.by_scenario.is_empty() {
-            m.extend(self.by_scenario.iter().map(|(k, v)| (k.clone(), *v)));
+        let mut m = std::collections::BTreeMap::new();
+        sections(&mut m, (&self.by_leaf, &self.by_scenario), (&other.by_leaf, &other.by_scenario), "");
+        for (c, mine) in &self.by_config {
+            if let Some(theirs) = other.by_config.get(c) {
+                sections(&mut m, (&mine.by_leaf, &mine.by_scenario), (&theirs.by_leaf, &theirs.by_scenario), &format!(" @ {c}"));
+            }
         }
         m
     }

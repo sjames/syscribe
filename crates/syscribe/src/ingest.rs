@@ -62,7 +62,7 @@ pub fn parse_file(format: &str, file: &str) -> Option<ResultsData> {
 /// `model_root` (REQ-TRS-INGEST-001). The format's own section (`by_leaf` for
 /// cargo-json/junit, `by_scenario` for session-log) is replaced; the other is
 /// kept. A malformed input exits before anything is written.
-pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>, elems: &[syscribe_model::element::RawElement]) {
+pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>, config: Option<&str>, elems: &[syscribe_model::element::RawElement]) {
     let fmt = match pick_format(format, file) {
         Some(f) => f,
         None => std::process::exit(1),
@@ -71,12 +71,26 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
         Some(d) => d,
         None => std::process::exit(1),
     };
+    // `--config` names a Configuration (id or qualified name); it is stored by id (REQ-TRS-CFGRES-001).
+    let config_key: Option<String> = match config {
+        None => None,
+        Some(c) => match elems.iter().find(|e| {
+            matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::Configuration))
+                && (e.frontmatter.id.as_deref() == Some(c) || e.qualified_name == c)
+        }) {
+            Some(e) => Some(e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())),
+            None => {
+                eprintln!("ingest-results: --config '{c}' is not a Configuration of this model; nothing was written.");
+                std::process::exit(1);
+            }
+        },
+    };
     // Load the history first so a corrupt one aborts before anything is written.
     let mut history = None;
     if let Some(r) = run {
         match syscribe_model::results::RunHistory::load(model_root) {
             Ok(mut h) => {
-                h.record(r, &data);
+                h.record_for(r, &data, config_key.as_deref());
                 history = Some(h);
             }
             Err(e) => {
@@ -85,7 +99,11 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
             }
         }
     }
-    match data.merge_into_sidecar(model_root) {
+    let merged = match &config_key {
+        Some(c) => data.merge_config_into_sidecar(model_root, c),
+        None => data.merge_into_sidecar(model_root),
+    };
+    match merged {
         Ok((path, _merged)) => {
             if let (Some(h), Some(r)) = (&history, run) {
                 match h.save(model_root) {
@@ -124,12 +142,20 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
             } else {
                 ("function-level", "session-log scenario")
             };
-            println!(
-                "Merged into sidecar: {} (replaced the {} verdicts; kept any {} verdicts)",
-                path.display(),
-                own,
-                other
-            );
+            match &config_key {
+                Some(c) => println!(
+                    "Merged into sidecar: {} (configuration {c}: replaced its {} verdicts; kept its {} verdicts, the global ones and other configurations)",
+                    path.display(),
+                    own,
+                    other
+                ),
+                None => println!(
+                    "Merged into sidecar: {} (replaced the {} verdicts; kept any {} verdicts)",
+                    path.display(),
+                    own,
+                    other
+                ),
+            }
             if fmt == "session-log" {
                 println!("Re-run `trace`/`matrix`/`audit` to see scenarios annotated with their session-log verdict.");
             } else {

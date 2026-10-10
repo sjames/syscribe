@@ -1,9 +1,11 @@
 # ingest-results — ingest external test results (enables W010)
 
 ## SYNOPSIS
-    syscribe -m <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>
+    syscribe -m <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] [--config <CONF-id>] <file>
 
 `--run <id>` additionally retains the ingest under a run identity for `results diff` (see `results`).
+
+`--config <CONF-id>` records the ingest as the evidence of one Configuration only (see DESCRIPTION).
 
 ## DESCRIPTION
 Parses an external test report and writes the verdict sidecar at
@@ -11,6 +13,15 @@ Parses an external test report and writes the verdict sidecar at
 `testplan` annotate a covered TestCase with its verdict; `validate` additionally
 emits W010 for an `active` TestCase whose `testFunctions:` last failed, were
 skipped, or were missing from the run.
+
+`--config <CONF-id>` must resolve to a `Configuration` (else exit 1 and nothing is written).
+The results are kept under that configuration only — the global verdicts are untouched — so
+a test that fails only on one variant is no longer one global `fail`. A configuration is judged
+on its *effective* results: the global ones overlaid with its own (its own verdict wins,
+otherwise the global one applies; no configuration inherits another's). Each `matrix` column
+uses its own, and under `--config CONF-X` `validate`, `audit`, `trace`, `safety-case`,
+`coverage tree`, `matrix --rollup` and the other evidence readers do too. With `--run`, the run
+keeps the configuration sections; `results diff` names a changed test `<test> @ <config>`.
 
 Two source shapes, feeding two different verdict axes:
 

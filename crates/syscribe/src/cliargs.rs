@@ -115,7 +115,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--where", ValueOrEq),
         ],
         "coverage" => &[("--json", Switch), LENS, ("--plan", Value)],
-        "ingest-results" => &[("--format", Value), ("--run", Value)],
+        "ingest-results" => &[("--format", Value), ("--run", Value), LENS],
         "import-reqif" => &[("--into", Value), ("--id-prefix", Value), ("--class", Value), ("--domain", Value), ("--update", Switch), ("--dry-run", Switch)],
         "mechanisms" => &[("--json", Switch), ("--uncovered", Switch)],
         "compliance" => &[("--standard", Value), LENS, ("--json", Switch), ("--fail-on-missing", Switch)],

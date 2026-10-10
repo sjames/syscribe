@@ -807,6 +807,18 @@ fn main() {
         }
         vcfg.results = runhist::as_of().cloned();
     }
+    // `--config C` on an evidence-reading command judges the evidence as C sees it (GH #258): the
+    // global results overlaid with C's own. `diff` names two configurations and `ingest-results`
+    // *writes* one, so neither takes the lens.
+    if matches!(
+        subcommand_args.first().map(String::as_str),
+        Some("validate" | "audit" | "trace" | "why" | "who-verifies" | "safety-case" | "coverage" | "matrix" | "testplan" | "verification-depth" | "stats" | "digest")
+    ) {
+        if let Some(key) = subcommand_args.windows(2).find(|w| w[0] == "--config").and_then(|w| runhist::config_key(&elems, &w[1])) {
+            runhist::set_lens_config(&key);
+            vcfg.results = vcfg.results.take().map(runhist::lensed);
+        }
+    }
 
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     // `report` (and a bare invocation with no subcommand) fall through to the default
@@ -1228,7 +1240,7 @@ fn main() {
                 let mut file: Option<&str> = None;
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--format" || rest[i] == "--run" { i += 2; continue; }
+                    if rest[i] == "--format" || rest[i] == "--run" || rest[i] == "--config" { i += 2; continue; }
                     if rest[i].starts_with("--") { i += 1; continue; }
                     file = Some(rest[i].as_str());
                     break;
@@ -1240,9 +1252,9 @@ fn main() {
                     }
                 }
                 match file {
-                    Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str()), &elems),
+                    Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str()), rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str()), &elems),
                     None => {
-                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
+                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] [--config <CONF-id>] <file>");
                         std::process::exit(1);
                     }
                 }

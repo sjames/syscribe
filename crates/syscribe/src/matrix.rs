@@ -289,7 +289,21 @@ fn active_grid(
 
     // Effective conditions honour transitive package appliesWhen (REQ-TRS-VAR-006).
     let pkg = variability::package_conditions(elements);
-    let tcs = participating_tcs(elements, &pkg, &feat_alias, evidence);
+    // Each configuration column is judged on its own evidence (GH #258, REQ-TRS-CFGRES-001): the
+    // global results overlaid with that configuration's. Without per-configuration evidence every
+    // column shares the global verdicts, as before.
+    let per_config = evidence.is_some_and(|e| !e.by_config.is_empty());
+    let col_tcs: Vec<Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict, bool)>> = cfg_sel
+        .iter()
+        .map(|(id, _)| {
+            if per_config {
+                let own = evidence.map(|e| e.for_config(id));
+                participating_tcs(elements, &pkg, &feat_alias, own.as_ref())
+            } else {
+                participating_tcs(elements, &pkg, &feat_alias, evidence)
+            }
+        })
+        .collect();
 
     // Materialise each retained row's cell states once: (id, [state per column]).
     // `--gaps-only` keeps only rows that have at least one `gap` cell (dropping
@@ -299,7 +313,8 @@ fn active_grid(
         .map(|r| {
             let cells: Vec<&'static str> = cfg_sel
                 .iter()
-                .map(|(_, sel)| cell_state(r, sel, &pkg, &feat_alias, &tcs, evidence))
+                .zip(col_tcs.iter())
+                .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &feat_alias, tcs, evidence))
                 .collect();
             (disp_id(r), cells)
         })

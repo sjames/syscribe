@@ -232,8 +232,10 @@ See `syscribe help scripts` for the full read-only model API.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
 
+`--config <CONF-id>` records the ingest as one Configuration's evidence (results stay under that configuration; global verdicts are untouched). A configuration is judged on the global results overlaid with its own — its own verdict wins — by every `matrix` column and, under `--config`, by `validate`, `audit`, `trace`, `safety-case` and `coverage tree`. See `syscribe help ingest-results`.
+
 ```bash
-syscribe -m model/ ingest-results <file> [--format cargo-json|junit|session-log]
+syscribe -m model/ ingest-results <file> [--format cargo-json|junit|session-log] [--run <id>] [--config <CONF-id>]
 ```
 
 - **`<file>`** — the results file (required, first positional).

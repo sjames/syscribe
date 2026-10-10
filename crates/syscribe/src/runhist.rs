@@ -20,6 +20,34 @@ pub fn set_as_of(model_root: &Path, run: &str) -> Result<(), String> {
     Ok(())
 }
 
+static LENS_CONFIG: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Judge every later [`load_results`] as Configuration `config` (its id) sees the evidence: the
+/// global results overlaid with that configuration's own (GH #258, REQ-TRS-CFGRES-001).
+pub fn set_lens_config(config: &str) {
+    let _ = LENS_CONFIG.set(config.to_string());
+}
+
+/// The id a Configuration is stored under (`ingest-results --config`): its stable id, else its
+/// qualified name. `None` when `config` names no Configuration of the model.
+pub fn config_key(elems: &[syscribe_model::element::RawElement], config: &str) -> Option<String> {
+    elems
+        .iter()
+        .find(|e| {
+            matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::Configuration))
+                && (e.frontmatter.id.as_deref() == Some(config) || e.qualified_name == config)
+        })
+        .map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()))
+}
+
+/// Overlay the active `--config` lens, if any, on `data`.
+pub fn lensed(data: syscribe_model::results::ResultsData) -> syscribe_model::results::ResultsData {
+    match LENS_CONFIG.get() {
+        Some(c) => data.for_config(c),
+        None => data,
+    }
+}
+
 /// The run `--results-as-of` selected, if any.
 pub fn as_of() -> Option<&'static syscribe_model::results::ResultsData> {
     AS_OF.get()
@@ -27,7 +55,7 @@ pub fn as_of() -> Option<&'static syscribe_model::results::ResultsData> {
 
 /// The results the evidence-reading commands use: the selected retained run, else the sidecar.
 pub fn load_results(model_root: &Path) -> Option<syscribe_model::results::ResultsData> {
-    as_of().cloned().or_else(|| syscribe_model::results::ResultsData::load_sidecar(model_root))
+    as_of().cloned().or_else(|| syscribe_model::results::ResultsData::load_sidecar(model_root)).map(lensed)
 }
 
 const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results failures [--json] | results diff <runA> <runB> [--json] [--fail-on-regression]";
