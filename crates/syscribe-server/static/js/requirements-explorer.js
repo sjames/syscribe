@@ -194,8 +194,9 @@
       [[e.from, e.to], [e.to, e.from]].forEach(function (p) {
         if (isRow[p[0]] && isCol[p[1]] && p[0] !== p[1]) {
           var k = p[0] + '|' + p[1];
+          var kind = e.kind || '(unnamed)';
           cells[k] = cells[k] || [];
-          if (cells[k].indexOf(e.kind) < 0) cells[k].push(e.kind);
+          if (cells[k].indexOf(kind) < 0) cells[k].push(kind);
         }
       });
     });
@@ -524,8 +525,10 @@
   function clearGraph() {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     state.lastGraph = null; state.drawn = null;
-    var host = document.getElementById('req-table');
-    if (host) host.textContent = '';
+    ['req-table', 'req-matrix'].forEach(function (id) {
+      var host = document.getElementById(id);
+      if (host) host.textContent = '';
+    });
   }
 
   function load() {

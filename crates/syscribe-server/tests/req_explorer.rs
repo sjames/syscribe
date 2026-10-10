@@ -333,10 +333,10 @@ fn the_matrix_model_lists_rows_columns_and_direct_edge_kinds() {
         r#"const m = require({js:?});
 const g = {{root:'R1', nodes:[{{id:'R1',type:'Requirement'}},{{id:'R2',type:'Requirement'}},{{id:'R3',type:'Requirement'}},
   {{id:'T1',type:'TestCase'}},{{id:'T2',type:'TestCase'}},{{id:'P1',type:'PartDef'}}],
-  edges:[{{from:'T1',to:'R1',kind:'verifies'}},{{from:'R1',to:'T1',kind:'evidence'}},{{from:'R2',to:'P1',kind:'allocatedTo'}},{{from:'R2',to:'R1',kind:'derivedFrom'}}]}};
+  edges:[{{from:'T1',to:'R1',kind:'verifies'}},{{from:'R1',to:'T1',kind:'evidence'}},{{from:'R2',to:'P1',kind:'allocatedTo'}},{{from:'R2',to:'R1',kind:'derivedFrom'}},{{from:'R3',to:'T2'}}]}};
 const t = m.matrixModel(g, 'tests');
 const a = m.matrixModel(g, 'architecture');
-console.log(JSON.stringify({{ rows: t.rows, cols: t.cols, cell: t.cells['R1|T1'], none: t.rows.filter(r => t.noneIn[r]), noCell: t.cells['R2|T1'] || null,
+console.log(JSON.stringify({{ rows: t.rows, cols: t.cols, cell: t.cells['R1|T1'], none: t.rows.filter(r => t.noneIn[r]), noCell: t.cells['R2|T1'] || null, reqReq: Object.keys(t.cells).filter(k => k.startsWith('R2|R1')), unnamed: t.cells['R3|T2'],
   archCols: a.cols, archCell: a.cells['R2|P1'], bad: m.matrixModel(g, 'bogus').cols }}));"#
     );
     let o = Command::new("node").arg("-e").arg(&script).output().unwrap();
@@ -345,7 +345,9 @@ console.log(JSON.stringify({{ rows: t.rows, cols: t.cols, cell: t.cells['R1|T1']
     assert_eq!(v["rows"], serde_json::json!(["R1", "R2", "R3"]));
     assert_eq!(v["cols"], serde_json::json!(["T1", "T2"]), "unlinked columns are kept");
     assert_eq!(v["cell"], serde_json::json!(["evidence", "verifies"]), "both directions, sorted, deduplicated");
-    assert_eq!(v["none"], serde_json::json!(["R2", "R3"]));
+    assert_eq!(v["none"], serde_json::json!(["R2"]), "R3 now links to T2");
+    assert_eq!(v["reqReq"], serde_json::json!([]), "requirement-to-requirement edges are not cells");
+    assert_eq!(v["unnamed"], serde_json::json!(["(unnamed)"]));
     assert_eq!(v["noCell"], serde_json::Value::Null);
     assert_eq!(v["archCols"], serde_json::json!(["P1"]));
     assert_eq!(v["archCell"], serde_json::json!(["allocatedTo"]));
