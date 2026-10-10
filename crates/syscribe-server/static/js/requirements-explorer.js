@@ -573,6 +573,57 @@
 
   var seq = 0;
 
+  function countsLine(title, obj) {
+    var p = document.createElement('p');
+    var keys = Object.keys(obj || {}).sort();
+    p.textContent = title + ': ' + (keys.length ? keys.map(function (k) { return k + ' ' + obj[k]; }).join(', ') : 'none');
+    return p;
+  }
+
+  function listBlock(title, total, list) {
+    var box = document.createElement('div');
+    var h = document.createElement('h3');
+    h.textContent = title + ' (' + total + (list.length < total ? ', first ' + list.length : '') + ')';
+    box.appendChild(h);
+    var ul = document.createElement('ul');
+    list.forEach(function (r) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = r.id + (r.name ? ' — ' + r.name : '') + (r.status ? ' [' + r.status + ']' : '');
+      b.addEventListener('click', function () { focusOn(r.id, true); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    return box;
+  }
+
+  // The landing view: counts and the requirements that most need attention. Shares `seq` with load(), so a
+  // newer request (or a chosen root) discards a late overview.
+  function loadOverview(my) {
+    var ov = document.getElementById('req-overview');
+    if (!ov) return Promise.resolve();
+    var url = '/api/req-graph/overview' + (state.config ? '?config=' + encodeURIComponent(state.config) : '');
+    return fetch(url)
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (my !== seq) return;
+        ov.textContent = '';
+        if (!res.ok) { ov.textContent = (res.body && res.body.error) || 'Overview unavailable.'; return; }
+        var o = res.body;
+        var h = document.createElement('h2');
+        h.textContent = o.requirements + ' requirement(s)';
+        ov.appendChild(h);
+        ov.appendChild(countsLine('By class', o.byClass));
+        ov.appendChild(countsLine('By status', o.byStatus));
+        ov.appendChild(countsLine('Verification', o.verification));
+        ov.appendChild(listBlock('Unverified requirements', (o.verification || {}).unverified || 0, o.unverifiedList || []));
+        ov.appendChild(listBlock('Requirements with no relations', o.unlinked || 0, o.unlinkedList || []));
+      })
+      .catch(function () { if (my === seq) ov.textContent = 'Overview unavailable.'; });
+  }
+
   function clearGraph() {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     state.lastGraph = null; state.drawn = null;
@@ -584,7 +635,9 @@
 
   function load() {
     var my = ++seq; // only the newest request may draw: an older response arriving late is dropped
-    if (!state.focus) { clearGraph(); setStatus('Enter a requirement id or qualified name.'); return Promise.resolve(); }
+    var ov = document.getElementById('req-overview');
+    if (ov) ov.hidden = !!state.focus;
+    if (!state.focus) { clearGraph(); setStatus('Pick a requirement below, or enter an id or qualified name.'); return loadOverview(my); }
     setStatus('Loading…');
     return fetch('/api/req-graph?' + query().toString())
       .then(function (r) {

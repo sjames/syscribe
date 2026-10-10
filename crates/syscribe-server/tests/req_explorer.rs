@@ -444,3 +444,33 @@ console.log(JSON.stringify({{ proto, dup, bad, def, roundTrip, defaultsOmitted: 
     assert_eq!(v["defaultsOmitted"], "");
     assert_eq!(v["some"], "layout=v-model&view=table&trace=tests");
 }
+
+#[tokio::test]
+async fn the_overview_lists_unverified_and_unlinked_requirements() {
+    let mut owned: Vec<(String, String)> = (1..=30).map(|i| req(&format!("REQ-OV-{i:03}"), "x")).collect();
+    // REQ-OV-001 is verified by an active test (and therefore linked); the others stay unverified and unlinked.
+    owned.push(("tc.md".into(), "---\ntype: TestCase\nid: TC-OV-001\nname: t\nstatus: active\ntestLevel: L2\nverifies: [REQ-OV-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then ok\n```\n".to_string()));
+    let files: Vec<(&str, &str)> = owned.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+    let a = app_with(&files);
+    let (s, _, body) = get(&a, "/api/req-graph/overview").await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let un = v["unverifiedList"].as_array().unwrap();
+    assert_eq!(un.len(), 25, "capped: {body}");
+    assert_eq!(un[0]["id"], "REQ-OV-002", "sorted by id, the verified one excluded");
+    assert_eq!(un[0]["name"], "x");
+    assert_eq!(un[0]["status"], "draft");
+    assert!(un[0]["qname"].is_string());
+    assert_eq!(v["verification"]["unverified"], 29, "the count is the total, the list is capped");
+    let lk = v["unlinkedList"].as_array().unwrap();
+    assert_eq!(lk.len(), 25);
+    assert_eq!(lk[0]["id"], "REQ-OV-002", "REQ-OV-001 is linked by its test");
+    assert_eq!(v["unlinked"], 29);
+}
+
+#[tokio::test]
+async fn the_page_has_the_overview_container() {
+    let a = app();
+    let (_, _, html) = get(&a, "/requirements").await;
+    assert!(html.contains("id=\"req-overview\""), "{html}");
+}

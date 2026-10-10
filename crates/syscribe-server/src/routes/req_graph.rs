@@ -299,18 +299,34 @@ pub async fn get_overview(State(state): State<SharedState>, Query(params): Query
         .collect();
     let (mut by_class, mut by_status, mut verification) = (BTreeMap::<String, u64>::new(), BTreeMap::<String, u64>::new(), BTreeMap::<&str, u64>::new());
     let (mut total, mut unlinked) = (0u64, 0u64);
+    let (mut unverified_list, mut unlinked_list): (Vec<(String, Value)>, Vec<(String, Value)>) = (Vec::new(), Vec::new());
+    let entry = |r: &RawElement| json!({"id": node_id(r), "qname": r.qualified_name, "name": r.frontmatter.name, "status": r.frontmatter.status});
     for r in elems.iter().filter(|e| Resolver::is_native_requirement(e)) {
         total += 1;
         *by_class.entry(r.frontmatter.req_class.clone().unwrap_or_else(|| "(none)".into())).or_default() += 1;
         *by_status.entry(r.frontmatter.status.clone().unwrap_or_else(|| "(none)".into())).or_default() += 1;
-        *verification.entry(verification_of(r, &vmap)).or_default() += 1;
+        let v = verification_of(r, &vmap);
+        *verification.entry(v).or_default() += 1;
+        if v == "unverified" {
+            unverified_list.push((node_id(r), entry(r)));
+        }
         if !linked.contains(r.qualified_name.as_str()) {
             unlinked += 1;
+            unlinked_list.push((node_id(r), entry(r)));
         }
     }
-    Ok(Json(json!({"requirements": total, "byClass": by_class, "byStatus": by_status, "unlinked": unlinked, "verification": verification})))
+    // Sorted by id and capped: the counts above are the totals, so a shorter list means it was capped.
+    let capped = |mut l: Vec<(String, Value)>| -> Vec<Value> {
+        l.sort_by(|a, b| a.0.cmp(&b.0));
+        l.into_iter().take(OVERVIEW_LIST_CAP).map(|(_, v)| v).collect()
+    };
+    Ok(Json(json!({
+        "requirements": total, "byClass": by_class, "byStatus": by_status, "unlinked": unlinked, "verification": verification,
+        "unverifiedList": capped(unverified_list), "unlinkedList": capped(unlinked_list),
+    })))
 }
 
+const OVERVIEW_LIST_CAP: usize = 25;
 const SEARCH_DEFAULT: usize = 20;
 const SEARCH_MAX: usize = 100;
 
