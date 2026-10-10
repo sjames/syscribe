@@ -57,6 +57,19 @@ pub fn pair_legal(parent: u8, a: u8, b: u8) -> bool {
     parent == 0 || a.min(parent) + b.min(parent) >= parent
 }
 
+/// Whether a hazardous event is rated QM: its own `asilLevel` when set, otherwise the
+/// level derived from severity/exposure/controllability. Unknown when neither is
+/// available, which is not QM (GH #230).
+pub fn event_is_qm(fm: &crate::element::RawFrontmatter) -> bool {
+    if let Some(a) = fm.asil_level.as_deref().filter(|a| !a.trim().is_empty()) {
+        return rank(a) == Some(0);
+    }
+    match (fm.severity.as_deref(), fm.exposure.as_deref(), fm.controllability.as_deref()) {
+        (Some(s), Some(e), Some(c)) => derive(s, e, c) == Some("QM"),
+        _ => false,
+    }
+}
+
 /// ASIL determination for a hazardous event (ISO 26262-3 Table 4) from
 /// severity `S0..S3`, exposure `E0..E4`, controllability `C0..C3`.
 /// Returns `None` if any value is unparseable.

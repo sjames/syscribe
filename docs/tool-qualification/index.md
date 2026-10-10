@@ -211,7 +211,7 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | Acyclicity of hierarchical relationships (E016–E018) | REQ-TRS-TRACE-009 | TC-TRS-TRACE-009 |
 | Configuration element E200–E201, E209 | REQ-TRS-CONF-001 | TC-TRS-CONF-001 |
 | Diagram element E400–E402, W400–W412 | REQ-TRS-DIAG-001 | TC-TRS-DIAG-001 |
-| HazardousEvent E800–E804, E833–E836, W800 | REQ-TRS-SAFE-001 | TC-TRS-SAFE-001 |
+| HazardousEvent E800–E804, E833–E836, W800 | REQ-TRS-SAFE-001, REQ-TRS-HARA-001 | TC-TRS-SAFE-001, TC-TRS-HARA-001 |
 | SafetyGoal E805–E806, E825, E837, W801, W805–W806 | REQ-TRS-SAFE-002 | TC-TRS-SAFE-002 |
 | DamageScenario / ThreatScenario E807–E814, E826 | REQ-TRS-SAFE-003 | TC-TRS-SAFE-003 |
 | Cybersecurity elements E815–E824, E827–E832, W802–W804, W807 | REQ-TRS-SAFE-004 | TC-TRS-SAFE-004 |

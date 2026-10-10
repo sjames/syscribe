@@ -844,7 +844,7 @@ syscribe -m model/ refs CSG-SYS-001
 | E902 | Error | `FaultTree.topEvent` does not resolve to a SafetyGoal |
 | E906 | Error | `FaultTreeGate.inputs` ref is not a gate or event |
 | W006 | Warning | `silLevel` and `asilLevel` both set on the same element — incompatible standards |
-| W800 | Warning | HazardousEvent not referenced by any SafetyGoal |
+| W800 | Warning | HazardousEvent not referenced by any SafetyGoal (not raised for QM-rated events) |
 | W801 | Warning | SafetyGoal has no integrity level (`asilLevel`, `silLevel`, or `plLevel`) |
 | W806 | Warning | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
 | W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` |

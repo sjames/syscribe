@@ -6274,11 +6274,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             let referenced = he_referenced.contains(&elem.qualified_name)
                 || elem.frontmatter.id.as_ref().is_some_and(|id| he_referenced.contains(id));
             // A QM-rated event needs no safety goal (ISO 26262-3 Table 4, GH #230).
-            let hf = &elem.frontmatter;
-            let is_qm = matches!(
-                (hf.severity.as_deref(), hf.exposure.as_deref(), hf.controllability.as_deref()),
-                (Some(s), Some(e), Some(c)) if crate::asil::derive(s, e, c) == Some("QM")
-            );
+            let is_qm = crate::asil::event_is_qm(&elem.frontmatter);
             if !referenced && !is_qm {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W800", &elem.file_path,
@@ -13089,6 +13085,14 @@ mod link_type_tests {
         assert!(has(&asil, "W800"), "{asil:?}");
         let partial = run(&[he("HE-TST-013", "severity: S1\n")], "");
         assert!(has(&partial, "W800"), "{partial:?}");
+        for sec in ["severity: S3\nexposure: E0\ncontrollability: C3\n", "severity: S3\nexposure: E4\ncontrollability: C0\n"] {
+            assert!(!has(&run(&[he("HE-TST-014", sec)], ""), "W800"), "{sec}");
+        }
+        // An explicit asilLevel on the event is its rating, as in the traceability view.
+        let explicit_qm = run(&[he("HE-TST-015", "asilLevel: QM\n")], "");
+        assert!(!has(&explicit_qm, "W800"), "{explicit_qm:?}");
+        let explicit_d = run(&[he("HE-TST-016", "asilLevel: D\nseverity: S1\nexposure: E4\ncontrollability: C1\n")], "");
+        assert!(has(&explicit_d, "W800"), "{explicit_d:?}");
     }
 
     #[test]

@@ -341,7 +341,8 @@ impl<'a> Emitter<'a, '_, '_> {
         let goals = self.ix.goals_of_he.get(&he.qualified_name).map(Vec::len).unwrap_or(0);
         let mut badges = Vec::new();
         let mut tone = goal_tone;
-        if goals == 0 {
+        // A QM-rated event needs no goal (W800 agrees, GH #230).
+        if goals == 0 && !crate::asil::event_is_qm(&he.frontmatter) {
             badges.push("no goal".to_string());
             tone = Tone::Bad;
         }
