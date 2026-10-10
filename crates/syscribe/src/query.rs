@@ -701,6 +701,18 @@ pub fn cmd_show(
         if let Some(v) = v { println!("| **{label}** | {v} |"); }
     }
     if let Some(sr) = fm.shared_resources.as_ref().filter(|l| !l.is_empty()) { println!("| **sharedResources** | {} |", sr.len()); }
+    if let Some(q) = fm.quantities.as_ref().filter(|l| !l.is_empty()) {
+        let txt: Vec<String> = q
+            .iter()
+            .filter_map(|e| e.as_mapping())
+            .map(|m| {
+                let g = |k: &str| m.get(k).map(|v| v.as_str().map(String::from).unwrap_or_else(|| format!("{v:?}"))).unwrap_or_default();
+                let val = m.get("value").map(|v| match v { serde_yaml::Value::Number(n) => n.to_string(), o => format!("{o:?}") }).unwrap_or_default();
+                format!("{} {} {}", g("kind"), val, g("unit"))
+            })
+            .collect();
+        println!("| **quantities** | {} |", txt.join("; "));
+    }
     if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
     if let Some(ref aw) = fm.applies_when {
         let aw_str = match aw {

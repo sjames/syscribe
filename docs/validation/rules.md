@@ -1115,7 +1115,7 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 
 | Code | Severity | Condition |
 |---|---|---|
-| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), or a non-positive / non-numeric `value` |
+| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), a non-positive / non-numeric `value`, or the same `kind` twice on one element |
 | W893 | Warning | a timing budget is exceeded: the sum of a kind over the requirements derived from a `Requirement`/`SafetyGoal` (a serial chain) is larger than its own value, or a derived requirement's `latency` + `reaction` exceeds the goal's FTTI (draft-suppressed) |
 
 ## Test environments (E893–E894, W891–W892)

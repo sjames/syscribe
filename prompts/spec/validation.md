@@ -653,7 +653,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 
 | Code | Condition |
 |---|---|
-| `E895` | A `quantities` entry is not a mapping, has an unknown `kind` or `unit`, or a non-positive / non-numeric `value` |
+| `E895` | A `quantities` entry is not a mapping, has an unknown `kind` or `unit`, a non-positive / non-numeric `value`, or the same `kind` twice |
 | `W893` | A timing budget is exceeded: the chain derived from a requirement/goal sums over its value, or a derived requirement's latency + reaction exceeds the goal's FTTI (draft-suppressed) |
 
 ## Test environments (E893–E894, W891–W892)

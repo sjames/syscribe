@@ -4541,7 +4541,7 @@ Security/Attacks/AT-TORQUE-001/
 
 #### 8.18.8 Structured timing quantities (`quantities:`)
 
-Any element may carry `quantities:` (GH #237), a list of `{kind, value, unit}`: `kind` is `ftti`, `latency`, `wcet` or `reaction`; `value` a positive number; `unit` `s`, `ms`, `us` or `ns`. A `SafetyGoal`'s `ftti:` string is read as an `ftti` quantity. Malformed entries are E895. `validate` compares budgets after normalising units (W893): for a `Requirement` or `SafetyGoal` with a quantity of a kind, the sum of that kind over the requirements derived from it (`derivedFrom:`, or `derivedFromSafetyGoal:` for a goal) — treated as a serial chain — must not exceed it, and for a goal with an `ftti` each derived requirement's `latency` plus `reaction` must fit. A parent whose children state no quantity of the kind raises nothing; draft elements are not checked.
+Any element may carry `quantities:` (GH #237), a list of `{kind, value, unit}`: `kind` is `ftti`, `latency`, `wcet` or `reaction`; `value` a positive number; `unit` `s`, `ms`, `us` or `ns`. A `SafetyGoal`'s `ftti:` string is read as an `ftti` quantity. Malformed entries are E895. `validate` compares budgets after normalising units (W893): for a `Requirement` or `SafetyGoal` with a quantity of a kind, the sum of that kind over the requirements derived from it (`derivedFrom:`, or `derivedFromSafetyGoal:` for a goal) — treated as a serial chain — must not exceed it, and for a goal with an `ftti` each derived requirement's `latency` plus `reaction` must fit. A child that states no quantity of the kind contributes the serial sum of its own children (the budget rolls up through intermediate requirements); draft and retired children do not count and a child listed twice counts once. A parent whose children state nothing of the kind raises nothing. A budget holder with a variant-gated child is not summed in plain `validate` (alternatives cannot be added up) but is recomputed in each variant by `validate --config` / `--all-configs`. One value per kind per element (a second is E895); draft budget holders are not checked.
 
 #### 8.18.7 Dependent failure analysis (`DependentFailureAnalysis`)
 
@@ -6510,7 +6510,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 
 | Code | Severity | Condition |
 |---|---|---|
-| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), or a non-positive / non-numeric `value` |
+| E895 | Error | a `quantities` entry is not a mapping, has an unknown `kind` (`ftti`/`latency`/`wcet`/`reaction`) or `unit` (`s`/`ms`/`us`/`ns`), a non-positive / non-numeric `value`, or the same `kind` twice on one element |
 | W893 | Warning | a timing budget is exceeded: the sum of a kind over the requirements derived from a `Requirement`/`SafetyGoal` (a serial chain) is larger than its own value, or a derived requirement's `latency` + `reaction` exceeds the goal's FTTI (draft-suppressed) |
 
 #### Test environments (E893–E894, W891–W892)

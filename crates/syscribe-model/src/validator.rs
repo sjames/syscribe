@@ -7596,8 +7596,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let value = yaml_field(m, "value").and_then(|v| v.as_f64());
                 if !KINDS.contains(&kind) {
                     findings.push(bad(&format!("`kind` must be one of {}", KINDS.join(", "))));
+                } else if list.iter().any(|(k, _)| k == kind) {
+                    findings.push(bad(&format!("`kind` '{kind}' is stated twice — one value per kind (state the worst case)")));
                 } else if value.is_none_or(|v| !(v.is_finite() && v > 0.0)) {
-                    findings.push(bad("`value` must be a positive number"));
+                    findings.push(bad("`value` must be a positive number (the unit goes in `unit:`, e.g. `value: 5` `unit: ms`)"));
                 } else if let Some(ms) = value.and_then(|v| to_ms(v, unit)) {
                     list.push((kind.to_string(), ms));
                 } else {
@@ -7606,7 +7608,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             // A SafetyGoal's `ftti:` string counts as an ftti quantity.
             if !list.iter().any(|(k, _)| k == "ftti") {
-                if let Some(ms) = fm.ftti.as_deref().and_then(crate::asil::ftti_millis) {
+                if let Some(ms) = fm.ftti.as_deref().and_then(crate::asil::ftti_millis).filter(|ms| *ms > 0.0) {
                     list.push(("ftti".to_string(), ms));
                 }
             }
@@ -7614,66 +7616,101 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 by_elem.insert(elem.qualified_name.clone(), list);
             }
         }
-        let sum_of = |qn: &str, kinds: &[&str]| -> Option<f64> {
-            let q = by_elem.get(qn)?;
-            let mut hit = false;
-            let mut s = 0.0;
-            for (k, v) in q {
-                if kinds.contains(&k.as_str()) {
-                    hit = true;
-                    s += v;
-                }
-            }
-            hit.then_some(s)
-        };
+        // Children (derived requirements) per budget holder, by qualified name. Draft and retired
+        // children state no commitment and do not count; a child listed twice counts once.
+        let counts = |c: &RawElement| !matches!(c.frontmatter.status.as_deref(), Some("draft") | Some("retired"));
+        let mut kids_of: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for elem in elements {
-            let Some(own) = by_elem.get(&elem.qualified_name) else { continue };
-            if elem.frontmatter.status.as_deref() == Some("draft") {
-                continue;
-            }
             let is_goal = matches!(elem.frontmatter.element_type, Some(ElementType::SafetyGoal));
             let is_req = Resolver::is_native_requirement(elem);
             if !is_goal && !is_req {
                 continue;
             }
-            // The elements derived from this one.
-            let mut children: Vec<&RawElement> = Vec::new();
+            let mut kids: Vec<String> = Vec::new();
             if is_goal {
-                for c in elements {
+                for c in elements.iter().filter(|c| Resolver::is_native_requirement(c) && counts(c)) {
                     if let Some(r) = c.frontmatter.derived_from_safety_goal.as_deref() {
                         if resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == elem.qualified_name) {
-                            children.push(c);
+                            kids.push(c.qualified_name.clone());
                         }
                     }
                 }
             } else if let Some(ids) = elem.frontmatter.id.as_deref().and_then(|id| derived_children.get(id)) {
-                children.extend(ids.iter().filter_map(|c| resolver.resolve_ref(elements, c)));
+                kids.extend(ids.iter().filter_map(|c| resolver.resolve_ref(elements, c)).filter(|c| counts(c)).map(|c| c.qualified_name.clone()));
             }
-            let label = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
-            let mut seen_kind: Vec<&str> = Vec::new();
-            for (kind, budget) in own {
-                if seen_kind.contains(&kind.as_str()) {
-                    continue;
+            kids.sort();
+            kids.dedup();
+            kids_of.insert(elem.qualified_name.clone(), kids);
+        }
+        // What a requirement contributes to its parent's budget of `kind`: its own value, else the
+        // serial sum of what its children contribute (so a budget rolls up through intermediate
+        // requirements that state nothing). `visiting` breaks `derivedFrom` cycles.
+        fn contribution(
+            qn: &str,
+            kinds: &[&str],
+            by_elem: &BTreeMap<String, Vec<(String, f64)>>,
+            kids_of: &BTreeMap<String, Vec<String>>,
+            visiting: &mut Vec<String>,
+        ) -> Option<f64> {
+            if let Some(q) = by_elem.get(qn) {
+                let own: Vec<f64> = q.iter().filter(|(k, _)| kinds.contains(&k.as_str())).map(|(_, v)| *v).collect();
+                if !own.is_empty() {
+                    return Some(own.iter().sum());
                 }
-                seen_kind.push(kind);
-                let sums: Vec<f64> = children.iter().filter_map(|c| sum_of(&c.qualified_name, &[kind.as_str()])).collect();
+            }
+            if visiting.iter().any(|v| v == qn) {
+                return None;
+            }
+            visiting.push(qn.to_string());
+            let sums: Vec<f64> = kids_of
+                .get(qn)
+                .into_iter()
+                .flatten()
+                .filter_map(|c| contribution(c, kinds, by_elem, kids_of, visiting))
+                .collect();
+            visiting.pop();
+            (!sums.is_empty()).then(|| sums.iter().sum())
+        }
+        let pkg_gates = crate::variability::package_conditions(elements);
+        let gated = |e: &RawElement| crate::variability::effective_applies_when(e, &pkg_gates).is_some();
+        let round = |v: f64| (v * 1000.0).round() / 1000.0;
+        for elem in elements {
+            let Some(own) = by_elem.get(&elem.qualified_name) else { continue };
+            if elem.frontmatter.status.as_deref() == Some("draft") {
+                continue;
+            }
+            let Some(kids) = kids_of.get(&elem.qualified_name) else { continue };
+            let children: Vec<&RawElement> = kids.iter().filter_map(|q| resolver.get(elements, q)).collect();
+            // Variant alternatives cannot be summed in the 150% model: a gated child is checked per
+            // variant (`validate --config`), where the projection recomputes the chain.
+            if children.iter().any(|c| gated(c)) {
+                continue;
+            }
+            let is_goal = matches!(elem.frontmatter.element_type, Some(ElementType::SafetyGoal));
+            let label = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+            for (kind, budget) in own {
+                let sums: Vec<f64> = children
+                    .iter()
+                    .filter_map(|c| contribution(&c.qualified_name, &[kind.as_str()], &by_elem, &kids_of, &mut vec![elem.qualified_name.clone()]))
+                    .collect();
                 if sums.is_empty() {
                     continue;
                 }
                 let total: f64 = sums.iter().sum();
                 if total > budget * (1.0 + 1e-9) {
                     findings.push(warning("W893", &elem.file_path, &format!(
-                        "{label}: the {kind} budget {budget} ms is exceeded by the chain derived from it ({total} ms over {} requirement(s))", sums.len())));
+                        "{label}: the {kind} budget {} ms is exceeded by the chain derived from it ({} ms over {} requirement(s))",
+                        round(*budget), round(total), sums.len())));
                 }
             }
             if is_goal {
                 if let Some((_, ftti)) = own.iter().find(|(k, _)| k == "ftti") {
                     for c in &children {
-                        if let Some(t) = sum_of(&c.qualified_name, &["latency", "reaction"]) {
+                        if let Some(t) = contribution(&c.qualified_name, &["latency", "reaction"], &by_elem, &kids_of, &mut vec![elem.qualified_name.clone()]) {
                             if t > ftti * (1.0 + 1e-9) {
                                 findings.push(warning("W893", &c.file_path, &format!(
-                                    "latency + reaction of '{}' is {t} ms, over the {ftti} ms FTTI of {label}",
-                                    c.frontmatter.id.as_deref().unwrap_or(&c.qualified_name))));
+                                    "latency + reaction of '{}' is {} ms, over the {} ms FTTI of {label}",
+                                    c.frontmatter.id.as_deref().unwrap_or(&c.qualified_name), round(t), round(*ftti))));
                             }
                         }
                     }

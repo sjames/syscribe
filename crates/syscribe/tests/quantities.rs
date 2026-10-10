@@ -75,3 +75,49 @@ fn a_reaction_over_the_goals_ftti_is_w893() {
     let over = files(vec![qgoal, child("  - {kind: reaction, value: 60, unit: ms}\n")]);
     assert!(validate(&model(&over)).contains("W893"));
 }
+
+#[test]
+fn budgets_roll_up_through_intermediates_and_skip_drafts_alternatives_and_duplicates() {
+    // G (100) -> M (nothing) -> L1, L2 (80 each): the leaves sum to 160
+    let over = files(vec![
+        req("REQ-QT-001", None, "  - {kind: latency, value: 100, unit: ms}\n", ""),
+        req("REQ-QT-002", Some("REQ-QT-001"), "  - {kind: wcet, value: 1, unit: ms}\n", ""),
+        req("REQ-QT-003", Some("REQ-QT-002"), "  - {kind: latency, value: 80, unit: ms}\n", ""),
+        req("REQ-QT-004", Some("REQ-QT-002"), "  - {kind: latency, value: 80, unit: ms}\n", ""),
+    ]);
+    assert!(validate(&model(&over)).contains("W893"));
+    // a draft child does not count
+    let draft = files(vec![
+        req("REQ-QT-001", None, "  - {kind: latency, value: 100, unit: ms}\n", ""),
+        req("REQ-QT-002", Some("REQ-QT-001"), "  - {kind: latency, value: 60, unit: ms}\n", ""),
+        req("REQ-QT-003", Some("REQ-QT-001"), "  - {kind: latency, value: 60, unit: ms}\n", "").tap_draft(),
+    ]);
+    assert!(!validate(&model(&draft)).contains("W893"));
+    // a gated (variant) child is left to the per-variant check
+    let gated = files(vec![
+        req("REQ-QT-001", None, "  - {kind: latency, value: 100, unit: ms}\n", ""),
+        req("REQ-QT-002", Some("REQ-QT-001"), "  - {kind: latency, value: 80, unit: ms}\n", ""),
+        req("REQ-QT-003", Some("REQ-QT-001"), "  - {kind: latency, value: 80, unit: ms}\n", "appliesWhen: FEAT-NOPE-001\n"),
+    ]);
+    assert!(!validate(&model(&gated)).contains("W893"));
+    // a duplicate kind is E895; a duplicated derivedFrom edge does not double a child
+    let dup = files(vec![req("REQ-QT-001", None, "  - {kind: latency, value: 5, unit: ms}\n  - {kind: latency, value: 6, unit: ms}\n", "")]);
+    assert!(validate(&model(&dup)).contains("E895"));
+    let twice = vec![
+        req("REQ-QT-001", None, "  - {kind: latency, value: 100, unit: ms}\n", ""),
+        {
+            let (n, c) = req("REQ-QT-002", Some("REQ-QT-001"), "  - {kind: latency, value: 60, unit: ms}\n", "");
+            (n, c.replace("derivedFrom: [REQ-QT-001]", "derivedFrom: [REQ-QT-001, REQ-QT-001]"))
+        },
+    ];
+    assert!(!validate(&model(&files(twice))).contains("W893"));
+}
+
+trait TapDraft {
+    fn tap_draft(self) -> (String, String);
+}
+impl TapDraft for (String, String) {
+    fn tap_draft(self) -> (String, String) {
+        (self.0, self.1.replace("status: approved", "status: draft"))
+    }
+}
