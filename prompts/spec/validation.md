@@ -643,8 +643,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W612` | warning | the effective TestCase set is empty (no resolvable `testCases:` and no `selection:` match) |
 | `W613` | warning | a `TestCase` named explicitly in `testCases:` has status `draft`/`retired` |
 | `W614` | warning | an `approved`/`active` plan `demonstrates:` a `Requirement` that no member verifies (honours goal-closure — a member verifying a leaf of a demonstrated parent counts) |
-| `W615` | warning | results-gated: an `approved` plan has a member whose ingested verdict is Fail/Missing (only when a results sidecar is loaded) |
-| `W616` | warning | two plans share an identical `(configurations, scope)` pair (likely redundant) |
+| `W615` | warning | results-gated: an `approved` plan has members whose ingested verdict is Fail/Missing — one finding per plan listing them (only when a results sidecar is loaded) |
+| `W616` | warning | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant: one contains the other, or Jaccard overlap ≥ 0.5 (likely redundant) |
 
 A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
 

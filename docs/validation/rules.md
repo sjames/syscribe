@@ -1099,8 +1099,8 @@ computed) — mapped back to a label.
 | W612 | the effective TestCase set is empty |
 | W613 | a `TestCase` named explicitly in `testCases:` is `draft`/`retired` |
 | W614 | an `approved`/`active` plan demonstrates a `Requirement` that no member verifies (honours goal-closure) |
-| W615 | results-gated: an `approved` plan has a member whose ingested verdict is Fail/Missing |
-| W616 | two plans share an identical `(configurations, scope)` pair |
+| W615 | results-gated: an `approved` plan has members whose ingested verdict is Fail/Missing — one finding per plan listing them |
+| W616 | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant (one contains the other, or overlap ≥ 0.5) |
 
 A duplicate `TestPlan` `id` is the generic `E101`.
 

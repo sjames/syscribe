@@ -38,8 +38,10 @@ with `appliesWhen:` is variant-specific.
 - An **escaping member** — a member `TestCase` (per [[REQ-TRS-PLAN-003]]) that is active
   in **none** of the plan's bound configurations — **shall** raise `W611` (the plan
   carries a test that can never run in any product the plan targets).
-- Two TestPlans with an **identical** `(configurations, scope)` pair **shall** raise the
-  advisory warning `W616` (likely redundant or accidentally duplicated plans).
+- Two TestPlans with an **identical** `(configurations, scope)` pair **and redundant member
+  sets** (one contains the other, or Jaccard overlap ≥ 0.5) **shall** raise the advisory
+  warning `W616` (likely redundant or accidentally duplicated plans). Plans in the same
+  bucket with disjoint or lightly overlapping members are distinct and are not flagged.
 
 **Source:** GH #38; reuses ADR-PROJ-001 projection and the `matrix` coverage
 computation.

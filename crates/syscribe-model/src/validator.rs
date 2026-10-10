@@ -1882,11 +1882,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
 
             // W615: results-gated — an approved plan with a member whose ingested
-            // verdict is Fail/Missing. Only when a results sidecar is loaded.
+            // verdict is Fail/Missing. Only when a results sidecar is loaded. One
+            // finding per plan listing the affected functions (GH #260); each root
+            // cause is reported once, per TestCase, as W010.
             if status == "approved" {
                 if let Some(results) = &config.results {
                     use crate::results::FnVerdict;
                     let func_key = serde_yaml::Value::String("function".into());
+                    let mut bad: Vec<(String, String, &str)> = Vec::new();
                     for tc in &members {
                         let Some(fns) = &tc.frontmatter.test_functions else {
                             continue;
@@ -1901,19 +1904,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                             .id
                                             .as_deref()
                                             .unwrap_or(tc.qualified_name.as_str());
-                                        let what = if v == FnVerdict::Fail { "FAILED" } else { "was missing from" };
-                                        findings.push(warning(
-                                            "W615",
-                                            &file,
-                                            &format!(
-                                                "approved TestPlan member TestCase '{}' has test function '{}' that {} the ingested results",
-                                                tc_id, func, what
-                                            ),
-                                        ));
+                                        let what = if v == FnVerdict::Fail { "FAILED" } else { "missing" };
+                                        bad.push((tc_id.to_string(), func.clone(), what));
                                     }
                                 }
                             }
                         }
+                    }
+                    if !bad.is_empty() {
+                        bad.sort();
+                        const SHOWN: usize = 10;
+                        let list = bad
+                            .iter()
+                            .take(SHOWN)
+                            .map(|(t, f, w)| format!("{t} {f} ({w})"))
+                            .collect::<Vec<_>>()
+                            .join("; ");
+                        let more = if bad.len() > SHOWN { format!("; and {} more", bad.len() - SHOWN) } else { String::new() };
+                        findings.push(warning(
+                            "W615",
+                            &file,
+                            &format!(
+                                "approved TestPlan has {} member test function(s) that failed or were missing from the ingested results: {}{}",
+                                bad.len(),
+                                list,
+                                more
+                            ),
+                        ));
                     }
                 }
             }
@@ -4308,12 +4325,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // W616: two TestPlans with an identical (configurations, scope) pair.
-    // The config set is the resolved/declared bound configurations (qualified
-    // names, order-independent); absent `configurations:` (config-agnostic) is its
-    // own distinct key so two config-agnostic plans at the same scope also collide.
+    // W616: two TestPlans in the same (configurations, scope) bucket whose effective
+    // TestCase sets are redundant (GH #255): one contains the other (equal sets
+    // included) or their Jaccard overlap is at least 0.5. The config set is the
+    // resolved/declared bound configurations (qualified names, order-independent);
+    // absent `configurations:` (config-agnostic) is its own distinct key. Plans with
+    // no members are skipped (W612 reports them).
     {
-        let mut seen: HashMap<(Vec<String>, Option<String>), &str> = HashMap::new();
+        type Bucket<'a> = Vec<(&'a str, std::collections::BTreeSet<String>)>;
+        let mut seen: HashMap<(Vec<String>, Option<String>), Bucket> = HashMap::new();
         for elem in elements {
             if !matches!(elem.frontmatter.element_type, Some(ElementType::TestPlan)) {
                 continue;
@@ -4324,17 +4344,32 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 .collect();
             cfgs.sort();
             cfgs.dedup();
-            let key = (cfgs, elem.frontmatter.scope.clone());
-            if let Some(prev) = seen.insert(key, elem.file_path.as_str()) {
+            let members: std::collections::BTreeSet<String> = crate::testplan::effective_testcases(elem, elements, &resolver)
+                .iter()
+                .map(|t| t.qualified_name.clone())
+                .collect();
+            if members.is_empty() {
+                continue;
+            }
+            let bucket = seen.entry((cfgs, elem.frontmatter.scope.clone())).or_default();
+            let redundant = bucket.iter().find_map(|(prev_file, prev)| {
+                let inter = members.intersection(prev).count();
+                let smaller = members.len().min(prev.len());
+                let union = members.len() + prev.len() - inter;
+                let contained = inter == smaller;
+                (contained || inter * 2 >= union).then(|| (*prev_file, inter, smaller))
+            });
+            if let Some((prev_file, inter, smaller)) = redundant {
                 findings.push(warning(
                     "W616",
                     &elem.file_path,
                     &format!(
-                        "TestPlan shares an identical (configurations, scope) pair with {} (likely redundant or duplicated plans)",
-                        prev
+                        "TestPlan shares {} of {} members with {} in the same (configurations, scope) bucket (likely redundant or duplicated plans)",
+                        inter, smaller, prev_file
                     ),
                 ));
             }
+            bucket.push((elem.file_path.as_str(), members));
         }
     }
 
