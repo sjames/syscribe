@@ -13,7 +13,7 @@ requirement an Argument already cites is shown once). Nodes with no evidence are
 marked [UNDEVELOPED]; each goal gets a SUPPORTED/INCOMPLETE/FAILING verdict and a
 Completeness summary follows. In the text output a Requirement or Argument subtree that
 was already printed under the same goal is shown again as a single line marked
-`(see above)`; JSON, DOT and Mermaid keep the full tree. An unknown <SG-id> exits 1.
+`(see above)`; JSON keeps the full tree, and DOT/Mermaid draw each node once with all its edges. An unknown <SG-id> exits 1.
 
 ## OPTIONS
     --config <C>   Project onto a Configuration (id/qname or 'Features::A,…') —

@@ -15,4 +15,4 @@ The text output of `safety-case` shall not repeat a subtree it has already print
 
 - Within one goal's tree, a Requirement or Argument node that has children and was already expanded earlier is printed once more as its own line followed by ` (see above)`, without its children.
 - Leaf nodes (for example a TestCase) are printed wherever they occur.
-- The JSON, DOT and Mermaid outputs and the completeness counts are unchanged.
+- The JSON output (which keeps the full tree), the DOT and Mermaid outputs (which already draw each node once) and the completeness counts are unchanged.
