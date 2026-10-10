@@ -101,3 +101,34 @@ fn re_ingesting_a_run_replaces_it_and_keeps_the_others() {
     let r1 = runs.iter().find(|r| r["run"] == "R1").unwrap();
     assert_eq!(r1["functions"], 1, "{o}");
 }
+
+#[test]
+fn bad_run_arguments_are_usage_errors() {
+    let d = dir();
+    let a = junit(&d, "a.xml", &[("t1", "pass")]);
+    for args in [vec!["--run", "--json", a.as_str()], vec!["--run", "", a.as_str()], vec![a.as_str(), "--run"], vec!["--runs", "R1", a.as_str()]] {
+        let mut full = vec!["ingest-results", "--format", "junit"];
+        full.extend(args.iter());
+        let (o, c) = run(&d, &full);
+        assert_eq!(c, 1, "{args:?}: {o}");
+    }
+    assert!(!d.join("model/.syscribe/results-history.json").exists());
+}
+
+#[test]
+fn a_vanished_failure_trips_the_gate_and_only_shared_sections_are_compared() {
+    let d = dir();
+    let a = junit(&d, "a.xml", &[("t_fail", "fail"), ("t_ok", "pass")]);
+    let b = junit(&d, "b.xml", &[("t_ok", "pass")]);
+    run(&d, &["ingest-results", "--format", "junit", "--run", "R1", &a]);
+    run(&d, &["ingest-results", "--format", "junit", "--run", "R2", &b]);
+    assert_eq!(run(&d, &["results", "diff", "R1", "R2", "--fail-on-regression"]).1, 1);
+    // R3 adds a session-log section R1 lacks: its scenarios are not "new regressions" against R1
+    let log = d.join("log.json");
+    std::fs::write(&log, r#"[{"testCase":"TC-X-001","scenario":"S","steps":[{"cmd":"x"}],"result":"fail"}]"#).unwrap();
+    run(&d, &["ingest-results", "--format", "junit", "--run", "R3", &a]);
+    run(&d, &["ingest-results", "--format", "session-log", "--run", "R3", log.to_str().unwrap()]);
+    let (o, _) = run(&d, &["results", "diff", "R1", "R3", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&o).unwrap();
+    assert!(v["regressions"].as_array().unwrap().is_empty(), "{o}");
+}

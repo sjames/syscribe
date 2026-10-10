@@ -1188,10 +1188,16 @@ fn main() {
                     file = Some(rest[i].as_str());
                     break;
                 }
+                if let Some(r) = rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str()) {
+                    if r.is_empty() || r.starts_with('-') {
+                        eprintln!("ingest-results: --run needs a run id that is not empty and does not start with '-' (got '{r}')");
+                        std::process::exit(1);
+                    }
+                }
                 match file {
                     Some(f) => ingest::cmd_ingest_results(model_root, format, f, rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str())),
                     None => {
-                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit] <file>");
+                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log] [--run <run-id>] <file>");
                         std::process::exit(1);
                     }
                 }

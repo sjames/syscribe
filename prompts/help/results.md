@@ -22,7 +22,9 @@ two runs per test:
 - **Still failing** — failing in both
 - **Other changes** — any other difference, including tests that dropped out of B
 
-`--fail-on-regression` exits 1 when there is a regression (CI gate). An unknown
+`--fail-on-regression` exits 1 when there is a regression or a failing test vanished
+or was skipped in B (CI gate). Only the sections (function-level, session-log) that
+both runs hold are compared. Run ids must be non-empty and not start with `-`. An unknown
 run id exits 1.
 
 Not yet: per-configuration verdicts, a `--results-as-of <run>` lens on

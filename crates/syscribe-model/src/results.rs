@@ -772,6 +772,17 @@ pub struct RunDiff {
     pub other_changes: Vec<TestChange>,
 }
 
+impl RunDiff {
+    /// A failing test that vanished or was skipped (`fail` -> absent/ignored) — not a regression,
+    /// but a gate must not let it through.
+    pub fn vanished_failures(&self) -> Vec<&TestChange> {
+        self.other_changes
+            .iter()
+            .filter(|c| c.from == Some(Verdict::Fail) && matches!(c.to, None | Some(Verdict::Ignored)))
+            .collect()
+    }
+}
+
 impl RunHistory {
     pub fn path(model_root: &Path) -> PathBuf {
         model_root.join(".syscribe").join("results-history.json")
@@ -791,7 +802,10 @@ impl RunHistory {
     pub fn save(&self, model_root: &Path) -> std::io::Result<PathBuf> {
         let p = Self::path(model_root);
         std::fs::create_dir_all(p.parent().expect("has parent"))?;
-        std::fs::write(&p, serde_json::to_string_pretty(self).expect("history serialises"))?;
+        // Write beside and rename, so a crash never leaves a truncated (unreadable) history.
+        let tmp = p.with_extension("json.tmp");
+        std::fs::write(&tmp, serde_json::to_string_pretty(self).expect("history serialises"))?;
+        std::fs::rename(&tmp, &p)?;
         Ok(p)
     }
 
@@ -826,13 +840,22 @@ impl RunHistory {
 }
 
 impl RunRecord {
-    fn all(&self) -> std::collections::BTreeMap<String, Verdict> {
-        self.by_leaf.iter().chain(self.by_scenario.iter()).map(|(k, v)| (k.clone(), *v)).collect()
+    /// The verdicts of the sections both runs hold (a run that only ingested function results is
+    /// not compared against scenarios the other run recorded).
+    fn comparable(&self, other: &RunRecord) -> std::collections::BTreeMap<String, Verdict> {
+        let mut m = std::collections::BTreeMap::new();
+        if !self.by_leaf.is_empty() && !other.by_leaf.is_empty() {
+            m.extend(self.by_leaf.iter().map(|(k, v)| (k.clone(), *v)));
+        }
+        if !self.by_scenario.is_empty() && !other.by_scenario.is_empty() {
+            m.extend(self.by_scenario.iter().map(|(k, v)| (k.clone(), *v)));
+        }
+        m
     }
 
-    /// Compare this run (`from`) with `to`.
+    /// Compare this run (`from`) with `to`, over the sections both runs hold.
     pub fn diff(&self, to: &RunRecord) -> RunDiff {
-        let (a, b) = (self.all(), to.all());
+        let (a, b) = (self.comparable(to), to.comparable(self));
         let mut keys: Vec<&String> = a.keys().chain(b.keys()).collect();
         keys.sort();
         keys.dedup();

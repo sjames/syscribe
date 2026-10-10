@@ -101,7 +101,7 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
             } else {
                 print!("{}", render(&d));
             }
-            if gate && !d.regressions.is_empty() {
+            if gate && (!d.regressions.is_empty() || !d.vanished_failures().is_empty()) {
                 1
             } else {
                 0
