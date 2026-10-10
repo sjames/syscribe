@@ -138,6 +138,7 @@ fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, c
             }
         },
     };
+    let (full_elements, full_resolver) = (elements, resolver);
     let view_resolver;
     let (elements, resolver): (&[RawElement], &Resolver) = match &projected {
         Some(v) => {
@@ -148,7 +149,10 @@ fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, c
     };
     let Some(elem) = resolver.resolve_ref(elements, qname) else {
         match config_flag {
-            Some(c) => eprintln!("error: element '{qname}' not found (or not active in configuration '{c}')"),
+            Some(c) if full_resolver.resolve_ref(full_elements, qname).is_some() => {
+                eprintln!("error: '{qname}' exists but is not active in configuration '{c}'")
+            }
+            Some(_) => eprintln!("error: element '{qname}' not found"),
             None => eprintln!("error: element '{qname}' not found"),
         }
         return 1;

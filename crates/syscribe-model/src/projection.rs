@@ -183,7 +183,9 @@ pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> 
     let pkg = variability::package_conditions(elements);
     let alias = variability::feature_id_to_qname(elements);
     let sel = variability::canon_selection(sel, &alias);
-    elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect()
+    let resolver = Resolver::new(elements);
+    let gate = |e: &RawElement| is_active_canon(e, &sel, &pkg, &alias);
+    elements.iter().filter(|e| gate(e) && !allocation_gated_off(e, elements, &resolver, &gate)).cloned().collect()
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────
@@ -226,6 +228,26 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
             out.push((RefKind::Traceability, s.clone()));
         }
     }
+    // List-valued references of the analysis/process elements (GH #234): an inactive member
+    // escapes as W019 rather than failing the element's own resolution check.
+    for xs in [&fm.reviews, &fm.test_cases, &fm.demonstrates, &fm.confirms, &fm.supports].into_iter().flatten() {
+        for s in xs {
+            out.push((RefKind::Traceability, s.clone()));
+        }
+    }
+    for entry in fm.evidence.iter().flatten() {
+        // `Argument.evidence` entries are plain references; `PlanningItem.evidence` entries are
+        // mappings whose `ref:` names an element (`path:` entries are files, not references).
+        match entry {
+            serde_yaml::Value::String(s) => out.push((RefKind::Traceability, s.clone())),
+            serde_yaml::Value::Mapping(m) => {
+                if let Some(r) = m.get("ref").and_then(|v| v.as_str()) {
+                    out.push((RefKind::Traceability, r.to_string()));
+                }
+            }
+            _ => {}
+        }
+    }
     for s in [&fm.breakdown_adr, &fm.derived_from_safety_goal]
         .into_iter()
         .flatten()
@@ -255,8 +277,9 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
     let alias = variability::feature_id_to_qname(full);
     let sel = &variability::canon_selection(sel, &alias);
     let mut findings = Vec::new();
+    let gate = |e: &RawElement| is_active_canon(e, sel, &pkg, &alias);
     for x in full {
-        if !is_active_canon(x, sel, &pkg, &alias) {
+        if !gate(x) || allocation_gated_off(x, full, &resolver, &gate) {
             continue;
         }
         for (kind, target) in outbound_refs(x) {
@@ -298,7 +321,25 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
 /// a target pruned from the variant is E226/W019 here, never a dangling ref.
 const LENS_SUPPRESS: &[&str] = &[
     "E102", "E103", "E104", "E105", "E106", "E110", "E111", "E112", "E113", "E114", "E320", "E632",
+    // Per-kind resolution of list-valued references (GH #234): a member inactive in the variant is
+    // a W019 escape; one that resolves nowhere is still reported by whole-model `validate`.
+    "E601", "E603", "E704", "E716", "E851", "E855",
 ];
+
+/// An `Allocation` is gated by the AND of its endpoints' gates (GH #234): inactive when any
+/// endpoint that exists in the full model is inactive. `active` answers for a full-model element.
+fn allocation_gated_off(x: &RawElement, full: &[RawElement], resolver: &Resolver, active: &dyn Fn(&RawElement) -> bool) -> bool {
+    if x.frontmatter.element_type.as_ref() != Some(&ElementType::Allocation) {
+        return false;
+    }
+    let fm = &x.frontmatter;
+    fm.allocated_from
+        .iter()
+        .flatten()
+        .chain(fm.allocated_to.iter().flatten())
+        .filter_map(|r| resolver.resolve_ref(full, r))
+        .any(|t| !active(t))
+}
 
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the
 /// standard validator over the projected subset (minus the suppressed

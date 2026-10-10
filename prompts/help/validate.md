@@ -35,6 +35,24 @@ gating flags promote chosen warnings to build failures.
                             inferred: .xml → junit, else cargo-json).
     --fetch-remote          Run the .syscribe.toml [remote] hook to fetch remote sourceFiles.
 
+## VARIANT ESCAPES — WHICH CHECK SEES WHAT
+A reference from an active element to one gated off in a variant "escapes" it. The three
+checks differ in reach:
+
+    validate                 sees no escapes (the 150% model: every element is present)
+    validate --config C      checks that one variant; --all-configs checks every stored
+                             Configuration
+    feature-check --deep     proves the absence of escapes (E227) for every valid
+                             configuration, stored or not
+
+In a variant, a structural reference to an inactive element is E226; a traceability or
+list-valued reference (satisfies, verifies, derivedFrom, links, ReviewRecord.reviews,
+Argument.supports/evidence, PlanningItem evidence ref, ConfirmationMeasure.confirms,
+TestPlan.demonstrates/testCases) is the warning W019 — the per-kind "does not resolve"
+errors are not raised for a target that exists but is inactive. An Allocation is inactive
+in a variant when any endpoint is. A mandatory single reference (FaultTree.topEvent) keeps
+its error.
+
 ## EXAMPLES
     # Findings table for the whole model
     syscribe -m model/ validate
