@@ -197,7 +197,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W800` | `HazardousEvent` not referenced by any `SafetyGoal.hazardousEvents` |
+| `W800` | `HazardousEvent` not referenced by any `SafetyGoal.hazardousEvents` (not raised when S/E/C derive QM) |
 | `W801` | `SafetyGoal` has no integrity level (`asilLevel`, `silLevel`, or `plLevel`) |
 | `W802` | `CybersecurityGoal` not implemented by any `SecurityControl.implementsGoals` |
 | `W803` | `VulnerabilityReport` has `status: open` |

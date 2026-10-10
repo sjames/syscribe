@@ -759,7 +759,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` |
+| W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` (skipped when S/E/C derive QM) |
 | W802 | CybersecurityGoal is not implemented by any `SecurityControl.implementsGoals` |
 | W803 | VulnerabilityReport has `status: open` — ensure it is being tracked and mitigated |
 | W804 | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` pointing to it |

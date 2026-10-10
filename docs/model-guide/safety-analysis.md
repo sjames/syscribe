@@ -97,7 +97,7 @@ The brake system shall maintain hydraulic pressure on both axles at all
 times during vehicle motion unless commanded by the driver.
 ```
 
-`hazardousEvents:` must each resolve to a `HazardousEvent` element (E825). W801 fires if no integrity level field is set. W800 fires if a `HazardousEvent` is not referenced by any `SafetyGoal`.
+`hazardousEvents:` must each resolve to a `HazardousEvent` element (E825). W801 fires if no integrity level field is set. W800 fires if a `HazardousEvent` is not referenced by any `SafetyGoal`, unless its S/E/C derive QM (no goal required).
 
 ### Generating templates
 

@@ -6273,7 +6273,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if Resolver::is_hazardous_event(elem) {
             let referenced = he_referenced.contains(&elem.qualified_name)
                 || elem.frontmatter.id.as_ref().is_some_and(|id| he_referenced.contains(id));
-            if !referenced {
+            // A QM-rated event needs no safety goal (ISO 26262-3 Table 4, GH #230).
+            let hf = &elem.frontmatter;
+            let is_qm = matches!(
+                (hf.severity.as_deref(), hf.exposure.as_deref(), hf.controllability.as_deref()),
+                (Some(s), Some(e), Some(c)) if crate::asil::derive(s, e, c) == Some("QM")
+            );
+            if !referenced && !is_qm {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W800", &elem.file_path,
                     &format!("HazardousEvent '{}' is not referenced by any SafetyGoal.hazardousEvents", id)));
@@ -13070,6 +13076,19 @@ mod link_type_tests {
         assert!(has(&run(&[he("HE-TST-002", "severity: S3\n")], ""), "W813"));
         let mixed = run(&[he("HE-TST-003", "severity: S0\nconsequence: Cd\n")], "");
         assert!(has(&mixed, "W814"));
+    }
+
+    #[test]
+    fn w800_skips_qm_events_only() {
+        // TC-TRS-HARA-001 / GH #230
+        let qm = run(&[he("HE-TST-010", "severity: S1\nexposure: E4\ncontrollability: C1\n")], "");
+        assert!(!has(&qm, "W800"), "{qm:?}");
+        let zero = run(&[he("HE-TST-011", "severity: S0\nexposure: E4\ncontrollability: C3\n")], "");
+        assert!(!has(&zero, "W800"), "{zero:?}");
+        let asil = run(&[he("HE-TST-012", "severity: S3\nexposure: E4\ncontrollability: C3\n")], "");
+        assert!(has(&asil, "W800"), "{asil:?}");
+        let partial = run(&[he("HE-TST-013", "severity: S1\n")], "");
+        assert!(has(&partial, "W800"), "{partial:?}");
     }
 
     #[test]
