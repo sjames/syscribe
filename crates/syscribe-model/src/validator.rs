@@ -2503,7 +2503,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             // E851: confirms refs must resolve.
             // E860: target must be a SafetyGoal, CybersecurityGoal, HazardousEvent, Requirement, or an
-            // analysis / plan work product a confirmation review covers (REQ-TRS-SEC-005, GH #233).
+            // analysis / plan work product a confirmation review covers (REQ-TRS-SEC-005, REQ-TRS-CONFM-001, GH #233).
             if let Some(ref refs) = fm.confirms {
                 for r in refs {
                     match resolver.resolve_ref(elements, r) {

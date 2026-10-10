@@ -367,7 +367,7 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A�
 | `diagnosticCoverage` / `latentDiagnosticCoverage` | architecture elements | float | DC / DCl, `0.0`–`1.0` |
 | `measureType` | ConfirmationMeasure | string | `confirmation_review`·`functional_safety_audit`·`functional_safety_assessment`·`cybersecurity_assessment` |
 | `independenceLevel` | ConfirmationMeasure | string | `I1`·`I2`·`I3` |
-| `confirms` | ConfirmationMeasure | list | Work products confirmed (any element) |
+| `confirms` | ConfirmationMeasure | list | Work products confirmed: `SafetyGoal`, `CybersecurityGoal`, `HazardousEvent`, `Requirement`, `FaultTree`, `FMEASheet`, `TARASheet`, `ADR`, `Argument`, `TestPlan`, `Allocation` (`E851` unresolved, `E860` other type; confirm a sheet, not its exploded rows) |
 | `argumentType` | Argument | string | `claim`·`strategy`·`solution` |
 | `supports` | Argument | string or list | SafetyGoal or parent Argument argued for |
 | `evidence` | Argument | list | Requirement/TestCase/Argument/AssumptionOfUse refs (strings) |
