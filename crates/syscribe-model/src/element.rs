@@ -1420,8 +1420,8 @@ pub struct ColdFrontmatter3 {
     pub initial_effect: Option<serde_yaml::Value>,
     /// FMI plants (REQ-TRS-FMI-001): an FMU declaration on a `Part`/`PartDef`; the wiring on a TestCase.
     pub fmu: Option<serde_yaml::Value>,
-    pub plants: Option<Vec<String>>,
-    pub plant_step: Option<String>,
+    pub plants: Option<serde_yaml::Value>,
+    pub plant_step: Option<serde_yaml::Value>,
     pub plant_connections: Option<Vec<serde_yaml::Value>>,
     pub is_negated: Option<bool>,
 
@@ -2002,8 +2002,8 @@ struct ColdWire {
     pub initial_effect: Option<serde_yaml::Value>,
     /// FMI plants (REQ-TRS-FMI-001): an FMU declaration on a `Part`/`PartDef`; the wiring on a TestCase.
     pub fmu: Option<serde_yaml::Value>,
-    pub plants: Option<Vec<String>>,
-    pub plant_step: Option<String>,
+    pub plants: Option<serde_yaml::Value>,
+    pub plant_step: Option<serde_yaml::Value>,
     pub plant_connections: Option<Vec<serde_yaml::Value>>,
     pub is_negated: Option<bool>,
 

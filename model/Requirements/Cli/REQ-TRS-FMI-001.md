@@ -10,7 +10,7 @@ tags:
   - fmi
 ---
 
-Scenarios and scripts of a state machine shall be able to run against plant models supplied as FMI 2.0 or 3.0 Co-Simulation FMUs, with syscribe as the master (GH #291, part of #272). The whole feature is gated by the Cargo feature `fmi`, off by default. Rationale and the co-simulation algorithm: `docs/design/fmi-plant-cosimulation.md`.
+Scenarios of a state machine shall be able to run against plant models supplied as FMI 2.0 or 3.0 Co-Simulation FMUs, with syscribe as the master (GH #291, part of #272). The whole feature is gated by the Cargo feature `fmi`, off by default. Rationale and the co-simulation algorithm: `docs/design/fmi-plant-cosimulation.md`.
 
 ## Behavior
 
@@ -20,7 +20,7 @@ Scenarios and scripts of a state machine shall be able to run against plant mode
 - **Co-simulation loop.** `advance(Δ)` of a run with plants is the loop of the design note: the discrete side settles, mapped machine variables are written to plant inputs (held constant over the step), every plant takes a `do_step` to the next time, which is the earlier of the next multiple of `plantStep`, the earliest discrete due time (a timer or timed accept) and the target; plant outputs are read into the mapped machine variables; the discrete side settles again, so a `when:` over a plant output is evaluated at every step boundary. The plant is not interpolated between boundaries.
 - **Initialisation.** Parameters and start values are set, each FMU enters and exits initialization mode, and the initial outputs are read before the machine's first settle. Every scenario or script run instantiates fresh plants.
 - **Units.** Values cross the boundary in SI base units, converted with the FMU's declared unit factor and offset; the dimension of every connection is checked once, before the run starts.
-- **Scenarios.** The step vocabulary of REQ-TRS-SMSCEN-001 is unchanged; plant outputs are ordinary machine variables through their connections, and `<Plant>.<variable>` is readable (never writable) in a `Then` expression. `When <duration> elapses` runs the loop; `When <variable> becomes …` on a mapped input reaches the plant at the next step boundary.
+- **Scenarios.** The step vocabulary of REQ-TRS-SMSCEN-001 is unchanged; plant outputs are ordinary machine variables through their connections. `When <duration> elapses` runs the loop; `When <variable> becomes …` on a mapped input reaches the plant at the next step boundary.
 - **Errors.** An FMU error or discard status, a request to terminate, or a value that is not finite stops the run; the message and the plant name are recorded as the final `error` trace step.
 - **Evidence and determinism.** A recorded run carries the provenance of every plant: FMU file hash, FMI version and kind, GUID/instantiation token, communication step, parameters, target triple and the version of the FMI wrapper. The trace records the values exchanged with each plant at every settle point (changes only). Results are reproducible for the same FMU binary on the same platform; across platforms assertions on plant values should use tolerances.
 - **Not in v1:** Model Exchange, SSP packages, FMI clocks and Scheduled Execution, variable-step master algorithms with rollback, plants with different step sizes, action flows with plants, exporting syscribe behaviour as an FMU.

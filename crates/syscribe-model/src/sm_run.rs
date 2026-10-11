@@ -243,6 +243,11 @@ impl<'m> Run<'m> {
         const EPS: f64 = 1e-12;
         let target = self.time + secs;
         let h = self.cosim.as_ref().expect("plants").step;
+        // a step this small (or a run this long) would take effectively forever, and float grid arithmetic degrades
+        if !(secs / h <= 5e6 && (self.time + secs) / h < 9e15) {
+            let r = Err(format!("{} s at a plant step of {h} s is more than 5,000,000 communication steps; use a larger `plantStep`", secs));
+            return self.finish(r);
+        }
         while self.time < target - EPS {
             let grid = ((self.time / h + 1e-9).floor() + 1.0) * h;
             let mut t_next = grid.min(target);

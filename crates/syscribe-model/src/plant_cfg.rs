@@ -114,9 +114,25 @@ pub fn declares_plants(fm: &crate::element::RawFrontmatter) -> bool {
 /// Read the wiring fields of a TestCase. Errors are `E888` messages.
 pub fn parse_wiring(fm: &crate::element::RawFrontmatter) -> Result<Wiring, Vec<String>> {
     let mut errs = Vec::new();
-    let mut w = Wiring { plants: fm.plants.clone().unwrap_or_default(), ..Default::default() };
-    if let Some(s) = &fm.plant_step {
-        match expr::parse(s).and_then(|e| e.eval(&|_: &str| None)) {
+    let mut w = Wiring::default();
+    match &fm.plants {
+        None => {}
+        Some(Y::Sequence(items)) => {
+            for (i, it) in items.iter().enumerate() {
+                match it {
+                    Y::String(s) => w.plants.push(s.clone()),
+                    _ => errs.push(format!("`plants[{i}]` must be a name")),
+                }
+            }
+        }
+        Some(_) => errs.push("`plants:` must be a list of Part names".to_string()),
+    }
+    if let Some(v) = &fm.plant_step {
+        let Some(s) = text(v) else {
+            errs.push("`plantStep:` must be a duration such as \"10 ms\"".to_string());
+            return Err(errs);
+        };
+        match expr::parse(&s).and_then(|e| e.eval(&|_: &str| None)) {
             Ok(Value::Num(q)) if Some(q.dim) == expr::unit_scale("s").map(|x| x.1) && q.v > 0.0 => w.step = Some(q.v),
             _ => errs.push(format!("`plantStep: {s}` is not a positive duration")),
         }

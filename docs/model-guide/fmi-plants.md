@@ -17,6 +17,7 @@ The feature is off by default: `cargo build --features fmi` (it needs a C toolch
 
 A `Part` carries the FMU:
 
+<!-- syscribe-example: expect I011 reason="the default build has no FMI backend, so plant fields are reported as unchecked" -->
 ```yaml
 ---
 type: Part
@@ -32,6 +33,7 @@ fmu:
 
 `file` is local (relative to the model root); `sha256` pins the exact binary; `parameters` are set before the run, in the FMU's units. A TestCase selects plants and wires them to the machine under test:
 
+<!-- syscribe-example: expect I011 reason="the default build has no FMI backend, so plant fields are reported as unchecked" -->
 ```yaml
 ---
 type: TestCase
@@ -48,7 +50,7 @@ plantConnections:
 ---
 ```
 
-A connection is `Plant.variable` → machine variable (a plant output) or machine variable → `Plant.variable` (a plant input). Direction, type and unit dimension are checked before anything runs.
+A connection is `Plant.variable` → machine variable (a plant output) or machine variable → `Plant.variable` (a plant input). Parameters are not wired; set them under `fmu: parameters:`. Plant names must be distinct. Direction, type and unit dimension are checked before anything runs.
 
 ## Semantics
 
@@ -56,6 +58,13 @@ A connection is `Plant.variable` → machine variable (a plant output) or machin
 * Inputs are held constant over a step (zero-order hold). Outputs are read at the end of the step and the machine then settles, so a `when:` trigger fires at the **first step boundary after the crossing**; there is no interpolation. Initial outputs are read before the first settle.
 * Values cross the boundary in **SI base units** (the FMU's `factor` and `offset` are applied); `Real`/`Float32/64`, `Integer` and `Boolean` are supported.
 * Every scenario instantiates fresh plants, so scenarios cannot affect each other.
+
+## Limits of v1
+
+* The initial outputs (time 0) are read right after initialization, before the machine's variables are written to the plant's inputs; inputs take effect from the first step.
+* `Float32` and array variables, strings and binaries are not supported (`E889`).
+* More than 5,000,000 communication steps in one `When … elapses` is refused; use a larger `plantStep`.
+* Only the `syscribe` CLI built with the feature registers the backend; the web server reports `I011`.
 
 ## Evidence
 

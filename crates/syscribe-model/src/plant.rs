@@ -185,6 +185,11 @@ fn build_links(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], ste
     if !(step.is_finite() && step > 0.0) {
         errs.push(format!("the communication step must be a positive duration, got {step}"));
     }
+    for (i, (n, _)) in infos.iter().enumerate() {
+        if infos[..i].iter().any(|x| x.0 == *n) {
+            errs.push(format!("two plants are named '{n}'; plant names must be distinct"));
+        }
+    }
     let mut links = Vec::new();
     for (from, to) in connections {
         let spec = format!("{from} → {to}");
@@ -213,7 +218,7 @@ fn build_links(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], ste
             errs.push(format!("connection {spec}: '{mname}' is not a variable of the machine"));
             continue;
         };
-        let ok_dir = if to_plant { matches!(var.causality, Causality::Input | Causality::Parameter) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
+        let ok_dir = if to_plant { matches!(var.causality, Causality::Input) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
         if !ok_dir {
             errs.push(format!(
                 "connection {spec}: '{}.{pvar}' is {} and cannot be {}",
@@ -225,7 +230,7 @@ fn build_links(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], ste
                     Causality::CalculatedParameter => "a calculated parameter",
                     _ => "not exchangeable",
                 },
-                if to_plant { "written (only inputs and tunable parameters can)" } else { "read (only outputs and calculated parameters can)" }
+                if to_plant { "written (only inputs can; set parameters with `fmu: parameters:`)" } else { "read (only outputs and calculated parameters can)" }
             ));
             continue;
         }

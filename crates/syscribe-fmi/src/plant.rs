@@ -27,6 +27,20 @@ pub struct FmiPlant {
     provenance: serde_json::Value,
 }
 
+impl Drop for FmiPlant {
+    /// FMI requires `Terminate` before the instance is freed (also on the error path of `instantiate`).
+    fn drop(&mut self) {
+        match &mut self.inner {
+            Inner::V2(i) => {
+                let _ = i.terminate();
+            }
+            Inner::V3(i) => {
+                let _ = i.terminate();
+            }
+        }
+    }
+}
+
 pub fn instantiate(file: &Path, parameters: &[(String, f64)]) -> Result<Box<dyn Plant>, String> {
     let desc = md::read(file)?;
     let info = md::inspect(file)?;
@@ -36,7 +50,8 @@ pub fn instantiate(file: &Path, parameters: &[(String, f64)]) -> Result<Box<dyn 
     let vars: HashMap<String, (u32, VarType)> = desc.variables.iter().map(|v: &MdVar| (v.name.clone(), (v.value_reference, v.ty))).collect();
     let provenance = serde_json::json!({
         "kind": "fmi",
-        "file": file.display().to_string(),
+        "file": file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+        "parameters": parameters.iter().map(|(n, v)| serde_json::json!({"name": n, "value": v})).collect::<Vec<_>>(),
         "fmiVersion": desc.fmi_version,
         "mode": "cosimulation",
         "modelName": desc.model_name,

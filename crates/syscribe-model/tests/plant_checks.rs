@@ -130,3 +130,13 @@ fn bad_connections_are_e889() {
     let f = findings(PART, &TC.replace("to: height", "to: touched"), "abc123\n2.0\n");
     assert!(has(&f, "E889", "type"), "{f:?}");
 }
+
+#[test]
+fn parameters_cannot_be_wired_and_odd_yaml_types_are_e888_not_a_parse_failure() {
+    let f = findings(PART, &TC.replace("{from: thrust, to: Ball.u}", "{from: thrust, to: Ball.e}"), "abc123\n2.0\n");
+    assert!(has(&f, "E889", "only inputs"), "{f:?}");
+    let f = findings(PART, &TC.replace("\"10 ms\"", "0.01"), "abc123\n2.0\n");
+    assert!(has(&f, "E888", "plantStep"), "{f:?}");
+    let f = findings(PART, &TC.replace("[Ball]", "Ball"), "abc123\n2.0\n");
+    assert!(has(&f, "E888", "plants"), "{f:?}");
+}

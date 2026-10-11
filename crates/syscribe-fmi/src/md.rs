@@ -50,7 +50,7 @@ fn int(e: &BytesStart, name: &str) -> i8 {
 /// FMI base-unit exponents → syscribe's `Dim` order [L, M, T, I, Θ, N, J]; `rad` is dimensionless here.
 fn base_unit(e: &BytesStart) -> Unit {
     let dim = Dim([int(e, "m"), int(e, "kg"), int(e, "s"), int(e, "A"), int(e, "K"), int(e, "mol"), int(e, "cd")]);
-    Unit { dim: Some(dim), factor: num(e, "factor").unwrap_or(1.0), offset: num(e, "offset").unwrap_or(0.0) }
+    Unit { dim: Some(dim), factor: num(e, "factor").filter(|f| f.is_finite() && *f != 0.0).unwrap_or(1.0), offset: num(e, "offset").unwrap_or(0.0) }
 }
 
 fn causality(s: Option<&str>) -> Causality {
@@ -67,7 +67,8 @@ fn causality(s: Option<&str>) -> Causality {
 
 fn var_type(tag: &str) -> VarType {
     match tag {
-        "Real" | "Float64" | "Float32" => VarType::Real,
+        // Float32 would need the 32-bit accessors; it is reported as unsupported for now
+        "Real" | "Float64" => VarType::Real,
         "Integer" | "Int32" => VarType::Integer,
         "Boolean" => VarType::Boolean,
         _ => VarType::Other,
@@ -144,7 +145,7 @@ pub fn parse_model_description(xml: &str) -> Result<ModelDescription, String> {
             "ModelVariables" => in_vars = !empty,
             "ScalarVariable" if in_vars => {
                 let name = attr(&e, "name").unwrap_or_default();
-                let vr = attr(&e, "valueReference").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let vr = attr(&e, "valueReference").and_then(|v| v.parse().ok()).ok_or_else(|| format!("variable '{name}' has no valid valueReference"))?;
                 let c = causality(attr(&e, "causality").as_deref());
                 if !empty {
                     cur_sv = Some((name, vr, c));
@@ -154,10 +155,13 @@ pub fn parse_model_description(xml: &str) -> Result<ModelDescription, String> {
                 let (name, vr, c) = cur_sv.clone().unwrap();
                 raw_vars.push((name, vr, c, t.to_string(), attr(&e, "unit"), attr(&e, "declaredType")));
             }
-            t if in_vars && cur_sv.is_none() && attr(&e, "valueReference").is_some() => {
+            t if in_vars
+                && cur_sv.is_none()
+                && matches!(t, "Float32" | "Float64" | "Int8" | "UInt8" | "Int16" | "UInt16" | "Int32" | "UInt32" | "Int64" | "UInt64" | "Boolean" | "String" | "Binary" | "Enumeration" | "Clock") =>
+            {
                 // FMI 3.0: the variable is the element itself
                 let name = attr(&e, "name").unwrap_or_default();
-                let vr = attr(&e, "valueReference").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let vr = attr(&e, "valueReference").and_then(|v| v.parse().ok()).ok_or_else(|| format!("variable '{name}' has no valid valueReference"))?;
                 raw_vars.push((name, vr, causality(attr(&e, "causality").as_deref()), t.to_string(), attr(&e, "unit"), attr(&e, "declaredType")));
             }
             _ => {}

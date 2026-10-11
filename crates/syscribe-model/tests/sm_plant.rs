@@ -265,3 +265,21 @@ fn without_plants_advance_behaves_exactly_as_before() {
     assert_eq!(r.active(), ["B"]);
     assert!(r.plant_provenance().is_empty());
 }
+
+#[test]
+fn an_absurd_number_of_communication_steps_is_refused_instead_of_hanging() {
+    let m = machine(FALL);
+    let (c, i) = (Calls::default(), Inputs::default());
+    let mut r = Run::with_plants(&m, Options::default(), fall_cosim(&m, c.clone(), i, 1e-9));
+    r.advance(1e6);
+    assert!(r.error().is_some_and(|e| e.contains("communication steps")), "{:?}", r.error());
+    assert!(c.borrow().len() < 10, "no steps were taken");
+}
+
+#[test]
+fn two_plants_with_the_same_name_are_refused() {
+    let m = machine(FALL);
+    let mk = || Box::new(Ball::new(Calls::default(), Inputs::default())) as Box<dyn Plant>;
+    let e = CoSim::new(vec![("ball".to_string(), mk()), ("ball".to_string(), mk())], vec![("ball.h".into(), "height".into())], 0.1, &m).err().expect("refused");
+    assert!(e.iter().any(|x| x.contains("distinct")), "{e:?}");
+}

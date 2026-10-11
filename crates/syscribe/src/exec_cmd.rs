@@ -917,7 +917,11 @@ fn record_scenarios(
         let slug: String = v.scenario.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
         let tag = format!("{:08x}", v.scenario.bytes().fold(0x811c9dc5u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193)));
         let file = dir.join(format!("{tc}__{slug}-{tag}.json"));
-        let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "plants": v.plants, "trace": v.trace});
+        let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "trace": v.trace});
+        let mut body = body;
+        if !v.plants.is_empty() {
+            body["plants"] = serde_json::Value::Array(v.plants.clone());
+        }
         std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     }
     println!("Recorded {} scenario verdict(s){}.", outs.len(), run.map(|r| format!(" in run '{r}'")).unwrap_or_default());
@@ -1451,8 +1455,8 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
     let Some(be) = backend() else {
         return Err((1, "this TestCase uses plants but this build has no FMI support (rebuild with `cargo build --features fmi`)".into()));
     };
-    let fail = |es: Vec<String>| (2, es.join("; "));
-    let wiring = parse_wiring(&tc.frontmatter).map_err(fail)?;
+    let fail = |code: &str| { let code = code.to_string(); move |es: Vec<String>| (2, es.iter().map(|e| format!("{code}: {e}")).collect::<Vec<_>>().join("; ")) };
+    let wiring = parse_wiring(&tc.frontmatter).map_err(fail("E888"))?;
     let step = wiring.step.ok_or_else(|| (2, "`plants:` needs a `plantStep:`".to_string()))?;
     let resolver = syscribe_model::resolver::Resolver::new(elems);
     let cfg = ValidateConfig::with_model_root(model_root);
@@ -1460,12 +1464,13 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
         name: String,
         file: std::path::PathBuf,
         params: Vec<(String, f64)>,
+        sha256: Option<String>,
     }
     let mut specs: Vec<Spec> = Vec::new();
     for p in &wiring.plants {
         let pe = resolver.resolve_ref(elems, p).ok_or_else(|| (2, format!("plant '{p}' does not resolve")))?;
         let decl = pe.frontmatter.fmu.as_ref().ok_or_else(|| (2, format!("plant '{p}' has no `fmu:` declaration")))?;
-        let decl = parse_fmu(decl).map_err(fail)?;
+        let decl = parse_fmu(decl).map_err(fail("E888"))?;
         let file = match cfg.classify_source(&decl.file) {
             SourceLocation::Local(f) => f,
             SourceLocation::Remote(u) => return Err((2, format!("the FMU '{u}' is remote; only local files are supported"))),
@@ -1476,8 +1481,8 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
                 return Err((2, format!("E966: {}: declared sha256 {h} but the file hashes to {} (the FMU changed)", file.display(), info.sha256)));
             }
         }
-        let params = decl.raw_parameters(&info).map_err(fail)?;
-        specs.push(Spec { name: pe.qualified_name.rsplit("::").next().unwrap_or(&pe.qualified_name).to_string(), file, params });
+        let params = decl.raw_parameters(&info).map_err(fail("E888"))?;
+        specs.push(Spec { name: pe.qualified_name.rsplit("::").next().unwrap_or(&pe.qualified_name).to_string(), file, params, sha256: decl.sha256.clone() });
     }
     let machine = machine.clone();
     let conns = wiring.connections.clone();
@@ -1485,11 +1490,18 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
         let be = backend().expect("registered");
         let mut plants = Vec::new();
         for s in &specs {
+            // the file may have changed since it was checked: every instantiation is verified again
+            if let Some(h) = &s.sha256 {
+                let now = be.inspect(&s.file).map_err(|e| vec![format!("{}: {e}", s.name)])?;
+                if !h.eq_ignore_ascii_case(&now.sha256) {
+                    return Err(vec![format!("{}: declared sha256 {h} but the file hashes to {} (the FMU changed)", s.name, now.sha256)]);
+                }
+            }
             plants.push((s.name.clone(), be.instantiate(&s.file, &s.params).map_err(|e| vec![format!("{}: {e}", s.name)])?));
         }
         CoSim::new(plants, conns.clone(), step, &machine)
     };
     // build once now so wiring errors are reported before any scenario runs
-    build().map_err(fail)?;
+    build().map_err(fail("E889"))?;
     Ok(Some(Box::new(build)))
 }

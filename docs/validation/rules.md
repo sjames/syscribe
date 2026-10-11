@@ -943,7 +943,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E886 | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
 | E887 | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | E888 | Error | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
-| E889 | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
+| E889 | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output or a parameter, names two plants alike, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
 | W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)
