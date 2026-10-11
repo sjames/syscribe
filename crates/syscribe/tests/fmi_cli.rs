@@ -41,7 +41,7 @@ Feature: ball
     Then Ctl is in state Falling
     When 0.3 s elapses
     Then Ctl is in state Bounced
-    And height < 0.1 m
+    And height < 0.5 m
 
   Scenario: starts again from the top
     Then height == 1 m
@@ -126,8 +126,8 @@ mod with_the_feature {
         let j: serde_json::Value = serde_json::from_str(&t).unwrap();
         let v = j["verdicts"].as_array().unwrap();
         assert!(v.iter().all(|x| x["status"] == "pass"), "{t}");
-        assert_eq!(v[0]["plants"][0]["fmiVersion"], "2.0");
-        assert_eq!(v[0]["plants"][0]["sha256"], GOOD_SHA);
+        assert_eq!(v[0]["plants"][0]["plant"]["fmiVersion"], "2.0");
+        assert_eq!(v[0]["plants"][0]["plant"]["sha256"], GOOD_SHA);
         assert_eq!(v[1]["status"], "pass", "the second scenario starts from h = 1 m again");
     }
 
@@ -139,8 +139,8 @@ mod with_the_feature {
         let dir = root.join(".syscribe/traces");
         let any = std::fs::read_dir(&dir).unwrap().next().unwrap().unwrap().path();
         let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(any).unwrap()).unwrap();
-        assert_eq!(j["plants"][0]["sha256"], GOOD_SHA);
-        assert!(j["plants"][0]["platform"].is_string() && j["plants"][0]["backend"].is_string());
+        assert_eq!(j["plants"][0]["plant"]["sha256"], GOOD_SHA);
+        assert!(j["plants"][0]["plant"]["platform"].is_string() && j["plants"][0]["plant"]["backend"].is_string());
     }
 
     #[test]

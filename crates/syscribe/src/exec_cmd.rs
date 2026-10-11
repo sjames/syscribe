@@ -1471,6 +1471,11 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
             SourceLocation::Remote(u) => return Err((2, format!("the FMU '{u}' is remote; only local files are supported"))),
         };
         let info = be.inspect(&file).map_err(|e| (2, format!("{}: {e}", file.display())))?;
+        if let Some(h) = &decl.sha256 {
+            if !h.eq_ignore_ascii_case(&info.sha256) {
+                return Err((2, format!("E966: {}: declared sha256 {h} but the file hashes to {} (the FMU changed)", file.display(), info.sha256)));
+            }
+        }
         let params = decl.raw_parameters(&info).map_err(fail)?;
         specs.push(Spec { name: pe.qualified_name.rsplit("::").next().unwrap_or(&pe.qualified_name).to_string(), file, params });
     }
