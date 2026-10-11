@@ -7,8 +7,14 @@ edition = "2021"
 name = "syscribe"
 path = "src/main.rs"
 
+[features]
+default = []
+# FMI Co-Simulation plants (REQ-TRS-FMI-001): off by default.
+fmi = ["dep:syscribe-fmi"]
+
 [dependencies]
 syscribe-model = { path = "../syscribe-model" }
+syscribe-fmi = { path = "../syscribe-fmi", optional = true }
 serde_yaml = { workspace = true }
 quick-xml = { workspace = true }
 toml = { workspace = true }

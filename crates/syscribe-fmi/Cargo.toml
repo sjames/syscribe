@@ -1,0 +1,13 @@
+[package]
+name = "syscribe-fmi"
+version = "0.53.0"
+edition = "2021"
+description = "FMI Co-Simulation plant backend for syscribe (optional, cargo feature `fmi`)"
+
+[dependencies]
+syscribe-model = { path = "../syscribe-model" }
+fmi = { version = "0.8", default-features = false, features = ["fmi2", "fmi3"] }
+zip = { version = "4", default-features = false, features = ["deflate"] }
+quick-xml = "0.40"
+sha2 = "0.10"
+serde_json = "1"

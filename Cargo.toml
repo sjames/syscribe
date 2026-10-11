@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["crates/syscribe", "crates/syscribe-model", "crates/syscribe-server"]
+# The FMI backend pulls ~190 dependencies and a libclang build step; it is an optional dependency of
+# `syscribe` (cargo feature `fmi`, off by default) and so is kept out of the default workspace build and
+# `cargo test --workspace`. See docs/design/fmi-plant-cosimulation.md.
+exclude = ["crates/syscribe-fmi"]
 
 [workspace.dependencies]
 askama = { version = "0.12" }
