@@ -11,7 +11,7 @@ use serde_yaml::{Mapping, Value as Y};
 /// One finding: `(code, message)`; the validator adds the file and severity.
 pub type Finding = (&'static str, String);
 
-fn field<'a>(m: &'a Mapping, k: &str) -> Option<&'a Y> {
+pub(crate) fn field<'a>(m: &'a Mapping, k: &str) -> Option<&'a Y> {
     m.get(Y::String(k.to_string()))
 }
 
@@ -58,12 +58,12 @@ fn state_names(subs: &[Y], prefix: &str, out: &mut HashSet<String>) {
     }
 }
 
-fn is_basic_name(n: &str) -> bool {
+pub(crate) fn is_basic_name(n: &str) -> bool {
     n.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
         && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-fn text(v: &Y) -> Option<String> {
+pub(crate) fn text(v: &Y) -> Option<String> {
     match v {
         Y::String(s) => Some(s.clone()),
         Y::Number(n) => Some(n.to_string()),
@@ -82,14 +82,10 @@ pub fn is_executable(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: 
     ts.iter().any(|(_, t)| transition_is_executable(t))
 }
 
-/// Check one machine. `variables`, `initial_effect`, `subs` and `top` are the `StateDef`'s fields.
-pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], top: &[Y]) -> Vec<Finding> {
+/// `E883` — check a `variables:` list (shared by state machines and action flows). Returns the findings and
+/// the set of declared names.
+pub fn check_variables(variables: Option<&[Y]>) -> (Vec<Finding>, HashSet<String>) {
     let mut out: Vec<Finding> = Vec::new();
-    if !is_executable(variables, initial_effect, subs, top) {
-        return out;
-    }
-
-    // E883 — variables.
     let mut declared: HashSet<String> = HashSet::new();
     for (i, v) in variables.unwrap_or(&[]).iter().enumerate() {
         let Some(m) = v.as_mapping() else {
@@ -122,6 +118,20 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
             },
         }
     }
+
+    (out, declared)
+}
+
+/// Check one machine. `variables`, `initial_effect`, `subs` and `top` are the `StateDef`'s fields.
+pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], top: &[Y]) -> Vec<Finding> {
+    let mut out: Vec<Finding> = Vec::new();
+    if !is_executable(variables, initial_effect, subs, top) {
+        return out;
+    }
+
+    // E883 — variables.
+    let (vf, declared) = check_variables(variables);
+    out.extend(vf);
 
     let mut states = HashSet::new();
     state_names(subs, "", &mut states);

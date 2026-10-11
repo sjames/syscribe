@@ -2855,6 +2855,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 findings.push(error("E011", &file, "TestCase body has no ```gherkin fenced block"));
             }
 
+        // E883/E884/E887/W935: the executable action-flow schema (REQ-TRS-ACTSCHEMA-001). Dormant unless the
+        // action declares `variables:` or uses `assign:`.
+        if matches!(fm.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) && fm.status.as_deref() != Some("draft") {
+            for (code, msg) in crate::act_exec::check(
+                fm.parameters.as_deref().unwrap_or(&[]),
+                fm.variables.as_deref(),
+                fm.sub_actions.as_deref().unwrap_or(&[]),
+                fm.control_nodes.as_deref().unwrap_or(&[]),
+                fm.succession_connections.as_deref().unwrap_or(&[]),
+            ) {
+                findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
+            }
+        }
+
         // E886: a TestCase whose subject is an executable state machine uses only the executable step
         // vocabulary (REQ-TRS-SMSCEN-001). Dormant for every other TestCase.
         if matches!(fm.element_type, Some(ElementType::TestCase)) && fm.subject.is_some() {

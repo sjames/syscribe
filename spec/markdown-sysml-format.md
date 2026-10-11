@@ -1898,6 +1898,7 @@ Defines a behavioral step. Actions can have parameters (in/out/inout/return) and
 | `controlNodes` | list of control node maps | absent | Fork, join, decision, merge nodes; see 8.7.4 |
 | `body` | string | absent | Implementation body in a named language (opaque); mutually exclusive with `subActions` |
 | `bodyLanguage` | string | absent | Language name for `body`: `"alf"`, `"ocl"`, `"sysml"`, or user-defined |
+| `variables` | list | absent | Executable actions: `{name, value, typedBy?, unit?}` local data, as on a `StateDef`; with `assign:` on a sub-action they make the action executable (`E883`, `E884`, `E887`, `W935`) |
 
 #### 8.7.2 Parameter Schema
 
@@ -1924,6 +1925,11 @@ Each entry in `subActions:`:
 | `guard` | string | optional | absent | Boolean guard expression (opaque) |
 | `multiplicity` | string | optional | `"1"` | Cardinality |
 | `isParallel` | bool | optional | `false` | For `LoopAction` and parallel composition |
+| `assign` | string | optional | absent | `AssignmentAction`: `name := expression; …` (expression language) |
+| `condition` | string | optional | absent | `IfAction`/`LoopAction` condition (expression language); a `while`/`until` loop requires it |
+| `loopKind` | string | optional | `while` | `while` or `until` (`for` is not supported) |
+| `after` | string | optional | absent | `AcceptAction`: a duration; the accept completes that long after it became enabled |
+| `as` | string | optional | absent | `AcceptAction`: names the received payload (`<as>.<field>`) |
 
 **Sub-action kinds:**
 
@@ -6584,10 +6590,12 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E884` | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
 | `E885` | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | `E886` | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
+| `E887` | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
 | `W933` | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
+| `W935` | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
 | `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.

@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+pub mod act_exec;
 pub mod annotations;
 pub mod attack_tree;
 pub mod baseline;

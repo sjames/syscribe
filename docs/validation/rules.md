@@ -940,6 +940,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E884 | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
 | E885 | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | E886 | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
+| E887 | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)
@@ -1072,6 +1073,7 @@ FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.e
 | W931 | Warning | the row declares no `fmeaSeverity`, `occurrence` and/or `detection` — the RPN cannot be computed and the row escapes the RPN/severity rules (draft-suppressed) |
 | W932 | Warning | `fmeaSeverity` ≥ 9 (and `occurrence` ≥ 2 or absent) with no `recommendedAction`, regardless of RPN — the severity-priority rule; skipped when `W903` already fires (draft-suppressed) |
 | W933 | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
+| W935 | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
 
 The canonical severity key is **`fmeaSeverity:`** (camelCase, integer 1–10). The deprecated alias `severity:` is accepted and silently mapped for backward compatibility. RPN is computed automatically as `fmeaSeverity × occurrence × detection` when `rpn:` is absent; an explicit `rpn:` overrides the computed value.
 
