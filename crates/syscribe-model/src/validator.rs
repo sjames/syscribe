@@ -2916,7 +2916,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E936 (REQ-TRS-FAULT-001): the fault model of an FMEA row or a fault-tree event.
-        if let (Some(inj), Some(ElementType::FMEAEntry | ElementType::FaultTreeEvent)) = (fm.injection.as_ref(), fm.element_type.as_ref()) {
+        if let (Some(inj), Some(ElementType::FMEAEntry | ElementType::FaultTreeEvent)) = (machine_fm(&elem.qualified_name).unwrap_or(fm).injection.as_ref(), fm.element_type.as_ref()) {
             if let Err(errs) = crate::fault::parse_injection(inj) {
                 for e in errs {
                     findings.push(error("E936", &file, &e));
@@ -2977,7 +2977,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         }
                         // E937 (REQ-TRS-FAULT-001): a fault step names an FMEA row or fault-tree event that has a fault model
                         let named = crate::system_scen::fault_ids_in(&elem.doc);
-                        let known: std::collections::HashSet<String> = if named.is_empty() { Default::default() } else { crate::fault::fault_defs(elements).into_iter().map(|f| f.id).collect() };
+                        let known: std::collections::HashSet<String> = if named.is_empty() { Default::default() } else { crate::fault::fault_defs(machine_view).into_iter().map(|f| f.id).collect() };
                         for (line, id) in named {
                             if !known.contains(&id) {
                                 findings.push(error("E937", &file, &format!("line {line} of the body: '{id}' is not an FMEAEntry or FaultTreeEvent with an `injection:`")));
@@ -4636,7 +4636,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // E922: unknown key in FMEA entry — silent drops in a safety analysis are errors
             for key in &fm.unknown_fmea_keys {
                 findings.push(error("E922", &file, &format!(
-                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies, ftaRef, failureRate, diagnosticCoverage, latentDiagnosticCoverage, injection)", key)));
+                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies, ftaRef, failureRate, diagnosticCoverage, latentDiagnosticCoverage, injection, appliesWhen)", key)));
             }
         }
 

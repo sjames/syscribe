@@ -305,6 +305,10 @@ fn substitute_machine(fm: &mut crate::element::RawFrontmatter, f: &dyn Fn(&Place
     if let Some(v) = fm.entry_action.as_mut() {
         substitute_yaml(v, f);
     }
+    // an injectable fault's value follows the variant too (GH #313)
+    if let Some(v) = fm.injection.as_mut() {
+        substitute_yaml(v, f);
+    }
 }
 
 fn machine_has_placeholder(e: &RawElement) -> bool {
@@ -312,6 +316,7 @@ fn machine_has_placeholder(e: &RawElement) -> bool {
     [fm.sub_states.as_ref(), fm.transitions.as_ref(), fm.variables.as_ref()].into_iter().flatten().any(|l| l.iter().any(has_placeholder_yaml))
         || fm.initial_effect.as_ref().is_some_and(has_placeholder_yaml)
         || fm.entry_action.as_ref().is_some_and(has_placeholder_yaml)
+        || fm.injection.as_ref().is_some_and(has_placeholder_yaml)
 }
 
 fn texts(e: &RawElement) -> [&str; 2] {

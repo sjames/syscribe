@@ -729,6 +729,8 @@ entries:
 | `delay` | `port`, `by`, optional `event` | messages through the port arrive `by` later |
 | `corrupt` | `port`, `field`, `value`, optional `event` | the payload field is replaced |
 
+A row may be gated like any element with its own `appliesWhen:` (`- {id: FM-X-001, ref: Pkg::Part, appliesWhen: Features::Opt, …}`); it is then absent from products without the feature, so a `ref` to a gated element raises no `W904` there. A fault value may be a feature-parameter placeholder, `value: "{{Features::Grid.nominalHz}}"`; a run with `--config` uses the Configuration's binding, `validate` the parameter's default.
+
 `part:` names an instance of the composite; without it the fault applies to every part whose definition is, or specialises, `ref`. A malformed list is **`E936`**. Scenarios use `Given|When fault FM-LINK-001 is injected` and `When fault FM-LINK-001 is cleared` (`E937` for an unknown id); see `docs/design/fault-injection.md`.
 
 ### Fault-injection campaign — `inject`
