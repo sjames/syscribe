@@ -2,7 +2,7 @@
 type: TestCase
 id: TC-TRS-FMI-001
 name: "FMU plants run with state machines on the shared virtual clock, only when the fmi feature is built"
-status: draft
+status: active
 testLevel: L2
 sourceFile: repo:crates/syscribe-fmi/tests/plant.rs
 verifies:

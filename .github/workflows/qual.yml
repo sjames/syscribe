@@ -55,6 +55,12 @@ jobs:
       - name: Run workspace tests
         run: cargo test --workspace
 
+      # FMI plant co-simulation is opt-in (GH #291): build and test it separately.
+      - name: Run FMI feature tests
+        run: |
+          cargo test --manifest-path crates/syscribe-fmi/Cargo.toml
+          cargo test -p syscribe --features fmi --test fmi_cli
+
       - name: Install Graphviz
         run: sudo apt-get install -y graphviz
 

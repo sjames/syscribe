@@ -100,3 +100,9 @@ Fixtures are three small, BSD-licensed **Reference FMUs** vendored with their li
 ## What is deliberately not here
 
 SSP package reading (syscribe's own connections are the system structure), Model Exchange, FMI clocks and Scheduled Execution, variable-step master algorithms with rollback, state save/restore, multiple plants at different step sizes (all plants share `h`), exporting syscribe behaviour as an FMU.
+
+## Implementation notes
+
+* `fmi-schema` 0.8 drops the variable-level `unit` of FMI 2 `Real`, so the backend reads `modelDescription.xml` itself (quick-xml) for units and variable metadata.
+* The declared `sha256` is enforced both by `validate` (`E966`) and by `simulate` before any scenario starts.
+* Plant provenance is nested per plant as `{name, step, plant: {fmiVersion, sha256, backend, platform, ...}}`.
