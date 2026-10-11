@@ -2899,6 +2899,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E888/E889/E966 (REQ-TRS-FMI-001): plant declarations and wiring. With no plant backend registered (a build
+        // without the `fmi` feature) the fields only parse and one I011 says why nothing was checked.
+        if crate::plant_cfg::declares_plants(fm) {
+            if crate::plant::backend().is_none() {
+                findings.push(info("I011", &file, "plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support (rebuild with `cargo build --features fmi`); they are not checked"));
+            } else {
+                for (code, msg) in crate::plant_checks::check(elements, &resolver, config, elem) {
+                    findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
+                }
+            }
+        }
+
         // E886: a TestCase whose subject is an executable state machine uses only the executable step
         // vocabulary (REQ-TRS-SMSCEN-001). Dormant for every other TestCase.
         if matches!(fm.element_type, Some(ElementType::TestCase)) && fm.subject.is_some() {

@@ -1418,6 +1418,11 @@ pub struct ColdFrontmatter3 {
     /// Executable state machines (REQ-TRS-SMSCHEMA-001): the machine's data and the effect of its initial transition.
     pub variables: Option<Vec<serde_yaml::Value>>,
     pub initial_effect: Option<serde_yaml::Value>,
+    /// FMI plants (REQ-TRS-FMI-001): an FMU declaration on a `Part`/`PartDef`; the wiring on a TestCase.
+    pub fmu: Option<serde_yaml::Value>,
+    pub plants: Option<Vec<String>>,
+    pub plant_step: Option<String>,
+    pub plant_connections: Option<Vec<serde_yaml::Value>>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -1995,6 +2000,11 @@ struct ColdWire {
     /// Executable state machines (REQ-TRS-SMSCHEMA-001): the machine's data and the effect of its initial transition.
     pub variables: Option<Vec<serde_yaml::Value>>,
     pub initial_effect: Option<serde_yaml::Value>,
+    /// FMI plants (REQ-TRS-FMI-001): an FMU declaration on a `Part`/`PartDef`; the wiring on a TestCase.
+    pub fmu: Option<serde_yaml::Value>,
+    pub plants: Option<Vec<String>>,
+    pub plant_step: Option<String>,
+    pub plant_connections: Option<Vec<serde_yaml::Value>>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -2285,6 +2295,10 @@ impl ColdWire {
                     exit_action: w.exit_action,
                     variables: w.variables,
                     initial_effect: w.initial_effect,
+                    fmu: w.fmu,
+                    plants: w.plants,
+                    plant_step: w.plant_step,
+                    plant_connections: w.plant_connections,
                     is_negated: w.is_negated,
                     framed_concerns: w.framed_concerns,
                     result_type: w.result_type,

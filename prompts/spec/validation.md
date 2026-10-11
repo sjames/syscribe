@@ -108,6 +108,7 @@
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
 | `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |
+| `I011` | Informational: plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
 
 ## Safety / ASPICE warnings (W701–W703)
 
@@ -290,6 +291,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E885` | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | `E886` | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
 | `E887` | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
+| `E888` | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
+| `E889` | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
 | `W861` | An `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite what discharges it (draft-suppressed; GH #217) |
 
 ## Budget expression validation (E866–E868, W060)
@@ -835,6 +838,7 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `E964` | `Asset.relatedSafetyGoal` does not resolve, or resolves to something other than a `SafetyGoal` |
 | `E965` | Cycle (including a gate listing itself) in an attack tree's `AttackTreeGate.inputs` — the feasibility roll-up is undefined |
 | `E967` | `VulnerabilityReport.threatScenarios` does not resolve to a `ThreatScenario` |
+| `E966` | the FMU named by `fmu:` cannot be used (needs the `fmi` feature): the file is missing, remote or not an FMU, does not support Co-Simulation, its `fmiVersion` differs from its modelDescription.xml, or its hash differs from `sha256` (GH #291) |
 | `W960` | Non-draft `ThreatScenario` whose risk cannot be determined (no resolvable `damageScenarios`, no linked `damageSeverity`, or no `attackFeasibility`) — `cyber-risk` reports risk=unknown |
 | `W961` | Non-draft `DamageScenario` listed in no `ThreatScenario.damageScenarios` (orphan; contributes to no risk) |
 | `W962` | Non-draft `DamageScenario` with no `assets` (ISO/SAE 21434 §15.3) |

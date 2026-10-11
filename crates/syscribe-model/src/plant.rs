@@ -121,89 +121,14 @@ impl CoSim {
     /// Check the connections against the machine's variables and the plants' declared variables.
     /// `connections` are `(from, to)`; one end is `<plant>.<variable>`, the other a machine variable.
     pub fn new(plants: Vec<(String, Box<dyn Plant>)>, connections: Vec<(String, String)>, step: f64, m: &Machine) -> Result<CoSim, Vec<String>> {
-        let mut errs: Vec<String> = Vec::new();
-        if !(step.is_finite() && step > 0.0) {
-            errs.push(format!("the communication step must be a positive duration, got {step}"));
-        }
-        let mut links = Vec::new();
-        for (from, to) in &connections {
-            let spec = format!("{from} → {to}");
-            let plant_end = |s: &str| -> Option<(usize, String)> {
-                let (p, v) = s.split_once('.')?;
-                plants.iter().position(|x| x.0 == p).map(|i| (i, v.to_string()))
-            };
-            let (pe_from, pe_to) = (plant_end(from), plant_end(to));
-            let (to_plant, (pi, pvar), mname) = match (pe_from, pe_to) {
-                (Some(p), None) => (false, p, to.as_str()),
-                (None, Some(p)) => (true, p, from.as_str()),
-                (Some(_), Some(_)) => {
-                    errs.push(format!("connection {spec}: both ends are plant variables; one end must be a machine variable"));
-                    continue;
-                }
-                (None, None) => {
-                    errs.push(format!("connection {spec}: neither end names a plant variable (`<plant>.<variable>`); plants are: {}", plants.iter().map(|p| p.0.as_str()).collect::<Vec<_>>().join(", ")));
-                    continue;
-                }
-            };
-            let Some(var) = plants[pi].1.info().var(&pvar) else {
-                errs.push(format!("connection {spec}: plant '{}' has no variable '{pvar}'", plants[pi].0));
-                continue;
-            };
-            let Some(slot) = m.variables.iter().position(|v| v.name == mname) else {
-                errs.push(format!("connection {spec}: '{mname}' is not a variable of the machine"));
-                continue;
-            };
-            let ok_dir = if to_plant { matches!(var.causality, Causality::Input | Causality::Parameter) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
-            if !ok_dir {
-                errs.push(format!(
-                    "connection {spec}: '{}.{pvar}' is {} and cannot be {}",
-                    plants[pi].0,
-                    match var.causality {
-                        Causality::Input => "an input",
-                        Causality::Output => "an output",
-                        Causality::Parameter => "a parameter",
-                        Causality::CalculatedParameter => "a calculated parameter",
-                        _ => "not exchangeable",
-                    },
-                    if to_plant { "written (only inputs and tunable parameters can)" } else { "read (only outputs and calculated parameters can)" }
-                ));
-                continue;
-            }
-            let (mdim, mbool) = match &m.variables[slot].value {
-                Value::Num(q) => (q.dim, false),
-                Value::Bool(_) => (NONE, true),
-                Value::Str(_) => {
-                    errs.push(format!("connection {spec}: machine variable '{mname}' is a string; strings are not supported"));
-                    continue;
-                }
-            };
-            match (var.ty, mbool) {
-                (VarType::Other, _) => {
-                    errs.push(format!("connection {spec}: '{pvar}' has a type that is not supported (supported: Real, Integer, Boolean)"));
-                    continue;
-                }
-                (VarType::Boolean, false) | (VarType::Real | VarType::Integer, true) => {
-                    errs.push(format!("connection {spec}: type mismatch: '{pvar}' is {:?} but '{mname}' is {}", var.ty, if mbool { "boolean" } else { "a number" }));
-                    continue;
-                }
-                _ => {}
-            }
-            if !mbool && var.dim.unwrap_or(NONE) != mdim {
-                errs.push(format!(
-                    "connection {spec}: dimension mismatch: '{pvar}' has dimension {} but '{mname}' has {}",
-                    var.dim.unwrap_or(NONE).human(),
-                    mdim.human()
-                ));
-                continue;
-            }
-            links.push(Link { plant: pi, var: var.clone(), machine_slot: slot, machine_name: mname.to_string(), machine_dim: mdim, machine_bool: mbool, to_plant, spec });
-        }
-        if errs.is_empty() {
-            Ok(CoSim { plants, links, step })
-        } else {
-            Err(errs)
+        let infos: Vec<(&str, &FmuInfo)> = plants.iter().map(|(n, p)| (n.as_str(), p.info())).collect();
+        match build_links(&infos, &connections, step, m) {
+            (links, errs) if errs.is_empty() => Ok(CoSim { plants, links, step }),
+            (_, errs) => Err(errs),
         }
     }
+
+
 
     /// Plant outputs → machine variables (converted to SI). Returns nothing; the caller diffs the variables.
     pub(crate) fn read(&mut self, vars: &mut [Value]) -> Result<(), String> {
@@ -251,4 +176,93 @@ impl CoSim {
     pub fn provenance(&self) -> Vec<serde_json::Value> {
         self.plants.iter().map(|(n, p)| serde_json::json!({"name": n, "step": self.step, "plant": p.provenance()})).collect()
     }
+}
+
+/// Check the connections against the machine's variables and the plants' declared variables.
+/// `connections` are `(from, to)`; one end is `<plant>.<variable>`, the other a machine variable.
+fn build_links(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], step: f64, m: &Machine) -> (Vec<Link>, Vec<String>) {
+    let mut errs: Vec<String> = Vec::new();
+    if !(step.is_finite() && step > 0.0) {
+        errs.push(format!("the communication step must be a positive duration, got {step}"));
+    }
+    let mut links = Vec::new();
+    for (from, to) in connections {
+        let spec = format!("{from} → {to}");
+        let plant_end = |s: &str| -> Option<(usize, String)> {
+            let (p, v) = s.split_once('.')?;
+            infos.iter().position(|x| x.0 == p).map(|i| (i, v.to_string()))
+        };
+        let (pe_from, pe_to) = (plant_end(from), plant_end(to));
+        let (to_plant, (pi, pvar), mname) = match (pe_from, pe_to) {
+            (Some(p), None) => (false, p, &to[..]),
+            (None, Some(p)) => (true, p, &from[..]),
+            (Some(_), Some(_)) => {
+                errs.push(format!("connection {spec}: both ends are plant variables; one end must be a machine variable"));
+                continue;
+            }
+            (None, None) => {
+                errs.push(format!("connection {spec}: neither end names a plant variable (`<plant>.<variable>`); plants are: {}", infos.iter().map(|p| p.0).collect::<Vec<_>>().join(", ")));
+                continue;
+            }
+        };
+        let Some(var) = infos[pi].1.var(&pvar) else {
+            errs.push(format!("connection {spec}: plant '{}' has no variable '{pvar}'", infos[pi].0));
+            continue;
+        };
+        let Some(slot) = m.variables.iter().position(|v| v.name == mname) else {
+            errs.push(format!("connection {spec}: '{mname}' is not a variable of the machine"));
+            continue;
+        };
+        let ok_dir = if to_plant { matches!(var.causality, Causality::Input | Causality::Parameter) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
+        if !ok_dir {
+            errs.push(format!(
+                "connection {spec}: '{}.{pvar}' is {} and cannot be {}",
+                infos[pi].0,
+                match var.causality {
+                    Causality::Input => "an input",
+                    Causality::Output => "an output",
+                    Causality::Parameter => "a parameter",
+                    Causality::CalculatedParameter => "a calculated parameter",
+                    _ => "not exchangeable",
+                },
+                if to_plant { "written (only inputs and tunable parameters can)" } else { "read (only outputs and calculated parameters can)" }
+            ));
+            continue;
+        }
+        let (mdim, mbool) = match &m.variables[slot].value {
+            Value::Num(q) => (q.dim, false),
+            Value::Bool(_) => (NONE, true),
+            Value::Str(_) => {
+                errs.push(format!("connection {spec}: machine variable '{mname}' is a string; strings are not supported"));
+                continue;
+            }
+        };
+        match (var.ty, mbool) {
+            (VarType::Other, _) => {
+                errs.push(format!("connection {spec}: '{pvar}' has a type that is not supported (supported: Real, Integer, Boolean)"));
+                continue;
+            }
+            (VarType::Boolean, false) | (VarType::Real | VarType::Integer, true) => {
+                errs.push(format!("connection {spec}: type mismatch: '{pvar}' is {:?} but '{mname}' is {}", var.ty, if mbool { "boolean" } else { "a number" }));
+                continue;
+            }
+            _ => {}
+        }
+        if !mbool && var.dim.unwrap_or(NONE) != mdim {
+            errs.push(format!(
+                "connection {spec}: dimension mismatch: '{pvar}' has dimension {} but '{mname}' has {}",
+                var.dim.unwrap_or(NONE).human(),
+                mdim.human()
+            ));
+            continue;
+        }
+        links.push(Link { plant: pi, var: var.clone(), machine_slot: slot, machine_name: mname.to_string(), machine_dim: mdim, machine_bool: mbool, to_plant, spec });
+    }
+    (links, errs)
+}
+
+
+/// The errors the connections would raise, without instantiating anything (static validation).
+pub fn check_connections(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], step: f64, m: &Machine) -> Vec<String> {
+    build_links(infos, connections, step, m).1
 }

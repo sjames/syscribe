@@ -6347,6 +6347,7 @@ Beyond the per-type checks above, the validator checks the TARA/attack-tree/zone
 | `E964` | `Asset.relatedSafetyGoal` does not resolve, or resolves to something other than a `SafetyGoal` |
 | `E965` | Cycle (including a gate listing itself) in an attack tree's `AttackTreeGate.inputs` — the feasibility roll-up is undefined |
 | `E967` | `VulnerabilityReport.threatScenarios` does not resolve to a `ThreatScenario` |
+| `E966` | Error | the FMU named by `fmu:` cannot be used (needs the `fmi` feature): the file is missing, remote or not an FMU, does not support Co-Simulation, its `fmiVersion` differs from its modelDescription.xml, or its hash differs from `sha256` (GH #291) |
 | `W960` | Non-draft `ThreatScenario` whose risk cannot be determined (no resolvable `damageScenarios`, no linked `damageSeverity`, or no `attackFeasibility`) — `cyber-risk` reports risk=unknown |
 | `W961` | Non-draft `DamageScenario` listed in no `ThreatScenario.damageScenarios` (orphan; contributes to no risk) |
 | `W962` | Non-draft `DamageScenario` with no `assets` (ISO/SAE 21434 §15.3) |
@@ -6591,6 +6592,8 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E885` | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | `E886` | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
 | `E887` | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
+| `E888` | Error | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
+| `E889` | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
@@ -6655,6 +6658,7 @@ Informational findings surface a fact without failing validation. They never cau
 | Code | Condition |
 |---|---|
 | `I010` | A planned `TestCase` (`status` `draft`/`review`/`approved`) has a `sourceFile`/`testFunctions[].function` that is not present yet (the planned-verification counterpart of `W004`/`W009`). |
+| `I011` | Info | plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
 
 #### Function matchers (`W009`)
 
