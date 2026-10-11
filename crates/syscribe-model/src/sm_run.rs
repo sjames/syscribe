@@ -185,6 +185,11 @@ impl<'m> Run<'m> {
         std::mem::take(&mut self.outbox)
     }
 
+    /// The earliest virtual time at which a timer of this run is due, if any.
+    pub fn next_timer(&self) -> Option<f64> {
+        self.timers.iter().map(|t| t.0).fold(None, |a: Option<f64>, d| Some(a.map_or(d, |x| x.min(d))))
+    }
+
     pub fn time(&self) -> f64 {
         self.time
     }
