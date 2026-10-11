@@ -109,7 +109,7 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
         return Err(vec!["this composite has plant parts but this build has no FMI support (rebuild with `cargo build --features fmi`)".to_string()]);
     };
     let mut errs = Vec::new();
-    let step = match composite.frontmatter.plant_step.as_ref().and_then(|v| match v {
+    let step = match crate::system::composite_view(elements, resolver, composite).plant_step.as_ref().and_then(|v| match v {
         serde_yaml::Value::String(s) => Some(s.clone()),
         serde_yaml::Value::Number(n) => Some(n.to_string()),
         _ => None,
@@ -569,7 +569,11 @@ impl<'m> System<'m> {
         let Some((to, port)) = m.to.clone() else { return };
         let payload: Vec<(&str, Value)> = m.payload.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
         if let Some(r) = self.runs[to].as_mut() {
+            let before = r.trace().len();
             r.send(&format!("{port}/{}", m.event), &payload);
+            // the step the message caused in the receiver names where it came from
+            let from_port = m.from_port.as_ref().map(|p| format!(".{p}")).unwrap_or_default();
+            r.annotate_step(before, &format!("received {} from {}{from_port} (sent at {} s)", m.event, self.model.spec.instances[m.from].name, m.sent));
         }
         // every sequence number is one log entry, in order
         if let Some(l) = self.log.get_mut(m.seq - 1) {

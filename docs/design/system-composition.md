@@ -83,9 +83,9 @@ Mutation of the wiring and of plant parameters, Action flows as part behaviour, 
 
 ## Known limits
 
-* `E930` is only raised for composites that have at least one executable part (the checks are dormant otherwise, so existing models see nothing). A part with several `exhibitsStates` is an error in a composite, although SysML allows several exhibited states.
-* Ports declared as separate `Port` elements (rather than inline `features:`) and inherited composite wiring (`connections:` from a supertype) are not read.
-* `trace()` orders steps of different parts by time only.
+* `E930` is only raised for composites that have at least one executable part (the checks are dormant otherwise, so existing models see nothing new). A part with several `exhibitsStates` is an error in a composite, although SysML allows several exhibited states.
+* Nested composites (a part that is itself a composite) are inert: only the leaf parts of one level execute.
+* `trace()` orders steps of different parts by time only; the causal link between a send and the step it causes is the note on the receiver's step.
 
 ## Mutation (REQ-TRS-SYSMUT-001)
 

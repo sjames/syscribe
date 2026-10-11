@@ -196,6 +196,16 @@ impl<'m> Run<'m> {
     pub fn trace(&self) -> &[Step] {
         &self.trace
     }
+    /// Append a note to the trace step with index `idx` (a no-op when there is none).
+    pub fn annotate_step(&mut self, idx: usize, note: &str) {
+        if let Some(s) = self.trace.get_mut(idx) {
+            s.note = Some(match s.note.take() {
+                Some(old) => format!("{old}; {note}"),
+                None => note.to_string(),
+            });
+        }
+    }
+
     /// The messages sent since the last call, oldest first.
     pub fn take_outbox(&mut self) -> Vec<Sent> {
         std::mem::take(&mut self.outbox)

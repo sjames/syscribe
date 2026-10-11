@@ -2935,7 +2935,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // E930–E934/W936 (REQ-TRS-SYSCOMP-001): a composite part with executable behaviours. Dormant for every part
         // that has no part with an executable state machine.
-        if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.features.is_some() {
+        if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && (fm.features.is_some() || fm.supertype.is_some()) {
             let draft = fm.status.as_deref() == Some("draft");
             for (code, msg) in crate::system::check(elements, &resolver, elem) {
                 if code.starts_with('E') {

@@ -35,6 +35,8 @@ bindingConnections:
 ---
 ```
 
+* Ports are the `features:` of `type: Port` of the part definition and its **child `Port` elements** (a file `Def/out.md` with `type: Port` and `direction:` is `Def::out`); ports of a supertype are inherited.
+* A composite **inherits** the `features:` (parts), `connections:`, `bindingConnections:` and `plantStep:` of its supertypes: a part of the same name is overridden by the nearest definition, the base's connections and bindings come first, and an entry the base already has is kept once. A variant therefore only states what it adds or replaces.
 * A part's behaviour is the one `StateDef` named by `exhibitsStates:` on its definition (or an ancestor). A part with none is inert.
 * `connections:` join an out/inout port to an in/inout port. The message arrives as the event `<port>/<event>`, the same name `accept: {payload: Reading, via: inp}` listens for. `delay:` (default none) postpones delivery.
 * `bindingConnections:` keep a variable of one part equal to a variable of another, in the unit of the sink. Types and unit dimensions must agree (`E933`).
@@ -59,7 +61,7 @@ Scenario: the command arrives after the link delay
   Then ctl.last == 7
 ```
 
-`Then <part> sent …` looks at every message the part sent earlier in the scenario. `simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part. The machine hash of a composite covers every part's machine hash and the wiring.
+`Then <part> sent …` looks at every message the part sent earlier in the scenario. `simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part, and the step a delivered message caused in the receiver carries a note naming the sender, the port and the send time, so the timeline shows the message beside the steps it links. The machine hash of a composite covers every part's machine hash and the wiring.
 
 ## Coverage
 

@@ -226,3 +226,39 @@ subStates:
     s.advance(100_000.0);
     assert!(s.error().is_some_and(|e| e.contains("messages in one run")), "{:?}", s.error());
 }
+
+#[test]
+fn an_inherited_composite_runs_with_the_wiring_of_its_base_plus_its_own() {
+    use syscribe_model::sm_run::Options;
+    let m = pair("  - {from: tx.out, to: rx.inp}\n", "");
+    let root = std::env::temp_dir().join(format!("syscribe-inherit-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
+    for (n, c) in [sm("TxM", TX), sm("RxM", RX), def("TxP", "TxM", &[("out", "out")]), def("RxP", "RxM", &[("inp", "in")])] {
+        std::fs::write(root.join(format!("{n}.md")), c).unwrap();
+    }
+    std::fs::write(root.join("Base.md"), "---\ntype: PartDef\nname: Base\nfeatures:\n  - {name: tx, typedBy: TxP}\n  - {name: rx, typedBy: RxP}\nconnections:\n  - {from: tx.out, to: rx.inp, delay: \"5 ms\"}\n---\nBase.\n").unwrap();
+    // the variant adds a binding and overrides nothing else
+    std::fs::write(root.join("Variant.md"), "---\ntype: PartDef\nname: Variant\nsupertype: Base\nbindingConnections:\n  - {from: tx.dist, to: rx.dist}\n---\nVariant.\n").unwrap();
+    let elems = walk_model(&root).unwrap();
+    let v = SystemModel::build_in(&elems, "Variant", &root).unwrap_or_else(|e| panic!("{e:?}"));
+    assert_eq!(v.spec.links.len(), 1, "the base's connection");
+    assert_eq!(v.spec.bindings.len(), 1, "the variant's binding");
+    let mut s = System::new(&v, Options::default());
+    s.set("tx", "dist", parse_value("2 m").unwrap());
+    assert_eq!(n(&s, "rx", "dist"), format_value(&parse_value("2 m").unwrap()));
+    s.receive("tx", None, "Tick", &[]);
+    s.advance(0.006);
+    assert_eq!(s.active("rx").unwrap(), ["Done"], "the inherited 5 ms delay");
+    drop(m);
+}
+
+#[test]
+fn a_delivered_message_annotates_the_receiving_step() {
+    let m = pair("  - {from: tx.out, to: rx.inp, delay: \"5 ms\"}\n", "");
+    let mut s = System::new(&m, Options::default());
+    s.receive("tx", None, "Tick", &[]);
+    s.advance(0.006);
+    let notes: Vec<String> = s.trace().into_iter().filter(|(p, _)| p == "rx").filter_map(|(_, st)| st.note).collect();
+    assert!(notes.iter().any(|n| n.contains("received Cmd from tx.out") && n.contains("sent at 0")), "{notes:?}");
+}

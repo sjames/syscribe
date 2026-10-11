@@ -184,3 +184,37 @@ fn a_binding_needs_a_source_per_sink_and_a_part_with_behaviour() {
     let twice = SYSTEM.replace("{from: tx.dist, to: rx.dist}", "{from: tx.dist, to: rx.dist}\n  - {from: tx.level, to: rx.dist}");
     assert!(has(&validate(&[("System", &twice)]), "E933"), "two sources");
 }
+
+#[test]
+fn ports_may_be_separate_child_elements() {
+    // the ports of the two parts as `Def/port.md` files instead of inline features
+    let tx = "---\ntype: PartDef\nname: SenderPart\nexhibitsStates: [SenderMachine]\n---\nTransmitter.\n";
+    let rx = "---\ntype: PartDef\nname: ReceiverPart\nexhibitsStates: [ReceiverMachine]\n---\nReceiver.\n";
+    let root = model(&[("SenderPart", tx), ("ReceiverPart", rx)]);
+    std::fs::create_dir_all(root.join("SenderPart")).unwrap();
+    std::fs::create_dir_all(root.join("ReceiverPart")).unwrap();
+    std::fs::write(root.join("SenderPart/out.md"), "---\ntype: Port\nname: out\ndirection: out\n---\nOut.\n").unwrap();
+    std::fs::write(root.join("ReceiverPart/inp.md"), "---\ntype: Port\nname: inp\ndirection: in\n---\nIn.\n").unwrap();
+    let run = |root: &PathBuf| {
+        let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(root).arg("validate").output().unwrap();
+        format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))
+    };
+    let o = run(&root);
+    clean(&o);
+    assert!(!o.contains("Errors ("), "child ports are found: {o}");
+    // a direction clash is detected on child ports too
+    std::fs::write(root.join("SenderPart/out.md"), "---\ntype: Port\nname: out\ndirection: in\n---\nIn.\n").unwrap();
+    assert!(has(&run(&root), "E931"), "an in port cannot send");
+}
+
+#[test]
+fn a_composite_inherits_the_wiring_of_its_supertype() {
+    let derived = "---\ntype: PartDef\nname: Derived\nsupertype: System\n---\nA variant of the system.\n";
+    let o = validate(&[("Derived", derived)]);
+    clean(&o);
+    // an error in the inherited wiring is found on the variant as well
+    let bad_base = SYSTEM.replace("rx.inp", "rx.nowhere");
+    let o = validate(&[("System", &bad_base), ("Derived", derived)]);
+    let rows = o.lines().filter(|l| l.contains("E931")).count();
+    assert!(rows >= 2, "the base and the variant that inherits it both report: {o}");
+}
