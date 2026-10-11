@@ -2915,7 +2915,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // lowering it and checking the IR. The other lowering diagnostics are the schema checks, reported elsewhere.
         if matches!(fm.element_type, Some(ElementType::StateDef)) && crate::sm_exec::is_executable(fm.variables.as_deref(), fm.initial_effect.as_ref(), fm.sub_states.as_deref().unwrap_or(&[]), fm.transitions.as_deref().unwrap_or(&[])) {
             if let Err(diags) = crate::ir::lower(elements, &elem.qualified_name) {
-                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935") {
+                // only this machine's own findings: those of an action it references start with "behavior" and are reported on the action
+                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935" && !d.1.starts_with("behavior ")) {
                     findings.push(error(code, &file, &msg));
                 }
             }
@@ -2924,7 +2925,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E935 for an executable ActionDef (REQ-TRS-STYPE-002), the same way.
         if matches!(fm.element_type, Some(ElementType::ActionDef)) && crate::act_exec::is_executable(fm.variables.as_deref(), fm.sub_actions.as_deref().unwrap_or(&[])) {
             if let Err(diags) = crate::act_ir::lower_action(elements, &elem.qualified_name) {
-                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935") {
+                // only this action's own findings: a callee's are reported on the callee
+                let own = format!("action '{}'", elem.qualified_name);
+                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935" && d.1.starts_with(&own)) {
                     findings.push(error(code, &file, &msg));
                 }
             }

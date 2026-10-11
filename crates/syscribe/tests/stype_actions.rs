@@ -94,3 +94,38 @@ fn a_type_error_is_reported_with_another_lowering_diagnostic() {
     let (bad, t) = e935(&a);
     assert!(bad, "{t}");
 }
+
+fn model_with(files: &[(&str, &str)]) -> PathBuf {
+    let root = model(HEAD);
+    for (n, c) in files {
+        std::fs::write(root.join(format!("{n}.md")), c).unwrap();
+    }
+    root
+}
+
+#[test]
+fn a_callee_error_is_reported_on_the_callee_only_but_still_stops_compile() {
+    let bad = format!("---\ntype: ActionDef\nname: Callee\n{}---\nCallee.\n", flow("margin := 1", "dist < 5"));
+    let caller = "---\ntype: ActionDef\nname: Caller\nvariables:\n  - {name: z, value: \"0\"}\nsubActions:\n  - {name: go, kind: PerformAction, typedBy: Callee}\n  - {name: fin, kind: AssignmentAction, assign: \"z := 1\"}\nsuccessionConnections:\n  - {after: go, before: fin}\n---\nCaller.\n";
+    let root = model_with(&[("Callee", &bad), ("Caller", caller)]);
+    let (_, t) = run(&root, &["validate"]);
+    let rows: Vec<&str> = t.lines().filter(|l| l.contains("E935")).collect();
+    assert_eq!(rows.len(), 1, "one finding, on the callee: {t}");
+    assert!(rows[0].contains("Callee.md"), "{t}");
+    let (c, t) = run(&root, &["compile", "Caller"]);
+    assert_ne!(c, 0, "{t}");
+    assert!(t.contains("E935"), "the caller cannot be compiled with a broken callee: {t}");
+}
+
+#[test]
+fn loop_bodies_accept_bindings_and_defaults_are_typed_correctly() {
+    let a = format!("{HEAD}subActions:\n  - name: wait\n    kind: AcceptAction\n    payload: Msg\n    as: m\n  - name: again\n    kind: LoopAction\n    loopKind: while\n    condition: \"margin < 3 and m.ok\"\n    body:\n      - {{name: b, kind: AssignmentAction, assign: \"margin := margin + m.step\"}}\nsuccessionConnections:\n  - {{after: wait, before: again}}\n");
+    let (bad, t) = e935(&a);
+    assert!(!bad, "an accept binding is unknown: {t}");
+    let defaulted = "parameters:\n  - {name: gain, direction: in, value: \"2\"}\n  - {name: lim, direction: in, value: \"5\", unit: \"SI::m\"}\nvariables:\n  - {name: d, value: \"1\", unit: \"SI::m\"}\nsubActions:\n  - {name: s, kind: AssignmentAction, assign: \"d := d * gain; d := d + lim\"}\n";
+    let (bad, t) = e935(defaulted);
+    assert!(!bad, "defaults give parameters their types, consistently: {t}");
+    let wrong = defaulted.replace("d := d + lim", "d := d + gain");
+    let (bad, t) = e935(&wrong);
+    assert!(bad, "{t}");
+}

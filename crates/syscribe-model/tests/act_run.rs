@@ -274,7 +274,8 @@ fn errors_stop_the_run_and_are_recorded_in_the_trace() {
     assert_eq!(r.status(), Status::Error);
     assert!(r.error().is_some_and(|e| e.contains("'n'")), "an input with no value: {:?}", r.error());
     assert_eq!(r.trace().last().unwrap().node, "error");
-    let q = program(&[("E2", "variables:\n  - {name: t, value: \"1 s\"}\nsubActions:\n  - {name: a, kind: AssignmentAction, assign: \"t := 5\"}\n")], "E2");
+    // `x` is an out parameter without a default: untyped statically, so only the run finds the dimension error (`t := 5` is E935)
+    let q = program(&[("E2", "parameters:\n  - {name: x, direction: out}\nvariables:\n  - {name: t, value: \"1 s\"}\nsubActions:\n  - {name: s1, kind: AssignmentAction, assign: \"x := 5\"}\n  - {name: a, kind: AssignmentAction, assign: \"t := x\"}\nsuccessionConnections:\n  - {after: s1, before: a}\n")], "E2");
     let mut r = ActRun::new(&q, ActOptions::default());
     r.run();
     assert_eq!(r.status(), Status::Error, "{:?}", r.error());
