@@ -704,6 +704,34 @@ Two row-integrity checks keep a sheet honest:
 - **Every row needs an `id:`** (`FM-*`). A row without one cannot become an `FMEAEntry`, so it is dropped from validation and `fmea report` — and reported as error **E923** on the sheet, naming the row's position in `entries:` and its `failureMode:`.
 - **The computed RPN wins.** When `fmeaSeverity`, `occurrence` and `detection` are all present, an explicit `rpn:` is ignored in favour of `S × O × D`; if it disagrees, warning **W928** names the row and both values so the stale number can be corrected or removed. An explicit `rpn:` on a row missing a factor is used as-is.
 
+### Injectable failure modes — `injection:`
+
+A failure mode can carry a machine-readable **fault model** so that scenarios of an executable composite ([System composition](system-composition.md)) can inject it. `injection:` is a list on an FMEA row (and on a `FaultTreeEvent`); the row's `ref:` names the part definition that fails, and the element's id is the fault's id:
+
+<!-- syscribe-example: skip reason="a fragment of an FMEASheet's entries, shown without the sheet around it" -->
+```yaml
+entries:
+  - id: FM-LINK-001
+    ref: Link::Transmitter
+    failureMode: "command lost"
+    injection: [{kind: drop, port: out}]
+  - id: FM-LINK-002
+    ref: Link::Transmitter
+    failureMode: "level sensor stuck"
+    injection: [{kind: stuck, variable: level, value: "3"}]
+```
+
+| `kind` | Fields | Effect while injected |
+|---|---|---|
+| `stuck` | `variable`, `value` | writes to the variable are discarded; it holds `value` |
+| `offset` | `variable`, `by` | every written value is increased by `by` (same dimension) |
+| `silent` | — | the part fails silent: no event, timer or message; cannot be cleared |
+| `drop` | `port`, optional `event` | messages through the port are lost |
+| `delay` | `port`, `by`, optional `event` | messages through the port arrive `by` later |
+| `corrupt` | `port`, `field`, `value`, optional `event` | the payload field is replaced |
+
+`part:` names an instance of the composite; without it the fault applies to every part whose definition is, or specialises, `ref`. A malformed list is **`E936`**. Scenarios use `Given|When fault FM-LINK-001 is injected` and `When fault FM-LINK-001 is cleared` (`E937` for an unknown id); see `docs/design/fault-injection.md`.
+
 ### Generating a template
 
 ```bash

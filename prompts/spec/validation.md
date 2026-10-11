@@ -299,6 +299,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E933` | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297) |
 | `E934` | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297) |
 | `E935` | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272) |
+| `E936` | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306) |
+| `E937` | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
 | `W861` | An `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite what discharges it (draft-suppressed; GH #217) |
 
 ## Budget expression validation (E866–E868, W060)

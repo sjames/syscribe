@@ -49,6 +49,8 @@ part; `--coverage` reports each part as `<composite>.<part>` plus an aggregate (
     Then  <boolean expression over <part>.<variable> names>
     Then  <part> sent <event> [via <port>]
     Then  <part> did not send <event> [via <port>]
+    Given|When fault <id> is injected      (an FMEAEntry or FaultTreeEvent with an `injection:`)
+    When  fault <id> is cleared            (a part that failed silent cannot be cleared)
 
 `And`/`But` continue the previous keyword. `Scenario Outline` with `Examples:` expands to one
 scenario per row, named `<title> [row N]`. A scenario is `pass`, `fail` (a Then did not hold,

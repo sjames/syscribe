@@ -4,6 +4,7 @@
 //! * `Given <part> is in state <State>` · `Given <part>.<variable> is <expression>`
 //! * `When <part> receives <Event> [via <port>] [with <field> = <expression>, …]` · `When <part>.<variable> becomes <expression>` · `When <duration> elapses`
 //! * `Then <part> is in state <State>` · `Then <expression over <part>.<variable>>` · `Then <part> sent <Event> [via <port>]` · `Then <part> did not send <Event> [via <port>]`
+//! * `Given|When fault <id> is injected` · `When fault <id> is cleared` (REQ-TRS-FAULT-001: an `FMEAEntry` or `FaultTreeEvent` with an `injection:`)
 
 use crate::expr::{self, Value};
 use crate::sm_run::Options;
@@ -19,6 +20,8 @@ pub enum SCmd {
     ExpectState(String, String),
     Expect(String),
     Sent { part: String, event: String, via: Option<String>, negate: bool },
+    /// Inject (`true`) or clear (`false`) the fault of an FMEA row or fault-tree event.
+    Fault { id: String, inject: bool },
 }
 
 fn word(s: &str) -> bool {
@@ -34,6 +37,23 @@ fn qualified(s: &str) -> Option<(String, String)> {
 pub fn parse_step(kw: Kw, text: &str) -> Result<SCmd, String> {
     let t = text.trim();
     let lower = t.to_ascii_lowercase();
+    if lower.starts_with("fault ") {
+        let rest = t["fault ".len()..].trim();
+        let rl = rest.to_ascii_lowercase();
+        for (suffix, inject) in [(" is injected", true), (" is cleared", false)] {
+            if let Some(id) = rl.strip_suffix(suffix).map(|_| rest[..rest.len() - suffix.len()].trim()) {
+                if !word(id) {
+                    return Err(format!("'{id}' is not a fault id"));
+                }
+                return match (inject, kw) {
+                    (_, Kw::Then) => Err("`fault … is injected/cleared` is a Given or When step".into()),
+                    (false, Kw::Given) => Err("`fault … is cleared` is a When step".into()),
+                    _ => Ok(SCmd::Fault { id: id.to_string(), inject }),
+                };
+            }
+        }
+        return Err("`fault <id> is injected` or `fault <id> is cleared`".into());
+    }
     if let Some(i) = find_unquoted(&lower, " is in state ") {
         let (part, state) = (t[..i].trim(), t[i + " is in state ".len()..].trim().trim_matches(['"', '\'']).replace('/', "."));
         if !word(part) || state.is_empty() {
@@ -165,7 +185,7 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
         act_coverage: Default::default(),
         part_coverage: sys.part_coverage(),
         plants: sys.plant_provenance(),
-        messages: sys.messages().iter().map(|m| sys.describe(m)).collect(),
+        messages: sys.fault_events().iter().cloned().chain(sys.messages().iter().map(|m| sys.describe(m))).collect(),
     };
     if let Some(e) = sys.error() {
         return done(&sys, Status::Error, Some(e));
@@ -213,6 +233,7 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
                 Ok(v) => Err(format!("`{e}` is a {}, not a boolean", v.kind())),
                 Err(x) => Err(x),
             },
+            SCmd::Fault { id, inject } => if *inject { sys.inject(id) } else { sys.clear_fault(id) },
             SCmd::Sent { part, event, via, negate } => match model.spec.instance(part) {
                 None => Err(format!("no part '{part}'")),
                 Some(pi) => {
@@ -233,4 +254,20 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
         }
     }
     done(&sys, Status::Pass, None)
+}
+
+/// The fault ids named by `fault … is injected/cleared` steps of a TestCase body, with their lines (for `E937`).
+pub fn fault_ids_in(doc: &str) -> Vec<(usize, String)> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for sc in crate::sm_scen::extract_scenarios(doc) {
+        for st in &sc.steps {
+            if let Ok(SCmd::Fault { id, .. }) = parse_step(st.kw, &st.text) {
+                if seen.insert((st.line, id.clone())) {
+                    out.push((st.line, id));
+                }
+            }
+        }
+    }
+    out
 }

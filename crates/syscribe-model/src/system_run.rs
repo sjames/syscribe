@@ -12,7 +12,7 @@ use crate::ir::{self, Machine};
 use crate::plant::{self, FmuInfo, Plant, VarInfo};
 use crate::resolver::Resolver;
 use crate::units::Dim;
-use crate::sm_run::{Options, Run, Step};
+use crate::sm_run::{Options, Pin, Run, Step};
 use crate::system::{self, Behavior, SystemSpec};
 
 /// An FMU plant part, resolved: its file, declared hash, parameters and what the file says about itself.
@@ -33,6 +33,24 @@ pub enum Exchange {
     Write { plant: usize, var: VarInfo, src: (usize, String) },
 }
 
+/// One injectable fault of an FMEA row or fault-tree event, resolved against a composite's parts.
+#[derive(Clone, Debug)]
+pub enum FaultItem {
+    Stuck { part: usize, variable: String, value: Value },
+    Offset { part: usize, variable: String, by: Value },
+    Silent { part: usize },
+    Drop { part: usize, port: String, event: Option<String> },
+    Delay { part: usize, port: String, event: Option<String>, by: f64 },
+    Corrupt { part: usize, port: String, event: Option<String>, field: String, value: Value },
+}
+
+/// The faults of one analysis element that apply to the composite.
+#[derive(Clone, Debug)]
+pub struct ResolvedFault {
+    pub id: String,
+    pub items: Vec<FaultItem>,
+}
+
 /// A composite resolved, checked and lowered: the wiring and one machine per part that has behaviour.
 #[derive(Clone)]
 pub struct SystemModel {
@@ -42,6 +60,8 @@ pub struct SystemModel {
     pub exchanges: Vec<Exchange>,
     /// The communication step of the plants, when there are any.
     pub plant_step: Option<f64>,
+    /// The injectable faults (REQ-TRS-FAULT-001) that apply to this composite.
+    pub faults: Vec<ResolvedFault>,
     pub hash: String,
 }
 
@@ -85,6 +105,13 @@ impl SystemModel {
                 Err(es) => errs.extend(es),
             }
         }
+        let faults = match resolve_faults(elements, &resolver, &spec, &machines) {
+            Ok(f) => f,
+            Err(es) => {
+                errs.extend(es);
+                Vec::new()
+            }
+        };
         if !errs.is_empty() {
             return Err(errs);
         }
@@ -95,7 +122,89 @@ impl SystemModel {
             let plant_cfg: Vec<_> = spec.instances.iter().zip(&plants).filter_map(|(i, p)| p.as_ref().map(|p| serde_json::json!({"name": i.name, "sha256": p.info.sha256, "fmiVersion": p.info.fmi_version, "parameters": p.params}))).collect();
             blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds, "plantStep": plant_step, "plants": plant_cfg}).to_string().as_bytes()).to_hex().to_string()
         };
-        Ok(SystemModel { spec, machines, plants, exchanges, plant_step, hash })
+        Ok(SystemModel { spec, machines, plants, exchanges, plant_step, faults, hash })
+    }
+}
+
+fn constant(src: &str) -> Result<Value, String> {
+    crate::expr::parse(src).and_then(|e| e.eval(&|_: &str| None)).map_err(|e| format!("`{src}`: {e}"))
+}
+
+/// Resolve the faults of every FMEA row and fault-tree event against the parts of the composite. A fault whose target is
+/// not a part of it does not apply and is left out; one that applies but names a variable, port or value that does not
+/// fit is an error (`E936`).
+fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpec, machines: &[Option<Machine>]) -> Result<Vec<ResolvedFault>, Vec<String>> {
+    use crate::fault::FaultKind;
+    let mut out = Vec::new();
+    let mut errs = Vec::new();
+    for def in crate::fault::fault_defs(elements) {
+        // the definition (and so its specialisations) the fault's `ref` stands for
+        let target: Option<String> = def.target.as_deref().and_then(|t| resolver.resolve_ref(elements, t)).map(|e| e.qualified_name.clone());
+        let mut items = Vec::new();
+        for fs in &def.specs {
+            let parts: Vec<usize> = match &fs.part {
+                Some(name) => spec.instance(name).into_iter().collect(),
+                None => spec
+                    .instances
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, inst)| target.as_ref().is_some_and(|t| resolver.resolve_ref(elements, &inst.def).is_some_and(|d| crate::system::chain(elements, resolver, d).iter().any(|c| &c.qualified_name == t))))
+                    .map(|(i, _)| i)
+                    .collect(),
+            };
+            for p in parts {
+                let inst = &spec.instances[p];
+                let at = format!("E936: fault {} on part '{}'", def.id, inst.name);
+                let var_of = |name: &str| machines[p].as_ref().and_then(|m| m.variables.iter().find(|v| v.name == name)).map(|v| v.value.clone());
+                match &fs.kind {
+                    FaultKind::Stuck { variable, value } => match (var_of(variable), constant(value)) {
+                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine")),
+                        (_, Err(e)) => errs.push(format!("{at}: {e}")),
+                        (Some(cur), Ok(v)) => match (&cur, &v) {
+                            (Value::Num(a), Value::Num(b)) if a.dim != b.dim => errs.push(format!("{at}: stuck value {} does not have the dimension of '{variable}'", format_value(&v))),
+                            (Value::Num(_), Value::Num(_)) | (Value::Bool(_), Value::Bool(_)) | (Value::Str(_), Value::Str(_)) => items.push(FaultItem::Stuck { part: p, variable: variable.clone(), value: v }),
+                            _ => errs.push(format!("{at}: stuck value {} is not a {} like '{variable}'", format_value(&v), cur.kind())),
+                        },
+                    },
+                    FaultKind::Offset { variable, by } => match (var_of(variable), constant(by)) {
+                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine")),
+                        (_, Err(e)) => errs.push(format!("{at}: {e}")),
+                        (Some(Value::Num(a)), Ok(Value::Num(b))) if a.dim == b.dim => items.push(FaultItem::Offset { part: p, variable: variable.clone(), by: Value::Num(b) }),
+                        (Some(cur), Ok(v)) => errs.push(format!("{at}: offset {} does not fit '{variable}' ({})", format_value(&v), cur.kind())),
+                    },
+                    FaultKind::Silent => {
+                        if machines[p].is_some() {
+                            items.push(FaultItem::Silent { part: p });
+                        } else {
+                            errs.push(format!("{at}: only a part with a state machine can fail silent"));
+                        }
+                    }
+                    FaultKind::Drop { port, event } | FaultKind::Delay { port, event, .. } | FaultKind::Corrupt { port, event, .. } => {
+                        if !inst.ports.iter().any(|x| &x.name == port && x.dir.sends()) {
+                            errs.push(format!("{at}: '{port}' is not an out port of the part"));
+                            continue;
+                        }
+                        match &fs.kind {
+                            FaultKind::Drop { .. } => items.push(FaultItem::Drop { part: p, port: port.clone(), event: event.clone() }),
+                            FaultKind::Delay { by, .. } => items.push(FaultItem::Delay { part: p, port: port.clone(), event: event.clone(), by: *by }),
+                            FaultKind::Corrupt { field, value, .. } => match constant(value) {
+                                Ok(v) => items.push(FaultItem::Corrupt { part: p, port: port.clone(), event: event.clone(), field: field.clone(), value: v }),
+                                Err(e) => errs.push(format!("{at}: {e}")),
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        if !items.is_empty() {
+            out.push(ResolvedFault { id: def.id, items });
+        }
+    }
+    if errs.is_empty() {
+        Ok(out)
+    } else {
+        Err(errs)
     }
 }
 
@@ -203,6 +312,8 @@ pub struct Message {
     pub to: Option<(usize, String)>,
     pub event: String,
     pub payload: Vec<(String, Value)>,
+    /// Why the message never arrives (an injected fault), if it does not.
+    pub lost: Option<String>,
 }
 
 const MICRO_STEP_LIMIT: usize = 100_000;
@@ -219,12 +330,16 @@ pub struct System<'m> {
     seq: usize,
     error: Option<String>,
     plants: Vec<Option<Box<dyn Plant>>>,
+    /// Indexes into `model.faults` of the faults injected now.
+    active: Vec<usize>,
+    /// "fault X injected at 1 s" lines, in order.
+    fault_log: Vec<String>,
 }
 
 impl<'m> System<'m> {
     /// Start every part's machine and run the system to quiescence at time 0.
     pub fn new(model: &'m SystemModel, opts: Options) -> System<'m> {
-        let mut s = System { model, runs: Vec::new(), time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None, plants: Vec::new() };
+        let mut s = System { model, runs: Vec::new(), time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None, plants: Vec::new(), active: Vec::new(), fault_log: Vec::new() };
         s.start_plants();
         // the plants' initial outputs are known before any machine starts: they are the machines' starting values
         let mut initial: Vec<Vec<(String, Value)>> = model.machines.iter().map(|_| Vec::new()).collect();
@@ -404,6 +519,75 @@ impl<'m> System<'m> {
             .collect()
     }
 
+    /// The faults of this composite that can be injected (analysis element ids).
+    pub fn fault_ids(&self) -> Vec<&str> {
+        self.model.faults.iter().map(|f| f.id.as_str()).collect()
+    }
+
+    /// "fault X injected at 1 s" lines, in order.
+    pub fn fault_events(&self) -> &[String] {
+        &self.fault_log
+    }
+
+    fn fault_index(&self, id: &str) -> Result<usize, String> {
+        self.model.faults.iter().position(|f| f.id == id).ok_or_else(|| {
+            let known = self.fault_ids();
+            format!("no fault '{id}' applies to {} (an FMEA row or fault-tree event with an `injection:` on one of its parts{})", self.model.spec.composite, if known.is_empty() { String::new() } else { format!("; known: {}", known.join(", ")) })
+        })
+    }
+
+    /// Inject the fault of an analysis element now: its items stay active until [`clear_fault`](Self::clear_fault).
+    pub fn inject(&mut self, id: &str) -> Result<(), String> {
+        let fi = self.fault_index(id)?;
+        if self.active.contains(&fi) {
+            return Err(format!("fault '{id}' is already injected"));
+        }
+        let model = self.model;
+        for item in &model.faults[fi].items {
+            match item {
+                FaultItem::Stuck { part, variable, value } => {
+                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
+                    r.pin(id, variable, Pin::Stuck(value.clone()))?;
+                }
+                FaultItem::Offset { part, variable, by } => {
+                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
+                    r.pin(id, variable, Pin::Offset(by.clone()))?;
+                }
+                FaultItem::Silent { part } => {
+                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
+                    r.silence(id);
+                }
+                _ => {}
+            }
+        }
+        self.active.push(fi);
+        self.fault_log.push(format!("fault {id} injected at {} s", crate::expr::format_number(self.time)));
+        self.quiesce();
+        Ok(())
+    }
+
+    /// Remove the fault of an analysis element. A part that failed silent stays failed.
+    pub fn clear_fault(&mut self, id: &str) -> Result<(), String> {
+        let fi = self.fault_index(id)?;
+        if !self.active.contains(&fi) {
+            return Err(format!("fault '{id}' is not injected"));
+        }
+        let model = self.model;
+        if model.faults[fi].items.iter().any(|i| matches!(i, FaultItem::Silent { .. })) {
+            return Err(format!("fault '{id}' makes a part fail silent and cannot be cleared"));
+        }
+        for item in &model.faults[fi].items {
+            if let FaultItem::Stuck { part, variable, .. } | FaultItem::Offset { part, variable, .. } = item {
+                if let Some(r) = self.runs[*part].as_mut() {
+                    r.unpin(variable);
+                }
+            }
+        }
+        self.active.retain(|x| *x != fi);
+        self.fault_log.push(format!("fault {id} cleared at {} s", crate::expr::format_number(self.time)));
+        Ok(())
+    }
+
     /// Every message sent so far (delivered or not), in emission order.
     pub fn messages(&self) -> &[Message] {
         &self.log
@@ -547,7 +731,24 @@ impl<'m> System<'m> {
             };
             for s in sent {
                 let links: Vec<_> = model.spec.links.iter().filter(|l| l.from.0 == from && s.via.as_deref() == Some(l.from.1.as_str())).collect();
-                let mk = |seq: usize, to: Option<(usize, String)>, delay: f64| Message { seq, sent: self.time, due: self.time + delay, delivered: None, from, from_port: s.via.clone(), to, event: s.event.clone(), payload: s.payload.clone() };
+                // injected port faults (REQ-TRS-FAULT-001) act on the message as it leaves the part
+                let (mut extra_delay, mut lost, mut payload) = (0.0, None::<String>, s.payload.clone());
+                for &fi in &self.active {
+                    let f = &model.faults[fi];
+                    for item in &f.items {
+                        let hits = |part: &usize, port: &String, event: &Option<String>| *part == from && s.via.as_deref() == Some(port.as_str()) && event.as_ref().is_none_or(|e| *e == s.event);
+                        match item {
+                            FaultItem::Drop { part, port, event } if hits(part, port, event) => lost = Some(format!("dropped by fault {}", f.id)),
+                            FaultItem::Delay { part, port, event, by } if hits(part, port, event) => extra_delay += by,
+                            FaultItem::Corrupt { part, port, event, field, value } if hits(part, port, event) => match payload.iter_mut().find(|(k, _)| k == field) {
+                                Some(p) => p.1 = value.clone(),
+                                None => payload.push((field.clone(), value.clone())),
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                let mk = |seq: usize, to: Option<(usize, String)>, delay: f64| Message { seq, sent: self.time, due: self.time + delay + extra_delay, delivered: None, from, from_port: s.via.clone(), to, event: s.event.clone(), payload: payload.clone(), lost: lost.clone() };
                 if links.is_empty() {
                     // nothing is connected to that port: the message is recorded, and goes nowhere
                     self.seq += 1;
@@ -559,7 +760,9 @@ impl<'m> System<'m> {
                     self.seq += 1;
                     let m = mk(self.seq, Some((l.to.0, l.to.1.clone())), l.delay);
                     self.log.push(m.clone());
-                    self.queue.push_back(m);
+                    if m.lost.is_none() {
+                        self.queue.push_back(m);
+                    }
                 }
             }
         }
@@ -568,6 +771,12 @@ impl<'m> System<'m> {
     fn deliver(&mut self, m: Message) {
         let Some((to, port)) = m.to.clone() else { return };
         let payload: Vec<(&str, Value)> = m.payload.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+        if self.runs[to].as_ref().is_some_and(|r| r.is_silent()) {
+            if let Some(l) = self.log.get_mut(m.seq - 1) {
+                l.lost = Some("the receiver fails silent".into());
+            }
+            return;
+        }
         if let Some(r) = self.runs[to].as_mut() {
             let before = r.trace().len();
             r.send(&format!("{port}/{}", m.event), &payload);
@@ -614,6 +823,7 @@ impl<'m> System<'m> {
             if pl.is_empty() { String::new() } else { format!(" ({pl})") },
             m.sent,
             match (&m.to, m.delivered) {
+                (Some((t, p)), _) if m.lost.is_some() => format!(", to {}.{p}, lost ({})", spec.instances[*t].name, m.lost.clone().unwrap_or_default()),
                 (Some((t, p)), Some(d)) => format!(", delivered to {}.{p} at {d} s", spec.instances[*t].name),
                 (Some((t, p)), None) => format!(", to {}.{p}, not yet delivered", spec.instances[*t].name),
                 (None, _) => ", connected to nothing".into(),

@@ -25,6 +25,7 @@ pub mod heat;
 pub mod link_types;
 pub mod matchers;
 pub mod members;
+pub mod fault;
 pub mod fta;
 pub mod metrics;
 pub mod mutate;

@@ -119,6 +119,19 @@ pub struct Run<'m> {
     last_taken: Option<usize>,
     cosim: Option<crate::plant::CoSim>,
     outbox: Vec<Sent>,
+    /// Injected value faults (REQ-TRS-FAULT-001): applied to every write of the variable.
+    pins: Vec<(usize, Pin)>,
+    /// Injected fail-silent fault: the run handles nothing, fires nothing and sends nothing.
+    silent: bool,
+}
+
+/// A value fault on one variable of a machine.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Pin {
+    /// Every write is replaced by this value.
+    Stuck(Value),
+    /// Every write is increased by this number (same dimension).
+    Offset(Value),
 }
 
 impl<'m> Run<'m> {
@@ -164,6 +177,8 @@ impl<'m> Run<'m> {
             last_taken: None,
             cosim,
             outbox: Vec::new(),
+            pins: Vec::new(),
+            silent: false,
         };
         for (name, v) in initial {
             if let Some(i) = m.variables.iter().position(|x| &x.name == name) {
@@ -213,6 +228,9 @@ impl<'m> Run<'m> {
 
     /// The earliest virtual time at which a timer of this run is due, if any.
     pub fn next_timer(&self) -> Option<f64> {
+        if self.silent {
+            return None;
+        }
         self.timers.iter().map(|t| t.0).fold(None, |a: Option<f64>, d| Some(a.map_or(d, |x| x.min(d))))
     }
 
@@ -243,7 +261,78 @@ impl<'m> Run<'m> {
     }
 
     fn halted(&self) -> bool {
-        self.error.is_some() || self.terminated
+        self.error.is_some() || self.terminated || self.silent
+    }
+
+    /// Whether an injected fail-silent fault has stopped this run.
+    pub fn is_silent(&self) -> bool {
+        self.silent
+    }
+
+    /// What a write of `v` to variable `slot` stores, given the injected value faults.
+    fn pinned(&self, slot: usize, v: Value) -> Value {
+        let mut v = v;
+        for (s, p) in self.pins.iter().filter(|(s, _)| *s == slot) {
+            let _ = s;
+            v = match (p, &v) {
+                (Pin::Stuck(held), _) => held.clone(),
+                (Pin::Offset(Value::Num(by)), Value::Num(q)) if by.dim == q.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim }),
+                _ => v,
+            };
+        }
+        v
+    }
+
+    /// Inject a value fault on `name` now (`cause` names the fault in the trace): a stuck variable takes the value, an
+    /// offset one is biased; every later write is subject to it until [`unpin`](Self::unpin).
+    pub fn pin(&mut self, cause: &str, name: &str, pin: Pin) -> Result<(), String> {
+        let Some(slot) = self.m.variables.iter().position(|v| v.name == name) else {
+            return Err(format!("'{name}' is not a variable of the machine"));
+        };
+        let current = self.vars[slot].clone();
+        let new = match &pin {
+            Pin::Stuck(v) => {
+                check_assignable(name, &current, v)?;
+                v.clone()
+            }
+            Pin::Offset(Value::Num(by)) => match &current {
+                Value::Num(q) if q.dim == by.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim }),
+                other => return Err(format!("variable '{name}' is {} and cannot be biased by {}", other.kind(), format_value(&Value::Num(*by)))),
+            },
+            Pin::Offset(other) => return Err(format!("an offset must be a number, got {}", other.kind())),
+        };
+        self.pins.push((slot, pin));
+        if self.halted() {
+            return Ok(());
+        }
+        let before = self.vars.clone();
+        let mut step = self.begin(format!("fault {cause}"));
+        self.vars[slot] = new;
+        self.record_changes(&before, &mut step);
+        self.trace.push(step);
+        let r = self.settle();
+        self.finish(r);
+        Ok(())
+    }
+
+    /// Remove the value fault on `name`; the variable keeps its current value.
+    pub fn unpin(&mut self, name: &str) {
+        if let Some(slot) = self.m.variables.iter().position(|v| v.name == name) {
+            self.pins.retain(|(s, _)| *s != slot);
+        }
+    }
+
+    /// Inject a fail-silent fault: from now on the run handles no event, fires no timer and sends nothing.
+    pub fn silence(&mut self, cause: &str) {
+        if self.silent {
+            return;
+        }
+        let mut step = self.begin(format!("fault {cause}"));
+        step.note = Some("the part fails silent: no further events, timers or messages".into());
+        self.trace.push(step);
+        self.silent = true;
+        self.timers.clear();
+        self.outbox.clear();
     }
 
     // ── external API ────────────────────────────────────────────────────────
@@ -370,6 +459,7 @@ impl<'m> Run<'m> {
                 return Err(format!("set: '{name}' is not a variable of the machine"));
             };
             check_assignable(name, &self.vars[slot], &value)?;
+            let value = self.pinned(slot, value);
             let mut step = self.begin(format!("set {name}"));
             step.changed.push(Change { var: name.to_string(), old: format_value(&self.vars[slot]), new: format_value(&value) });
             self.vars[slot] = value;
@@ -393,7 +483,7 @@ impl<'m> Run<'m> {
                     return Err(format!("set: '{name}' is not a variable of the machine"));
                 };
                 check_assignable(name, &self.vars[slot], v)?;
-                self.vars[slot] = v.clone();
+                self.vars[slot] = self.pinned(slot, v.clone());
             }
             Ok(())
         })();
@@ -991,7 +1081,7 @@ impl<'m> Run<'m> {
         for (name, v) in ar.outputs() {
             if let Some(i) = self.m.variables.iter().position(|x| x.name == name) {
                 check_assignable(&name, &self.vars[i], &v).map_err(|e| format!("behavior {target}: {e}"))?;
-                self.vars[i] = v;
+                self.vars[i] = self.pinned(i, v);
             }
         }
         Ok(format!("action {target} executed in {} firing(s)", ar.trace().len()))
@@ -1021,7 +1111,7 @@ impl<'m> Run<'m> {
                     let v = self.eval(expr, scope, &format!("assignment to '{name}'"))?;
                     check_assignable(&name, &self.vars[*var], &v)?;
                     step.actions.push(format!("{name} := {}", format_value(&v)));
-                    self.vars[*var] = v;
+                    self.vars[*var] = self.pinned(*var, v);
                 }
             }
         }

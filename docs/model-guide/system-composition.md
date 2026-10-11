@@ -71,6 +71,21 @@ Scenario: the command arrives after the link delay
 
 `syscribe mutate <composite|TestCase>` seeds one fault at a time into the machine of each part (the operators of `syscribe help mutate`) and judges every mutant by running all the composite's scenarios with that one part replaced, so a weak scenario set shows up as a surviving mutant under the part it concerns. `--part <name>` limits the analysis to one part; `--min-score` is checked for every part. Composites with FMU parts work too: each mutant run gets fresh plants.
 
+## Fault injection
+
+The failure modes of the safety analyses are injectable (`injection:` on an `FMEAEntry` row or a `FaultTreeEvent`, see [Safety & Security Analysis](safety-analysis.md#injectable-failure-modes--injection)). A scenario injects and clears them:
+
+```gherkin
+Scenario: the receiver stays safe when the command is lost
+  Given fault FM-LINK-001 is injected
+  When tx receives Tick
+  Then tx sent Cmd via out
+  And rx is in state Waiting
+  When fault FM-LINK-001 is cleared
+```
+
+The verdict lists every injection and clearing with its time among its messages, and a message lost to a fault says why. Faults are deterministic; a part that failed silent stays failed. A fault that applies to the composite but does not fit it (an unknown variable, a stuck value of the wrong dimension) is `E936` when the system is built; an unknown id in a step is `E937`.
+
 ## Diagnostics
 
 | Code | Meaning |
@@ -80,6 +95,8 @@ Scenario: the command arrives after the link delay
 | `E932` | a machine sends or accepts through a port its part does not have |
 | `E933` | a binding names an unknown variable or joins different types or dimensions |
 | `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration |
+| `E936` | a fault model (`injection:`) is malformed, or does not fit the composite it applies to |
+| `E937` | a `fault … is injected/cleared` step names an unknown fault |
 | `W936` | an event is sent through a connection but never accepted at the other end, or the reverse |
 
 ## FMU plants as parts

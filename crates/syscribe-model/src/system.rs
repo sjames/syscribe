@@ -95,7 +95,7 @@ fn names(v: &Y) -> Vec<String> {
 }
 
 /// `def` and its supertypes, nearest first.
-fn chain<'a>(elements: &'a [RawElement], resolver: &Resolver, def: &'a RawElement) -> Vec<&'a RawElement> {
+pub(crate) fn chain<'a>(elements: &'a [RawElement], resolver: &Resolver, def: &'a RawElement) -> Vec<&'a RawElement> {
     chain_with(elements, resolver, def, true)
 }
 

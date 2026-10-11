@@ -1423,6 +1423,8 @@ pub struct ColdFrontmatter3 {
     pub plants: Option<serde_yaml::Value>,
     pub plant_step: Option<serde_yaml::Value>,
     pub plant_connections: Option<Vec<serde_yaml::Value>>,
+    /// REQ-TRS-FAULT-001: injectable fault model of an `FMEAEntry` row or a `FaultTreeEvent`.
+    pub injection: Option<serde_yaml::Value>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -2005,6 +2007,8 @@ struct ColdWire {
     pub plants: Option<serde_yaml::Value>,
     pub plant_step: Option<serde_yaml::Value>,
     pub plant_connections: Option<Vec<serde_yaml::Value>>,
+    /// REQ-TRS-FAULT-001: injectable fault model of an `FMEAEntry` row or a `FaultTreeEvent`.
+    pub injection: Option<serde_yaml::Value>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -2299,6 +2303,7 @@ impl ColdWire {
                     plants: w.plants,
                     plant_step: w.plant_step,
                     plant_connections: w.plant_connections,
+                    injection: w.injection,
                     is_negated: w.is_negated,
                     framed_concerns: w.framed_concerns,
                     result_type: w.result_type,
