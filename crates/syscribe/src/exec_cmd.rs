@@ -287,6 +287,37 @@ pub fn cmd_compile(elems: &[RawElement], args: &[String]) -> i32 {
         eprintln!("Usage: syscribe --model <root> compile <StateDef> [--json]");
         return 1;
     };
+    // An ActionDef lowers to the action-graph IR (GH #276).
+    {
+        let resolver = Resolver::new(elems);
+        if resolver.resolve_ref(elems, name).is_some_and(|e| matches!(e.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action))) {
+            return match syscribe_model::act_ir::lower_action(elems, name) {
+                Ok(p) => {
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&p).expect("IR serialises"));
+                    } else {
+                        println!("{}  (hash {})", p.root, p.hash);
+                        for d in &p.defs {
+                            println!("  {}: {} slot(s), {} node(s), {} edge(s), start {:?}", d.qname, d.slots.len(), d.nodes.len(), d.edges.len(), d.start);
+                            for n in &d.nodes {
+                                println!("    node {:>3}  {:<24} {}", n.id, n.stmt.name, serde_json::to_value(&n.stmt.kind).ok().and_then(|v| v["kind"].as_str().map(String::from)).unwrap_or_default());
+                            }
+                            for e in &d.edges {
+                                println!("    edge {:>3}  {} → {}{}", e.id, d.nodes[e.from].stmt.name, d.nodes[e.to].stmt.name, e.guard.as_ref().map(|g| format!("  [{}]", g.src)).unwrap_or_else(|| if e.is_else { "  [else]".into() } else { String::new() }));
+                            }
+                        }
+                    }
+                    0
+                }
+                Err(diags) => {
+                    for (c, msg) in &diags {
+                        eprintln!("{c}: {msg}");
+                    }
+                    if diags.iter().all(|(c, _)| *c == "E001") { 1 } else { 2 }
+                }
+            };
+        }
+    }
     match syscribe_model::ir::lower(elems, name) {
         Ok(m) => {
             if json {
