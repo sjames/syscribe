@@ -695,6 +695,25 @@ fn main() {
         e.exit();
     }
 
+    // `eval` is model-free and takes an arbitrary expression, which may begin with `-m…` (`-max(1, 2)`):
+    // dispatch it before the `-m` short-flag stripping below ever sees its arguments. An optional
+    // `-m <root>` / `--model <root>` / `--model=<root>` / `-m<root>` may precede the command.
+    {
+        let mut at = 1;
+        while let Some(a) = args.get(at) {
+            if a == "-m" || a == "--model" {
+                at += 2;
+            } else if a.starts_with("--model=") || (a.starts_with("-m") && a.len() > 2) {
+                at += 1;
+            } else {
+                break;
+            }
+        }
+        if args.get(at).map(String::as_str) == Some("eval") {
+            std::process::exit(exec_cmd::cmd_eval(&args[at + 1..]));
+        }
+    }
+
     // Strip --model <path> or --model=<path> from args; collect remaining args.
     let mut remaining: Vec<String> = Vec::new();
     let mut model_flag: Option<String> = None;
@@ -735,10 +754,6 @@ fn main() {
             let section = subcommand_args.get(1).map(String::as_str).unwrap_or("toc");
             spec::cmd_spec(section);
             return;
-        }
-        Some("eval") => {
-            // Model-free; parses its own arguments so an expression may start with `-`.
-            std::process::exit(exec_cmd::cmd_eval(&subcommand_args[1..]));
         }
         Some("help") => {
             help::cmd_help(subcommand_args.get(1).map(String::as_str));

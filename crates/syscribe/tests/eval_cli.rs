@@ -59,3 +59,13 @@ fn a_missing_expression_is_a_usage_error() {
     assert_eq!(c, 1);
     assert!(e.to_lowercase().contains("usage"), "{e}");
 }
+
+#[test]
+fn expressions_starting_with_dash_m_are_not_taken_for_the_model_flag() {
+    assert_eq!(eval(&["-max(1, 2)"]).0, "-2");
+    assert_eq!(eval(&["-mass * 2", "--set", "mass=3"]).0, "-6");
+    assert_eq!(eval(&["-min(3 s, 1 s)"]).0, "-1 s");
+    // an explicit model flag before the command still works
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).args(["-m", "does-not-matter", "eval", "1 + 1"]).output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&o.stdout).trim(), "2");
+}

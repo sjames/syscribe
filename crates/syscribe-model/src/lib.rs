@@ -21,6 +21,7 @@ pub mod members;
 pub mod fta;
 pub mod metrics;
 pub mod mutate;
+pub mod constraints;
 pub mod expr;
 pub mod placeholders;
 pub mod plugins;

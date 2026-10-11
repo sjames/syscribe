@@ -90,6 +90,8 @@ const PREFIXABLE: &[(&str, &str, f64, Dim)] = &[
     ("Hz", "hertz", 1.0, dim(0, 0, -1, 0, 0, 0, 0)),
     ("L", "litre", 1e-3, dim(3, 0, 0, 0, 0, 0, 0)),
     ("Wh", "wattHour", 3600.0, dim(2, 1, -2, 0, 0, 0, 0)),
+    ("Ω", "Ohm", 1.0, dim(2, 1, -3, -2, 0, 0, 0)),
+    ("bar", "bar", 1e5, dim(-1, 1, -2, 0, 0, 0, 0)),
 ];
 
 /// Units that never take a prefix.
@@ -100,7 +102,6 @@ const FIXED: &[(&str, f64, Dim)] = &[
     ("hour", 3600.0, dim(0, 0, 1, 0, 0, 0, 0)),
     ("t", 1000.0, dim(0, 1, 0, 0, 0, 0, 0)),
     ("tonne", 1000.0, dim(0, 1, 0, 0, 0, 0, 0)),
-    ("bar", 1e5, dim(-1, 1, -2, 0, 0, 0, 0)),
     ("rpm", 1.0 / 60.0, dim(0, 0, -1, 0, 0, 0, 0)),
     ("deg", std::f64::consts::PI / 180.0, NONE),
     ("degree", std::f64::consts::PI / 180.0, NONE),
@@ -120,6 +121,7 @@ const PREFIXES: &[(&str, &str, i32)] = &[
     ("m", "milli", -3),
     ("u", "micro", -6),
     ("µ", "micro", -6),
+    ("μ", "micro", -6),
     ("n", "nano", -9),
     ("p", "pico", -12),
     ("T", "tera", 12),
@@ -130,9 +132,6 @@ pub fn unit_scale(unit: &str) -> Option<(f64, Dim)> {
     let unit = unit.strip_prefix("SI::").unwrap_or(unit);
     if let Some((_, s, d)) = FIXED.iter().find(|(n, _, _)| *n == unit) {
         return Some((*s, *d));
-    }
-    if unit == "Ω" {
-        return unit_scale("ohm");
     }
     if let Some((_, _, s, d)) = PREFIXABLE.iter().find(|(sym, long, _, _)| *sym == unit || *long == unit) {
         return Some((*s, *d));
@@ -199,20 +198,31 @@ fn fmt_num(v: f64) -> String {
     if v == 0.0 {
         return "0".to_string();
     }
-    let a = v.abs();
-    if !(1e-9..1e12).contains(&a) {
-        let s = format!("{:.6e}", v);
-        let (m, e) = s.split_once('e').unwrap_or((&s, "0"));
-        let m = if m.contains('.') { m.trim_end_matches('0').trim_end_matches('.') } else { m };
-        return format!("{m}e{e}");
+    // 15 significant digits (f64 carries ~15.9): enough that exact integers print exactly and
+    // binary noise (0.1 + 0.2) does not.
+    let sci = format!("{:.14e}", v);
+    let (mant, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
+    let exp: i32 = exp.parse().unwrap_or(0);
+    let neg = mant.starts_with('-');
+    let digits: String = mant.chars().filter(|c| c.is_ascii_digit()).collect();
+    let digits = digits.trim_end_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    let sign = if neg { "-" } else { "" };
+    if !(-5..15).contains(&exp) {
+        let frac = &digits[1..];
+        let m = if frac.is_empty() { digits[..1].to_string() } else { format!("{}.{}", &digits[..1], frac) };
+        return format!("{sign}{m}e{exp}");
     }
-    let s = format!("{:.12}", v);
-    // 12 decimals can carry binary noise (0.1 + 0.2): round to 12 significant digits first.
-    let digits = 12 - (a.log10().floor() as i32 + 1).max(0);
-    let rounded = format!("{:.*}", digits.clamp(0, 15) as usize, v);
-    let s = if rounded.parse::<f64>().is_ok() { rounded } else { s };
-    let s = if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s };
-    if s == "-0" { "0".to_string() } else { s }
+    if exp >= 0 {
+        let int_len = exp as usize + 1;
+        if digits.len() <= int_len {
+            format!("{sign}{digits}{}", "0".repeat(int_len - digits.len()))
+        } else {
+            format!("{sign}{}.{}", &digits[..int_len], &digits[int_len..])
+        }
+    } else {
+        format!("{sign}0.{}{digits}", "0".repeat((-exp - 1) as usize))
+    }
 }
 
 /// A value as `eval` prints it: SI base units with the unit symbol (or dimension).
@@ -269,6 +279,9 @@ fn lex(src: &str) -> Result<Vec<Tok>, ExprError> {
             }
             let text: String = cs[start..i].iter().collect();
             let n: f64 = text.parse().map_err(|_| ExprError::Parse(format!("bad number '{text}'")))?;
+            if !n.is_finite() {
+                return Err(ExprError::Parse(format!("number '{text}' is out of range")));
+            }
             out.push(Tok::Num(n));
         } else if c.is_alphabetic() || c == '_' || c == 'µ' {
             let start = i;
@@ -485,6 +498,11 @@ impl Parser {
                 Ok(e)
             }
             Some(Tok::Id(id)) => match id.as_str() {
+                "if" => {
+                    // `if` is also an operand: `1 + if c then 2 else 3`.
+                    self.at -= 1;
+                    self.expr()
+                }
                 "true" => Ok(Expr::Lit(Value::Bool(true))),
                 "false" => Ok(Expr::Lit(Value::Bool(false))),
                 kw if KEYWORDS.contains(&kw) => Err(ExprError::Parse(format!("unexpected '{kw}'"))),
@@ -618,8 +636,10 @@ fn last_segment(s: &str) -> &str {
     s.rsplit("::").next().unwrap_or(s)
 }
 
+/// Equality of two quantities of one dimension: relative 1e-9, with an absolute floor of 1e-15 (SI
+/// base units) so that float noise around zero (`0.1 + 0.2 - 0.3 == 0`) compares equal.
 fn same_qty(a: &Quantity, b: &Quantity) -> bool {
-    let tol = 1e-9 * a.v.abs().max(b.v.abs()).max(f64::MIN_POSITIVE);
+    let tol = (1e-9 * a.v.abs().max(b.v.abs())).max(1e-15);
     (a.v - b.v).abs() <= tol
 }
 
@@ -712,7 +732,11 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
             for (o, x) in d.iter_mut().zip(nums[0].dim.0) {
                 *o = i8::try_from(i32::from(x) * e).map_err(|_| ExprError::Dimension("dimension exponent out of range".to_string()))?;
             }
-            Quantity { v: finite(nums[0].v.powi(e), "result")?, dim: Dim(d) }
+            let v = finite(nums[0].v.powi(e), "result")?;
+            if v == 0.0 && nums[0].v != 0.0 {
+                return Err(ExprError::Domain("result underflows to zero".to_string()));
+            }
+            Quantity { v, dim: Dim(d) }
         }
         _ => {
             // min / max: every argument the same dimension

@@ -21,7 +21,9 @@ long names with prefixes (`mm`, `kHz`, `uV`), `min`, `h`, `L`, `bar`, `rpm`, `de
 Operators, loosest first: `if c then a else b`; `or` `||`; `and` `&&`; `not` `!`;
 `== != < <= > >=`; `+ -`; `* / %`; unary `-`. `and`/`or` short-circuit. Functions:
 `abs min max sqrt floor ceil round pow`. `+`, `-`, `%` and comparisons need equal
-dimensions (`1 s + 1 V` is an error); `*` and `/` combine them.
+dimensions (`1 s + 1 V` is an error); `*` and `/` combine them. `if c then a else b`
+can also be an operand. Equality is tolerant of float noise (relative 1e-9, absolute
+1e-15 in SI base units). Numbers print with up to 15 significant digits.
 
 Names are looked up among the `--set` bindings; a dotted name (`gps.fix`) or a
 qualified one (`Features::Display.sizeInch`) is one name. An unbound name is an

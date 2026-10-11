@@ -145,7 +145,33 @@ fn parse_value_reads_bindings() {
 #[test]
 fn numbers_print_without_noise() {
     assert_eq!(format_value(&ok("0.1 + 0.2")), "0.3");
-    assert_eq!(format_value(&ok("1 / 3")), "0.333333333333");
+    assert_eq!(format_value(&ok("1 / 3")), "0.333333333333333");
     assert_eq!(format_value(&ok("1e15 * 10")), "1e16");
     assert_eq!(format_value(&ok("0")), "0");
+}
+
+#[test]
+fn review_regressions() {
+    // overflowing literals are parse errors, never infinities
+    assert!(matches!(parse("1e999"), Err(ExprError::Parse(_))));
+    assert_eq!(parse_value("1e999"), None);
+    // float noise around zero compares equal
+    assert!(truth("0.1 + 0.2 - 0.3 == 0"));
+    assert!(!truth("0.1 + 0.2 - 0.3 > 0"));
+    assert!(truth("1 pF > 0 F"), "a picofarad is not zero");
+    // 15 significant digits at both ends of the range
+    assert_eq!(format_value(&ok("1 ns * 1.23456789")), "1.23456789e-9 s");
+    assert_eq!(format_value(&ok("pow(2, 40)")), "1099511627776");
+    assert_eq!(format_value(&ok("1.5e-3")), "0.0015");
+    assert_eq!(format_value(&ok("-2.5e20")), "-2.5e20");
+    // units: Ohm sign, both micro signs, prefixed bar
+    assert!((num("1 kΩ") - 1000.0).abs() < 1e-9);
+    assert!((num("5 μs") - 5e-6).abs() < 1e-18);
+    assert!((num("5 µs") - 5e-6).abs() < 1e-18);
+    assert!((num("2 mbar") - 200.0).abs() < 1e-9);
+    // `if` is an operand
+    assert_eq!(num("1 + if 2 > 1 then 10 else 20"), 11.0);
+    assert!(truth("true and if false then false else true"));
+    // underflow is flagged like overflow
+    assert!(matches!(parse("pow(1e-200, 2)").unwrap().eval(&|_: &str| None), Err(ExprError::Domain(_))));
 }
