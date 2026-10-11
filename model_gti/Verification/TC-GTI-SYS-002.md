@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-002
-name: Anti-islanding test circuit
+name: "Anti-islanding test circuit"
 status: active
 testLevel: L5
 verifies:

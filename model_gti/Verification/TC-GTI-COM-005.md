@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-COM-005
-name: Signed firmware update
+name: "Signed firmware update"
 status: active
 testLevel: L4
 verifies:

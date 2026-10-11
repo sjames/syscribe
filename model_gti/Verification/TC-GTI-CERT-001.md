@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-CERT-001
-name: US certification evidence
+name: "US certification evidence"
 status: active
 testLevel: L5
 verifies:

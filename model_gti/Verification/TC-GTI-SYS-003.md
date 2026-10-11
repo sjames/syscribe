@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-003
-name: Trip and ride-through sweep
+name: "Trip and ride-through sweep"
 status: active
 testLevel: L5
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-ENV-003
-name: India EMC (IEC 61000-6)
+name: "India EMC (IEC 61000-6)"
 status: active
 testLevel: L5
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-005
-name: MPPT efficiency with mismatched strings
+name: "MPPT efficiency with mismatched strings"
 status: active
 testLevel: L5
 verifies:

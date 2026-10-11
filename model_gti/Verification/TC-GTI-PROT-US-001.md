@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-PROT-US-001
-name: Protection chain behaviour, US profile
+name: "Protection chain behaviour, US profile"
 status: active
 testLevel: L4
 subject: Behavior::Chain::ProtectionChain

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-GRID-005
-name: Remote curtailment
+name: "Remote curtailment"
 status: active
 testLevel: L4
 verifies:

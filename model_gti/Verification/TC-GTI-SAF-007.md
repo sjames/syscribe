@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-007
-name: Hardware overcurrent trip
+name: "Hardware overcurrent trip"
 status: active
 testLevel: L2
 verifies:

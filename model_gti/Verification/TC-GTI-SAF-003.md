@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-003
-name: DC arc-fault detection (UL 1699B)
+name: "DC arc-fault detection (UL 1699B)"
 status: active
 testLevel: L5
 verifies:

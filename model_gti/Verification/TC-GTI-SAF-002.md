@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-002
-name: Residual-current monitoring
+name: "Residual-current monitoring"
 status: active
 testLevel: L4
 verifies:

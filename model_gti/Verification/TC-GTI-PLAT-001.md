@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-PLAT-001
-name: Region selection and commissioning
+name: "Region selection and commissioning"
 status: active
 testLevel: L4
 verifies:

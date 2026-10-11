@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-CERT-002
-name: India certification evidence
+name: "India certification evidence"
 status: active
 testLevel: L5
 verifies:

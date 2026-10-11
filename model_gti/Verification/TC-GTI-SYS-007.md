@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-007
-name: String monitoring
+name: "String monitoring"
 status: active
 testLevel: L4
 verifies:

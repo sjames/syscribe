@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-GRID-004
-name: Frequency-watt
+name: "Frequency-watt"
 status: active
 testLevel: L4
 verifies:

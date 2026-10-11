@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-005
-name: String protection and surge protection
+name: "String protection and surge protection"
 status: active
 testLevel: L2
 verifies:

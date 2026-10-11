@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-ENV-002
-name: US EMC (FCC Part 15)
+name: "US EMC (FCC Part 15)"
 status: active
 testLevel: L5
 verifies:

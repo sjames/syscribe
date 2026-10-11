@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-008
-name: 1000 V input limit and start-up gate
+name: "1000 V input limit and start-up gate"
 status: active
 testLevel: L4
 verifies:

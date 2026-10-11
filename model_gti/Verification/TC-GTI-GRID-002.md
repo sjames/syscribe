@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-GRID-002
-name: India power-factor capability
+name: "India power-factor capability"
 status: active
 testLevel: L4
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-ENV-001
-name: Ingress protection and climate
+name: "Ingress protection and climate"
 status: active
 testLevel: L5
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-GRID-001
-name: US reactive power capability
+name: "US reactive power capability"
 status: active
 testLevel: L4
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-MCU-003
-name: Resource margin
+name: "Resource margin"
 status: active
 testLevel: L3
 verifies:

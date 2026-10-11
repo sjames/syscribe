@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-MCU-001
-name: STM32 controller inspection
+name: "STM32 controller inspection"
 status: active
 testLevel: L2
 verifies:

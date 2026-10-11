@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-008
-name: Relay weld detection
+name: "Relay weld detection"
 status: active
 testLevel: L2
 verifies:

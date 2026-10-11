@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-001
-name: Rated output, power quality and efficiency
+name: "Rated output, power quality and efficiency"
 status: active
 testLevel: L5
 verifies:

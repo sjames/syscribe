@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-006
-name: Thermal derating and shutdown
+name: "Thermal derating and shutdown"
 status: active
 testLevel: L4
 verifies:

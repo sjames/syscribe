@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-MCU-002
-name: Software self-test
+name: "Software self-test"
 status: active
 testLevel: L3
 verifies:

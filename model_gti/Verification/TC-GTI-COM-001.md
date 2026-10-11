@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-COM-001
-name: SunSpec Modbus interface
+name: "SunSpec Modbus interface"
 status: active
 testLevel: L4
 verifies:

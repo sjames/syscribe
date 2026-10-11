@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-COM-002
-name: IEEE 2030.5 client
+name: "IEEE 2030.5 client"
 status: active
 testLevel: L4
 verifies:

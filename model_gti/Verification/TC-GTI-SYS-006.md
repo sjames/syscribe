@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SYS-006
-name: Partial shading global scan
+name: "Partial shading global scan"
 status: active
 testLevel: L5
 verifies:

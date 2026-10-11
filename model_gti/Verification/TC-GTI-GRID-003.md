@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-GRID-003
-name: Volt-var
+name: "Volt-var"
 status: active
 testLevel: L4
 verifies:

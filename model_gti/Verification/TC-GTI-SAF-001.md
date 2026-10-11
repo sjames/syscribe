@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-001
-name: Insulation resistance check
+name: "Insulation resistance check"
 status: active
 testLevel: L4
 verifies:

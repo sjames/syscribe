@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-COM-004
-name: Authenticated remote commands
+name: "Authenticated remote commands"
 status: active
 testLevel: L4
 verifies:

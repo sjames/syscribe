@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-SAF-004
-name: Rapid shutdown (NEC 690.12)
+name: "Rapid shutdown (NEC 690.12)"
 status: active
 testLevel: L5
 verifies:

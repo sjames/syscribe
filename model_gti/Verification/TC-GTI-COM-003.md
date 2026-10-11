@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-COM-003
-name: Event log
+name: "Event log"
 status: active
 testLevel: L4
 verifies:

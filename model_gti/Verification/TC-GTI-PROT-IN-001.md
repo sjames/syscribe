@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-GTI-PROT-IN-001
-name: Protection chain behaviour, India profile
+name: "Protection chain behaviour, India profile"
 status: active
 testLevel: L4
 subject: Behavior::Chain::ProtectionChain
