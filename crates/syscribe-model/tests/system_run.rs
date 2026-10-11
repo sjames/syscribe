@@ -26,7 +26,7 @@ fn system(files: Vec<(String, String)>, features: &str, connections: &str, bindi
         std::fs::write(root.join(format!("{n}.md")), c).unwrap();
     }
     std::fs::write(root.join("Sys.md"), format!("---\ntype: PartDef\nname: Sys\nfeatures:\n{features}connections:\n{connections}bindingConnections:\n{bindings}---\n")).unwrap();
-    SystemModel::build(&walk_model(&root).unwrap(), "Sys").unwrap_or_else(|e| panic!("{e:?}"))
+    SystemModel::build_in(&walk_model(&root).unwrap(), "Sys", &root).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
 const TX: &str = "variables:

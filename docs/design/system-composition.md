@@ -29,7 +29,7 @@ composite Part/PartDef
 * The behaviour of a part is the one `StateDef` in its definition's `exhibitsStates:` (inherited through `supertype`). Zero → inert (still a valid endpoint for static checks); more than one → `E930`.
 * A port connection joins an `out`/`inout` port to an `in`/`inout` port. Fan-out (one output, several inputs) delivers to each in connection order.
 * The machine side: `effect: {send: Cmd, via: cmdOut, payload: {level: "x + 1"}}` and the existing `accept: {payload: Cmd, via: cmdIn}`. Payload entries are expressions evaluated at send time in the sender's scope. `via` must name a port of the owning part (`E932`). Within one action map `assign:` runs before `send:`, so the payload reports the updated values; a `send` in `initialEffect`, `entryAction` or `exitAction` works the same way.
-* Plants are parts with `fmu:`; they will take part through `bindingConnections` only (no messages), using the FMI loop of `fmi-plant-cosimulation.md` with the part's own `plantStep`. Not in the first version: a composite with a plant part is refused.
+* Plants are parts with `fmu:`; they will take part through `bindingConnections` only (no messages), using the FMI loop of `fmi-plant-cosimulation.md` with the part's own `plantStep`. The composite carries `plantStep`; `SystemModel::build` resolves each plant's FMU file against the model root, verifies the declared `sha256` and checks every plant binding with the same function as TestCase-level plants (`plant::check_exchange`: causality, type, unit dimension); `System::new` instantiates fresh plants.
 
 ## Execution
 
@@ -61,12 +61,12 @@ Determinism: no threads, no wall clock; every ordering is a total order (declara
 
 ## Scenarios
 
-Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-001`): `When ctl receives Start`, `Then ctl is in state Running`, `Then ball.h < 0.5 m`, `Then ctl sent Brake via cmdOut`, `When 50 ms elapses`. "Sent" is satisfied by any message the part emitted earlier in the same scenario (the log is per scenario, not windowed); `did not send` is its negation. A part variable is written `<part>.<variable>` in expressions. Plants as parts are not in the first version.
+Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-001`): `When ctl receives Start`, `Then ctl is in state Running`, `Then ctl.height < 0.5 m`, `Then ctl sent Brake via cmdOut`, `When 50 ms elapses`. "Sent" is satisfied by any message the part emitted earlier in the same scenario (the log is per scenario, not windowed); `did not send` is its negation. A part variable is written `<part>.<variable>` in expressions. Plant variables are read through bindings into a machine variable; they are not addressable in expressions.
 
 ## Evidence and trace
 
 * Hash of a composite run: BLAKE3 over the canonical JSON of `{parts: [{name, machine}], connections, bindings}` (each part's machine hash, then the wiring).
-* Trace: the steps of every part merged by time and tagged `[part]`; the messages are a separate list in the verdict (`messages`: who sent what via which port, when, and when it was delivered). Plant provenance as in the FMI note once plants are parts.
+* Trace: the steps of every part merged by time and tagged `[part]`; the messages are a separate list in the verdict (`messages`: who sent what via which port, when, and when it was delivered). Plant provenance as in the FMI note (`plants` in the verdict).
 * Coverage: not yet; `--coverage` is refused for composite subjects.
 
 ## Staging
@@ -75,11 +75,11 @@ Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-0
 2. Schema/static checks `E930`–`E934`, `W936`; catalogue in all four places, help pages.
 3. Engine (`system.rs`): instances, queue, binding propagation, time advance, livelock guard. Property-style tests with deterministic ordering and delay.
 4. Scenarios (`sm_scen` extension) and `simulate` for a composite subject; trace and evidence.
-5. Plants as parts; coverage per part; docs, model-guide page, qualification.
+5. Plants as parts (done, #299); coverage per part; docs, model-guide page, qualification.
 
 ## Deliberately not here
 
-Plants as parts (stage 5), per-part coverage, mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
+Per-part coverage, mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
 
 ## Known limits
 

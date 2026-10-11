@@ -4,17 +4,41 @@
 
 use std::collections::VecDeque;
 
+use std::path::{Path, PathBuf};
+
 use crate::element::RawElement;
 use crate::expr::{format_value, Value};
 use crate::ir::{self, Machine};
+use crate::plant::{self, FmuInfo, Plant, VarInfo};
 use crate::resolver::Resolver;
+use crate::units::Dim;
 use crate::sm_run::{Options, Run, Step};
 use crate::system::{self, Behavior, SystemSpec};
+
+/// An FMU plant part, resolved: its file, declared hash, parameters and what the file says about itself.
+pub struct PlantSpec {
+    pub file: PathBuf,
+    pub sha256: Option<String>,
+    pub params: Vec<(String, f64)>,
+    pub info: FmuInfo,
+}
+
+/// A binding between a plant variable and a machine variable, checked.
+pub enum Exchange {
+    /// A plant output read into a machine variable at each communication point.
+    Read { plant: usize, var: VarInfo, sink: (usize, String), machine_bool: bool, machine_dim: Dim },
+    /// A machine variable written to a plant input before each step.
+    Write { plant: usize, var: VarInfo, src: (usize, String) },
+}
 
 /// A composite resolved, checked and lowered: the wiring and one machine per part that has behaviour.
 pub struct SystemModel {
     pub spec: SystemSpec,
     pub machines: Vec<Option<Machine>>,
+    pub plants: Vec<Option<PlantSpec>>,
+    pub exchanges: Vec<Exchange>,
+    /// The communication step of the plants, when there are any.
+    pub plant_step: Option<f64>,
     pub hash: String,
 }
 
@@ -22,6 +46,11 @@ impl SystemModel {
     /// Resolve the composite `target` (a Part/PartDef). The errors are the `E930`–`E934` findings and any lowering
     /// diagnostic of a part's machine.
     pub fn build(elements: &[RawElement], target: &str) -> Result<SystemModel, Vec<String>> {
+        Self::build_in(elements, target, Path::new("."))
+    }
+
+    /// [`build`](Self::build) with the model root against which the FMU files of plant parts are resolved.
+    pub fn build_in(elements: &[RawElement], target: &str, model_root: &Path) -> Result<SystemModel, Vec<String>> {
         let resolver = Resolver::new(elements);
         let Some(elem) = resolver.resolve_ref(elements, target) else { return Err(vec![format!("no element '{target}'")]) };
         let (spec, mut findings) = system::resolve(elements, &resolver, elem);
@@ -40,11 +69,17 @@ impl SystemModel {
                         machines.push(None);
                     }
                 },
-                Behavior::Plant(_) => {
-                    errs.push(format!("part '{}' is an FMU plant; plants as parts are not supported yet", i.name));
-                    machines.push(None);
-                }
+                Behavior::Plant(_) => machines.push(None),
                 Behavior::Inert => machines.push(None),
+            }
+        }
+        let mut plants: Vec<Option<PlantSpec>> = spec.instances.iter().map(|_| None).collect();
+        let mut exchanges = Vec::new();
+        let mut plant_step = None;
+        if spec.instances.iter().any(|i| matches!(i.behavior, Behavior::Plant(_))) {
+            match resolve_plants(elements, &resolver, elem, &spec, &machines, model_root) {
+                Ok((p, ex, step)) => (plants, exchanges, plant_step) = (p, ex, Some(step)),
+                Err(es) => errs.extend(es),
             }
         }
         if !errs.is_empty() {
@@ -56,7 +91,99 @@ impl SystemModel {
             let binds: Vec<_> = spec.bindings.iter().map(|b| serde_json::json!([spec.instances[b.from.0].name, b.from.1, spec.instances[b.to.0].name, b.to.1])).collect();
             blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds}).to_string().as_bytes()).to_hex().to_string()
         };
-        Ok(SystemModel { spec, machines, hash })
+        Ok(SystemModel { spec, machines, plants, exchanges, plant_step, hash })
+    }
+}
+
+/// The plant parts of a composite: their FMU files (verified against the declared hash), the communication step, and
+/// every binding between a plant variable and a machine variable, checked as a TestCase-level plant connection is.
+#[allow(clippy::type_complexity)]
+fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawElement, spec: &SystemSpec, machines: &[Option<Machine>], model_root: &Path) -> Result<(Vec<Option<PlantSpec>>, Vec<Exchange>, f64), Vec<String>> {
+    use crate::config::{SourceLocation, ValidateConfig};
+    use crate::plant_cfg::parse_fmu;
+    let Some(be) = plant::backend() else {
+        return Err(vec!["this composite has plant parts but this build has no FMI support (rebuild with `cargo build --features fmi`)".to_string()]);
+    };
+    let mut errs = Vec::new();
+    let step = match composite.frontmatter.plant_step.as_ref().and_then(|v| match v {
+        serde_yaml::Value::String(s) => Some(s.clone()),
+        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }) {
+        Some(s) => crate::system::duration(&s).filter(|d| *d > 0.0).ok_or_else(|| vec![format!("`plantStep: {s}` is not a positive duration")])?,
+        None => return Err(vec![format!("{}: a composite with plant parts needs a `plantStep:` (the communication step)", composite.qualified_name)]),
+    };
+    let cfg = ValidateConfig::with_model_root(model_root);
+    let mut plants: Vec<Option<PlantSpec>> = spec.instances.iter().map(|_| None).collect();
+    for (idx, inst) in spec.instances.iter().enumerate() {
+        let Behavior::Plant(def) = &inst.behavior else { continue };
+        let Some(d) = resolver.resolve_ref(elements, def) else { continue };
+        let decl = match d.frontmatter.fmu.as_ref().map(parse_fmu) {
+            Some(Ok(decl)) => decl,
+            Some(Err(es)) => {
+                errs.extend(es.into_iter().map(|e| format!("E888: part '{}': {e}", inst.name)));
+                continue;
+            }
+            None => continue,
+        };
+        let file = match cfg.classify_source(&decl.file) {
+            SourceLocation::Local(f) => f,
+            SourceLocation::Remote(u) => {
+                errs.push(format!("E966: part '{}': the FMU '{u}' is remote; only local files are supported", inst.name));
+                continue;
+            }
+        };
+        let info = match be.inspect(&file) {
+            Ok(i) => i,
+            Err(e) => {
+                errs.push(format!("E966: part '{}': {}: {e}", inst.name, file.display()));
+                continue;
+            }
+        };
+        if let Some(h) = &decl.sha256 {
+            if !h.eq_ignore_ascii_case(&info.sha256) {
+                errs.push(format!("E966: part '{}': declared sha256 {h} but the file hashes to {} (the FMU changed)", inst.name, info.sha256));
+                continue;
+            }
+        }
+        match decl.raw_parameters(&info) {
+            Ok(params) => plants[idx] = Some(PlantSpec { file, sha256: decl.sha256.clone(), params, info }),
+            Err(es) => errs.extend(es.into_iter().map(|e| format!("E888: part '{}': {e}", inst.name))),
+        }
+    }
+    let mut exchanges = Vec::new();
+    for b in &spec.bindings {
+        let (fp, tp) = (matches!(spec.instances[b.from.0].behavior, Behavior::Plant(_)), matches!(spec.instances[b.to.0].behavior, Behavior::Plant(_)));
+        let label = format!("binding {}.{} → {}.{}", spec.instances[b.from.0].name, b.from.1, spec.instances[b.to.0].name, b.to.1);
+        let ((pi, pvar), (mi, mvar), to_plant) = match (fp, tp) {
+            (true, true) => {
+                errs.push(format!("E933: {label}: both ends are plants; one end must be a machine variable"));
+                continue;
+            }
+            (true, false) => ((b.from.0, &b.from.1), (b.to.0, &b.to.1), false),
+            (false, true) => ((b.to.0, &b.to.1), (b.from.0, &b.from.1), true),
+            (false, false) => continue,
+        };
+        let Some(ps) = &plants[pi] else { continue };
+        let pname = &spec.instances[pi].name;
+        let Some(var) = ps.info.var(pvar) else {
+            errs.push(format!("E933: {label}: plant '{pname}' has no variable '{pvar}'"));
+            continue;
+        };
+        let Some(mv) = machines[mi].as_ref().and_then(|m| m.variables.iter().find(|v| &v.name == mvar)) else { continue }; // reported by the composite checks
+        match plant::check_exchange(pname, var, to_plant, mvar, &mv.value) {
+            Ok((machine_dim, machine_bool)) => exchanges.push(if to_plant {
+                Exchange::Write { plant: pi, var: var.clone(), src: (mi, mvar.clone()) }
+            } else {
+                Exchange::Read { plant: pi, var: var.clone(), sink: (mi, mvar.clone()), machine_bool, machine_dim }
+            }),
+            Err(e) => errs.push(format!("E933: {label}: {e}")),
+        }
+    }
+    if errs.is_empty() {
+        Ok((plants, exchanges, step))
+    } else {
+        Err(errs)
     }
 }
 
@@ -85,15 +212,115 @@ pub struct System<'m> {
     log: Vec<Message>,
     seq: usize,
     error: Option<String>,
+    plants: Vec<Option<Box<dyn Plant>>>,
 }
 
 impl<'m> System<'m> {
     /// Start every part's machine and run the system to quiescence at time 0.
     pub fn new(model: &'m SystemModel, opts: Options) -> System<'m> {
-        let runs = model.machines.iter().map(|m| m.as_ref().map(|m| Run::new(m, opts.clone()))).collect();
-        let mut s = System { model, runs, time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None };
+        let mut s = System { model, runs: Vec::new(), time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None, plants: Vec::new() };
+        s.start_plants();
+        // the plants' initial outputs are known before any machine starts: they are the machines' starting values
+        let mut initial: Vec<Vec<(String, Value)>> = model.machines.iter().map(|_| Vec::new()).collect();
+        if s.error.is_none() {
+            for ex in &model.exchanges {
+                if let Exchange::Read { plant: pi, var, sink, machine_bool, machine_dim } = ex {
+                    let Some(p) = s.plants.get_mut(*pi).and_then(|p| p.as_mut()) else { continue };
+                    match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
+                        Ok(v) => initial[sink.0].push((sink.1.clone(), v)),
+                        Err(e) => {
+                            s.fail(e);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        s.runs = model.machines.iter().zip(&initial).map(|(m, init)| m.as_ref().map(|m| Run::with_initial_values(m, opts.clone(), init))).collect();
         s.quiesce();
         s
+    }
+
+    /// Fresh plant instances for this run; every instantiation verifies the declared hash again.
+    fn start_plants(&mut self) {
+        let model = self.model;
+        for (i, p) in model.plants.iter().enumerate() {
+            let Some(ps) = p else {
+                self.plants.push(None);
+                continue;
+            };
+            let name = &model.spec.instances[i].name;
+            let made = (|| -> Result<Box<dyn Plant>, String> {
+                let be = plant::backend().ok_or("no FMI backend")?;
+                if let Some(h) = &ps.sha256 {
+                    let now = be.inspect(&ps.file)?;
+                    if !h.eq_ignore_ascii_case(&now.sha256) {
+                        return Err(format!("declared sha256 {h} but the file hashes to {} (the FMU changed)", now.sha256));
+                    }
+                }
+                be.instantiate(&ps.file, &ps.params)
+            })();
+            match made {
+                Ok(p) => self.plants.push(Some(p)),
+                Err(e) => {
+                    self.plants.push(None);
+                    self.fail(format!("plant '{name}': {e}"));
+                }
+            }
+        }
+    }
+
+    /// What identifies each plant of the run, for recorded evidence.
+    pub fn plant_provenance(&self) -> Vec<serde_json::Value> {
+        let step = self.model.plant_step;
+        self.plants.iter().zip(&self.model.spec.instances).filter_map(|(p, i)| p.as_ref().map(|p| serde_json::json!({"name": i.name, "step": step, "plant": p.provenance()}))).collect()
+    }
+
+    /// Write the machine variables bound to plant inputs (held constant over the coming step).
+    fn write_plants(&mut self) {
+        let model = self.model;
+        for ex in &model.exchanges {
+            if let Exchange::Write { plant: pi, var, src } = ex {
+                let Some(v) = self.runs[src.0].as_ref().and_then(|r| r.var(&src.1)) else { continue };
+                let Some(p) = self.plants[*pi].as_mut() else { continue };
+                if let Err(e) = plant::write_si(p.as_mut(), &model.spec.instances[*pi].name, var, &v) {
+                    return self.fail(e);
+                }
+            }
+        }
+    }
+
+    fn step_plants(&mut self, t: f64, h: f64) {
+        let model = self.model;
+        for (i, p) in self.plants.iter_mut().enumerate() {
+            if let Some(p) = p {
+                if let Err(e) = p.step(t, h) {
+                    return self.fail(format!("plant '{}': {e}", model.spec.instances[i].name));
+                }
+                if p.terminated() {
+                    return self.fail(format!("plant '{}' asked to terminate the simulation", model.spec.instances[i].name));
+                }
+            }
+        }
+    }
+
+    /// Read plant outputs into the machine variables bound to them; a sink that changed settles.
+    fn read_plants(&mut self) {
+        let model = self.model;
+        for ex in &model.exchanges {
+            if let Exchange::Read { plant: pi, var, sink, machine_bool, machine_dim } = ex {
+                let Some(p) = self.plants.get_mut(*pi).and_then(|p| p.as_mut()) else { continue };
+                let v = match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
+                    Ok(v) => v,
+                    Err(e) => return self.fail(e),
+                };
+                if let Some(r) = self.runs[sink.0].as_mut() {
+                    if r.var(&sink.1).is_none_or(|cur| format_value(&cur) != format_value(&v)) {
+                        r.set(&sink.1, v);
+                    }
+                }
+            }
+        }
     }
 
     pub fn time(&self) -> f64 {
@@ -211,14 +438,32 @@ impl<'m> System<'m> {
     /// Advance the shared clock by `secs`, stopping at every instant at which anything is due.
     pub fn advance(&mut self, secs: f64) {
         let target = self.time + secs;
+        let h = self.model.plant_step;
+        if let Some(h) = h {
+            // a step this small (or a run this long) would take effectively forever, and float grid arithmetic degrades
+            if !(secs / h <= 5e6 && target / h < 9e15) {
+                return self.fail(format!("{secs} s at a plant step of {h} s is more than 5,000,000 communication steps; use a larger `plantStep`"));
+            }
+        }
         while self.time < target && self.error().is_none() {
             let timers = self.runs.iter().flatten().filter_map(|r| r.next_timer());
-            let due = self.queue.iter().map(|m| m.due).chain(timers).filter(|d| *d > self.time).fold(f64::INFINITY, f64::min);
+            let grid = h.map(|h| ((self.time / h + 1e-9).floor() + 1.0) * h);
+            let due = self.queue.iter().map(|m| m.due).chain(timers).chain(grid).filter(|d| *d > self.time).fold(f64::INFINITY, f64::min);
             let t = due.min(target);
+            if h.is_some() {
+                self.write_plants();
+                self.step_plants(self.time, t - self.time);
+                if self.error().is_some() {
+                    return;
+                }
+            }
             for r in self.runs.iter_mut().flatten() {
                 r.advance_to(t);
             }
             self.time = t;
+            if h.is_some() {
+                self.read_plants();
+            }
             self.quiesce();
         }
     }

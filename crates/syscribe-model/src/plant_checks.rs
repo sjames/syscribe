@@ -72,6 +72,19 @@ pub fn check(elements: &[RawElement], resolver: &Resolver, config: &ValidateConf
     if fm.plants.is_none() && fm.plant_step.is_none() && fm.plant_connections.is_none() {
         return out;
     }
+    // a composite part carries only the communication step of its plant parts (REQ-TRS-SYSCOMP-001)
+    if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.plants.is_none() && fm.plant_connections.is_none() {
+        if let Some(v) = &fm.plant_step {
+            let ok = match v {
+                serde_yaml::Value::String(s) => crate::system::duration(s).is_some_and(|d| d > 0.0),
+                _ => false,
+            };
+            if !ok {
+                out.push(("E888", format!("{}: `plantStep:` must be a positive duration such as \"10 ms\"", elem.qualified_name)));
+            }
+        }
+        return out;
+    }
     if !matches!(fm.element_type, Some(ElementType::TestCase)) {
         out.push(("E888", format!("{}: `plants:`, `plantStep:` and `plantConnections:` belong on a TestCase", elem.qualified_name)));
         return out;

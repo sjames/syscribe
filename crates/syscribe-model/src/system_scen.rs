@@ -163,7 +163,7 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
             .collect(),
         coverage: Default::default(),
         act_coverage: Default::default(),
-        plants: vec![],
+        plants: sys.plant_provenance(),
         messages: sys.messages().iter().map(|m| sys.describe(m)).collect(),
     };
     if let Some(e) = sys.error() {

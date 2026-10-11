@@ -117,7 +117,7 @@ fn is_port(m: &Mapping) -> bool {
     field(m, "type").and_then(|t| t.as_str()) == Some("Port")
 }
 
-fn duration(src: &str) -> Option<f64> {
+pub(crate) fn duration(src: &str) -> Option<f64> {
     match expr::parse(src).and_then(|e| e.eval(&|_: &str| None)) {
         Ok(Value::Num(q)) if Some(q.dim) == expr::unit_scale("s").map(|x| x.1) && q.v >= 0.0 && q.v.is_finite() => Some(q.v),
         _ => None,

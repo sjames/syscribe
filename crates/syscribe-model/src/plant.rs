@@ -101,7 +101,6 @@ struct Link {
     plant: usize,
     var: VarInfo,
     machine_slot: usize,
-    machine_name: String,
     machine_dim: Dim,
     machine_bool: bool,
     to_plant: bool,
@@ -134,16 +133,7 @@ impl CoSim {
     pub(crate) fn read(&mut self, vars: &mut [Value]) -> Result<(), String> {
         for l in self.links.iter().filter(|l| !l.to_plant) {
             let (pname, plant) = &mut self.plants[l.plant];
-            let raw = plant.get(&l.var.name).map_err(|e| format!("plant '{pname}': reading '{}': {e}", l.var.name))?;
-            if !raw.is_finite() {
-                return Err(format!("plant '{pname}': '{}' is not finite ({raw})", l.var.name));
-            }
-            vars[l.machine_slot] = if l.machine_bool {
-                Value::Bool(raw != 0.0)
-            } else {
-                let si = raw * l.var.factor + l.var.offset;
-                Value::Num(Quantity { v: if l.var.ty == VarType::Integer { si.round() } else { si }, dim: l.machine_dim })
-            };
+            vars[l.machine_slot] = read_si(plant.as_mut(), pname, &l.var, l.machine_bool, l.machine_dim)?;
         }
         Ok(())
     }
@@ -151,13 +141,8 @@ impl CoSim {
     /// Machine variables → plant inputs (converted from SI to the plant's units).
     pub(crate) fn write(&mut self, vars: &[Value]) -> Result<(), String> {
         for l in self.links.iter().filter(|l| l.to_plant) {
-            let raw = match &vars[l.machine_slot] {
-                Value::Bool(b) => f64::from(*b),
-                Value::Num(q) => (q.v - l.var.offset) / l.var.factor,
-                Value::Str(_) => return Err(format!("connection {}: '{}' is a string", l.spec, l.machine_name)),
-            };
             let (pname, plant) = &mut self.plants[l.plant];
-            plant.set(&l.var.name, raw).map_err(|e| format!("plant '{pname}': writing '{}': {e}", l.var.name))?;
+            write_si(plant.as_mut(), pname, &l.var, &vars[l.machine_slot]).map_err(|e| format!("connection {}: {e}", l.spec))?;
         }
         Ok(())
     }
@@ -218,54 +203,75 @@ fn build_links(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], ste
             errs.push(format!("connection {spec}: '{mname}' is not a variable of the machine"));
             continue;
         };
-        let ok_dir = if to_plant { matches!(var.causality, Causality::Input) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
-        if !ok_dir {
-            errs.push(format!(
-                "connection {spec}: '{}.{pvar}' is {} and cannot be {}",
-                infos[pi].0,
-                match var.causality {
-                    Causality::Input => "an input",
-                    Causality::Output => "an output",
-                    Causality::Parameter => "a parameter",
-                    Causality::CalculatedParameter => "a calculated parameter",
-                    _ => "not exchangeable",
-                },
-                if to_plant { "written (only inputs can; set parameters with `fmu: parameters:`)" } else { "read (only outputs and calculated parameters can)" }
-            ));
-            continue;
-        }
-        let (mdim, mbool) = match &m.variables[slot].value {
-            Value::Num(q) => (q.dim, false),
-            Value::Bool(_) => (NONE, true),
-            Value::Str(_) => {
-                errs.push(format!("connection {spec}: machine variable '{mname}' is a string; strings are not supported"));
-                continue;
+        match check_exchange(infos[pi].0, var, to_plant, mname, &m.variables[slot].value) {
+            Ok((mdim, mbool)) => {
+                links.push(Link { plant: pi, var: var.clone(), machine_slot: slot, machine_dim: mdim, machine_bool: mbool, to_plant, spec });
             }
-        };
-        match (var.ty, mbool) {
-            (VarType::Other, _) => {
-                errs.push(format!("connection {spec}: '{pvar}' has a type that is not supported (supported: Real, Integer, Boolean)"));
-                continue;
-            }
-            (VarType::Boolean, false) | (VarType::Real | VarType::Integer, true) => {
-                errs.push(format!("connection {spec}: type mismatch: '{pvar}' is {:?} but '{mname}' is {}", var.ty, if mbool { "boolean" } else { "a number" }));
-                continue;
-            }
-            _ => {}
+            Err(e) => errs.push(format!("connection {spec}: {e}")),
         }
-        if !mbool && var.dim.unwrap_or(NONE) != mdim {
-            errs.push(format!(
-                "connection {spec}: dimension mismatch: '{pvar}' has dimension {} but '{mname}' has {}",
-                var.dim.unwrap_or(NONE).human(),
-                mdim.human()
-            ));
-            continue;
-        }
-        links.push(Link { plant: pi, var: var.clone(), machine_slot: slot, machine_name: mname.to_string(), machine_dim: mdim, machine_bool: mbool, to_plant, spec });
     }
     (links, errs)
 }
 
+/// Check one exchange between a plant variable and a machine variable holding `machine_value`: the causality allows the
+/// direction, the types agree and the unit dimensions are equal. Returns the machine side's dimension and whether it is boolean.
+pub fn check_exchange(plant: &str, var: &VarInfo, to_plant: bool, machine_name: &str, machine_value: &Value) -> Result<(Dim, bool), String> {
+    let pvar = &var.name;
+    let ok_dir = if to_plant { matches!(var.causality, Causality::Input) } else { matches!(var.causality, Causality::Output | Causality::CalculatedParameter) };
+    if !ok_dir {
+        return Err(format!(
+            "'{plant}.{pvar}' is {} and cannot be {}",
+            match var.causality {
+                Causality::Input => "an input",
+                Causality::Output => "an output",
+                Causality::Parameter => "a parameter",
+                Causality::CalculatedParameter => "a calculated parameter",
+                _ => "not exchangeable",
+            },
+            if to_plant { "written (only inputs can; set parameters with `fmu: parameters:`)" } else { "read (only outputs and calculated parameters can)" }
+        ));
+    }
+    let (mdim, mbool) = match machine_value {
+        Value::Num(q) => (q.dim, false),
+        Value::Bool(_) => (NONE, true),
+        Value::Str(_) => return Err(format!("machine variable '{machine_name}' is a string; strings are not supported")),
+    };
+    match (var.ty, mbool) {
+        (VarType::Other, _) => return Err(format!("'{pvar}' has a type that is not supported (supported: Real, Integer, Boolean)")),
+        (VarType::Boolean, false) | (VarType::Real | VarType::Integer, true) => {
+            return Err(format!("type mismatch: '{pvar}' is {:?} but '{machine_name}' is {}", var.ty, if mbool { "boolean" } else { "a number" }));
+        }
+        _ => {}
+    }
+    if !mbool && var.dim.unwrap_or(NONE) != mdim {
+        return Err(format!("dimension mismatch: '{pvar}' has dimension {} but '{machine_name}' has {}", var.dim.unwrap_or(NONE).human(), mdim.human()));
+    }
+    Ok((mdim, mbool))
+}
+
+/// Read a plant output as a machine value in SI base units.
+pub fn read_si(plant: &mut dyn Plant, plant_name: &str, var: &VarInfo, machine_bool: bool, machine_dim: Dim) -> Result<Value, String> {
+    let raw = plant.get(&var.name).map_err(|e| format!("plant '{plant_name}': reading '{}': {e}", var.name))?;
+    if !raw.is_finite() {
+        return Err(format!("plant '{plant_name}': '{}' is not finite ({raw})", var.name));
+    }
+    Ok(if machine_bool {
+        Value::Bool(raw != 0.0)
+    } else {
+        let si = raw * var.factor + var.offset;
+        Value::Num(Quantity { v: if var.ty == VarType::Integer { si.round() } else { si }, dim: machine_dim })
+    })
+}
+
+/// Write a machine value (SI) to a plant input, converted to the plant's unit.
+pub fn write_si(plant: &mut dyn Plant, plant_name: &str, var: &VarInfo, value: &Value) -> Result<(), String> {
+    let raw = match value {
+        Value::Bool(b) => f64::from(*b),
+        Value::Num(q) => (q.v - var.offset) / var.factor,
+        Value::Str(_) => return Err(format!("'{}' is a string", var.name)),
+    };
+    plant.set(&var.name, raw).map_err(|e| format!("plant '{plant_name}': writing '{}': {e}", var.name))
+}
 
 /// The errors the connections would raise, without instantiating anything (static validation).
 pub fn check_connections(infos: &[(&str, &FmuInfo)], connections: &[(String, String)], step: f64, m: &Machine) -> Vec<String> {

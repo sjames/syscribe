@@ -72,6 +72,19 @@ Scenario: the command arrives after the link delay
 | `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration |
 | `W936` | an event is sent through a connection but never accepted at the other end, or the reverse |
 
+## FMU plants as parts
+
+With the `fmi` feature a part whose definition carries `fmu:` is a plant (see [FMU plants](fmi-plants.md)). The composite declares the communication step, and bindings join plant variables to machine variables:
+
+```
+plantStep: "10 ms"
+bindingConnections:
+  - {from: ball.h, to: ctl.height}      # plant output → machine variable
+  - {from: ctl.thrust, to: ball.thrust} # machine variable → plant input
+```
+
+The loop, units and evidence are those of the FMI page: inputs are held over a step, the step is cut at the earliest timer or delayed message, outputs are read at the boundary and the machines then settle; every scenario starts with fresh plants and the verdict lists their provenance. Direction, type and unit dimension of each plant binding are checked before the run. A composite with a plant part is refused (exit 1) in a build without the feature.
+
 ## Not in this version
 
-FMU plants as parts (a composite with one is refused), coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
+Coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.

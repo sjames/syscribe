@@ -162,3 +162,108 @@ mod with_the_feature {
         assert!(t.contains("plants"), "{t}");
     }
 }
+
+// ── plants as parts of a composite (REQ-TRS-SYSCOMP-001, GH #299) ──────────────────────────────────
+
+const SYS_CTL: &str = "---
+type: StateDef
+name: CtlM
+variables:
+  - {name: height, value: \"0\", unit: \"SI::m\"}
+subStates:
+  - name: Falling
+    isInitial: true
+    transitions:
+      - {target: Bounced, accept: {when: \"height < 0.1 m\"}}
+  - name: Bounced
+---
+";
+
+const SYS_TC: &str = "---
+type: TestCase
+id: TC-SYS-FMI-001
+name: system with a plant
+status: active
+testLevel: L3
+subject: Sys
+verifies: [REQ-FMI-001]
+---
+
+```gherkin
+Feature: ball
+
+  Scenario: falls and bounces
+    Then ctl is in state Falling
+    When 0.6 s elapses
+    Then ctl is in state Bounced
+
+  Scenario: starts from the top again
+    Then ctl.height == 1 m
+```
+";
+
+fn composite_model(sha: &str) -> PathBuf {
+    let root = model(sha);
+    for f in ["Ctl.md", "TC-FMI-001.md", "Ball.md"] {
+        std::fs::remove_file(root.join(f)).unwrap();
+    }
+    std::fs::write(root.join("CtlM.md"), SYS_CTL).unwrap();
+    std::fs::write(root.join("CtlP.md"), "---\ntype: PartDef\nname: CtlP\nexhibitsStates: [CtlM]\n---\nController.\n").unwrap();
+    std::fs::write(root.join("BallP.md"), format!("---\ntype: PartDef\nname: BallP\nfmu:\n  file: BouncingBall-2.0.fmu\n  fmiVersion: \"2.0\"\n  kind: cosimulation\n  sha256: {sha}\n  parameters: {{e: 0.7}}\n---\nThe ball.\n")).unwrap();
+    std::fs::write(root.join("Sys.md"), "---\ntype: PartDef\nname: Sys\nplantStep: \"10 ms\"\nfeatures:\n  - {name: ctl, typedBy: CtlP}\n  - {name: ball, typedBy: BallP}\nbindingConnections:\n  - {from: ball.h, to: ctl.height}\n---\nThe system.\n").unwrap();
+    std::fs::write(root.join("TC-SYS-FMI-001.md"), SYS_TC).unwrap();
+    root
+}
+
+#[cfg(not(feature = "fmi"))]
+mod composite_without_the_feature {
+    use super::*;
+
+    #[test]
+    fn a_plant_part_is_refused_with_the_reason() {
+        let root = composite_model(GOOD_SHA);
+        let (c, t) = run(&root, &["simulate", "TC-SYS-FMI-001"]);
+        assert_eq!(c, 1, "{t}");
+        assert!(t.contains("no FMI support"), "{t}");
+        let (c, t) = run(&root, &["validate"]);
+        assert_eq!(c, 0, "{t}");
+        assert!(t.contains("I011"), "{t}");
+    }
+}
+
+#[cfg(feature = "fmi")]
+mod composite_with_the_feature {
+    use super::*;
+
+    #[test]
+    fn a_controller_and_a_real_fmu_run_together() {
+        let root = composite_model(GOOD_SHA);
+        let (c, t) = run(&root, &["validate"]);
+        assert_eq!(c, 0, "{t}");
+        assert!(!t.contains("E888") && !t.contains("E966") && !t.contains("E93"), "{t}");
+        let (c, t) = run(&root, &["simulate", "TC-SYS-FMI-001", "--json"]);
+        assert_eq!(c, 0, "{t}");
+        let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+        let v = j["verdicts"].as_array().unwrap();
+        assert!(v.iter().all(|x| x["status"] == "pass"), "{t}");
+        assert_eq!(v[0]["plants"][0]["name"], "ball");
+        assert_eq!(v[0]["plants"][0]["plant"]["sha256"], GOOD_SHA);
+    }
+
+    #[test]
+    fn a_changed_fmu_stops_the_system_run() {
+        let (c, t) = run(&composite_model("deadbeef"), &["simulate", "TC-SYS-FMI-001"]);
+        assert_ne!(c, 0, "{t}");
+        assert!(t.contains("sha256"), "{t}");
+    }
+
+    #[test]
+    fn a_bad_composite_step_is_e888() {
+        let root = composite_model(GOOD_SHA);
+        let sys = std::fs::read_to_string(root.join("Sys.md")).unwrap().replace("10 ms", "10 kg");
+        std::fs::write(root.join("Sys.md"), sys).unwrap();
+        let (c, t) = run(&root, &["validate"]);
+        assert_eq!(c, 1, "{t}");
+        assert!(t.contains("E888") && t.contains("plantStep"), "{t}");
+    }
+}

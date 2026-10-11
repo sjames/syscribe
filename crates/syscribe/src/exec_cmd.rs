@@ -588,13 +588,16 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                 return 1;
             }
             if !composites.contains_key(&subject.qualified_name) {
-                match syscribe_model::system_run::SystemModel::build(active, &subject.qualified_name) {
+                match syscribe_model::system_run::SystemModel::build_in(active, &subject.qualified_name, model_root) {
                     Ok(m) => {
                         composites.insert(subject.qualified_name.clone(), m);
                     }
                     Err(errs) => {
                         for e in &errs {
                             eprintln!("error: {tc_id}: {e}");
+                        }
+                        if errs.iter().any(|e| e.contains("no FMI support")) {
+                            return 1;
                         }
                         exit = 2;
                         continue;
