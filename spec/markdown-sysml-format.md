@@ -6594,11 +6594,17 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E887` | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | `E888` | Error | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
 | `E889` | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output or a parameter, names two plants alike, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
+| `E930` | Error | a part of a composite has more than one behaviour (several `exhibitsStates`, or a state machine and an `fmu:`), or its `exhibitsStates` entry does not resolve to a StateDef (needs a composite with an executable machine; GH #297) |
+| `E931` | Error | a composite `connections:` entry joins ports wrongly: the part or port does not exist, or a message does not go from an out/inout port to an in/inout port (GH #297) |
+| `E932` | Error | an executable machine sends or accepts through a port its part definition does not have, or in the wrong direction (GH #297) |
+| `E933` | Error | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297) |
+| `E934` | Error | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
 | `W933` | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | `W935` | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
+| `W936` | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
 | `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.
