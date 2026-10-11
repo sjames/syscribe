@@ -2,6 +2,7 @@
 
 pub mod act_exec;
 pub mod act_ir;
+pub mod act_run;
 pub mod annotations;
 pub mod attack_tree;
 pub mod baseline;
