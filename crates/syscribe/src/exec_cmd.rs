@@ -276,3 +276,38 @@ pub fn cmd_constraints(elems: &[RawElement], args: &[String], lens: &dyn Fn(Opti
         0
     }
 }
+
+/// Entry point for `compile <StateDef> [--json]` (GH #278): lower a state machine to the IR and print it.
+/// Exit 0 · 1 usage or not a state machine · 2 lowering diagnostics.
+pub fn cmd_compile(elems: &[RawElement], args: &[String]) -> i32 {
+    let json = args.iter().any(|a| a == "--json");
+    let Some(name) = args.iter().find(|a| !a.starts_with("--")) else {
+        eprintln!("Usage: syscribe --model <root> compile <StateDef> [--json]");
+        return 1;
+    };
+    match syscribe_model::ir::lower(elems, name) {
+        Ok(m) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&m).expect("IR serialises"));
+            } else {
+                println!("{}  (hash {})", m.machine, m.hash);
+                println!("  {} variable(s), {} event(s), {} state(s), {} transition(s)", m.variables.len(), m.events.len(), m.states.len(), m.transitions.len());
+                for s in &m.states {
+                    println!("  state {:>3}  {:<24} {:?}", s.id, s.path, s.kind);
+                }
+                for t in &m.transitions {
+                    let tgt = t.target.map(|x| m.states[x].path.clone()).unwrap_or_else(|| "(internal)".into());
+                    println!("  trans {:>3}  {} → {}  {}", t.id, m.states[t.source].path, tgt, serde_json::to_string(&t.trigger).unwrap_or_default());
+                }
+            }
+            0
+        }
+        Err(diags) => {
+            let usage = diags.iter().all(|(c, _)| *c == "E001");
+            for (c, msg) in &diags {
+                eprintln!("{c}: {msg}");
+            }
+            if usage { 1 } else { 2 }
+        }
+    }
+}

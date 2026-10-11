@@ -1280,6 +1280,14 @@ fn main() {
                     }
                 }
             }
+            "compile" => {
+                // State-machine IR (GH #278). Read-only. Exit 0 · 1 usage · 2 lowering diagnostics.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = exec_cmd::cmd_compile(&elems, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "constraints" => {
                 // Parametric constraint checking (GH #274). Read-only. Exit 0 · 1 usage · 2 a check failed.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
