@@ -1280,6 +1280,15 @@ fn main() {
                     }
                 }
             }
+            "constraints" => {
+                // Parametric constraint checking (GH #274). Read-only. Exit 0 · 1 usage · 2 a check failed.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let lens = |cfg: Option<&str>| lensed_elements(&elems, None, cfg);
+                let code = exec_cmd::cmd_constraints(&elems, rest, &lens);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "mechanisms" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let code = mechanisms::cmd_mechanisms(&elems, rest.iter().any(|a| a == "--json"), rest.iter().any(|a| a == "--uncovered"));

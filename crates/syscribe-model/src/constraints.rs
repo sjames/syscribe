@@ -141,21 +141,34 @@ fn is_enum_literal(elements: &[RawElement], name: &str) -> bool {
     })
 }
 
-/// Evaluate `src` with `local` over `global`. Returns the status, a message and the unresolved names.
-fn evaluate(elements: &[RawElement], src: &str, local: &Env, global: &Env) -> (Status, String, Vec<String>, Option<bool>) {
-    let e = match expr::parse(src) {
-        Ok(e) => e,
-        Err(err) => return (Status::Error, err.to_string(), Vec::new(), None),
-    };
+/// Why an expression has no value.
+enum NoValue {
+    Unresolved(Vec<String>),
+    Error(String),
+}
+
+/// Evaluate `src` with `local` over `global` to a value. Names with no value anywhere are reported
+/// as unresolved (an unbound `A::b` is only an enumeration literal when a model enumeration has it).
+fn value_of(elements: &[RawElement], src: &str, local: &Env, global: &Env) -> Result<Value, NoValue> {
+    let e = expr::parse(src).map_err(|err| NoValue::Error(err.to_string()))?;
     let known = |n: &str| local.contains_key(n) || global.contains_key(n) || is_enum_literal(elements, n);
     let unresolved: Vec<String> = e.names().into_iter().filter(|n| !known(n)).collect();
     if !unresolved.is_empty() {
-        return (Status::Unresolved, format!("no value for {}", unresolved.join(", ")), unresolved, None);
+        return Err(NoValue::Unresolved(unresolved));
     }
-    match e.eval(&|n: &str| local.get(n).or_else(|| global.get(n)).cloned()) {
+    e.eval(&|n: &str| {
+        local.get(n).or_else(|| global.get(n)).cloned().or_else(|| is_enum_literal(elements, n).then(|| Value::Str(n.to_string())))
+    })
+    .map_err(|err| NoValue::Error(err.to_string()))
+}
+
+/// Evaluate a boolean `src`: status, message, unresolved names and, when it evaluated, the truth value.
+fn evaluate(elements: &[RawElement], src: &str, local: &Env, global: &Env) -> (Status, String, Vec<String>, Option<bool>) {
+    match value_of(elements, src, local, global) {
         Ok(Value::Bool(b)) => (if b { Status::Pass } else { Status::Fail }, String::new(), Vec::new(), Some(b)),
         Ok(other) => (Status::Error, format!("the expression is {}, not a boolean", other.kind()), Vec::new(), None),
-        Err(err) => (Status::Error, err.to_string(), Vec::new(), None),
+        Err(NoValue::Unresolved(u)) => (Status::Unresolved, format!("no value for {}", u.join(", ")), u, None),
+        Err(NoValue::Error(m)) => (Status::Error, m, Vec::new(), None),
     }
 }
 
@@ -178,8 +191,54 @@ fn def_params(def: &RawElement) -> Vec<(String, Option<String>, Option<String>, 
         .collect()
 }
 
-fn is_scalar_type(t: Option<&str>) -> bool {
-    t.map(|t| t.starts_with("ScalarValues::")).unwrap_or(true)
+/// A parameter is a **quantity slot** when it is typed `ISQ::…Value` or declares a `unit:`; every
+/// other parameter is a plain-number slot.
+fn quantity_slot(ty: Option<&str>, unit: Option<&str>) -> Option<Dim> {
+    unit.map(|u| u.strip_prefix("SI::").unwrap_or(u))
+        .and_then(expr::unit_scale)
+        .map(|(_, d)| d)
+        .or_else(|| ty.and_then(quantity_dimension))
+}
+
+/// What a parameter receives. A plain-number slot gets the SI-base number with the dimension dropped
+/// (a joule-valued attribute against an untyped threshold, the pattern of real models). A quantity
+/// slot keeps the dimension, and a dimensionless value adopts the slot's dimension (and unit scale).
+pub fn coerce_param(v: Value, ty: Option<&str>, unit: Option<&str>) -> Value {
+    let Value::Num(q) = v else { return v };
+    match quantity_slot(ty, unit) {
+        None => Value::Num(Quantity::scalar(q.v)),
+        Some(dim) if q.dim == Dim([0; 7]) => {
+            let scale = unit.map(|u| u.strip_prefix("SI::").unwrap_or(u)).and_then(expr::unit_scale).map(|(s, _)| s).unwrap_or(1.0);
+            Value::Num(Quantity { v: q.v * scale, dim })
+        }
+        Some(_) => Value::Num(q),
+    }
+}
+
+/// Evaluate `src` to a value over `env`; the error says what is missing or wrong.
+pub fn evaluate_value(elements: &[RawElement], src: &str, env: &Env) -> Result<Value, String> {
+    value_of(elements, src, &Env::new(), env).map_err(|e| match e {
+        NoValue::Unresolved(u) => format!("no value for {}", u.join(", ")),
+        NoValue::Error(m) => m,
+    })
+}
+
+/// A `CalculationDef`'s input parameters (from `parameters:` and `features:`): `(name, type, unit, default)`.
+pub fn calc_params(def: &RawElement) -> Vec<(String, Option<String>, Option<String>, Option<String>)> {
+    let mut out = Vec::new();
+    for f in def.frontmatter.parameters.iter().flatten().chain(def.frontmatter.features.iter().flatten()) {
+        if !matches!(get(f, "direction").and_then(Y::as_str), None | Some("in") | Some("inout")) {
+            continue;
+        }
+        let Some(name) = get(f, "name").and_then(Y::as_str) else { continue };
+        out.push((
+            name.to_string(),
+            get(f, "typedBy").and_then(Y::as_str).map(str::to_string),
+            get(f, "unit").and_then(Y::as_str).map(str::to_string),
+            get(f, "value").and_then(yaml_str),
+        ));
+    }
+    out
 }
 
 /// Check one application of `def`, bound by `connections` (a `bindingConnections:` list).
@@ -214,33 +273,26 @@ fn check_def(
         });
         let has_binding = bound.is_some();
         let value: Option<Value> = match bound {
-            Some(src) => {
-                let (st, msg, unres, _) = evaluate(elements, &src, &Env::new(), global);
-                let _ = st;
-                if !unres.is_empty() {
-                    unresolved.extend(unres);
+            Some(src) => match value_of(elements, &src, &Env::new(), global) {
+                Ok(v) => Some(v),
+                Err(NoValue::Unresolved(u)) => {
+                    unresolved.extend(u);
                     None
-                } else if !msg.is_empty() {
-                    first_error.get_or_insert(format!("binding of '{name}': {msg}"));
-                    None
-                } else {
-                    expr::parse(&src).ok().and_then(|e| e.eval(&|n: &str| global.get(n).cloned().or_else(|| is_enum_literal(elements, n).then(|| Value::Str(n.to_string())))).ok())
                 }
-            }
+                Err(NoValue::Error(m)) => {
+                    first_error.get_or_insert(format!("binding of '{name}': {m}"));
+                    None
+                }
+            },
             None => default.as_deref().and_then(|d| typed_value(d, unit.as_deref(), ty.as_deref())),
         };
-        let Some(mut v) = value else {
+        let Some(v) = value else {
             if !has_binding && default.is_none() {
                 unresolved.push(name.clone());
             }
             continue;
         };
-        // A ScalarValues-typed (or untyped) parameter receives the SI-base number; an ISQ-typed one keeps the dimension.
-        if is_scalar_type(ty.as_deref()) {
-            if let Value::Num(q) = &v {
-                v = Value::Num(Quantity::scalar(q.v));
-            }
-        }
+        let v = coerce_param(v, ty.as_deref(), unit.as_deref());
         bindings.push((name.clone(), format_value(&v)));
         local.insert(name.clone(), v);
     }
