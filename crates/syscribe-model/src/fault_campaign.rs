@@ -57,6 +57,10 @@ pub struct Campaign {
     pub invariants: usize,
     pub sets: Vec<SetResult>,
     pub not_injectable: Vec<NotInjectable>,
+    /// The largest cut-set order that was run (with `--ft`); larger orders are not run.
+    pub cut_set_order: Option<usize>,
+    /// The cut-set analysis itself stopped early (too many cut sets).
+    pub cut_sets_truncated: bool,
     pub fmea: FmeaCoverage,
 }
 
@@ -68,7 +72,7 @@ pub struct FmeaCoverage {
     pub exercised: Vec<String>,
     /// … that have one and were in no set (restricted away, or only in a cut set that could not run).
     pub not_exercised: Vec<String>,
-    /// … that have no fault model: prose only, so they cannot be exercised.
+    /// … that have no usable fault model (prose only, or a malformed `injection:`), so they cannot be exercised.
     pub without_model: Vec<String>,
 }
 
@@ -91,16 +95,17 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
                 Status::Error => errors.push(Finding { scenario: sc.title.clone(), message: v.message.unwrap_or_default() }),
             }
         }
-        let status = if !errors.is_empty() {
-            "error"
-        } else if !defeats.is_empty() {
+        // a real defeat outranks an invariant that could not be evaluated in the same set
+        let status = if !defeats.is_empty() {
             "defeated"
+        } else if !errors.is_empty() {
+            "error"
         } else {
             "survived"
         };
         results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), status, defeats, errors });
     }
-    Ok(Campaign { composite: model.spec.composite.clone(), hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), fmea: FmeaCoverage::default() })
+    Ok(Campaign { composite: model.spec.composite.clone(), hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })
 }
 
 /// The FMEA rows and fault-tree events whose `ref` is, or specialises into, a definition of a part of the composite:
@@ -123,7 +128,7 @@ pub fn analysis_rows(elements: &[RawElement], resolver: &Resolver, model: &Syste
         };
         let (Some(id), Some(target)) = (id, target) else { continue };
         if resolver.resolve_ref(elements, &target).is_some_and(|t| defs.contains(&t.qualified_name)) {
-            out.push((id, fm.injection.is_some()));
+            out.push((id, fm.injection.as_ref().is_some_and(|i| crate::fault::parse_injection(i).is_ok())));
         }
     }
     out

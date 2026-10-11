@@ -128,6 +128,9 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     let mut pending_tags: Vec<String> = Vec::new();
     for (i, line) in doc.lines().enumerate() {
         if let Some(open) = is_fence(line) {
+            // tags belong to the block they are in: none carry over from one block to the next
+            feature_tags.clear();
+            pending_tags.clear();
             in_block = open;
             in_examples = false;
             in_background = false;
@@ -168,6 +171,7 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             continue;
         }
         if lower.starts_with("examples:") || lower.starts_with("scenarios:") {
+            pending_tags.clear();
             in_examples = true;
             if let Some(cur) = raws.last_mut() {
                 // a further Examples table has its own header row
@@ -177,6 +181,7 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             continue;
         }
         if lower.starts_with("background:") {
+            pending_tags.clear();
             in_background = true;
             in_examples = false;
             continue;
@@ -184,6 +189,9 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         if lower.starts_with("feature:") || lower.starts_with("rule:") {
             if lower.starts_with("feature:") {
                 feature_tags = std::mem::take(&mut pending_tags);
+            } else {
+                // tags on a Rule are not supported: they must not leak to the next scenario
+                pending_tags.clear();
             }
             in_examples = false;
             in_background = false;

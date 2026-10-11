@@ -19,11 +19,16 @@ shown), and **error** when the run could not be made. The invariants must pass w
 stops: a property that is false without faults says nothing about the faults. The report also lists the FMEA rows of the
 composite's parts that were exercised, those with a fault model that were not, and those with no fault model at all.
 
+Faults are injected before the first step: a `Given` that sets a variable a fault holds (stuck) or a part that
+failed silent has no effect, and an invariant must not contain `fault … is injected/cleared` steps. Common-cause
+groups (`ccfGroup:`) run as the failure of every member together. Cut sets above `--max-order` are not run, and
+every fault set rebuilds the system (and re-instantiates plants), so a large order over many faults takes time.
+
 ## OPTIONS
     --ft <FaultTree>      also run the minimal cut sets of this fault tree
     --max-order <N>       largest cut set to run (default 2)
-    --fmea <FMEASheet>    only the single faults of this sheet's rows
-    --report-only         report defeats but exit 0
+    --fmea <FMEASheet>    only the single faults of this sheet's rows (fault-tree events and cut sets are unaffected)
+    --report-only         report defeats and errors but exit 0
     --json                machine-readable report
 
 ## EXIT STATUS

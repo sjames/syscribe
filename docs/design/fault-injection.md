@@ -38,7 +38,7 @@ The kinds are the classic set of fault-injection (stuck-at, bias, fail-silent, o
 3. injects each set at time 0 and runs every invariant unchanged: **survived** (all pass), **defeated** (one fails; the invariant and the failing step are reported), **error** (the run could not be made);
 4. reports which FMEA rows / fault-tree events of the composite's parts were exercised, which have a fault model but were not, and which are prose only.
 
-Exit 0 when every set survived, 2 on any defeat or error (`--report-only` reports and exits 0), 1 for usage errors. The fixed order (single faults in element order, then cut sets by order) makes the report reproducible.
+A set in which an invariant fails is **defeated** even when another invariant of the same set could not be evaluated. A campaign with no set to run is a usage error (exit 1), never a vacuous pass. Common-cause pseudo-events (`CCF:<group>`) stand for every member failing together. Faults go in before the first step, so a `Given` that sets a stuck variable is discarded; invariants must not contain fault steps themselves. Exit 0 when every set survived, 2 on any defeat or error (`--report-only` reports and exits 0), 1 for usage errors. The fixed order (single faults in element order, then cut sets by order) makes the report reproducible.
 
 A defeat is the useful result: it names a failure mode (or a combination) under which a stated safety property is violated, and the trace of that run (`simulate` with the fault steps) shows how. The cut-set mode connects the quantitative fault tree to the executable model: the sets the tree says are minimal are the ones tried.
 

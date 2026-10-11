@@ -1737,6 +1737,13 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         eprintln!("error: no scenario of {composite} is tagged @invariant; tag the scenarios that state a safety property that must hold under faults (a Gherkin tag on the line before `Scenario:`)");
         return 1;
     }
+    // the campaign injects the faults itself: an invariant must not inject or clear any
+    for sc in &invariants {
+        if sc.steps.iter().any(|st| matches!(syscribe_model::system_scen::parse_step(st.kw, &st.text), Ok(syscribe_model::system_scen::SCmd::Fault { .. }))) {
+            eprintln!("error: the invariant '{}' has `fault … is injected/cleared` steps; the campaign injects the faults itself, so an invariant states only the property", sc.title);
+            return 1;
+        }
+    }
     let model = match syscribe_model::system_run::SystemModel::build_in(elems, &composite, model_root) {
         Ok(m) => m,
         Err(errs) => {
@@ -1774,6 +1781,8 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
     }
     let mut not_injectable: Vec<NotInjectable> = Vec::new();
+    let mut cut_set_order: Option<usize> = None;
+    let mut cut_sets_truncated = false;
     if let Some(ft_id) = value("--ft") {
         let Some(tree) = syscribe_model::fta::find_fault_tree(elems, &ft_id) else {
             eprintln!("error: no fault tree '{ft_id}'");
@@ -1788,15 +1797,36 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             }
         };
         let tree_label = tree.frontmatter.id.clone().unwrap_or_else(|| tree.qualified_name.clone());
+        cut_set_order = Some(max_order);
+        cut_sets_truncated = analysis.truncated;
         for cs in analysis.cut_sets.iter().filter(|c| c.order <= max_order) {
-            let missing: Vec<String> = cs.events.iter().filter(|e| !model.faults.iter().any(|f| &f.id == *e)).cloned().collect();
+            // a common-cause pseudo-event `CCF:<group>` stands for every member of the group failing together
+            let mut ids: Vec<String> = Vec::new();
+            let mut missing: Vec<String> = Vec::new();
+            for e in &cs.events {
+                let members: Vec<String> = match e.strip_prefix("CCF:") {
+                    Some(group) => elems.iter().filter(|x| matches!(x.frontmatter.element_type, Some(ElementType::FaultTreeEvent)) && x.frontmatter.ccf_group.as_deref() == Some(group)).filter_map(|x| x.frontmatter.id.clone()).collect(),
+                    None => vec![e.clone()],
+                };
+                for m in members {
+                    if model.faults.iter().any(|f| f.id == m) {
+                        ids.push(m);
+                    } else {
+                        missing.push(m);
+                    }
+                }
+            }
             let origin = format!("cut set of {tree_label}, order {}", cs.order);
-            if missing.is_empty() {
-                push(&mut sets, cs.events.clone(), origin);
+            if missing.is_empty() && !ids.is_empty() {
+                push(&mut sets, ids, origin);
             } else {
-                not_injectable.push(NotInjectable { origin, events: missing, reason: "no fault model (`injection:`) applies to the composite".into() });
+                not_injectable.push(NotInjectable { origin, events: missing, reason: "no fault model (`injection:`) of these events applies to the composite".into() });
             }
         }
+    }
+    if sets.is_empty() {
+        eprintln!("error: no fault set to run: no fault of {composite} has an `injection:` that applies to it{}", if value("--ft").is_some() { " (and no cut set of the fault tree has events that all have one)" } else { "" });
+        return 1;
     }
     let opts = syscribe_model::sm_run::Options::default();
     let mut campaign = match fault_campaign::run(&model, &invariants, &opts, &sets) {
@@ -1807,8 +1837,11 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
     };
     campaign.not_injectable = not_injectable;
+    campaign.cut_set_order = cut_set_order;
+    campaign.cut_sets_truncated = cut_sets_truncated;
     let rows = fault_campaign::analysis_rows(elems, &resolver, &model);
-    let ran: std::collections::HashSet<&str> = sets.iter().flat_map(|s| s.ids.iter().map(|x| x.as_str())).collect();
+    // exercised: in a set that actually ran (not one that ended in an error)
+    let ran: std::collections::HashSet<&str> = campaign.sets.iter().filter(|s| s.status != "error").flat_map(|s| s.faults.iter().map(|x| x.as_str())).collect();
     for (id, has_model) in &rows {
         if !has_model {
             campaign.fmea.without_model.push(id.clone());
@@ -1836,15 +1869,18 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
                 println!("      error in \"{}\": {}", d.scenario, d.message);
             }
         }
+        if let Some(n) = campaign.cut_set_order {
+            println!("  cut sets of the fault tree up to order {n} were run; larger orders are not{}", if campaign.cut_sets_truncated { " (the analysis itself stopped early: too many cut sets)" } else { "" });
+        }
         for n in &campaign.not_injectable {
             println!("  not run   {} ({}): {}", n.events.join(", "), n.origin, n.reason);
         }
-        println!("FMEA/FTA rows of the composite's parts: {} exercised, {} with a fault model but not exercised, {} with no fault model (prose only)", campaign.fmea.exercised.len(), campaign.fmea.not_exercised.len(), campaign.fmea.without_model.len());
+        println!("FMEA/FTA rows of the composite's parts: {} exercised, {} with a fault model but not exercised, {} with no usable fault model (prose only or malformed)", campaign.fmea.exercised.len(), campaign.fmea.not_exercised.len(), campaign.fmea.without_model.len());
         if !campaign.fmea.not_exercised.is_empty() {
             println!("  not exercised: {}", campaign.fmea.not_exercised.join(", "));
         }
         if !campaign.fmea.without_model.is_empty() {
-            println!("  no fault model: {}", campaign.fmea.without_model.join(", "));
+            println!("  no usable fault model: {}", campaign.fmea.without_model.join(", "));
         }
         println!("summary: {survived} survived, {defeated} defeated, {errored} could not be run");
     }

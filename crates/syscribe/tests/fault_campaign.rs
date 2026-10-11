@@ -103,7 +103,7 @@ fn the_text_report_and_the_report_only_flag() {
     assert_eq!(c, 0, "{t}");
     assert!(t.contains("DEFEATED") && t.contains("FM-TX-005") && t.contains("SURVIVED") && t.contains("FM-TX-001"), "{t}");
     assert!(t.contains("never accepts a wrong value"), "the defeated invariant is named: {t}");
-    assert!(t.contains("FM-RX-002") && t.contains("no fault model"), "analysis rows that cannot be exercised are listed: {t}");
+    assert!(t.contains("FM-RX-002") && t.contains("no usable fault model"), "analysis rows that cannot be exercised are listed: {t}");
 }
 
 #[test]
@@ -161,4 +161,65 @@ fn gherkin_tags_are_recorded_and_inherited_from_the_feature() {
     let s = extract_scenarios(doc);
     assert_eq!(s[0].tags, ["@safety", "@invariant", "@slow"]);
     assert_eq!(s[1].tags, ["@safety"]);
+}
+
+#[test]
+fn an_empty_campaign_is_not_a_pass() {
+    // no row of the sheet has a fault model that applies
+    let root = model(TC);
+    std::fs::write(root.join("FMEA-LINK-001.md"), "---\ntype: FMEASheet\nid: FMEA-LINK-001\nname: s\nstatus: draft\nentries:\n  - {id: FM-RX-002, ref: RxP, failureMode: \"prose only\"}\n---\n").unwrap();
+    let (c, _, e) = run(&root, &["inject", "Sys"]);
+    assert_eq!(c, 1, "{e}");
+    assert!(e.contains("no fault set to run"), "{e}");
+}
+
+#[test]
+fn tags_do_not_leak_to_the_wrong_scenario() {
+    use syscribe_model::sm_scen::extract_scenarios;
+    let doc = "```gherkin\nFeature: f\n\n  Scenario Outline: o\n    Then <a> == 1\n\n  @invariant\n  Examples:\n    | a |\n    | 1 |\n\n  Scenario: later\n    Then 1 == 1\n```\n\n```gherkin\n@safety\nFeature: g\n\n  Scenario: s\n    Then 1 == 1\n```\n\n```gherkin\nScenario: bare\n  Then 1 == 1\n```\n";
+    let s = extract_scenarios(doc);
+    let later = s.iter().find(|x| x.title == "later").unwrap();
+    assert!(!later.has_tag("invariant"), "a tag above Examples does not tag the next scenario: {:?}", later.tags);
+    let bare = s.iter().find(|x| x.title == "bare").unwrap();
+    assert!(bare.tags.is_empty(), "feature tags do not carry into a later block: {:?}", bare.tags);
+    assert!(s.iter().find(|x| x.title == "s").unwrap().has_tag("@safety"));
+}
+
+#[test]
+fn invariants_must_not_inject_faults_themselves() {
+    let tc = TC.replace("  @invariant\n  Scenario: the receiver never accepts a wrong value\n    When tx receives Tick", "  @invariant\n  Scenario: the receiver never accepts a wrong value\n    Given fault FM-TX-001 is injected\n    When tx receives Tick");
+    let (c, _, e) = run(&model(&tc), &["inject", "Sys"]);
+    assert_eq!(c, 1, "{e}");
+    assert!(e.contains("injects the faults itself"), "{e}");
+}
+
+fn tree_with_events(root: &PathBuf, ccf: bool) {
+    std::fs::create_dir_all(root.join("FT-LINK-001")).unwrap();
+    std::fs::write(root.join("FT-LINK-001.md"), "---\ntype: FaultTree\nid: FT-LINK-001\nname: tree\nstatus: draft\n---\nTree.\n").unwrap();
+    let ev = |id: &str, extra: &str| format!("---\ntype: FaultTreeEvent\nid: {id}\nname: \"{id}\"\neventKind: basic\nref: TxP\nfailureRate: 1.0e-7\n{extra}---\nEvent.\n");
+    let group = if ccf { "ccfGroup: LINK\nccfBeta: 0.1\n" } else { "" };
+    std::fs::write(root.join("FT-LINK-001/FTE-TX-001.md"), ev("FTE-TX-001", &format!("injection:\n  - {{kind: silent}}\n{group}"))).unwrap();
+    std::fs::write(root.join("FT-LINK-001/FTE-LK-001.md"), ev("FTE-LK-001", &format!("injection:\n  - {{kind: drop, port: out}}\n{group}"))).unwrap();
+    std::fs::write(root.join("FT-LINK-001/FTG-AND-001.md"), "---\ntype: FaultTreeGate\nid: FTG-AND-001\nname: both\ngateType: AND\ninputs: [FTE-TX-001, FTE-LK-001]\n---\nBoth.\n").unwrap();
+}
+
+#[test]
+fn the_sheet_restriction_really_restricts_and_common_cause_runs_all_members() {
+    let root = model(TC);
+    tree_with_events(&root, true);
+    let ids = |args: &[&str]| -> Vec<String> {
+        let (_, t, e) = run(&root, args);
+        let j: serde_json::Value = serde_json::from_str(&t).unwrap_or_else(|x| panic!("{x}: {t}{e}"));
+        j["sets"].as_array().unwrap().iter().map(|s| s["label"].as_str().unwrap().to_string()).collect()
+    };
+    let all = ids(&["inject", "Sys", "--json", "--report-only"]);
+    assert!(all.contains(&"FTE-TX-001".to_string()) && all.contains(&"FM-TX-001".to_string()), "{all:?}");
+    let sheet = ids(&["inject", "Sys", "--json", "--report-only", "--fmea", "FMEA-LINK-001"]);
+    assert!(sheet.contains(&"FM-TX-001".to_string()) && !sheet.contains(&"FTE-TX-001".to_string()), "{sheet:?}");
+    // a common-cause group becomes a cut set that fails every member together
+    let with_ft = ids(&["inject", "Sys", "--json", "--report-only", "--ft", "FT-LINK-001", "--max-order", "2"]);
+    assert!(with_ft.contains(&"FTE-LK-001 + FTE-TX-001".to_string()), "{with_ft:?}");
+    let (_, t, _) = run(&root, &["inject", "Sys", "--json", "--report-only", "--ft", "FT-LINK-001"]);
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+    assert_eq!(j["cutSetOrder"], 2, "the order that was run is stated: {j}");
 }
