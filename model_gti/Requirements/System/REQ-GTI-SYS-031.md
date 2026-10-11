@@ -1,0 +1,13 @@
+---
+type: Requirement
+id: REQ-GTI-SYS-031
+name: "Residual-current monitoring"
+status: approved
+reqDomain: system
+verificationMethod: test
+derivedFrom:
+  - REQ-GTI-STK-003
+breakdownAdr: ADR-GTI-REQ-001
+---
+
+The inverter **shall** disconnect within the specified time when residual current exceeds 300 mA continuously or rises in steps of 30, 60 or 150 mA `[secondary, RM-17]`.
