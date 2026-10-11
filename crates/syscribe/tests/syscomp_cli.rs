@@ -87,14 +87,11 @@ fn the_composite_can_be_named_instead_of_the_testcase() {
 }
 
 #[test]
-fn steps_outside_the_vocabulary_are_e886_and_coverage_is_refused() {
+fn steps_outside_the_vocabulary_are_e886() {
     let root = model(&TC.replace("When tx receives Tick", "When tx is poked"));
     let (c, t) = run(&root, &["validate"]);
     assert_eq!(c, 1, "{t}");
     assert!(t.contains("E886"), "{t}");
-    let (c, t) = run(&model(TC), &["simulate", "TC-SYS-001", "--coverage"]);
-    assert_eq!(c, 1, "{t}");
-    assert!(t.contains("coverage"), "{t}");
 }
 
 #[test]

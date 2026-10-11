@@ -61,6 +61,10 @@ Scenario: the command arrives after the link delay
 
 `Then <part> sent …` looks at every message the part sent earlier in the scenario. `simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part. The machine hash of a composite covers every part's machine hash and the wiring.
 
+## Coverage
+
+`simulate <TestCase|composite> --coverage` reports every part that has a state machine with the usual state, transition, pair, guard-condition (MC/DC) and timer coverage, labelled `<composite>.<part> (<machine>)`, merged over the scenarios that ran, followed by an aggregate of states, transitions and guard conditions. `--min-states`, `--min-transitions` and `--min-guards` are checked for every part, and the part below a threshold is named (exit 2). In `--json`, `coverage` is `{composite, hash, parts: […], aggregate}`.
+
 ## Diagnostics
 
 | Code | Meaning |
@@ -87,4 +91,4 @@ The loop, units and evidence are those of the FMI page: inputs are held over a s
 
 ## Not in this version
 
-Coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
+Mutation against composite scenarios, coverage of plant parts and of messages, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.

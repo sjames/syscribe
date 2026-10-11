@@ -67,7 +67,7 @@ Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-0
 
 * Hash of a composite run: BLAKE3 over the canonical JSON of `{parts: [{name, machine}], connections, bindings}` (each part's machine hash, then the wiring).
 * Trace: the steps of every part merged by time and tagged `[part]`; the messages are a separate list in the verdict (`messages`: who sent what via which port, when, and when it was delivered). Plant provenance as in the FMI note (`plants` in the verdict).
-* Coverage: not yet; `--coverage` is refused for composite subjects.
+* Coverage: per part instance (the existing machine report labelled `composite.part`), merged over the scenarios, plus an aggregate; gates apply to every part (REQ-TRS-SYSCOV-001).
 
 ## Staging
 
@@ -79,7 +79,7 @@ Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-0
 
 ## Deliberately not here
 
-Per-part coverage, mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
+Mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
 
 ## Known limits
 

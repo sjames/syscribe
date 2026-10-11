@@ -38,7 +38,7 @@ TestCase whose subject it is. The step vocabulary is closed; a step outside it i
 
 A `TestCase` whose `subject:` is a composite `Part`/`PartDef` (parts that exhibit executable state machines,
 joined by `connections:` and `bindingConnections:`) runs all the parts on one virtual clock. Its steps name the
-part; `--coverage` is not available for composites yet:
+part; `--coverage` reports each part as `<composite>.<part>` plus an aggregate (gates apply to every part):
 
     Given <part> is in state <state>
     Given <part>.<variable> is <expression>
