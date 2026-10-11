@@ -128,6 +128,22 @@ fn minimal_cut_sets_of_a_fault_tree_are_fault_sets() {
 }
 
 #[test]
+fn the_cut_set_note_says_higher_orders_were_left_out_not_that_the_analysis_overflowed() {
+    // GH #316: --max-order below the order of a cut set prunes it; that is the requested limit, not a cap being hit
+    let root = model(TC);
+    std::fs::create_dir_all(root.join("FT-LINK-001")).unwrap();
+    std::fs::write(root.join("FT-LINK-001.md"), "---\ntype: FaultTree\nid: FT-LINK-001\nname: tree\nstatus: draft\n---\nTree.\n").unwrap();
+    let ev = |id: &str, extra: &str| format!("---\ntype: FaultTreeEvent\nid: {id}\nname: \"{id}\"\neventKind: basic\nref: TxP\nfailureRate: 1.0e-7\n{extra}---\nEvent.\n");
+    std::fs::write(root.join("FT-LINK-001/FTE-TX-001.md"), ev("FTE-TX-001", "injection:\n  - {kind: silent}\n")).unwrap();
+    std::fs::write(root.join("FT-LINK-001/FTE-LK-001.md"), ev("FTE-LK-001", "injection:\n  - {kind: drop, port: out}\n")).unwrap();
+    std::fs::write(root.join("FT-LINK-001/FTG-TOP-001.md"), "---\ntype: FaultTreeGate\nid: FTG-TOP-001\nname: top\ngateType: AND\ninputs: [FTE-TX-001, FTE-LK-001]\n---\nTop.\n").unwrap();
+    let (_, t, e) = run(&root, &["inject", "Sys", "--ft", "FT-LINK-001", "--max-order", "1", "--report-only"]);
+    assert!(t.contains("higher order") && !t.contains("too many"), "{t}{e}");
+    let (_, t, e) = run(&root, &["inject", "Sys", "--ft", "FT-LINK-001", "--max-order", "2", "--report-only"]);
+    assert!(!t.contains("higher order") && !t.contains("too many"), "all cut sets were run, so no note: {t}{e}");
+}
+
+#[test]
 fn the_campaign_is_honest_about_what_it_can_say() {
     // no @invariant scenario at all
     let none = TC.replace("  @invariant\n", "").replace("  @Invariant\n", "");
