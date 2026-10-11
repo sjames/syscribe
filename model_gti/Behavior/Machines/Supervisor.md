@@ -1,6 +1,6 @@
 ---
 type: StateDef
-name: SupervisorIn
+name: Supervisor
 variables:
   - {name: rIso, value: "5000"}
   - {name: gridOk, value: "0"}
@@ -19,7 +19,7 @@ subStates:
       - {internal: true, accept: {payload: GridLost, via: grid}, assign: "gridOk := 0"}
   - name: WaitGrid
     transitions:
-      - {target: Closing, accept: {after: "60 s"}, effect: {send: Close, via: relayCmd}}
+      - {target: Closing, accept: {after: "{{Features::GridProfile.reconnectDelayS}} s"}, effect: {send: Close, via: relayCmd}}
       - {target: Tripped, accept: {payload: GridLost, via: grid}, assign: "gridOk := 0", effect: {send: Shutdown, via: relayCmd}}
   - name: Closing
     transitions:
@@ -38,4 +38,4 @@ subStates:
       - {target: WaitGrid, accept: {payload: GridGood, via: grid}, assign: "gridOk := 1"}
 ---
 
-Inverter connection supervisor (India). Start is ignored until the monitor has reported the grid good (`gridOk`), then passes an insulation check (`rIso` in kΩ; the limit 34 kΩ is 1000 V / 30 mA, `[secondary]`, RM-16), waits the reconnect delay of the profile (60 s, RM-07, **unverified**), closes both grid relays, enables the power stage and ramps for 5 s. A grid-loss report shuts everything down; the supervisor re-enters the wait only when the monitor reports the grid good again.
+Inverter connection supervisor (the reconnect delay is a parameter of the grid profile). Start is ignored until the monitor has reported the grid good (`gridOk`), then passes an insulation check (`rIso` in kΩ; the limit 34 kΩ is 1000 V / 30 mA, `[secondary]`, RM-16), waits the reconnect delay of the profile ({{Features::GridProfile.reconnectDelayS}} s, RM-07, **unverified**), closes both grid relays, enables the power stage and ramps for 5 s. A grid-loss report shuts everything down; the supervisor re-enters the wait only when the monitor reports the grid good again.

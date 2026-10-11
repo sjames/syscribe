@@ -30,6 +30,15 @@ parameterBindings:
   Features::GridProfile.nominalLineVoltageV: 208
   Features::GridProfile.reconnectDelayS: 300
   Features::GridProfile.islandClearS: 2
+  Features::GridProfile.overVoltagePu: 1.2
+  Features::GridProfile.underVoltagePu: 0.45
+  Features::GridProfile.overFreqHz: 62.0
+  Features::GridProfile.underFreqHz: 56.5
+  Features::GridProfile.reconnectVoltageMaxPu: 1.05
+  Features::GridProfile.reconnectVoltageMinPu: 0.917
+  Features::GridProfile.reconnectFreqMaxHz: 60.1
+  Features::GridProfile.reconnectFreqMinHz: 59.5
+  Features::GridProfile.clearingMs: 160
   Features::Mppt::GlobalScan.scanPeriodS: 600
 ---
 

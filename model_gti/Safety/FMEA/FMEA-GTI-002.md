@@ -5,7 +5,7 @@ name: "FMEA — Grid disconnection chain (injectable)"
 status: draft
 entries:
   - id: FM-GTI-001
-    ref: Behavior::Parts::GridMonitorPartUs
+    ref: Behavior::Parts::GridMonitorPart
     failureMode: "Software grid monitor fails silent — no GridLost report"
     effect: "Supervisor never commands shutdown; only the hardware trip remains"
     cause: "Firmware task starvation, hang, or corrupted state"
@@ -15,7 +15,7 @@ entries:
     recommendedAction: "Independent hardware trip; window watchdog on the monitor task"
     injection: [{kind: silent, part: monitor}]
   - id: FM-GTI-002
-    ref: Behavior::Parts::GridMonitorPartUs
+    ref: Behavior::Parts::GridMonitorPart
     failureMode: "Monitor report lost on its way to the supervisor"
     effect: "As FM-GTI-001"
     cause: "Message queue overflow or inter-task fault"
@@ -25,7 +25,7 @@ entries:
     recommendedAction: "Supervisor timeout on monitor heartbeat"
     injection: [{kind: drop, port: out, part: monitor}]
   - id: FM-GTI-003
-    ref: Behavior::Parts::SupervisorPartUs
+    ref: Behavior::Parts::SupervisorPart
     failureMode: "Supervisor fails silent — relays and gates are not commanded"
     effect: "Relay A stays closed and the bridge keeps switching unless the hardware trip acts"
     cause: "Firmware hang"
@@ -35,7 +35,7 @@ entries:
     recommendedAction: "Hardware trip opens relay B and disables the gates"
     injection: [{kind: silent, part: supervisor}]
   - id: FM-GTI-004
-    ref: Behavior::Parts::SupervisorPartUs
+    ref: Behavior::Parts::SupervisorPart
     failureMode: "Relay commands lost between supervisor and relay drivers"
     effect: "Relays are not opened by software"
     cause: "Driver or bus fault"
@@ -105,7 +105,7 @@ entries:
     recommendedAction: "Start-up test of the hardware trip with an injected reference"
     injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorHw}]
   - id: FM-GTI-010
-    ref: Behavior::Parts::GridMonitorPartUs
+    ref: Behavior::Parts::GridMonitorPart
     failureMode: "Monitor trip threshold drifts (prose only — an analysis row without a fault model)"
     effect: "Late or early trip"
     cause: "Reference drift"

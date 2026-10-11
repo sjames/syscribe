@@ -1,7 +1,7 @@
 ---
 type: PartDef
-name: SupervisorPartUs
-exhibitsStates: [Behavior::Machines::SupervisorUs]
+name: SupervisorPart
+exhibitsStates: [Behavior::Machines::Supervisor]
 features:
   - {name: grid, type: Port, direction: in}
   - {name: relayCmd, type: Port, direction: out}

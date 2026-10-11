@@ -13,7 +13,7 @@ The first version of the executable protection chain fed the software grid monit
 
 ## Decision
 
-The hardware trip reads the grid voltage through its own chain (REQ-GTI-HW-008). The composite has two sensing parts, `sensorSw` and `sensorHw`. A sensing fault on one chain no longer defeats the invariant (FM-GTI-009 and FM-GTI-011 both survive). A common cause that affects both chains (for example a wiring error at the grid connection point) stays a residual risk. It is not yet modelled in FT-GTI-001 (open item).
+The hardware trip reads the grid voltage through its own chain (REQ-GTI-HW-008). The composite has two sensing parts, `sensorSw` and `sensorHw`. A sensing fault on one chain no longer defeats the invariant (FM-GTI-009 and FM-GTI-011 both survive). A common cause that affects both chains (for example a wiring error at the grid connection point) stays a residual risk. It is modelled as FTE-GTI-009 in FT-GTI-001, a single cut set that the campaign reports as defeated (open decision).
 
 ## Consequences
 

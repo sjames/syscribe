@@ -30,6 +30,15 @@ parameterBindings:
   Features::GridProfile.nominalLineVoltageV: 415
   Features::GridProfile.reconnectDelayS: 60
   Features::GridProfile.islandClearS: 2
+  Features::GridProfile.overVoltagePu: 1.1
+  Features::GridProfile.underVoltagePu: 0.85
+  Features::GridProfile.overFreqHz: 50.5
+  Features::GridProfile.underFreqHz: 47.5
+  Features::GridProfile.reconnectVoltageMaxPu: 1.1
+  Features::GridProfile.reconnectVoltageMinPu: 0.9
+  Features::GridProfile.reconnectFreqMaxHz: 50.5
+  Features::GridProfile.reconnectFreqMinHz: 49.5
+  Features::GridProfile.clearingMs: 200
 ---
 
 India entry model.

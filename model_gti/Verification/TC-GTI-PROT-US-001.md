@@ -18,7 +18,7 @@ tags: [executable, region-us, reg-unverified]
 appliesWhen: Features::Region::US
 ---
 
-Executable scenarios of the US protection chain. Limits are the unverified defaults of the regulatory matrix.
+Executable scenarios of the protection chain with the US grid profile. Run with `syscribe simulate TC-GTI-PROT-US-001 --config CONF-GTI-US-M3-001`. Limits are the unverified values of the regulatory matrix.
 
 ```gherkin
 Feature: Grid connection and protection chain (US)
@@ -39,7 +39,7 @@ Feature: Grid connection and protection chain (US)
     And powerStage.pwm == 0
     When 99 ms elapses
     Then supervisor is in state Closing
-    When 2 ms elapses
+    When 1 ms elapses
     Then supervisor is in state Ramping
     And powerStage is in state On
     And powerStage.pwm == 1

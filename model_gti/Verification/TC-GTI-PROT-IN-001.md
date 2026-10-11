@@ -4,7 +4,7 @@ id: TC-GTI-PROT-IN-001
 name: Protection chain behaviour, India profile
 status: active
 testLevel: L4
-subject: Behavior::Chain::ProtectionChainIn
+subject: Behavior::Chain::ProtectionChain
 verifies:
   - REQ-GTI-SYS-007
   - REQ-GTI-SYS-010
@@ -18,7 +18,7 @@ tags: [executable, region-in, reg-unverified]
 appliesWhen: Features::Region::IN
 ---
 
-Executable scenarios of the India protection chain. Limits and times are unverified.
+Executable scenarios of the protection chain with the India grid profile. Run with `syscribe simulate TC-GTI-PROT-IN-001 --config CONF-GTI-IN-M3-001`. Limits and times are unverified.
 
 ```gherkin
 Feature: Grid connection and protection chain (India)
@@ -39,7 +39,7 @@ Feature: Grid connection and protection chain (India)
     And powerStage.pwm == 0
     When 99 ms elapses
     Then supervisor is in state Closing
-    When 2 ms elapses
+    When 1 ms elapses
     Then supervisor is in state Ramping
     And powerStage is in state On
     And powerStage.pwm == 1

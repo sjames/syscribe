@@ -88,7 +88,16 @@ featureTree:
     parameters:
       - {name: nominalFrequencyHz, type: ScalarValues::Integer, range: "50..=60", isRequired: true, bindingTime: load}
       - {name: nominalLineVoltageV, type: ScalarValues::Integer, range: "200..=480", isRequired: true, bindingTime: load}
-      - {name: reconnectDelayS, type: ScalarValues::Integer, range: "10..=600", isRequired: true, bindingTime: load}
+      - {name: reconnectDelayS, type: ScalarValues::Integer, range: "10..=600", default: 300, isRequired: true, bindingTime: load}
       - {name: islandClearS, type: ScalarValues::Integer, range: "1..=5", isRequired: true, bindingTime: load}
+      - {name: overVoltagePu, type: ScalarValues::Real, range: "1.0..=1.5", default: 1.2, isRequired: true, bindingTime: load}
+      - {name: underVoltagePu, type: ScalarValues::Real, range: "0.1..=1.0", default: 0.45, isRequired: true, bindingTime: load}
+      - {name: overFreqHz, type: ScalarValues::Real, range: "40.0..=70.0", default: 62.0, isRequired: true, bindingTime: load}
+      - {name: underFreqHz, type: ScalarValues::Real, range: "40.0..=70.0", default: 56.5, isRequired: true, bindingTime: load}
+      - {name: reconnectVoltageMaxPu, type: ScalarValues::Real, range: "1.0..=1.5", default: 1.05, isRequired: true, bindingTime: load}
+      - {name: reconnectVoltageMinPu, type: ScalarValues::Real, range: "0.5..=1.0", default: 0.917, isRequired: true, bindingTime: load}
+      - {name: reconnectFreqMaxHz, type: ScalarValues::Real, range: "40.0..=70.0", default: 60.1, isRequired: true, bindingTime: load}
+      - {name: reconnectFreqMinHz, type: ScalarValues::Real, range: "40.0..=70.0", default: 59.5, isRequired: true, bindingTime: load}
+      - {name: clearingMs, type: ScalarValues::Integer, range: "10..=5000", default: 160, isRequired: true, bindingTime: load}
 constraints: []
 ---

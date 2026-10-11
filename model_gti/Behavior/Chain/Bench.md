@@ -1,6 +1,6 @@
 ---
 type: Part
-name: BenchUs
+name: Bench
 typedBy: Behavior::Chain::ProtectionChain
 ---
 

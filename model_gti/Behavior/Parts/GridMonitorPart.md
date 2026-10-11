@@ -1,7 +1,7 @@
 ---
 type: PartDef
-name: GridMonitorPartIn
-exhibitsStates: [Behavior::Machines::GridMonitorIn]
+name: GridMonitorPart
+exhibitsStates: [Behavior::Machines::GridMonitor]
 features:
   - {name: samples, type: Port, direction: in}
   - {name: out, type: Port, direction: out}

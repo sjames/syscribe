@@ -40,16 +40,26 @@ The request said "hybrid solar mode … multi string high voltage solar strings 
 
 ## Tool findings from building the model
 
-1. **Time accumulates in binary floating point.** `When 99 ms elapses` followed by `When 1 ms elapses` at about 300 s of virtual time does not reach a 100 ms timer started at 300 s (300.099 + 0.001 ≠ 300.1). Scenarios that split a delay at a boundary fail unpredictably. The model works around it with 2 ms margins.
-2. **Feature parameters cannot reach state machines.** `GridProfile` parameters (reconnect delay, limits) cannot be used in a machine's guards or `after:` durations, so the US and India machines are generated as two copies.
-3. **A common platform element that satisfies a region-specific requirement is flagged `W019` in the other region.** The model needs one gated "realisation" element per optional feature purely to keep projections clean.
-4. **FMEA rows cannot be variant-gated** (`appliesWhen:` on a row is `E922`); a row whose `ref` is a gated element raises `W904` in products without it.
-5. **Fault models cannot depend on the region.** A "sensor reads nominal" fault needs 60 Hz in the US and 50 Hz in India; the model injects only the voltage.
-6. **Test plans need their own `appliesWhen:`** to project cleanly; a `selection:` sweeps in test cases that are inactive in the bound configuration (`W611`).
-7. **Configuration ids must end in a 3+ digit number** (`CONF-GTI-US-M3` is `E200`), unlike `FEAT-` ids.
-8. **Mutation reports equivalent mutants as survivors**: swapping two transitions with mutually exclusive guards, and shifting a bound by one where values move in steps of 50.
-9. **`inject --max-order 2` prints "stopped early: too many cut sets"** for a small tree whose cut sets above order 2 are not needed.
-10. **Behaviour parts and architecture parts are separate elements** with no declared link (`Behavior::Parts::GridMonitorPartUs` models `System::Software::ProtectionManager`); today the connection is prose.
-11. **Continuous behaviour is out of scope of a state machine.** Anti-islanding perturbation and waveforms are not modelled; grid loss is a sample with zero voltage.
-12. **The first `@invariant` was too weak** to see multi-cycle behaviour; the invariants check only the energisation property, not the full safe state (pwm off and both relays open), because a welded relay makes the latter impossible by definition.
-13. **Open question the checks surfaced:** with arc-fault protection optional in India, safety goal `SG-GTI-002` has no requirement in an Indian product without it (`W805`). The model gates the goal with the feature; the residual DC arc hazard of such a product needs an installation-rule answer from the safety engineer.
+Building this model exposed twelve tool problems. Seven became issues (#310–#316) and were fixed in the tool, and the model was then changed to use the fixes:
+
+| Finding | Issue | Fix, and what the model now does |
+|---|---|---|
+| Virtual time in binary floating point: `99 ms` + `1 ms` at 300 s missed a 100 ms timer | #310 | Time is kept on a 1 ns grid; the scenarios use the exact split again |
+| State machines could not read feature parameters, so the US and India machines were two hand-synced copies | #311 | `{{Features::GridProfile.…}}` in guards, assignments and durations, run with `--config`; one monitor, one supervisor, one chain |
+| A platform element satisfying a region-specific requirement raised `W019` in the other region | #312 | A `satisfies:` of a requirement the product lacks is not an escape; the 13 per-feature "realisation" elements are gone |
+| FMEA rows could not be variant-gated; fault values could not follow the region | #313 | `appliesWhen:` on a row; placeholders in `injection:` |
+| Test plans leaked into other products' projections, and `selection:` swept in inactive test cases | #314, #324 | A plan follows its bound configurations; the hand-written plan `appliesWhen:` is gone |
+| Mutation reported equivalent mutants (swapping transitions with disjoint guards) as survivors | #315 (a) | Not generated; case (b), literal shifts on a stepped variable, stays open |
+| `inject --max-order` printed "too many cut sets" when it only pruned by order | #316 | Says higher-order cut sets were left out |
+
+Not changed in the tool:
+
+* `Configuration` ids must end in a 3+ digit number (`CONF-GTI-US-M3` is `E200`), unlike `FEAT-` ids.
+* Behaviour parts and architecture parts are separate elements with no declared link (`Behavior::Parts::GridMonitorPart` models `System::Software::ProtectionManager`); today the connection is prose.
+* A state machine cannot express continuous behaviour. Anti-islanding perturbation and waveforms are not modelled; grid loss is a sample with zero voltage, so the `@invariant` never exercises real islanding with the voltage still in window.
+* An `@invariant` cannot express the full safe state ("pwm off and both relays open"): a welded relay makes it impossible by definition. The invariants check that the grid is not energised.
+
+## Open decisions
+
+* **Sensing common cause.** The two voltage-sensing chains are independent, but a fault that blinds both (FTE-GTI-009, for example a wiring error at the grid connection point) is a single cut set, and the campaign reports it as defeated. The architecture needs a measure that does not rely on voltage sensing (active anti-islanding detection, or a relay-feedback check), or the residual risk must be accepted with a rate.
+* **DC arc hazard in India.** With arc-fault protection optional there, safety goal `SG-GTI-002` has no requirement in an Indian product without it (`W805`). The model gates the goal with the feature; the safety engineer must decide how such a product covers the hazard (installation rules, conductor and connector selection).
