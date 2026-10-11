@@ -753,3 +753,96 @@ fn record_scenarios(
     println!("Recorded {} scenario verdict(s){}.", outs.len(), run.map(|r| format!(" in run '{r}'")).unwrap_or_default());
     Ok(())
 }
+
+/// Entry point for `mutate <StateDef|TestCase> [--min-score <pct>] [--json]` (GH #282): seed faults into the
+/// machine's IR and re-run its scenarios. Exit 0 · 1 usage · 2 below `--min-score`, or the scenarios do not
+/// pass on the unmutated machine.
+pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
+    use syscribe_model::element::ElementType;
+    use syscribe_model::sm_scen::{extract_scenarios, subject_of};
+    let flag = |f: &str| args.iter().any(|a| a == f);
+    let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--min-score").map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
+        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase> [--min-score <percent>] [--json]");
+        return 1;
+    };
+    let min = match value("--min-score").map(|v| v.parse::<f64>()) {
+        None => None,
+        Some(Ok(v)) => Some(v),
+        Some(Err(_)) => {
+            eprintln!("error: --min-score needs a percentage");
+            return 1;
+        }
+    };
+    let resolver = syscribe_model::resolver::Resolver::new(elems);
+    let Some(target) = resolver.resolve_ref(elems, &name) else {
+        eprintln!("error: no element '{name}'");
+        return 1;
+    };
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
+    let (machine_q, tcs): (String, Vec<&RawElement>) = if matches!(target.frontmatter.element_type, Some(ElementType::TestCase)) {
+        match subject_of(elems, target) {
+            Ok(s) => (s.qualified_name.clone(), vec![target]),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return 1;
+            }
+        }
+    } else if is_machine(target) {
+        let tcs = elems
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase)))
+            .filter(|e| subject_of(elems, e).map(|s| s.qualified_name == target.qualified_name).unwrap_or(false))
+            .collect();
+        (target.qualified_name.clone(), tcs)
+    } else {
+        eprintln!("error: '{name}' is neither a StateDef nor a TestCase");
+        return 1;
+    };
+    let scenarios: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).collect();
+    if scenarios.is_empty() {
+        eprintln!("error: no scenarios to run against {machine_q}");
+        return 1;
+    }
+    let machine = match syscribe_model::ir::lower(elems, &machine_q) {
+        Ok(m) => m,
+        Err(diags) => {
+            for (c, msg) in &diags {
+                eprintln!("{c}: {msg}");
+            }
+            return 2;
+        }
+    };
+    let report = match syscribe_model::sm_mut::analyse(&machine, &scenarios, &syscribe_model::sm_run::Options::default()) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+    if flag("--json") {
+        println!("{}", serde_json::to_string_pretty(&report).expect("serialises"));
+    } else {
+        println!(
+            "mutation score {:.1}%  ({} killed, {} survived, {} equivalent-suspect) over {} scenario(s) on {} (hash {})",
+            report.score, report.killed, report.survived, report.equivalent_suspect, report.scenarios, report.machine, &report.machine_hash[..12]
+        );
+        for m in report.mutants.iter().filter(|m| m.fate == "survived") {
+            println!("  SURVIVED  {}  [{} at {}]{}", m.description, m.operator, m.origin.path, m.closest.as_ref().map(|c| format!("  (closest: {c})")).unwrap_or_default());
+        }
+        for m in report.mutants.iter().filter(|m| m.fate == "equivalentSuspect") {
+            println!("  uncovered {}  [{}]", m.description, m.operator);
+        }
+        if !report.uncovered.states.is_empty() {
+            println!("  states never entered: {}", report.uncovered.states.join(", "));
+        }
+    }
+    if let Some(min) = min {
+        if report.score + 1e-9 < min {
+            eprintln!("mutation gate: score {:.1}% is below the required {min}%", report.score);
+            return 2;
+        }
+    }
+    0
+}
