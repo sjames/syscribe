@@ -600,6 +600,9 @@ fn report_title(elems: &[RawElement]) -> String {
 }
 
 fn main() {
+    // FMI plant co-simulation (REQ-TRS-FMI-001): present only in a build with `--features fmi`.
+    #[cfg(feature = "fmi")]
+    syscribe_fmi::register();
     // Restore the default SIGPIPE disposition. Rust ignores SIGPIPE at startup, so
     // writing to a pipe whose reader has closed early — `syscribe --help | head`,
     // `... | grep -q`, `... | less` quit early — turns into an EPIPE that makes

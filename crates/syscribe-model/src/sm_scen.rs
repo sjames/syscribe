@@ -393,6 +393,9 @@ pub struct Verdict {
     pub coverage: crate::sm_run::Coverage,
     #[serde(skip)]
     pub act_coverage: crate::act_run::ActCoverage,
+    /// What identifies each plant of the run (FMU hash, FMI version, step, platform); empty without plants.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub plants: Vec<serde_json::Value>,
 }
 
 fn const_value(run: &Run, src: &str) -> Result<Value, String> {
@@ -401,7 +404,33 @@ fn const_value(run: &Run, src: &str) -> Result<Value, String> {
 
 /// Run one scenario on a fresh run of `machine`.
 pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict {
-    let mut run = Run::new(machine, opts.clone());
+    run_scenario_with(machine, sc, opts, None)
+}
+
+/// Builds the plants of one run; called once per scenario so every scenario starts with fresh plants.
+pub type PlantFactory<'a> = &'a dyn Fn() -> Result<crate::plant::CoSim, Vec<String>>;
+
+/// [`run_scenario`] with plant models co-simulated on the shared clock (REQ-TRS-FMI-001).
+pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plants: Option<PlantFactory>) -> Verdict {
+    let mut run = match plants {
+        None => Run::new(machine, opts.clone()),
+        Some(f) => match f() {
+            Ok(c) => Run::with_plants(machine, opts.clone(), c),
+            Err(es) => {
+                return Verdict {
+                    scenario: sc.title.clone(),
+                    outline: sc.outline.clone(),
+                    status: Status::Error,
+                    message: Some(format!("plants: {}", es.join("; "))),
+                    steps: vec![],
+                    trace: vec![],
+                    coverage: Default::default(),
+                    act_coverage: Default::default(),
+                    plants: vec![],
+                }
+            }
+        },
+    };
     let steps: Vec<String> = sc.steps.iter().map(|s| format!("{} {}", match s.kw { Kw::Given => "Given", Kw::When => "When", Kw::Then => "Then" }, s.text)).collect();
     let done = |run: &Run, status: Status, message: Option<String>| Verdict {
         scenario: sc.title.clone(),
@@ -412,6 +441,7 @@ pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict
         trace: run.trace().to_vec(),
         coverage: run.coverage(),
         act_coverage: Default::default(),
+        plants: run.plant_provenance(),
     };
     if let Some(e) = run.error() {
         let e = e.to_string();

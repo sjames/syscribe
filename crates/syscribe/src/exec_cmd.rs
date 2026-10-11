@@ -501,7 +501,7 @@ fn simulate_script(elems: &[RawElement], args: &[String], model_root: &std::path
 /// every scenario `TestCase` whose subject it is) runs its Gherkin scenarios (GH #279, #280).
 pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>, model_root: &std::path::Path) -> i32 {
     use syscribe_model::element::ElementType;
-    use syscribe_model::sm_scen::{extract_scenarios, run_scenario, subject_of, Status};
+    use syscribe_model::sm_scen::{extract_scenarios, subject_of, Status};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
     let valued = ["--do", "--scenario", "--run", "--config", "--crosscheck", "--min-states", "--min-transitions", "--min-guards", "--min-nodes", "--min-edges"];
@@ -617,8 +617,16 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             }
         }
         let m = &lowered[&subject.qualified_name];
+        let factory = match plant_factory(active, tc, m, model_root) {
+            Ok(f) => f,
+            Err((code, msg)) => {
+                eprintln!("error: {tc_id}: {msg}");
+                return code;
+            }
+        };
         for sc in &scenarios {
-            outs.push(Out { tc: tc_id.clone(), machine: m.machine.clone(), hash: m.hash.clone(), v: run_scenario(m, sc, &opts) });
+            let v = syscribe_model::sm_scen::run_scenario_with(m, sc, &opts, factory.as_ref().map(|f| f.as_ref()));
+            outs.push(Out { tc: tc_id.clone(), machine: m.machine.clone(), hash: m.hash.clone(), v });
         }
     }
     if outs.is_empty() {
@@ -758,6 +766,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     "testCase": o.tc, "scenario": o.v.scenario, "outline": o.v.outline, "status": o.v.status,
                     "message": o.v.message, "machine": o.machine, "machineHash": o.hash, "steps": o.v.steps,
                 });
+                if !o.v.plants.is_empty() {
+                    j["plants"] = serde_json::Value::Array(o.v.plants.clone());
+                }
                 if flag("--trace") {
                     j["trace"] = serde_json::to_value(&o.v.trace).unwrap_or_default();
                 }
@@ -906,7 +917,7 @@ fn record_scenarios(
         let slug: String = v.scenario.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
         let tag = format!("{:08x}", v.scenario.bytes().fold(0x811c9dc5u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193)));
         let file = dir.join(format!("{tc}__{slug}-{tag}.json"));
-        let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "trace": v.trace});
+        let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "plants": v.plants, "trace": v.trace});
         std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     }
     println!("Recorded {} scenario verdict(s){}.", outs.len(), run.map(|r| format!(" in run '{r}'")).unwrap_or_default());
@@ -959,6 +970,10 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
         eprintln!("error: '{name}' is neither a StateDef nor a TestCase");
         return 1;
     };
+    if tcs.iter().any(|tc| syscribe_model::plant_cfg::declares_plants(&tc.frontmatter)) {
+        eprintln!("error: mutation analysis of scenarios that use plants is not supported yet (each mutant would need its own co-simulation)");
+        return 1;
+    }
     let scenarios: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).collect();
     if scenarios.is_empty() {
         eprintln!("error: no scenarios to run against {machine_q}");
@@ -1419,4 +1434,57 @@ fn simulate_action_script(elems: &[RawElement], args: &[String]) -> i32 {
         return 2;
     }
     0
+}
+
+type PlantFactoryBox = Box<dyn Fn() -> Result<syscribe_model::plant::CoSim, Vec<String>>>;
+
+/// The plants of a TestCase (REQ-TRS-FMI-001): `Ok(None)` when it declares none; otherwise a factory that
+/// instantiates fresh plants for each scenario. `Err((exit code, message))` when they cannot be built; exit
+/// `1` when this build has no FMI support.
+fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model::ir::Machine, model_root: &std::path::Path) -> Result<Option<PlantFactoryBox>, (i32, String)> {
+    use syscribe_model::config::{SourceLocation, ValidateConfig};
+    use syscribe_model::plant::{backend, CoSim};
+    use syscribe_model::plant_cfg::{declares_plants, parse_fmu, parse_wiring};
+    if !declares_plants(&tc.frontmatter) {
+        return Ok(None);
+    }
+    let Some(be) = backend() else {
+        return Err((1, "this TestCase uses plants but this build has no FMI support (rebuild with `cargo build --features fmi`)".into()));
+    };
+    let fail = |es: Vec<String>| (2, es.join("; "));
+    let wiring = parse_wiring(&tc.frontmatter).map_err(fail)?;
+    let step = wiring.step.ok_or_else(|| (2, "`plants:` needs a `plantStep:`".to_string()))?;
+    let resolver = syscribe_model::resolver::Resolver::new(elems);
+    let cfg = ValidateConfig::with_model_root(model_root);
+    struct Spec {
+        name: String,
+        file: std::path::PathBuf,
+        params: Vec<(String, f64)>,
+    }
+    let mut specs: Vec<Spec> = Vec::new();
+    for p in &wiring.plants {
+        let pe = resolver.resolve_ref(elems, p).ok_or_else(|| (2, format!("plant '{p}' does not resolve")))?;
+        let decl = pe.frontmatter.fmu.as_ref().ok_or_else(|| (2, format!("plant '{p}' has no `fmu:` declaration")))?;
+        let decl = parse_fmu(decl).map_err(fail)?;
+        let file = match cfg.classify_source(&decl.file) {
+            SourceLocation::Local(f) => f,
+            SourceLocation::Remote(u) => return Err((2, format!("the FMU '{u}' is remote; only local files are supported"))),
+        };
+        let info = be.inspect(&file).map_err(|e| (2, format!("{}: {e}", file.display())))?;
+        let params = decl.raw_parameters(&info).map_err(fail)?;
+        specs.push(Spec { name: pe.qualified_name.rsplit("::").next().unwrap_or(&pe.qualified_name).to_string(), file, params });
+    }
+    let machine = machine.clone();
+    let conns = wiring.connections.clone();
+    let build = move || -> Result<CoSim, Vec<String>> {
+        let be = backend().expect("registered");
+        let mut plants = Vec::new();
+        for s in &specs {
+            plants.push((s.name.clone(), be.instantiate(&s.file, &s.params).map_err(|e| vec![format!("{}: {e}", s.name)])?));
+        }
+        CoSim::new(plants, conns.clone(), step, &machine)
+    };
+    // build once now so wiring errors are reported before any scenario runs
+    build().map_err(fail)?;
+    Ok(Some(Box::new(build)))
 }
