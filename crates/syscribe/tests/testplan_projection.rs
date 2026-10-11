@@ -49,3 +49,16 @@ fn selection_does_not_sweep_in_test_cases_that_run_in_no_bound_product() {
     let t = validate(&model(), &[]);
     assert!(!t.contains("W611"), "the US plan does not sweep in the India-only test case: {t}");
 }
+
+#[test]
+fn explicit_members_of_another_products_plan_do_not_escape_into_this_projection() {
+    // the plans of `model()` use `selection:`; here they name their members, which are inactive in the other product
+    let root = model();
+    for (r, tc) in [("US", "TC-TPP-001"), ("IN", "TC-TPP-002")] {
+        std::fs::write(root.join(format!("TP-TPP-{r}-001.md")), format!("---\ntype: TestPlan\nid: TP-TPP-{r}-001\nname: p\nstatus: approved\nscope: certification\nconfigurations: [CONF-TPP-{r}-001]\ntestCases: [{tc}, TC-TPP-003]\n---\n\nPlan.\n")).unwrap();
+    }
+    for conf in ["CONF-TPP-US-001", "CONF-TPP-IN-001"] {
+        let t = validate(&root, &["--config", conf]);
+        assert!(!t.contains("W019"), "{conf}: {t}");
+    }
+}
