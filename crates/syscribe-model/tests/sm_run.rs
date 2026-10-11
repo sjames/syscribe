@@ -462,3 +462,16 @@ fn strict_mode_reports_any_conflicting_pair() {
     };
     assert!(r.error().is_some_and(|e| e.contains("t0") && e.contains("t2")), "{:?}", r.error());
 }
+
+#[test]
+fn split_delays_reach_a_timer_at_a_large_absolute_time() {
+    // GH #310: 300 + 0.099 + 0.001 is 300.09999999999997 in binary floating point, one ulp short of 300.1
+    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {target: B, accept: {after: \"300 s\"}}\n  - name: B\n    transitions:\n      - {target: C, accept: {after: \"100 ms\"}}\n  - {name: C, isFinal: true}\n");
+    let mut r = Run::new(&m, Options::default());
+    r.advance(300.0);
+    assert_eq!(r.active(), ["B"]);
+    r.advance(0.099);
+    assert_eq!(r.active(), ["B"]);
+    r.advance(0.001);
+    assert_eq!(r.active(), ["C"], "99 ms + 1 ms reaches a 100 ms timer");
+}

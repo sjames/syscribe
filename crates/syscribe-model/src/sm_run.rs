@@ -134,6 +134,13 @@ pub enum Pin {
     Offset(Value),
 }
 
+/// Virtual time lives on a grid of one nanosecond: `300 + 0.099 + 0.001` must equal `300 + 0.1` (GH #310), which binary
+/// floating point does not give. Every instant the interpreter computes (a time reached by a step, a timer's due time, a
+/// message's delivery time) goes through here, so equal instants are the same `f64`.
+pub fn quantise(t: f64) -> f64 {
+    (t * 1e9).round() / 1e9
+}
+
 impl<'m> Run<'m> {
     /// Create a run and start the machine (enter the initial states and settle).
     pub fn new(m: &'m Machine, opts: Options) -> Run<'m> {
@@ -359,6 +366,7 @@ impl<'m> Run<'m> {
 
     /// Advance the virtual clock, firing due timers in order of due time.
     pub fn advance(&mut self, secs: f64) {
+        let secs = if secs > 0.0 { quantise(self.time + secs) - self.time } else { secs };
         if self.halted() {
             return;
         }
@@ -370,6 +378,7 @@ impl<'m> Run<'m> {
 
     /// Advance the virtual clock to the absolute time `target` (no rounding of `time + (target - time)`), firing due timers.
     pub fn advance_to(&mut self, target: f64) {
+        let target = quantise(target);
         if self.halted() || target <= self.time {
             return;
         }
@@ -963,7 +972,7 @@ impl<'m> Run<'m> {
     fn rearm(&mut self, t: usize) -> R<()> {
         let tr = &self.m.transitions[t];
         match &tr.trigger {
-            Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, t)),
+            Trigger::Timer { delay_seconds } => self.timers.push((quantise(self.time + delay_seconds), t)),
             Trigger::Change { cond } => {
                 let v = self.truth(cond, None, &format!("transition t{t} `when`"))?;
                 self.watches.push(Watch { trans: t, need_false: v, fired: false });
@@ -1041,7 +1050,7 @@ impl<'m> Run<'m> {
         for s in entered.iter().copied().filter(|s| self.active[*s]) {
         for tr in m.transitions.iter().filter(|t| t.source == s) {
             match &tr.trigger {
-                Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, tr.id)),
+                Trigger::Timer { delay_seconds } => self.timers.push((quantise(self.time + delay_seconds), tr.id)),
                 Trigger::Change { cond } => {
                     // KerML ObserveChange: already true when the observation starts means the signal is sent at once.
                     let v = self.truth_rec(tr.id, 1, cond, None, &format!("transition t{} `when`", tr.id))?;

@@ -267,3 +267,16 @@ fn a_delivered_message_annotates_the_receiving_step() {
     let notes: Vec<String> = s.trace().into_iter().filter(|(p, _)| p == "rx").filter_map(|(_, st)| st.note).collect();
     assert!(notes.iter().any(|n| n.contains("received Cmd from tx.out") && n.contains("sent at 0")), "{notes:?}");
 }
+
+#[test]
+fn split_delays_reach_a_timer_and_a_delayed_message_at_a_large_absolute_time() {
+    // GH #310
+    let w = "subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {target: B, accept: {after: \"300 s\"}}\n  - name: B\n    transitions:\n      - {target: C, accept: {after: \"100 ms\"}}\n  - {name: C, isFinal: true}\n";
+    let m = system(vec![sm("WM", w), def("WP", "WM", &[])], "  - {name: p, typedBy: WP}\n", "", "");
+    let mut s = System::new(&m, Options::default());
+    s.advance(300.0);
+    s.advance(0.099);
+    assert_eq!(s.active("p").unwrap(), ["B"]);
+    s.advance(0.001);
+    assert_eq!(s.active("p").unwrap(), ["C"]);
+}
