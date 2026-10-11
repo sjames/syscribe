@@ -50,6 +50,62 @@ fn swap_rel(op: &str) -> Option<&'static str> {
     })
 }
 
+fn conjuncts<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) {
+    match e {
+        Expr::Bin("and", a, b) => {
+            conjuncts(a, out);
+            conjuncts(b, out);
+        }
+        _ => out.push(e),
+    }
+}
+
+/// `subject OP literal` as the set of numbers it admits: (subject, lower, lower inclusive, upper, upper inclusive);
+/// `==` is the point interval, `!=` is not an interval and gives `None`.
+fn interval(e: &Expr) -> Option<(&Expr, f64, bool, f64, bool)> {
+    let Expr::Bin(op, a, b) = e else { return None };
+    let (subject, v, op) = match (&**a, &**b) {
+        (s, Expr::Lit(Value::Num(q))) => (s, q.v, *op),
+        (Expr::Lit(Value::Num(q)), s) => (s, q.v, match *op { "<" => ">", "<=" => ">=", ">" => "<", ">=" => "<=", o => o }),
+        _ => return None,
+    };
+    let inf = f64::INFINITY;
+    Some(match op {
+        "<" => (subject, -inf, false, v, false),
+        "<=" => (subject, -inf, false, v, true),
+        ">" => (subject, v, false, inf, false),
+        ">=" => (subject, v, true, inf, false),
+        "==" => (subject, v, true, v, true),
+        _ => return None,
+    })
+}
+
+/// True when no value can satisfy both guards: some conjunct of one and some conjunct of the other bound the same
+/// expression to intervals that do not meet (`x <= 850` / `x > 850`), or are `==` / `!=` of the same operands. Swapping
+/// two transitions with such guards cannot change a run, so it is not a mutant (GH #315).
+pub(crate) fn provably_disjoint(a: &Expr, b: &Expr) -> bool {
+    let (mut ca, mut cb) = (Vec::new(), Vec::new());
+    conjuncts(a, &mut ca);
+    conjuncts(b, &mut cb);
+    ca.iter().any(|x| {
+        cb.iter().any(|y| {
+            if let (Expr::Bin(o1, l1, r1), Expr::Bin(o2, l2, r2)) = (x, y) {
+                if l1 == l2 && r1 == r2 && swap_rel(o1) == Some(*o2) && matches!(*o1, "==" | "!=") {
+                    return true;
+                }
+            }
+            match (interval(x), interval(y)) {
+                (Some((s1, lo1, li1, hi1, hi1i)), Some((s2, lo2, li2, hi2, hi2i))) if s1 == s2 => {
+                    let below = hi1 < lo2 || (hi1 == lo2 && !(hi1i && li2));
+                    let above = hi2 < lo1 || (hi2 == lo1 && !(hi2i && li1));
+                    below || above
+                }
+                _ => false,
+            }
+        })
+    })
+}
+
 /// Every single-point relational-operator and literal mutation of an expression.
 pub(crate) fn expr_mutations(e: &Expr) -> Vec<(&'static str, String, Expr)> {
     let mut out = Vec::new();
@@ -191,7 +247,8 @@ pub fn generate(m: &Machine) -> Vec<Mutant> {
                     (Trigger::Eventless, Trigger::Eventless) => true,
                     _ => false,
                 };
-            if same {
+            let disjoint = matches!((&a.guard, &b.guard), (Some(g), Some(h)) if provably_disjoint(&g.ast, &h.ast));
+            if same && !disjoint {
                 let mut mm = m.clone();
                 mm.transitions.swap(i, j);
                 for (k, t) in mm.transitions.iter_mut().enumerate() {
@@ -336,4 +393,30 @@ pub fn analyse(m: &Machine, scenarios: &[Scenario], opts: &Options) -> Result<Mu
             transitions: m.transitions.iter().filter(|t| !cov.transitions.contains(&t.id)).map(|t| t.id).collect(),
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provably_disjoint;
+    use crate::expr::parse;
+
+    fn disjoint(a: &str, b: &str) -> bool {
+        provably_disjoint(&parse(a).unwrap(), &parse(b).unwrap())
+    }
+
+    #[test]
+    fn complementary_guards_are_disjoint_overlapping_or_unrelated_ones_are_not() {
+        // GH #315
+        assert!(disjoint("x <= 850", "x > 850"));
+        assert!(disjoint("x < 5", "x >= 5"));
+        assert!(disjoint("x == 1", "x != 1"));
+        assert!(disjoint("x == 1", "x == 2"));
+        assert!(disjoint("850 < x", "x <= 850"));
+        assert!(disjoint("a > 0 and x <= 850", "x > 850 and b > 0"));
+        assert!(!disjoint("x <= 850", "x >= 850"), "both hold at 850");
+        assert!(!disjoint("x < 5", "x > 3"));
+        assert!(!disjoint("x <= 850", "y > 850"), "different subjects");
+        assert!(!disjoint("a > 0", "b > 0"));
+        assert!(!disjoint("x <= 850 or y", "x > 850"), "an or is not a conjunct");
+    }
 }
