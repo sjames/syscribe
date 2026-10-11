@@ -117,7 +117,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "coverage" => &[("--json", Switch), LENS, ("--plan", Value)],
         "ingest-results" => &[("--format", Value), ("--run", Value), LENS],
         "import-reqif" => &[("--into", Value), ("--id-prefix", Value), ("--class", Value), ("--domain", Value), ("--update", Switch), ("--dry-run", Switch)],
-        "simulate" => &[("--json", Switch), ("--strict", Switch), ("--do", Value), ("--scenario", Value), ("--trace", Switch), ("--record", Switch), ("--run", Value), ("--config", Value)],
+        "simulate" => &[("--json", Switch), ("--strict", Switch), ("--do", Value), ("--scenario", Value), ("--trace", Switch), ("--record", Switch), ("--run", Value), ("--config", Value), ("--all", Switch), ("--coverage", Switch), ("--min-states", Value), ("--min-transitions", Value), ("--min-guards", Value)],
         "compile" => &[("--json", Switch)],
         "constraints" => &[("--json", Switch), ("--strict", Switch), ("--all-configs", Switch), LENS, ("--set", Value)],
         "mechanisms" => &[("--json", Switch), ("--uncovered", Switch)],

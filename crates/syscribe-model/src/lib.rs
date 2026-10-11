@@ -35,6 +35,7 @@ pub mod asil;
 pub mod cyber_config;
 pub mod safety_case;
 pub mod risk;
+pub mod sm_cov;
 pub mod sm_exec;
 pub mod sm_run;
 pub mod sm_scen;

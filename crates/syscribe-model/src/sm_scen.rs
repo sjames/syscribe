@@ -303,6 +303,8 @@ pub struct Verdict {
     pub message: Option<String>,
     pub steps: Vec<String>,
     pub trace: Vec<TraceStep>,
+    #[serde(skip)]
+    pub coverage: crate::sm_run::Coverage,
 }
 
 fn const_value(run: &Run, src: &str) -> Result<Value, String> {
@@ -320,6 +322,7 @@ pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict
         message,
         steps: steps.clone(),
         trace: run.trace().to_vec(),
+        coverage: run.coverage(),
     };
     if let Some(e) = run.error() {
         let e = e.to_string();

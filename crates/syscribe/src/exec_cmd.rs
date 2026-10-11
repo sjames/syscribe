@@ -448,7 +448,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     use syscribe_model::sm_scen::{extract_scenarios, run_scenario, subject_of, Status};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let valued = ["--do", "--scenario", "--run", "--config"];
+    let valued = ["--do", "--scenario", "--run", "--config", "--min-states", "--min-transitions", "--min-guards"];
     let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| valued.contains(&a.as_str())).map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
         eprintln!("Usage: syscribe --model <root> simulate <TestCase|StateDef> [--scenario <title>] [--do \"<script>\"] [--trace] [--record [--run <id>] [--config <C>]] [--strict] [--json]");
@@ -543,6 +543,83 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     if outs.iter().any(|o| o.v.status != Status::Pass) {
         exit = 2;
     }
+    // Coverage (GH #281): merged per machine over the scenarios that ran.
+    let mut coverage_json: Vec<serde_json::Value> = Vec::new();
+    let mut coverage_text = String::new();
+    if flag("--coverage") {
+        let pct = |f: &str| -> Result<Option<f64>, String> {
+            match value(f) {
+                None => Ok(None),
+                Some(v) => v.parse::<f64>().map(Some).map_err(|_| format!("{f} needs a percentage, got '{v}'")),
+            }
+        };
+        let (min_s, min_t, min_g) = match (pct("--min-states"), pct("--min-transitions"), pct("--min-guards")) {
+            (Ok(a), Ok(b), Ok(c)) => (a, b, c),
+            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
+                eprintln!("error: {e}");
+                return 1;
+            }
+        };
+        let mut machines: Vec<String> = outs.iter().map(|o| o.machine.clone()).collect();
+        machines.dedup();
+        machines.sort();
+        machines.dedup();
+        for mname in machines {
+            let m = lowered.values().find(|m| m.machine == mname).expect("lowered");
+            let mut cov = syscribe_model::sm_run::Coverage::default();
+            let mine: Vec<&Out> = outs.iter().filter(|o| o.machine == mname).collect();
+            for o in &mine {
+                cov.merge(&o.v.coverage);
+            }
+            // Requirements verified by the scenario TestCases of this machine: verified when every scenario of
+            // one verifying TestCase passed.
+            let mut reqs: Vec<(String, bool)> = Vec::new();
+            let mut tc_ids: Vec<&str> = mine.iter().map(|o| o.tc.as_str()).collect();
+            tc_ids.dedup();
+            for tc_id in tc_ids {
+                let all_pass = mine.iter().filter(|o| o.tc == tc_id).all(|o| o.v.status == Status::Pass);
+                let Some(tc) = active.iter().find(|e| e.frontmatter.id.as_deref() == Some(tc_id) || e.qualified_name == tc_id) else { continue };
+                for r in tc.frontmatter.verifies.iter().flatten() {
+                    let id = resolver.resolve_ref(active, r).map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())).unwrap_or_else(|| r.clone());
+                    match reqs.iter_mut().find(|x| x.0 == id) {
+                        Some(x) => x.1 |= all_pass,
+                        None => reqs.push((id, all_pass)),
+                    }
+                }
+            }
+            let rep = syscribe_model::sm_cov::report(m, &cov, mine.len(), config.clone(), &reqs);
+            for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)] {
+                if let Some(min) = min {
+                    if got + 1e-9 < min {
+                        eprintln!("coverage gate: {what} {:.1}% is below the required {min}%", got);
+                        exit = 2;
+                    }
+                }
+            }
+            coverage_text.push_str(&format!(
+                "coverage of {} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
+                rep.basis.machine, &rep.basis.machine_hash[..12], rep.basis.scenarios,
+                rep.states.covered, rep.states.total, rep.states_percent(),
+                rep.transitions.covered, rep.transitions.total, rep.transitions_percent(),
+                rep.pairs.covered, rep.pairs.total,
+                rep.guards.covered, rep.guards.total, rep.guards_percent(),
+                rep.timers.covered, rep.timers.total,
+            ));
+            for u in &rep.states.uncovered {
+                coverage_text.push_str(&format!("    state not entered: {u}\n"));
+            }
+            for u in &rep.transitions.uncovered {
+                coverage_text.push_str(&format!("    transition not taken: t{} {}\n", u.id, u.description));
+            }
+            for u in &rep.timers.uncovered {
+                coverage_text.push_str(&format!("    timer: {}\n", u.description));
+            }
+            for r in &rep.requirements.uncovered {
+                coverage_text.push_str(&format!("    requirement not verified by a passing scenario: {r}\n"));
+            }
+            coverage_json.push(serde_json::to_value(&rep).expect("serialises"));
+        }
+    }
     if flag("--json") {
         let verdicts: Vec<_> = outs
             .iter()
@@ -558,7 +635,13 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             })
             .collect();
         let hash = outs.first().map(|o| o.hash.clone()).unwrap_or_default();
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "machineHash": hash, "verdicts": verdicts })).expect("serialises"));
+        let mut doc = serde_json::json!({ "machineHash": hash, "verdicts": verdicts });
+        match coverage_json.len() {
+            0 => {}
+            1 => doc["coverage"] = coverage_json.remove(0),
+            _ => doc["coverages"] = serde_json::Value::Array(coverage_json),
+        }
+        println!("{}", serde_json::to_string_pretty(&doc).expect("serialises"));
     } else {
         for o in &outs {
             let tag = match o.v.status {
@@ -582,6 +665,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         }
         let pass = outs.iter().filter(|o| o.v.status == Status::Pass).count();
         println!("{pass}/{} scenario(s) pass", outs.len());
+        print!("{coverage_text}");
     }
     if flag("--record") {
         if let Err(e) = record_scenarios(model_root, elems, &outs.iter().map(|o| (o.tc.as_str(), &o.hash, &o.v)).collect::<Vec<_>>(), value("--run").as_deref(), config.as_deref()) {

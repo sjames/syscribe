@@ -855,6 +855,38 @@ impl Expr {
         }
     }
 
+    /// The atomic conditions of a Boolean expression: the maximal subexpressions that are not `and`, `or` or `not`.
+    pub fn atoms(&self) -> Vec<&Expr> {
+        match self {
+            Expr::Bin("and", a, b) | Expr::Bin("or", a, b) => {
+                let mut v = a.atoms();
+                v.extend(b.atoms());
+                v
+            }
+            Expr::Unary("not", a) => a.atoms(),
+            other => vec![other],
+        }
+    }
+
+    /// The expression as source text (fully parenthesised below the top level).
+    pub fn to_source(&self) -> String {
+        fn paren(e: &Expr) -> String {
+            match e {
+                Expr::Bin(..) | Expr::If(..) => format!("({})", e.to_source()),
+                _ => e.to_source(),
+            }
+        }
+        match self {
+            Expr::Lit(Value::Str(s)) => format!("'{s}'"),
+            Expr::Lit(v) => format_value(v),
+            Expr::Name(n) => n.clone(),
+            Expr::Unary(op, a) => if *op == "not" { format!("not {}", paren(a)) } else { format!("{op}{}", paren(a)) },
+            Expr::Bin(op, a, b) => format!("{} {op} {}", paren(a), paren(b)),
+            Expr::If(c, a, b) => format!("if {} then {} else {}", c.to_source(), a.to_source(), b.to_source()),
+            Expr::Call(f, args) => format!("{f}({})", args.iter().map(|a| a.to_source()).collect::<Vec<_>>().join(", ")),
+        }
+    }
+
     /// Every identifier the expression uses, in first-use order, without duplicates.
     pub fn names(&self) -> Vec<String> {
         fn walk(e: &Expr, out: &mut Vec<String>) {

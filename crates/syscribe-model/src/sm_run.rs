@@ -3,11 +3,12 @@
 //! A virtual clock, no threads, no hidden state: an IR plus a script of `send`/`advance`/`set` calls
 //! determines the whole trace.
 
-use std::collections::VecDeque;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use serde::Serialize;
 
-use crate::expr::{format_value, Value};
+use crate::expr::{format_value, Expr, Value};
 use crate::ir::{Action, IrExpr, Kind, Machine, Trigger};
 
 #[derive(Debug, Clone)]
@@ -50,6 +51,32 @@ pub struct Step {
     pub note: Option<String>,
 }
 
+/// What a run exercised, for coverage reports (REQ-TRS-SMCOV-001).
+#[derive(Debug, Clone, Default)]
+pub struct Coverage {
+    pub states: BTreeSet<usize>,
+    pub transitions: BTreeSet<usize>,
+    /// Consecutive transitions through a state: the first one's target is the second one's source.
+    pub pairs: BTreeSet<(usize, usize)>,
+    /// Per (transition, 0 = guard / 1 = `when`): the atomic-condition vectors seen with the outcome.
+    pub conds: BTreeMap<(usize, u8), BTreeSet<(Vec<bool>, bool)>>,
+    pub timers_fired: BTreeSet<usize>,
+    pub timers_cancelled: BTreeSet<usize>,
+}
+
+impl Coverage {
+    pub fn merge(&mut self, o: &Coverage) {
+        self.states.extend(&o.states);
+        self.transitions.extend(&o.transitions);
+        self.pairs.extend(&o.pairs);
+        for (k, v) in &o.conds {
+            self.conds.entry(*k).or_default().extend(v.iter().cloned());
+        }
+        self.timers_fired.extend(&o.timers_fired);
+        self.timers_cancelled.extend(&o.timers_cancelled);
+    }
+}
+
 enum Ev {
     Named { name: String, payload: Vec<(String, Value)> },
     Signal(usize),
@@ -79,6 +106,8 @@ pub struct Run<'m> {
     error: Option<String>,
     terminated: bool,
     micro: usize,
+    cov: RefCell<Coverage>,
+    last_taken: Option<usize>,
 }
 
 impl<'m> Run<'m> {
@@ -104,6 +133,8 @@ impl<'m> Run<'m> {
             error: None,
             terminated: false,
             micro: 0,
+            cov: RefCell::new(Coverage::default()),
+            last_taken: None,
         };
         let r0 = r.start();
         r.finish(r0);
@@ -124,6 +155,9 @@ impl<'m> Run<'m> {
     }
     pub fn time(&self) -> f64 {
         self.time
+    }
+    pub fn coverage(&self) -> Coverage {
+        self.cov.borrow().clone()
     }
     pub fn terminated(&self) -> bool {
         self.terminated
@@ -251,7 +285,9 @@ impl<'m> Run<'m> {
         }
         for s in &list {
             self.active[*s] = true;
+            self.cov.borrow_mut().states.insert(*s);
         }
+        self.last_taken = None;
         let mut step = self.begin(format!("given {name}"));
         step.entered = list.iter().map(|s| m.states[*s].path.clone()).collect();
         step.note = Some("state set directly, no actions run".into());
@@ -373,6 +409,7 @@ impl<'m> Run<'m> {
         due.sort_by(|a, b| a.partial_cmp(b).unwrap());
         self.timers.retain(|t| t.0 > self.time);
         for (_, _, t) in due {
+            self.cov.borrow_mut().timers_fired.insert(t);
             self.internal.push_back(Ev::Signal(t));
         }
         for i in 0..self.watches.len() {
@@ -381,7 +418,7 @@ impl<'m> Run<'m> {
             }
             let t = self.watches[i].trans;
             let Trigger::Change { cond } = &m.transitions[t].trigger else { continue };
-            let v = self.truth(cond, None, &format!("transition t{t} `when`"))?;
+            let v = self.truth_rec(t, 1, cond, None, &format!("transition t{t} `when`"))?;
             let w = &mut self.watches[i];
             if w.need_false {
                 if !v {
@@ -403,7 +440,17 @@ impl<'m> Run<'m> {
         }
     }
 
+    fn truth_rec(&self, t: usize, kind: u8, e: &IrExpr, scope: Option<&Scope>, where_: &str) -> R<bool> {
+        let v = self.truth(e, scope, where_)?;
+        self.record_cond(t, kind, e, scope, v);
+        Ok(v)
+    }
+
     fn eval(&self, e: &IrExpr, scope: Option<&Scope>, where_: &str) -> R<Value> {
+        self.eval_ast(&e.ast, scope).map_err(|x| format!("{where_}: `{}`: {x}", e.src))
+    }
+
+    fn eval_ast(&self, ast: &Expr, scope: Option<&Scope>) -> Result<Value, crate::expr::ExprError> {
         let m = self.m;
         let lookup = |name: &str| -> Option<Value> {
             if let Some(i) = m.variables.iter().position(|v| v.name == name) {
@@ -416,7 +463,19 @@ impl<'m> Run<'m> {
             }
             None
         };
-        e.ast.eval(&lookup).map_err(|x| format!("{where_}: `{}`: {x}", e.src))
+        ast.eval(&lookup)
+    }
+
+    /// Record the atomic conditions of a guard / `when` evaluation and its outcome.
+    fn record_cond(&self, t: usize, kind: u8, e: &IrExpr, scope: Option<&Scope>, outcome: bool) {
+        let mut vec = Vec::new();
+        for a in e.ast.atoms() {
+            match self.eval_ast(a, scope) {
+                Ok(Value::Bool(b)) => vec.push(b),
+                _ => return,
+            }
+        }
+        self.cov.borrow_mut().conds.entry((t, kind)).or_default().insert((vec, outcome));
     }
 
     // ── selection ───────────────────────────────────────────────────────────
@@ -493,7 +552,7 @@ impl<'m> Run<'m> {
                     let Some(scope) = self.matches(tr.id, ev) else { continue };
                     let ok = match &tr.guard {
                         None => true,
-                        Some(g) => self.truth(g, Some(&scope), &format!("transition t{} ({}) guard", tr.id, self.describe(tr.id)))?,
+                        Some(g) => self.truth_rec(tr.id, 0, g, Some(&scope), &format!("transition t{} ({}) guard", tr.id, self.describe(tr.id)))?,
                     };
                     if ok {
                         enabled.push(tr.id);
@@ -558,6 +617,15 @@ impl<'m> Run<'m> {
         let m = self.m;
         let mut step = self.begin(cause);
         let before = self.vars.clone();
+        for t in &sel {
+            self.cov.borrow_mut().transitions.insert(*t);
+            if let Some(l) = self.last_taken {
+                if m.transitions[l].target == Some(m.transitions[*t].source) {
+                    self.cov.borrow_mut().pairs.insert((l, *t));
+                }
+            }
+            self.last_taken = Some(*t);
+        }
         step.transition = sel.first().copied();
         step.taken = sel.clone();
         step.from = sel.first().map(|t| m.states[m.transitions[*t].source].path.clone());
@@ -657,6 +725,7 @@ impl<'m> Run<'m> {
     fn enter_one(&mut self, s: usize, step: &mut Step) -> R<()> {
         let m = self.m;
         self.active[s] = true;
+        self.cov.borrow_mut().states.insert(s);
         step.entered.push(m.states[s].path.clone());
         let acts = m.states[s].entry.clone();
         self.run_actions(&acts, None, step)?;
@@ -697,7 +766,7 @@ impl<'m> Run<'m> {
                 Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, tr.id)),
                 Trigger::Change { cond } => {
                     // KerML ObserveChange: already true when the observation starts means the signal is sent at once.
-                    let v = self.truth(cond, None, &format!("transition t{} `when`", tr.id))?;
+                    let v = self.truth_rec(tr.id, 1, cond, None, &format!("transition t{} `when`", tr.id))?;
                     if v {
                         self.internal.push_back(Ev::Signal(tr.id));
                     } else {
@@ -717,6 +786,9 @@ impl<'m> Run<'m> {
         self.run_actions(&acts, None, step)?;
         self.active[s] = false;
         step.exited.push(m.states[s].path.clone());
+        for t in self.timers.iter().filter(|t| m.transitions[t.1].source == s) {
+            self.cov.borrow_mut().timers_cancelled.insert(t.1);
+        }
         self.timers.retain(|t| m.transitions[t.1].source != s);
         self.watches.retain(|w| m.transitions[w.trans].source != s);
         Ok(())

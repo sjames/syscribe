@@ -1,7 +1,7 @@
 # simulate — run a state machine's scenarios, or a script, and print the trace
 
 ## SYNOPSIS
-    syscribe simulate <TestCase|StateDef> [--scenario <title>] [--trace] [--record [--run <id>] [--config <C>]] [--strict] [--json]
+    syscribe simulate <TestCase|StateDef> [--scenario <title>] [--trace] [--record [--run <id>] [--config <C>]] [--coverage [--min-states <pct>] [--min-transitions <pct>] [--min-guards <pct>]] [--strict] [--json]
     syscribe simulate <StateDef> --do "<script>" [--strict] [--json]
 
 ## DESCRIPTION
@@ -45,6 +45,16 @@ with expected and actual) or `error` (a run error, an unknown state, an unusable
 title carries the worst of its rows; verdicts of scenarios this run did not cover are kept) and the
 traces under `.syscribe/traces/`; `--run` adds them to the run history, `--config` records them for
 a Configuration.
+
+## COVERAGE
+`--coverage` (with a machine and `--all`, or a TestCase) reports what the scenarios exercised, merged
+per machine: states entered; transitions taken (the uncovered ones listed by trigger and guard);
+transition pairs (consecutive transitions through a state); guard and `when` conditions (each atomic
+condition seen both true and false, plus a unique-cause MC/DC demonstration for expressions with
+several conditions); timers (each `after` both fired and cancelled); and requirements verified by a
+TestCase all of whose scenarios passed. The report states its basis: scenarios run, machine hash,
+Configuration, tool version. `--min-states`, `--min-transitions` and `--min-guards` (percent) exit 2
+when missed.
 
 ## EXIT STATUS
 0 ran, or every scenario passed · 1 usage or bad script · 2 lowering diagnostic, run error or a scenario that did not pass.
