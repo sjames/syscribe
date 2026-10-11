@@ -10,4 +10,4 @@ derivedFrom:
 breakdownAdr: ADR-GTI-REQ-001
 ---
 
-The grid voltage sensing chain **shall** have an error below 1 % of reading and the frequency estimate below 0.05 Hz over the operating temperature range.
+The grid voltage sensing chain **shall** have an error below 1 % of reading and the frequency estimate below 0.01 Hz `[unverified]` over the operating temperature range.

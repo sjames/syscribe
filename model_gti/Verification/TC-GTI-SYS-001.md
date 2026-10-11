@@ -19,7 +19,7 @@ Feature: Rated operation on the grid simulator
 
   Scenario: rated power at nominal grid
     Given the inverter is connected to a grid simulator at the nominal voltage and frequency of the active profile
-    And PV simulators supply 12 kW at 600 V per tracker
+    And PV simulators supply 4 kW at 600 V on each of three trackers
     When the inverter reaches steady state
     Then it delivers 10 kVA continuously for 2 hours at 45 °C ambient
 

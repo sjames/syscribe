@@ -2,7 +2,7 @@
 type: PartDef
 name: Rapid Shutdown Driver
 domain: hardware
-silLevel: 2
+silLevel: 1
 appliesWhen: Features::Protection::RapidShutdown
 satisfies:
   - REQ-GTI-HW-005

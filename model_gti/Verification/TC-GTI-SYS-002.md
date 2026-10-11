@@ -6,6 +6,7 @@ status: active
 testLevel: L5
 verifies:
   - REQ-GTI-SYS-009
+  - REQ-GTI-SW-002
   - REQ-GTI-STK-003
 ---
 

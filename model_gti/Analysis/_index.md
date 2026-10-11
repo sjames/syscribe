@@ -71,15 +71,15 @@ Limits live in **grid profiles**: the `GridProfile.US` and `GridProfile.IN` feat
 | RM-01 | Nominal frequency | 60 Hz | 50 Hz | secondary | grid fact |
 | RM-02 | Nominal line voltage | 208 V (480 V variant) | 415 V | secondary | grid fact |
 | RM-03 | Over-voltage trip (stage 2, fast) | ≥ 1.20 pu, clear ≤ 0.16 s | > 1.10 pu per CEA/DISCOM (secondary-source figure) | unverified | IEEE 1547-2018 Table 11 / CEA 2013 |
-| RM-04 | Under-voltage trip (stage 2, fast) | 0.45 pu / ≤ 0.16 s (Cat. III) | < 0.85 pu | unverified | IEEE 1547-2018 Table 13 / CEA 2013 |
+| RM-04 | Under-voltage trip (stage 2, fast) | 0.45 pu / ≤ 0.16 s (category not confirmed) | < 0.85 pu | unverified | IEEE 1547-2018 Table 13 / CEA 2013 |
 | RM-05 | Over-frequency trip | 62.0 Hz / 0.16 s | 50.5 Hz | unverified | IEEE 1547-2018 Table 19 / CEA 2013 |
 | RM-06 | Under-frequency trip | 56.5 Hz / 0.16 s | 47.5 Hz | unverified | IEEE 1547-2018 Table 19 / CEA 2013 |
 | RM-07 | Reconnect delay after grid returns | 300 s default (adjustable) | ≥ 60 s | unverified | IEEE 1547-2018 §4.10 / CEA 2013 |
 | RM-08 | Reconnect window | V 0.917–1.05 pu, f 59.5–60.1 Hz | V and f within normal band | unverified | IEEE 1547-2018 Table 4 |
 | RM-09 | Anti-islanding clearing time | ≤ 2 s | ≤ 2 s (IEC 62116 test) | secondary | IEEE 1547 §8.1 / IS 16169 |
 | RM-10 | DC current injection | ≤ 0.5 % of rated current | **not confirmed** (do not assume the same) | unverified | IEEE 1547 §7.4 / CEA 2013 |
-| RM-11 | Current THD at rated power | ≤ 5 % | ≤ 5 % (assumed from IEC 61727) | unverified | IEEE 1547 §10 / IEC 61727 |
-| RM-12 | Power-factor capability | 0.8 lead … 0.8 lag (Category B) | ≥ 0.95 lag … 0.95 lead (utility) | unverified | IEEE 1547 §5 / utility |
+| RM-11 | Current distortion at rated power (IEEE 1547 uses TDD, IEC 61727 THD) | ≤ 5 % | ≤ 5 % (assumed from IEC 61727) | unverified | IEEE 1547 §10 / IEC 61727 |
+| RM-12 | Power-factor capability | 0.8 lead … 0.8 lag (design intent; the 1547-2018 Category B reactive capability is stated differently and must be checked) | ≥ 0.95 lag … 0.95 lead (utility) | unverified | IEEE 1547 §5 / utility |
 | RM-13 | Rapid-shutdown | ≤ 30 V within 30 s outside array boundary | not applicable | unverified | NEC 690.12 (edition-dependent) |
 | RM-14 | DC arc-fault | detect & interrupt per UL 1699B | optional | unverified | NEC 690.11 / UL 1699B |
 | RM-15 | Ride-through category | Category II or III selectable | per DISCOM (LVRT) | unverified | IEEE 1547-2018 §6.4 |

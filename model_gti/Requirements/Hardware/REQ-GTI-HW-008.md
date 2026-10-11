@@ -6,7 +6,7 @@ status: approved
 reqDomain: hardware
 verificationMethod: test
 derivedFrom:
-  - REQ-GTI-SYS-009
+  - REQ-GTI-SYS-039
 breakdownAdr: ADR-GTI-REQ-001
 derivedFromSafetyGoal: SG-GTI-001
 silLevel: 2

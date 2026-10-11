@@ -10,4 +10,4 @@ derivedFrom:
 breakdownAdr: ADR-GTI-REQ-001
 ---
 
-The inverter **shall** deliver 10 kVA continuous three-phase output at nominal grid voltage and frequency, ambient up to 45 °C, from any valid PV input.
+The inverter **shall** deliver 10 kVA continuous three-phase output at nominal grid voltage and frequency, ambient up to 45 °C, when at least 10.5 kW is available from the PV input across the trackers within their MPPT window.

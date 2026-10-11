@@ -7,15 +7,13 @@ testLevel: L4
 subject: Behavior::Chain::ProtectionChain
 verifies:
   - REQ-GTI-SYS-007
-  - REQ-GTI-SYS-009
   - REQ-GTI-SYS-010
   - REQ-GTI-SYS-030
-  - REQ-GTI-SYS-037
   - REQ-GTI-SYS-038
+  - REQ-GTI-SYS-039
   - REQ-GTI-SW-001
-  - REQ-GTI-SW-002
-  - REQ-GTI-HW-002
   - REQ-GTI-HW-008
+  - REQ-GTI-HW-009
 tags: [executable, region-us, reg-unverified]
 appliesWhen: Features::Region::US
 ---
@@ -26,7 +24,8 @@ Executable scenarios of the US protection chain. Limits are the unverified defau
 Feature: Grid connection and protection chain (US)
 
   Scenario: the inverter connects after the reconnect delay and ramps up
-    When supervisor receives Start
+    When grid receives Set with v = 1.0, f = 60
+    And supervisor receives Start
     Then supervisor is in state WaitGrid
     When 299 s elapses
     Then supervisor is in state WaitGrid
@@ -51,7 +50,8 @@ Feature: Grid connection and protection chain (US)
 
   Scenario: insulation below the limit prevents connection until it recovers
     Given supervisor.rIso is 20
-    When supervisor receives Start
+    When grid receives Set with v = 1.0, f = 60
+    And supervisor receives Start
     Then supervisor is in state InsulationFault
     When 310 s elapses
     Then relayA.closed == 0 and relayB.closed == 0
@@ -62,7 +62,8 @@ Feature: Grid connection and protection chain (US)
 
   Scenario Outline: the insulation limit is 34 kOhm from standby
     Given supervisor.rIso is <r>
-    When supervisor receives Start
+    When grid receives Set with v = 1.0, f = 60
+    And supervisor receives Start
     Then supervisor is in state <state>
 
     Examples:
@@ -74,6 +75,7 @@ Feature: Grid connection and protection chain (US)
   Scenario Outline: the insulation limit is 34 kOhm after a fault
     Given supervisor is in state InsulationFault
     And supervisor.rIso is <r>
+    And supervisor.gridOk is 1
     When supervisor receives Start
     Then supervisor is in state <state>
 
@@ -91,6 +93,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 1.0, f = 62.5
     And 159 ms elapses
     Then supervisor is in state Running
@@ -107,6 +111,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 1.0, f = 56.0
     And 160 ms elapses
     Then supervisor is in state Tripped
@@ -120,6 +126,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 1.0, f = 62.5
     And 80 ms elapses
     And grid receives Set with v = 1.0, f = 60
@@ -135,6 +143,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 0.5, f = 60
     And 1 s elapses
     Then supervisor is in state Running
@@ -147,6 +157,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 0, f = 60
     Then relayB.closed == 0
     And powerStage.pwm == 0
@@ -162,6 +174,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 0, f = 60
     And 160 ms elapses
     And grid receives Set with v = 1.0, f = 60
@@ -179,9 +193,11 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
     When grid receives Set with v = 1.0, f = 62.5
     And 160 ms elapses
     Then supervisor is in state Tripped
+    And supervisor.gridOk == 0
     And powerStage.pwm == 0
     And powerStage is in state Off
     And relayA is in state Open
@@ -194,7 +210,7 @@ Feature: Grid connection and protection chain (US)
       | Closing  |
       | Ramping  |
 
-  Scenario: the hardware trip latches until it is reset
+  Scenario: the hardware trip re-arms by itself when the voltage returns
     Given supervisor is in state Running
     And relayA is in state Closed
     And relayA.closed is 1
@@ -202,13 +218,33 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 0, f = 60
-    And hwTrip receives Reset
-    And grid receives Set with v = 1.0, f = 60
-    And 1 s elapses
+    Then hwTrip is in state Latched
+    When grid receives Set with v = 0.3, f = 60
+    Then hwTrip is in state Latched
+    When grid receives Set with v = 1.0, f = 60
     Then hwTrip is in state Armed
+    And relayB.closed == 0
 
   Scenario Outline: the monitor classifies samples at the window boundaries
+    When grid receives Set with v = <v>, f = <f>
+    Then monitor is in state <state>
+
+    Examples:
+      | v | f | state |
+      | 1.2 | 60 | Normal |
+      | 1.21 | 60 | Excursion |
+      | 0.45 | 60 | Normal |
+      | 0.44 | 60 | Excursion |
+      | 1.0 | 62 | Normal |
+      | 1.0 | 62.1 | Excursion |
+      | 1.0 | 56.5 | Normal |
+      | 1.0 | 56.4 | Excursion |
+
+  Scenario Outline: the monitor classifies samples at the window boundaries when normal
+    Given monitor is in state Normal
     When grid receives Set with v = <v>, f = <f>
     Then monitor is in state <state>
 
@@ -239,21 +275,65 @@ Feature: Grid connection and protection chain (US)
       | 1.0 | 56.5 | Normal |
       | 1.0 | 56.4 | Excursion |
 
-  Scenario Outline: the monitor recovers from Tripped exactly at the window edge
+  Scenario Outline: the monitor reports the grid good again only inside the reconnection window
     Given monitor is in state Tripped
     When grid receives Set with v = <v>, f = <f>
     Then monitor is in state <state>
 
     Examples:
       | v | f | state |
-      | 1.2 | 60 | Normal |
-      | 1.21 | 60 | Tripped |
-      | 0.45 | 60 | Normal |
-      | 0.44 | 60 | Tripped |
-      | 1.0 | 62 | Normal |
-      | 1.0 | 62.1 | Tripped |
-      | 1.0 | 56.5 | Normal |
-      | 1.0 | 56.4 | Tripped |
+      | 1.05 | 60 | Normal |
+      | 1.06 | 60 | Tripped |
+      | 0.917 | 60 | Normal |
+      | 0.907 | 60 | Tripped |
+      | 1.0 | 60.1 | Normal |
+      | 1.0 | 60.2 | Tripped |
+      | 1.0 | 59.5 | Normal |
+      | 1.0 | 59.4 | Tripped |
+
+  Scenario: the first sample after power-up is classified
+    When grid receives Set with v = 1.0, f = 60
+    Then monitor is in state Normal
+    And supervisor.gridOk == 1
+
+  Scenario: a dead grid at power-up is not connected to
+    When grid receives Set with v = 0, f = 60
+    And supervisor receives Start
+    And 301 s elapses
+    Then supervisor is in state Standby
+    And relayA.closed == 0 and relayB.closed == 0
+    And powerStage.pwm == 0
+    When grid receives Set with v = 1.0, f = 60
+    And supervisor receives Start
+    Then supervisor is in state WaitGrid
+
+  Scenario Outline: the hardware trip re-arms exactly at the edge of its range
+    Given hwTrip is in state Latched
+    When grid receives Set with v = <v>, f = 60
+    Then hwTrip is in state <state>
+
+    Examples:
+      | v | state |
+      | 1.2 | Armed |
+      | 1.21 | Latched |
+      | 0.45 | Armed |
+      | 0.44 | Latched |
+
+  Scenario: the hardware trip keeps relay B and the gates inhibited when the software path is blind
+    Given fault FM-GTI-009 is injected
+    When grid receives Set with v = 0, f = 60
+    And supervisor receives Start
+    And 301 s elapses
+    Then relayA.closed == 1
+    And relayB.closed == 0
+    And relayB.inhibit == 1
+    When 200 ms elapses
+    Then powerStage.pwm == 0
+    And powerStage.inhibit == 1
+    When fault FM-GTI-009 is cleared
+    And grid receives Set with v = 1.0, f = 60
+    Then relayB.inhibit == 0
+    And powerStage.inhibit == 0
 
   Scenario Outline: the hardware trip acts on gross voltage loss only
     When grid receives Set with v = <v>, f = 60
@@ -274,6 +354,34 @@ Feature: Grid connection and protection chain (US)
     Then supervisor is in state Standby
 
   @invariant
+  Scenario: a second grid loss after a full reconnection cycle is also cleared
+    Given supervisor is in state Running
+    And relayA is in state Closed
+    And relayA.closed is 1
+    And relayB is in state Closed
+    And relayB.closed is 1
+    And powerStage is in state On
+    And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
+    When grid receives Set with v = 0, f = 60
+    And 160 ms elapses
+    And grid receives Set with v = 1.0, f = 60
+    And 301 s elapses
+    And 6 s elapses
+    Then supervisor is in state Running
+    When grid receives Set with v = 0, f = 60
+    And 2 s elapses
+    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
+
+  @invariant
+  Scenario: a dead grid at power-up is never energised
+    When grid receives Set with v = 0, f = 60
+    And supervisor receives Start
+    And 310 s elapses
+    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
+
+  @invariant
   Scenario: after a grid loss the grid is never energised for longer than 2 s
     Given supervisor is in state Running
     And relayA is in state Closed
@@ -282,6 +390,8 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
     When grid receives Set with v = 0, f = 60
     And 2 s elapses
     Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0

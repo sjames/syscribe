@@ -13,4 +13,4 @@ derivedFromSafetyGoal: SG-GTI-004
 silLevel: 1
 ---
 
-Above 45 °C ambient or heatsink limit the inverter **shall** derate output linearly and **shall** shut down at the maximum allowed temperature.
+Above 45 °C ambient or heatsink limit the inverter **shall** derate output linearly from 100 % at 45 °C to at least 50 % at 60 °C ambient and **shall** shut down when the heatsink reaches its maximum allowed temperature (value set by the thermal design).

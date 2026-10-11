@@ -10,4 +10,4 @@ derivedFrom:
 breakdownAdr: ADR-GTI-REQ-001
 ---
 
-Peak DC-to-AC efficiency **shall** be at least 98.0 %; weighted (EU/CEC) efficiency at least 97.5 %. Both are targets for the first prototype build.
+Peak DC-to-AC efficiency **shall** be at least 98.0 %; weighted (EU/CEC) efficiency at least 97.5 %. Both values are the manufacturer's design targets for the first prototype build.

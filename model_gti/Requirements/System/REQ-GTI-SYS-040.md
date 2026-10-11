@@ -10,4 +10,4 @@ derivedFrom:
 breakdownAdr: ADR-GTI-REQ-001
 ---
 
-The enclosure **shall** meet IP65, and the inverter **shall** operate from −25 °C to +60 °C (derated above 45 °C).
+The enclosure **shall** meet IP65 (NEMA 4X for the US), and the inverter **shall** operate from −25 °C to +60 °C (derated above 45 °C).

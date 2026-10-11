@@ -3,7 +3,7 @@ type: Part
 name: ProtectionRapidshutdownRealisation
 domain: software
 appliesWhen: Features::Protection::RapidShutdown
-silLevel: 2
+silLevel: 1
 satisfies:
   - REQ-GTI-SW-005
 ---

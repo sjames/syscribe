@@ -8,8 +8,8 @@ verificationMethod: test
 derivedFrom:
   - REQ-GTI-SYS-033
 breakdownAdr: ADR-GTI-REQ-001
-derivedFromSafetyGoal: SG-GTI-002
-silLevel: 2
+derivedFromSafetyGoal: SG-GTI-005
+silLevel: 1
 tags: [reg-unverified]
 appliesWhen: Features::Protection::RapidShutdown
 ---

@@ -6,6 +6,7 @@ status: active
 testLevel: L2
 verifies:
   - REQ-GTI-SYS-038
+  - REQ-GTI-HW-002
 ---
 
 ```gherkin

@@ -12,4 +12,4 @@ derivedFromSafetyGoal: SG-GTI-001
 silLevel: 2
 ---
 
-Two series relays **shall** be driven by independent drivers, each with auxiliary contact feedback readable by the controller.
+Two series relays **shall** be driven by independent drivers, each with auxiliary contact feedback readable by the controller so that a welded contact is detected before every connection.

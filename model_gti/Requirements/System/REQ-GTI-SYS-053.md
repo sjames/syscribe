@@ -13,4 +13,4 @@ derivedFromCybersecurityGoal: CSG-GTI-001
 calLevel: CAL4
 ---
 
-Every remote command that changes behaviour **shall** be authenticated and integrity-protected; an unauthenticated command **shall** be rejected and logged.
+Every remote command that changes behaviour (including Modbus writes) **shall** be authenticated and integrity-protected; read-only telemetry may be unauthenticated; an unauthenticated command **shall** be rejected and logged.

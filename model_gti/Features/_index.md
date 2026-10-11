@@ -11,7 +11,7 @@ featureTree:
     id: FEAT-GTI-US
     groupKind: optional
     doc: "United States: IEEE 1547-2018, UL 1741 SB, NEC 690."
-    requires: [FEAT-GTI-AFCI, FEAT-GTI-RSD, FEAT-GTI-2030]
+    requires: [FEAT-GTI-AFCI, FEAT-GTI-RSD, FEAT-GTI-VVAR, FEAT-GTI-FWATT]
   - name: Region.IN
     id: FEAT-GTI-IN
     groupKind: optional

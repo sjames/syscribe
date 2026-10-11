@@ -6,6 +6,7 @@ silLevel: 2
 satisfies:
   - REQ-GTI-SYS-038
   - REQ-GTI-HW-002
+  - REQ-GTI-HW-009
 ---
 
 LCL filter, two series grid relays with independent drivers and auxiliary-contact feedback (weld detection), type-II AC surge protection.

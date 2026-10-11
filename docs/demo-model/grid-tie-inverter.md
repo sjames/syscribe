@@ -34,7 +34,8 @@ The request said "hybrid solar mode … multi string high voltage solar strings 
 ## What the executable model found
 
 * **A real design flaw.** The first version of the protection chain fed the software monitor and the hardware trip from one voltage-sensing chain. `inject` reported a single-fault defeat of the invariant "after a grid loss the grid is never energised for longer than 2 s". The fix (an independent sensing chain, `REQ-GTI-HW-008`, `ADR-GTI-SAFE-001`) came from the campaign, and the fault tree's minimal cut sets (order ≤ 3) are all defeated, as the tree predicts, in both regional variants.
-* **Test gaps found by mutation.** The first scenario set killed 33 % of the mutants of the grid monitor; boundary scenarios for every limit, recovery edge and insulation threshold bring the chain to 97 % (the rest are equivalent mutants).
+* **Test gaps found by mutation.** The first scenario set killed 33 % of the mutants of the grid monitor; boundary scenarios for every limit, recovery edge and insulation threshold bring the chain to 91 % (the rest are mostly equivalent mutants).
+* **Three more flaws found by an independent review and fixed with new scenarios:** a dead grid at power-up was never reported (the monitor only reports changes), so the inverter connected to it after the reconnect delay; the hardware trip latched forever after its first operation; and a latched hardware trip did not keep relay B and the gate drive from being commanded closed afterwards. The reconnection window was also wider than the trip window; it is now the narrower window of RM-08. Three `@invariant` scenarios (first loss, second loss after a full cycle, dead grid at power-up) now run under every fault set.
 * **A genuine timing defect in the tool**: see finding 1 below.
 
 ## Tool findings from building the model
@@ -50,4 +51,5 @@ The request said "hybrid solar mode … multi string high voltage solar strings 
 9. **`inject --max-order 2` prints "stopped early: too many cut sets"** for a small tree whose cut sets above order 2 are not needed.
 10. **Behaviour parts and architecture parts are separate elements** with no declared link (`Behavior::Parts::GridMonitorPartUs` models `System::Software::ProtectionManager`); today the connection is prose.
 11. **Continuous behaviour is out of scope of a state machine.** Anti-islanding perturbation and waveforms are not modelled; grid loss is a sample with zero voltage.
-12. **Open question the checks surfaced:** with arc-fault protection optional in India, safety goal `SG-GTI-002` has no requirement in an Indian product without it (`W805`). The model gates the goal with the feature; the residual DC arc hazard of such a product needs an installation-rule answer from the safety engineer.
+12. **The first `@invariant` was too weak** to see multi-cycle behaviour; the invariants check only the energisation property, not the full safe state (pwm off and both relays open), because a welded relay makes the latter impossible by definition.
+13. **Open question the checks surfaced:** with arc-fault protection optional in India, safety goal `SG-GTI-002` has no requirement in an Indian product without it (`W805`). The model gates the goal with the feature; the residual DC arc hazard of such a product needs an installation-rule answer from the safety engineer.
