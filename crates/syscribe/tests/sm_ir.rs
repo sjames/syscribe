@@ -182,3 +182,39 @@ fn a_transition_without_a_target_or_a_trigger_is_a_diagnostic_not_a_silent_drop(
     assert_eq!(c, 2, "{t}");
     assert!(t.contains("W929"), "{t}");
 }
+
+fn run_cli(machine: &str, args: &[&str]) -> (i32, String, String) {
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(model(machine)).args(args).output().unwrap();
+    (o.status.code().unwrap_or(-1), String::from_utf8_lossy(&o.stdout).to_string(), String::from_utf8_lossy(&o.stderr).to_string())
+}
+
+#[test]
+fn export_scxml_writes_a_document_and_notes() {
+    let (c, out, err) = run_cli(MACHINE, &["export-scxml", "M"]);
+    assert_eq!(c, 0, "{err}");
+    assert!(out.contains("<scxml ") && out.contains("<final id=\"B_B2\""), "{out}");
+    assert!(err.contains("Pkg::Beep"), "behaviour references are reported: {err}");
+    let (c, _, _) = run_cli(MACHINE, &["export-scxml", "Nope"]);
+    assert_eq!(c, 1);
+}
+
+const TINY: &str = "subStates:\n  - name: A\n    isInitial: true\n    transitions: [{target: B, accept: Cmd::Go}]\n  - {name: B}\n";
+
+#[test]
+fn crosscheck_accepts_an_agreeing_engine_and_reports_a_difference() {
+    let (c, out, err) = run_cli(TINY, &["simulate", "M", "--do", "send Cmd::Go", "--crosscheck", "cat >/dev/null; echo '{\"configurations\":[[\"A\"],[\"B\"]]}'"]);
+    assert_eq!(c, 0, "{out}{err}");
+    assert!(out.contains("agrees"), "{out}");
+    let (c, _, err) = run_cli(TINY, &["simulate", "M", "--do", "send Cmd::Go", "--crosscheck", "cat >/dev/null; echo '{\"configurations\":[[\"A\"],[\"A\"]]}'"]);
+    assert_eq!(c, 2);
+    assert!(err.contains("after command 1") && err.contains("\"B\"") , "{err}");
+    let (c, _, err) = run_cli(TINY, &["simulate", "M", "--do", "send Cmd::Go", "--crosscheck", "cat >/dev/null; exit 3"]);
+    assert_eq!(c, 2);
+    assert!(err.contains("engine failed"), "{err}");
+}
+
+#[test]
+fn the_engine_receives_the_document_and_the_commands() {
+    let (c, out, err) = run_cli(TINY, &["simulate", "M", "--do", "send Cmd::Go; advance 2 s", "--crosscheck", "in=$(cat); echo \"$in\" | grep -q '\"event\":\"Cmd.Go\"' && echo \"$in\" | grep -q '<scxml' && echo '{\"configurations\":[[\"A\"],[\"B\"],[\"B\"]]}'"]);
+    assert_eq!(c, 0, "{out}{err}");
+}

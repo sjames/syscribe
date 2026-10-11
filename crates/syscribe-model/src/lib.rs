@@ -39,6 +39,7 @@ pub mod sm_cov;
 pub mod sm_exec;
 pub mod sm_mut;
 pub mod sm_run;
+pub mod sm_scxml;
 pub mod sm_scen;
 pub mod solver;
 pub mod structural_refs;

@@ -816,6 +816,15 @@ syscribe -m <root> mutate <StateDef|TestCase> [--min-score <percent>] [--json]
 
 Judges the quality of a machine's scenarios by seeding one fault at a time into its IR (GH #282): negated guards and `when`s, relational-operator and literal changes, retargeted and removed transitions, removed actions, an assignment replaced by a self-assignment, scaled `after` delays and swapped transition order. The model files are never modified. A mutant is killed when any scenario then fails or errors, survived when none does, and equivalent-suspect when its traces are identical and the mutated element was never covered (not counted). The score is killed ÷ (killed + survived); survivors are listed with the mutation, its location and the scenario that came closest; `--min-score` gates the exit code. It is the objective check on scenarios written by an LLM. See `syscribe help mutate`.
 
+## SCXML export (`export-scxml`)
+
+```bash
+syscribe -m <root> export-scxml <StateDef> [--output <file>]
+syscribe -m <root> simulate <StateDef> --do "<script>" --crosscheck <engine>
+```
+
+Writes a W3C SCXML document equivalent to the machine (GH #283): substates, `<parallel>` and `<final>`; variables as an ECMAScript `<datamodel>` of SI base-unit numbers; `after` as `<send delay>` with `<cancel>` on exit; `done` as `done.state.<id>`; a `when` change trigger as an `armed_<id>` flag plus a raised `signal.<id>`, because SCXML eventless transitions are level-triggered while the SysML v2 observation is one-shot. Behaviour references, `doAction` and attribute paths have no SCXML form: they are written as comments and listed as `note:` lines. `--crosscheck` runs the document with an external engine (`[scxml.engines.<name>] command` in `.syscribe.toml`, or the command itself; stdin/stdout JSON contract in `syscribe help export-scxml`) and reports any step where its active states differ from syscribe's. No engine is bundled.
+
 ## Safety mechanisms (`mechanisms`)
 
 ```

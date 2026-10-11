@@ -1297,6 +1297,14 @@ fn main() {
                     std::process::exit(code);
                 }
             }
+            "export-scxml" => {
+                // SCXML export of a state machine (GH #283). Read-only. Exit 0 · 1 usage · 2 diagnostics.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = exec_cmd::cmd_export_scxml(&elems, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "compile" => {
                 // State-machine IR (GH #278). Read-only. Exit 0 · 1 usage · 2 lowering diagnostics.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

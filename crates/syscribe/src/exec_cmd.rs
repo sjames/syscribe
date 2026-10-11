@@ -315,13 +315,13 @@ pub fn cmd_compile(elems: &[RawElement], args: &[String]) -> i32 {
 /// Entry point for `simulate <StateDef> --do "<script>" [--strict] [--json]` (GH #279): lower the machine,
 /// run a script of `send <event> [k=v ...]`, `advance <duration>` and `set <var>=<value>` commands and print
 /// the trace. Exit 0 · 1 usage · 2 a lowering diagnostic or a run error.
-fn simulate_script(elems: &[RawElement], args: &[String]) -> i32 {
+fn simulate_script(elems: &[RawElement], args: &[String], model_root: &std::path::Path) -> i32 {
     use syscribe_model::expr::{format_value, parse_value, Value};
     use syscribe_model::sm_run::{Options, Run};
     let json = args.iter().any(|a| a == "--json");
     let strict = args.iter().any(|a| a == "--strict");
     let script = args.windows(2).find(|w| w[0] == "--do").map(|w| w[1].clone()).unwrap_or_default();
-    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--do").map(|(i, _)| i + 1).collect();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--do" || *a == "--crosscheck").map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a) else {
         eprintln!("Usage: syscribe --model <root> simulate <StateDef> --do \"send <event> [k=v ...]; advance <duration>; set <var>=<value>\" [--strict] [--json]");
         return 1;
@@ -390,7 +390,20 @@ fn simulate_script(elems: &[RawElement], args: &[String]) -> i32 {
         }
     }
     let mut run = Run::new(&machine, Options { strict, ..Options::default() });
+    let crosscheck = args.windows(2).find(|w| w[0] == "--crosscheck").map(|w| w[1].clone());
+    let mut configs: Vec<Vec<String>> = vec![run.active()];
+    let mut wire: Vec<serde_json::Value> = Vec::new();
+    let to_json = |v: &Value| match v {
+        Value::Num(q) => serde_json::json!(q.v),
+        Value::Bool(b) => serde_json::json!(b),
+        Value::Str(s) => serde_json::json!(s),
+    };
     for c in cmds {
+        match &c {
+            Cmd::Send(e, p) => wire.push(serde_json::json!({"event": syscribe_model::sm_scxml::scxml_event(e), "data": p.iter().map(|(k, v)| (k.clone(), to_json(v))).collect::<serde_json::Map<_, _>>()})),
+            Cmd::Advance(s) => wire.push(serde_json::json!({"advance": s})),
+            Cmd::Set(k, v) => wire.push(serde_json::json!({"set": {k.clone(): to_json(v)}})),
+        }
         match c {
             Cmd::Send(e, p) => {
                 let p: Vec<(&str, Value)> = p.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
@@ -398,6 +411,16 @@ fn simulate_script(elems: &[RawElement], args: &[String]) -> i32 {
             }
             Cmd::Advance(s) => run.advance(s),
             Cmd::Set(k, v) => run.set(&k, v),
+        }
+        configs.push(run.active());
+    }
+    if let Some(engine) = crosscheck {
+        if run.error().is_none() {
+            if let Err(e) = crosscheck_engine(&machine, &engine, &wire, &configs, model_root) {
+                eprintln!("crosscheck: {e}");
+                return 2;
+            }
+            println!("crosscheck: the SCXML engine agrees with syscribe on all {} configuration(s)", configs.len());
         }
     }
     let vars: std::collections::BTreeMap<String, String> = machine.variables.iter().filter_map(|v| run.var(&v.name).map(|x| (v.name.clone(), format_value(&x)))).collect();
@@ -448,7 +471,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     use syscribe_model::sm_scen::{extract_scenarios, run_scenario, subject_of, Status};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let valued = ["--do", "--scenario", "--run", "--config", "--min-states", "--min-transitions", "--min-guards"];
+    let valued = ["--do", "--scenario", "--run", "--config", "--crosscheck", "--min-states", "--min-transitions", "--min-guards"];
     let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| valued.contains(&a.as_str())).map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
         eprintln!("Usage: syscribe --model <root> simulate <TestCase|StateDef> [--scenario <title>] [--do \"<script>\"] [--trace] [--record [--run <id>] [--config <C>]] [--strict] [--json]");
@@ -470,7 +493,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     };
     let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
     if is_machine(target) && flag("--do") {
-        return simulate_script(active, args);
+        return simulate_script(active, args, model_root);
     }
     // The scenario TestCases to run.
     let tcs: Vec<&RawElement> = match target.frontmatter.element_type {
@@ -843,6 +866,86 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
             eprintln!("mutation gate: score {:.1}% is below the required {min}%", report.score);
             return 2;
         }
+    }
+    0
+}
+
+/// Run an external SCXML engine on the exported document and compare its configurations with ours.
+/// Driver contract: the command (from `[scxml.engines.<name>] command` in `.syscribe.toml`, else the argument
+/// itself) is run with `sh -c`; it reads `{"scxml": "<document>", "commands": [{"event", "data"} |
+/// {"advance": seconds} | {"set": {var: value}}]}` on stdin and prints `{"configurations": [[state ids]…]}` —
+/// the active states after start and after each command.
+fn crosscheck_engine(machine: &syscribe_model::ir::Machine, engine: &str, wire: &[serde_json::Value], ours: &[Vec<String>], model_root: &std::path::Path) -> Result<(), String> {
+    use std::io::Write;
+    let command = std::fs::read_to_string(model_root.join(".syscribe.toml"))
+        .ok()
+        .and_then(|t| t.parse::<toml::Value>().ok())
+        .and_then(|v| v.get("scxml")?.get("engines")?.get(engine)?.get("command")?.as_str().map(String::from))
+        .unwrap_or_else(|| engine.to_string());
+    let (doc, _) = syscribe_model::sm_scxml::export(machine);
+    let input = serde_json::to_string(&serde_json::json!({"scxml": doc, "commands": wire})).map_err(|e| e.to_string())?;
+    let mut child = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&command)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot start the engine '{command}': {e}"))?;
+    child.stdin.take().expect("piped").write_all(input.as_bytes()).map_err(|e| e.to_string())?;
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(format!("the engine failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    let reply: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|e| format!("the engine's output is not JSON: {e}"))?;
+    let theirs = reply["configurations"].as_array().ok_or("the engine's output has no `configurations` array")?;
+    if theirs.len() != ours.len() {
+        return Err(format!("the engine returned {} configuration(s), expected {}", theirs.len(), ours.len()));
+    }
+    let known: std::collections::BTreeSet<String> = machine.states.iter().map(|s| s.path.replace('.', "_")).collect();
+    for (i, (o, t)) in ours.iter().zip(theirs).enumerate() {
+        let mut a: Vec<String> = o.iter().map(|p| p.replace('.', "_")).collect();
+        let mut b: Vec<String> = t.as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).filter(|s| known.contains(s)).collect()).unwrap_or_default();
+        a.sort();
+        b.sort();
+        if a != b {
+            let what = if i == 0 { "after start".to_string() } else { format!("after command {i}: {}", wire[i - 1]) };
+            return Err(format!("the active states differ {what}: syscribe {a:?}, engine {b:?}"));
+        }
+    }
+    Ok(())
+}
+
+/// Entry point for `export-scxml <StateDef> [--output <file>]` (GH #283). Exit 0 · 1 usage · 2 diagnostics.
+pub fn cmd_export_scxml(elems: &[RawElement], args: &[String]) -> i32 {
+    let out = args.windows(2).find(|w| w[0] == "--output").map(|w| w[1].clone());
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--output").map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a) else {
+        eprintln!("Usage: syscribe --model <root> export-scxml <StateDef> [--output <file>]");
+        return 1;
+    };
+    let machine = match syscribe_model::ir::lower(elems, name) {
+        Ok(m) => m,
+        Err(diags) => {
+            for (c, msg) in &diags {
+                eprintln!("{c}: {msg}");
+            }
+            return if diags.iter().all(|(c, _)| *c == "E001") { 1 } else { 2 };
+        }
+    };
+    let (doc, warnings) = syscribe_model::sm_scxml::export(&machine);
+    for w in &warnings {
+        eprintln!("note: {w}");
+    }
+    match out {
+        Some(f) => {
+            if let Err(e) = std::fs::write(&f, &doc) {
+                eprintln!("error: cannot write {f}: {e}");
+                return 1;
+            }
+            println!("Wrote {f} ({} state(s), {} transition(s), {} note(s))", machine.states.len(), machine.transitions.len(), warnings.len());
+        }
+        None => print!("{doc}"),
     }
     0
 }
