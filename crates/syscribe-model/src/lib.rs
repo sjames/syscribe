@@ -31,6 +31,7 @@ pub mod mutate;
 pub mod constraints;
 pub mod expr;
 pub mod placeholders;
+pub mod plant;
 pub mod plugins;
 pub mod projection;
 pub mod remote;

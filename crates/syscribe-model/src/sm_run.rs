@@ -108,11 +108,22 @@ pub struct Run<'m> {
     micro: usize,
     cov: RefCell<Coverage>,
     last_taken: Option<usize>,
+    cosim: Option<crate::plant::CoSim>,
 }
 
 impl<'m> Run<'m> {
     /// Create a run and start the machine (enter the initial states and settle).
     pub fn new(m: &'m Machine, opts: Options) -> Run<'m> {
+        Self::build(m, opts, None)
+    }
+
+    /// Like [`Run::new`], with plant models co-simulated on the shared clock (REQ-TRS-FMI-001): their initial
+    /// outputs are read into the mapped variables before the machine starts.
+    pub fn with_plants(m: &'m Machine, opts: Options, cosim: crate::plant::CoSim) -> Run<'m> {
+        Self::build(m, opts, Some(cosim))
+    }
+
+    fn build(m: &'m Machine, opts: Options, cosim: Option<crate::plant::CoSim>) -> Run<'m> {
         let mut children = vec![Vec::new(); m.states.len()];
         for s in &m.states {
             if let Some(p) = s.parent {
@@ -135,9 +146,14 @@ impl<'m> Run<'m> {
             micro: 0,
             cov: RefCell::new(Coverage::default()),
             last_taken: None,
+            cosim,
         };
-        let r0 = r.start();
-        r.finish(r0);
+        let init = r.plants_read();
+        r.finish(init);
+        if r.error.is_none() {
+            let r0 = r.start();
+            r.finish(r0);
+        }
         r
     }
 
@@ -195,6 +211,9 @@ impl<'m> Run<'m> {
         if self.halted() {
             return;
         }
+        if self.cosim.is_some() {
+            return self.advance_with_plants(secs);
+        }
         let target = self.time + secs;
         loop {
             let next = self.timers.iter().map(|t| t.0).filter(|d| *d <= target).fold(f64::INFINITY, f64::min);
@@ -211,6 +230,67 @@ impl<'m> Run<'m> {
         self.time = target;
         let r = self.settle();
         self.finish(r);
+    }
+
+    /// What the plants report about themselves, for recorded evidence.
+    pub fn plant_provenance(&self) -> Vec<serde_json::Value> {
+        self.cosim.as_ref().map(|c| c.provenance()).unwrap_or_default()
+    }
+
+    /// The co-simulation loop of REQ-TRS-FMI-001: step to the next communication point (a multiple of the plant
+    /// step), cut short at the earliest discrete due time; inputs are held constant over the step.
+    fn advance_with_plants(&mut self, secs: f64) {
+        const EPS: f64 = 1e-12;
+        let target = self.time + secs;
+        let h = self.cosim.as_ref().expect("plants").step;
+        while self.time < target - EPS {
+            let grid = ((self.time / h + 1e-9).floor() + 1.0) * h;
+            let mut t_next = grid.min(target);
+            let due = self.timers.iter().map(|t| t.0).filter(|d| *d > self.time + EPS && *d < t_next).fold(f64::INFINITY, f64::min);
+            if due.is_finite() {
+                t_next = due;
+            }
+            let t = self.time;
+            let r = self.plants_write().and_then(|_| self.plants_step(t, t_next - t));
+            self.time = t_next;
+            let r = r.and_then(|_| self.plants_read()).and_then(|_| self.settle());
+            self.finish(r);
+            if self.halted() {
+                return;
+            }
+        }
+        self.time = target.max(self.time);
+        let r = self.settle();
+        self.finish(r);
+    }
+
+    fn plants_write(&mut self) -> R<()> {
+        let Some(mut c) = self.cosim.take() else { return Ok(()) };
+        let r = c.write(&self.vars);
+        self.cosim = Some(c);
+        r
+    }
+
+    fn plants_step(&mut self, t: f64, h: f64) -> R<()> {
+        let Some(mut c) = self.cosim.take() else { return Ok(()) };
+        let r = c.step_all(t, h);
+        self.cosim = Some(c);
+        r
+    }
+
+    /// Read the plants' outputs into the mapped variables; the values that changed are traced.
+    fn plants_read(&mut self) -> R<()> {
+        let Some(mut c) = self.cosim.take() else { return Ok(()) };
+        let before = self.vars.clone();
+        let r = c.read(&mut self.vars);
+        self.cosim = Some(c);
+        r?;
+        let mut step = self.begin("plant".into());
+        self.record_changes(&before, &mut step);
+        if !step.changed.is_empty() {
+            self.trace.push(step);
+        }
+        Ok(())
     }
 
     /// Write a variable from outside the machine (an environment input) and run to completion.
