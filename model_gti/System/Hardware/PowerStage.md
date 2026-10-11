@@ -2,6 +2,7 @@
 type: PartDef
 name: Power Stage
 domain: hardware
+silLevel: 2
 satisfies:
   - REQ-GTI-SYS-037
   - REQ-GTI-HW-006

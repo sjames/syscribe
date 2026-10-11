@@ -2,6 +2,7 @@
 type: PartDef
 name: Protection Manager
 domain: software
+silLevel: 2
 satisfies:
   - REQ-GTI-SW-001
   - REQ-GTI-SW-002

@@ -8,6 +8,8 @@ verificationMethod: test
 derivedFrom:
   - REQ-GTI-SYS-032
 breakdownAdr: ADR-GTI-REQ-001
+derivedFromSafetyGoal: SG-GTI-002
+silLevel: 2
 tags: [reg-unverified]
 appliesWhen: Features::Protection::Afci
 ---

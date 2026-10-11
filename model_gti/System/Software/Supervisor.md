@@ -2,6 +2,7 @@
 type: PartDef
 name: Supervisor
 domain: software
+silLevel: 2
 satisfies:
   - REQ-GTI-SYS-010
   - REQ-GTI-SYS-036

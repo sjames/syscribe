@@ -2,6 +2,7 @@
 type: PartDef
 name: Arc-Fault Front End
 domain: hardware
+silLevel: 2
 appliesWhen: Features::Protection::Afci
 satisfies:
   - REQ-GTI-HW-004

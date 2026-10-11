@@ -2,6 +2,7 @@
 type: PartDef
 name: AC Output
 domain: hardware
+silLevel: 2
 satisfies:
   - REQ-GTI-SYS-038
   - REQ-GTI-HW-002
