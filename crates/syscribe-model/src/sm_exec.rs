@@ -20,7 +20,6 @@ fn transition_is_executable(m: &Mapping) -> bool {
     field(m, "internal").is_some()
         || field(m, "assign").is_some()
         || matches!(field(m, "effect"), Some(Y::Mapping(e)) if field(e, "send").is_some())
-        || matches!(field(m, "accept"), Some(Y::Mapping(a)) if field(a, "via").is_some())
         || matches!(field(m, "accept"), Some(Y::Mapping(a))
             if field(a, "payload").is_none() || ["after", "when", "done"].iter().any(|k| field(a, k).is_some()))
 }

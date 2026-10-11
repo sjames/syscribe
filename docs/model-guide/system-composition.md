@@ -14,7 +14,7 @@ subStates:
   - name: Idle
     isInitial: true
     transitions:
-      - {internal: true, accept: Sample, effect: {send: Reading, via: out, payload: {value: "level"}}}
+      - {target: Idle, accept: Sample, effect: {send: Reading, via: out, payload: {value: "level"}}}
 ---
 ```
 
