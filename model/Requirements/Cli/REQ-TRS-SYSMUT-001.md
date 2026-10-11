@@ -20,4 +20,7 @@ tags:
 - **Plants.** A composite with FMU plant parts is supported: every mutant run instantiates fresh plants. In a build without the `fmi` feature such a composite is refused (exit 1) with the reason.
 - **Output.** Text lists the survivors and equivalent suspects per part; `--json` prints `{composite, hash, scenarios, score, killed, survived, equivalentSuspect, parts: [...]}`.
 - **Determinism.** Mutants are generated and run in a fixed order; the same model and scenarios give the same report.
-- **Not in v1:** mutation of the wiring (connections, bindings, delays), of plant parameters, and of `send` effects.
+- **Operators.** Those of REQ-TRS-SMMUT-001, including removing an action, which covers `send` effects (a part whose message is never sent is a mutant the receiving part's scenarios must catch).
+- **Gate honesty.** With `--min-score`, a part for which no mutant could be judged (every mutant is an equivalent suspect because the scenarios never exercise the part) fails the gate and is named. `--part` naming no part with a machine, and a target that is not an executable composite, are usage errors (exit 1); exit 2 is a failed gate or a failing baseline.
+- **Budget.** A run sends at most 250,000 messages; a mutant that exceeds it ends in an error and counts as killed.
+- **Not in v1:** mutation of the wiring (connections, bindings, delays) and of plant parameters.

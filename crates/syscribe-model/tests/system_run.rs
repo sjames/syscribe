@@ -200,3 +200,29 @@ fn inferring_a_subject_from_satisfies_still_picks_the_single_state_machine() {
     let tc = elems.iter().find(|e| e.frontmatter.id.as_deref() == Some("TC-A-001")).unwrap();
     assert_eq!(subject_of(&elems, tc).unwrap().qualified_name, "M");
 }
+
+#[test]
+fn delayed_ping_pong_hits_the_message_budget_instead_of_running_forever() {
+    let ping = "initialEffect: {send: Ping, via: out}
+subStates:
+  - name: S
+    isInitial: true
+    transitions:
+      - {internal: true, accept: {payload: Pong, via: inp}, effect: {send: Ping, via: out}}
+";
+    let pong = "subStates:
+  - name: S
+    isInitial: true
+    transitions:
+      - {internal: true, accept: {payload: Ping, via: inp}, effect: {send: Pong, via: out}}
+";
+    let m = system(
+        vec![sm("PingM", ping), sm("PongM", pong), def("PingP", "PingM", &[("out", "out"), ("inp", "in")]), def("PongP", "PongM", &[("out", "out"), ("inp", "in")])],
+        "  - {name: a, typedBy: PingP}\n  - {name: b, typedBy: PongP}\n",
+        "  - {from: a.out, to: b.inp, delay: \"1 ms\"}\n  - {from: b.out, to: a.inp, delay: \"1 ms\"}\n",
+        "",
+    );
+    let mut s = System::new(&m, Options::default());
+    s.advance(100_000.0);
+    assert!(s.error().is_some_and(|e| e.contains("messages in one run")), "{:?}", s.error());
+}

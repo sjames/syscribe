@@ -731,6 +731,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     for u in &rep.timers.uncovered {
                         coverage_text.push_str(&format!("    timer: {}\n", u.description));
                     }
+                    for r in &rep.requirements.uncovered {
+                        coverage_text.push_str(&format!("    requirement not verified by a passing scenario: {r}\n"));
+                    }
                     let mut pj = serde_json::to_value(&rep).expect("serialises");
                     pj["part"] = serde_json::json!(inst.name);
                     pj["basis"]["machine"] = serde_json::json!(label);
@@ -756,20 +759,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             }
             // Requirements verified by the scenario TestCases of this machine: verified when every scenario of
             // one verifying TestCase passed.
-            let mut reqs: Vec<(String, bool)> = Vec::new();
-            let mut tc_ids: Vec<&str> = mine.iter().map(|o| o.tc.as_str()).collect();
-            tc_ids.dedup();
-            for tc_id in tc_ids {
-                let all_pass = mine.iter().filter(|o| o.tc == tc_id).all(|o| o.v.status == Status::Pass);
-                let Some(tc) = active.iter().find(|e| e.frontmatter.id.as_deref() == Some(tc_id) || e.qualified_name == tc_id) else { continue };
-                for r in tc.frontmatter.verifies.iter().flatten() {
-                    let id = resolver.resolve_ref(active, r).map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())).unwrap_or_else(|| r.clone());
-                    match reqs.iter_mut().find(|x| x.0 == id) {
-                        Some(x) => x.1 |= all_pass,
-                        None => reqs.push((id, all_pass)),
-                    }
-                }
-            }
+            let reqs = verified_requirements(active, &resolver, &mine.iter().map(|o| (o.tc.as_str(), o.v.status == Status::Pass)).collect::<Vec<_>>());
             if let Some(p) = act_prog {
                 let rep = syscribe_model::act_cov::report(p, &acov, mine.len(), config.clone(), &reqs);
                 let min_n = value("--min-nodes").and_then(|v| v.parse::<f64>().ok());
@@ -1639,9 +1629,16 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
             for e in &errs {
                 eprintln!("error: {e}");
             }
-            return if errs.iter().any(|e| e.contains("no FMI support")) { 1 } else { 2 };
+            return if errs.iter().any(|e| e.contains("no FMI support") || e.contains("is not a composite with an executable")) { 1 } else { 2 };
         }
     };
+    if let Some(p) = only_part {
+        if !model.spec.instances.iter().enumerate().any(|(i, inst)| inst.name == p && model.machines[i].is_some()) {
+            let names: Vec<&str> = model.spec.instances.iter().enumerate().filter(|(i, _)| model.machines[*i].is_some()).map(|(_, i)| i.name.as_str()).collect();
+            eprintln!("error: '{p}' is not a part with a state machine of {composite} (parts: {})", names.join(", "));
+            return 1;
+        }
+    }
     let report = match syscribe_model::system_mut::analyse(&model, &scenarios, &syscribe_model::sm_run::Options::default(), only_part) {
         Ok(r) => r,
         Err(e) => {
@@ -1667,12 +1664,19 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
             if !p.uncovered.states.is_empty() {
                 println!("  states never entered: {}", p.uncovered.states.join(", "));
             }
+            if p.killed + p.survived == 0 && p.equivalent_suspect > 0 {
+                println!("  note: no mutant of this part was judged; the scenarios never exercise it");
+            }
         }
     }
     let mut exit = 0;
     if let Some(min) = min {
         for p in &report.parts {
-            if p.score + 1e-9 < min {
+            if p.killed + p.survived == 0 && p.equivalent_suspect > 0 {
+                // nothing was judged: the scenarios never exercised the part, which a score of 100% would hide
+                eprintln!("mutation gate: {} had no mutant judged ({} equivalent-suspect: the scenarios never exercise this part)", p.machine, p.equivalent_suspect);
+                exit = 2;
+            } else if p.score + 1e-9 < min {
                 eprintln!("mutation gate: {} score {:.1}% is below the required {min}%", p.machine, p.score);
                 exit = 2;
             }

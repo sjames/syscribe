@@ -85,3 +85,30 @@ fn scenarios_that_fail_on_the_unmutated_composite_stop_the_analysis() {
     assert_eq!(c, 2, "{e}");
     assert!(e.contains("does not pass on the unmutated"), "{e}");
 }
+
+#[test]
+fn a_part_the_scenarios_never_exercise_fails_the_gate_instead_of_scoring_100() {
+    // only the "nothing sent" scenario: rx never moves, tx never ticks
+    let root = model("");
+    let tc = std::fs::read_to_string(root.join("TC-SYS-001.md")).unwrap();
+    let only_idle = tc.replace("  Scenario: delivered\n    When tx receives Tick\n    Then rx is in state Done\n    And rx.got == 7\n\n", "");
+    std::fs::write(root.join("TC-SYS-001.md"), only_idle).unwrap();
+    let (c, t, e) = run(&root, &["mutate", "Sys", "--min-score", "100"]);
+    assert_eq!(c, 2, "{t}{e}");
+    assert!(e.contains("no mutant judged") && e.contains("Sys."), "{e}");
+    assert!(t.contains("note: no mutant of this part was judged"), "{t}");
+    let (c, _, e) = run(&root, &["mutate", "Sys"]);
+    assert_eq!(c, 0, "no gate, no failure: {e}");
+}
+
+#[test]
+fn usage_errors_exit_1_before_any_scenario_runs() {
+    let root = model("");
+    let (c, _, e) = run(&root, &["mutate", "Sys", "--part", "nope"]);
+    assert_eq!(c, 1, "{e}");
+    assert!(e.contains("parts: ") && e.contains("rx"), "{e}");
+    let (c, _, e) = run(&root, &["mutate", "TxP"]);
+    assert_eq!(c, 1, "a part that is not an executable composite: {e}");
+    let (c, _, e) = run(&root, &["mutate", "TxM", "--part", "tx"]);
+    assert_eq!(c, 1, "--part needs a composite: {e}");
+}

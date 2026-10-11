@@ -207,6 +207,8 @@ pub struct Message {
 
 const MICRO_STEP_LIMIT: usize = 100_000;
 const BINDING_ROUNDS: usize = 1_000;
+/// All messages one run may send: a bound on loops that delays spread over time (the per-instant limit cannot see them).
+const MESSAGE_BUDGET: usize = 250_000;
 
 pub struct System<'m> {
     model: &'m SystemModel,
@@ -504,6 +506,9 @@ impl<'m> System<'m> {
                 return;
             }
             self.collect();
+            if self.seq > MESSAGE_BUDGET {
+                return self.fail(format!("more than {MESSAGE_BUDGET} messages in one run (at t = {} s); the parts keep answering each other ({})", self.time, self.chatter()));
+            }
             let tol = 1e-12_f64.max(self.time.abs() * 1e-15);
             let next = self.queue.iter().enumerate().filter(|(_, m)| m.due <= self.time + tol).min_by(|a, b| a.1.due.partial_cmp(&b.1.due).unwrap_or(std::cmp::Ordering::Equal).then(a.1.seq.cmp(&b.1.seq))).map(|(i, _)| i);
             if let Some(pos) = next {
