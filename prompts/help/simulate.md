@@ -62,7 +62,17 @@ when missed.
     --do "<script>"      Script mode: send / advance / set commands.
     --crosscheck <eng>   Script mode: compare an external SCXML engine (see `syscribe help export-scxml`).
     --trace, --record, --run, --config, --coverage, --min-states, --min-transitions,
-    --min-guards, --strict, --json   as described above.
+    --min-guards, --min-nodes, --min-edges, --strict, --json   as described above.
+
+## ACTIONS
+An `ActionDef` is run the same way (see REQ-TRS-ACTEXEC-001). Script mode: `set <name>=<value>`
+(an input parameter or variable), `run`, `send <event> [k=v ...]`, `advance <duration>`. Scenario
+vocabulary for an action subject: `Given <name> is <expression>`, `When the action runs`,
+`When <event> is injected [with ...]`, `When <name> becomes <expression>`, `When <duration> elapses`,
+`Then <boolean expression>` over parameters, variables and outputs, `Then <node> ran`,
+`Then <node> did not run`, `Then the action completed | is waiting | terminated`. Coverage reports
+nodes fired, successions taken, decision branches, loops run zero and at least once, and guard and
+condition coverage with MC/DC; gates `--min-nodes`, `--min-edges`, `--min-guards`.
 
 ## EXIT STATUS
 0 ran, or every scenario passed · 1 usage or bad script · 2 lowering diagnostic, run error or a scenario that did not pass.

@@ -291,6 +291,12 @@ impl<'p> ActRun<'p> {
         }
     }
 
+    /// Evaluate an expression over the parameters, variables and pins.
+    pub fn eval_str(&self, src: &str) -> Result<Value, String> {
+        let ast = crate::expr::parse(src).map_err(|e| format!("`{src}`: {e}"))?;
+        self.eval_ast(&ast).map_err(|e| format!("`{src}`: {e}"))
+    }
+
     // ── machinery ───────────────────────────────────────────────────────────
 
     fn enabled(&self, n: usize) -> bool {

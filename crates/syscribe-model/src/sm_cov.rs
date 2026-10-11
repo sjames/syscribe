@@ -117,6 +117,35 @@ fn describe(m: &Machine, t: usize) -> String {
     format!("{} → {} {trig}{guard}", m.states[tr.source].path, to)
 }
 
+/// Per-atom and unique-cause MC/DC coverage of one guard / condition from the evaluations seen.
+pub fn expr_coverage(e: &crate::ir::IrExpr, seen: Option<&std::collections::BTreeSet<(Vec<Option<bool>>, bool)>>) -> (Vec<Atom>, Vec<Mcdc>) {
+    let atoms = e.ast.atoms();
+    let vecs: Vec<&(Vec<Option<bool>>, bool)> = seen.map(|s| s.iter().collect()).unwrap_or_default();
+    let atom_cov: Vec<Atom> = atoms
+        .iter()
+        .enumerate()
+        .map(|(i, a)| Atom {
+            text: a.to_source(),
+            seen_true: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(true))),
+            seen_false: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(false))),
+        })
+        .collect();
+    // Unique-cause MC/DC: two evaluations that differ only in atom i and decide differently.
+    let mcdc = if atoms.len() > 1 {
+        (0..atoms.len())
+            .map(|i| Mcdc {
+                atom: i,
+                independent: vecs.iter().any(|(v1, o1)| {
+                    vecs.iter().any(|(v2, o2)| o1 != o2 && v1.len() == v2.len() && v1[i].is_some() && v2[i].is_some() && (0..v1.len()).all(|j| if j == i { v1[j] != v2[j] } else { v1[j].is_some() && v1[j] == v2[j] }))
+                }),
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+    (atom_cov, mcdc)
+}
+
 /// Build the report. `requirements` are `(requirement id, verified)` for the requirements the scenario
 /// `TestCase`s verify, `verified` being that every scenario of one verifying TestCase passed.
 pub fn report(m: &Machine, cov: &Coverage, scenarios: usize, configuration: Option<String>, requirements: &[(String, bool)]) -> Report {
@@ -144,35 +173,11 @@ pub fn report(m: &Machine, cov: &Coverage, scenarios: usize, configuration: Opti
             items.push((1, cond));
         }
         for (kind, e) in items {
-            let atoms = e.ast.atoms();
-            let seen = cov.conds.get(&(tr.id, kind));
-            let vecs: Vec<&(Vec<Option<bool>>, bool)> = seen.map(|s| s.iter().collect()).unwrap_or_default();
-            let atom_cov: Vec<Atom> = atoms
-                .iter()
-                .enumerate()
-                .map(|(i, a)| Atom {
-                    text: a.to_source(),
-                    seen_true: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(true))),
-                    seen_false: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(false))),
-                })
-                .collect();
+            let (atom_cov, mcdc) = expr_coverage(e, cov.conds.get(&(tr.id, kind)));
             for a in &atom_cov {
                 gt += 2;
                 gc += a.seen_true as usize + a.seen_false as usize;
             }
-            // Unique-cause MC/DC: two evaluations that differ only in atom i and decide differently.
-            let mcdc = if atoms.len() > 1 {
-                (0..atoms.len())
-                    .map(|i| Mcdc {
-                        atom: i,
-                        independent: vecs.iter().any(|(v1, o1)| {
-                            vecs.iter().any(|(v2, o2)| o1 != o2 && v1.len() == v2.len() && v1[i].is_some() && v2[i].is_some() && (0..v1.len()).all(|j| if j == i { v1[j] != v2[j] } else { v1[j].is_some() && v1[j] == v2[j] }))
-                        }),
-                    })
-                    .collect()
-            } else {
-                vec![]
-            };
             exprs.push(ExprCov { transition: tr.id, kind: if kind == 0 { "guard" } else { "when" }, expr: e.src.clone(), atoms: atom_cov, mcdc });
         }
     }

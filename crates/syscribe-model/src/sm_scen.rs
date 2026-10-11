@@ -75,7 +75,7 @@ fn cells(line: &str) -> Vec<String> {
 }
 
 /// `find` that ignores matches inside single or double quotes.
-fn find_unquoted(hay: &str, needle: &str) -> Option<usize> {
+pub(crate) fn find_unquoted(hay: &str, needle: &str) -> Option<usize> {
     let mut quote: Option<char> = None;
     for (i, c) in hay.char_indices() {
         match quote {
@@ -238,7 +238,7 @@ pub enum Cmd {
     Expect(String),
 }
 
-fn split_top(s: &str) -> Vec<String> {
+pub(crate) fn split_top(s: &str) -> Vec<String> {
     let (mut out, mut cur, mut depth, mut quote) = (Vec::new(), String::new(), 0i32, None::<char>);
     for c in s.chars() {
         match quote {
@@ -391,6 +391,8 @@ pub struct Verdict {
     pub trace: Vec<TraceStep>,
     #[serde(skip)]
     pub coverage: crate::sm_run::Coverage,
+    #[serde(skip)]
+    pub act_coverage: crate::act_run::ActCoverage,
 }
 
 fn const_value(run: &Run, src: &str) -> Result<Value, String> {
@@ -409,6 +411,7 @@ pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict
         steps: steps.clone(),
         trace: run.trace().to_vec(),
         coverage: run.coverage(),
+        act_coverage: Default::default(),
     };
     if let Some(e) = run.error() {
         let e = e.to_string();
@@ -484,11 +487,11 @@ pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict
 pub fn subject_of<'a>(elements: &'a [crate::element::RawElement], tc: &crate::element::RawElement) -> Result<&'a crate::element::RawElement, String> {
     use crate::element::ElementType;
     let resolver = crate::resolver::Resolver::new(elements);
-    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
+    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action));
     if let Some(s) = &tc.frontmatter.subject {
         return match resolver.resolve_ref(elements, s) {
             Some(e) if is_machine(e) => Ok(e),
-            Some(e) => Err(format!("subject '{s}' is a {:?}, not a StateDef", e.frontmatter.element_type)),
+            Some(e) => Err(format!("subject '{s}' is a {:?}, not a StateDef or ActionDef", e.frontmatter.element_type)),
             None => Err(format!("subject '{s}' does not resolve")),
         };
     }

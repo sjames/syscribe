@@ -504,7 +504,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     use syscribe_model::sm_scen::{extract_scenarios, run_scenario, subject_of, Status};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let valued = ["--do", "--scenario", "--run", "--config", "--crosscheck", "--min-states", "--min-transitions", "--min-guards"];
+    let valued = ["--do", "--scenario", "--run", "--config", "--crosscheck", "--min-states", "--min-transitions", "--min-guards", "--min-nodes", "--min-edges"];
     let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| valued.contains(&a.as_str())).map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
         eprintln!("Usage: syscribe --model <root> simulate <TestCase|StateDef> [--scenario <title>] [--do \"<script>\"] [--trace] [--record [--run <id>] [--config <C>]] [--strict] [--json]");
@@ -524,9 +524,10 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         eprintln!("error: no element '{name}'");
         return 1;
     };
-    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
+    let is_action = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action));
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State)) || is_action(e);
     if is_machine(target) && flag("--do") {
-        return simulate_script(active, args, model_root);
+        return if is_action(target) { simulate_action_script(active, args) } else { simulate_script(active, args, model_root) };
     }
     // The scenario TestCases to run.
     let tcs: Vec<&RawElement> = match target.frontmatter.element_type {
@@ -545,7 +546,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         eprintln!("error: --crosscheck needs a script (`simulate <StateDef> --do \"…\" --crosscheck <engine>`); it is not available for scenarios");
         return 1;
     }
-    if !flag("--coverage") && (flag("--min-states") || flag("--min-transitions") || flag("--min-guards")) {
+    if !flag("--coverage") && (flag("--min-states") || flag("--min-transitions") || flag("--min-guards") || flag("--min-nodes") || flag("--min-edges")) {
         eprintln!("error: --min-states, --min-transitions and --min-guards need --coverage");
         return 1;
     }
@@ -560,6 +561,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     }
     let mut outs: Vec<Out> = Vec::new();
     let mut lowered: std::collections::HashMap<String, syscribe_model::ir::Machine> = Default::default();
+    let mut lowered_act: std::collections::HashMap<String, syscribe_model::act_ir::ActionProgram> = Default::default();
     let mut exit = 0;
     for tc in tcs {
         let tc_id = tc.frontmatter.id.clone().unwrap_or_else(|| tc.qualified_name.clone());
@@ -578,6 +580,28 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                 continue;
             }
         };
+        if is_action(subject) {
+            if !lowered_act.contains_key(&subject.qualified_name) {
+                match syscribe_model::act_ir::lower_action(active, &subject.qualified_name) {
+                    Ok(p) => {
+                        lowered_act.insert(subject.qualified_name.clone(), p);
+                    }
+                    Err(diags) => {
+                        for (c, msg) in &diags {
+                            eprintln!("{c}: {msg}");
+                        }
+                        exit = 2;
+                        continue;
+                    }
+                }
+            }
+            let p = &lowered_act[&subject.qualified_name];
+            let aopts = syscribe_model::act_run::ActOptions { strict, ..Default::default() };
+            for sc in &scenarios {
+                outs.push(Out { tc: tc_id.clone(), machine: p.root.clone(), hash: p.hash.clone(), v: syscribe_model::act_scen::run_action_scenario(p, sc, &aopts) });
+            }
+            continue;
+        }
         if !lowered.contains_key(&subject.qualified_name) {
             match syscribe_model::ir::lower(active, &subject.qualified_name) {
                 Ok(m) => {
@@ -629,11 +653,13 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         machines.sort();
         machines.dedup();
         for mname in machines {
-            let m = lowered.values().find(|m| m.machine == mname).expect("lowered");
-            let mut cov = syscribe_model::sm_run::Coverage::default();
             let mine: Vec<&Out> = outs.iter().filter(|o| o.machine == mname).collect();
+            let act_prog = lowered_act.values().find(|p| p.root == mname);
+            let mut cov = syscribe_model::sm_run::Coverage::default();
+            let mut acov = syscribe_model::act_run::ActCoverage::default();
             for o in &mine {
                 cov.merge(&o.v.coverage);
+                acov.merge(&o.v.act_coverage);
             }
             // Requirements verified by the scenario TestCases of this machine: verified when every scenario of
             // one verifying TestCase passed.
@@ -651,6 +677,46 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     }
                 }
             }
+            if let Some(p) = act_prog {
+                let rep = syscribe_model::act_cov::report(p, &acov, mine.len(), config.clone(), &reqs);
+                let min_n = value("--min-nodes").and_then(|v| v.parse::<f64>().ok());
+                let min_e = value("--min-edges").and_then(|v| v.parse::<f64>().ok());
+                for (what, got, min) in [("nodes", rep.nodes_percent(), min_n), ("edges", rep.edges_percent(), min_e), ("guards", rep.guards_percent(), min_g)] {
+                    if let Some(min) = min {
+                        if got + 1e-9 < min {
+                            eprintln!("coverage gate: {what} {:.1}% is below the required {min}%", got);
+                            exit = 2;
+                        }
+                    }
+                }
+                coverage_text.push_str(&format!(
+                    "coverage of {} (hash {}, {} scenario(s)):\n  nodes         {}/{}  {:.0}%\n  edges         {}/{}  {:.0}%\n  decisions     {}/{}\n  loops         {}/{}\n  guard conds   {}/{}  {:.0}%\n",
+                    rep.basis.machine, &rep.basis.machine_hash[..12], rep.basis.scenarios,
+                    rep.nodes.covered, rep.nodes.total, rep.nodes_percent(),
+                    rep.edges.covered, rep.edges.total, rep.edges_percent(),
+                    rep.decisions.covered, rep.decisions.total,
+                    rep.loops.covered, rep.loops.total,
+                    rep.guards.covered, rep.guards.total, rep.guards_percent(),
+                ));
+                for u in &rep.nodes.uncovered {
+                    coverage_text.push_str(&format!("    node not fired: {u}\n"));
+                }
+                for u in &rep.edges.uncovered {
+                    coverage_text.push_str(&format!("    succession not taken: {}\n", u.description));
+                }
+                for u in &rep.decisions.uncovered {
+                    coverage_text.push_str(&format!("    decision branch not taken: {}\n", u.description));
+                }
+                for u in &rep.loops.uncovered {
+                    coverage_text.push_str(&format!("    loop: {u}\n"));
+                }
+                for r in &rep.requirements.uncovered {
+                    coverage_text.push_str(&format!("    requirement not verified by a passing scenario: {r}\n"));
+                }
+                coverage_json.push(serde_json::to_value(&rep).expect("serialises"));
+                continue;
+            }
+            let m = lowered.values().find(|m| m.machine == mname).expect("lowered");
             let rep = syscribe_model::sm_cov::report(m, &cov, mine.len(), config.clone(), &reqs);
             for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)] {
                 if let Some(min) = min {
@@ -1215,6 +1281,129 @@ fn cmd_sweep(args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>) ->
                 r["show"].as_str().map(|s| format!(" {s} |")).unwrap_or_default()
             );
         }
+    }
+    0
+}
+
+/// `simulate <ActionDef> --do "<script>"`: `set <name>=<value>`, `run`, `send <event> [k=v …]`, `advance <duration>`.
+fn simulate_action_script(elems: &[RawElement], args: &[String]) -> i32 {
+    use syscribe_model::act_run::{ActOptions, ActRun, Status as RS};
+    use syscribe_model::expr::{format_value, parse_value, Value};
+    let json = args.iter().any(|a| a == "--json");
+    let strict = args.iter().any(|a| a == "--strict");
+    let script = args.windows(2).find(|w| w[0] == "--do").map(|w| w[1].clone()).unwrap_or_default();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--do").map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a) else {
+        eprintln!("Usage: syscribe --model <root> simulate <ActionDef> --do \"set <name>=<value>; run; send <event> [k=v ...]; advance <duration>\" [--strict] [--json]");
+        return 1;
+    };
+    let prog = match syscribe_model::act_ir::lower_action(elems, name) {
+        Ok(p) => p,
+        Err(diags) => {
+            for (c, msg) in &diags {
+                eprintln!("{c}: {msg}");
+            }
+            return if diags.iter().all(|(c, _)| *c == "E001") { 1 } else { 2 };
+        }
+    };
+    enum Cmd {
+        Set(String, Value),
+        Run,
+        Send(String, Vec<(String, Value)>),
+        Advance(f64),
+    }
+    let mut cmds = Vec::new();
+    for raw in script.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+        let (verb, rest) = raw.split_once(char::is_whitespace).map(|(a, b)| (a, b.trim())).unwrap_or((raw, ""));
+        match verb {
+            "run" => cmds.push(Cmd::Run),
+            "set" => {
+                let Some((k, v)) = rest.split_once('=') else {
+                    eprintln!("error: `set` needs <name>=<value>");
+                    return 1;
+                };
+                let Some(v) = parse_value(v.trim()) else {
+                    eprintln!("error: '{}' is not a value", v.trim());
+                    return 1;
+                };
+                cmds.push(Cmd::Set(k.trim().to_string(), v));
+            }
+            "send" => {
+                let mut it = rest.split_whitespace();
+                let Some(ev) = it.next() else {
+                    eprintln!("error: `send` needs an event name");
+                    return 1;
+                };
+                let mut payload = Vec::new();
+                for kv in it {
+                    let Some((k, v)) = kv.split_once('=') else {
+                        eprintln!("error: payload '{kv}' is not key=value");
+                        return 1;
+                    };
+                    let Some(v) = parse_value(v) else {
+                        eprintln!("error: payload value '{v}' is not a value");
+                        return 1;
+                    };
+                    payload.push((k.to_string(), v));
+                }
+                cmds.push(Cmd::Send(ev.to_string(), payload));
+            }
+            "advance" => match parse_value(rest) {
+                Some(Value::Num(q)) if q.v >= 0.0 && syscribe_model::expr::unit_scale("s").map(|x| x.1) == Some(q.dim) => cmds.push(Cmd::Advance(q.v)),
+                _ => {
+                    eprintln!("error: `advance` needs a non-negative duration, got '{rest}'");
+                    return 1;
+                }
+            },
+            other => {
+                eprintln!("error: unknown command '{other}' (set, run, send, advance)");
+                return 1;
+            }
+        }
+    }
+    let mut run = ActRun::new(&prog, ActOptions { strict, ..Default::default() });
+    for c in cmds {
+        match c {
+            Cmd::Set(k, v) => {
+                if let Err(e) = run.set_input(&k, v) {
+                    eprintln!("error: {e}");
+                    return 2;
+                }
+            }
+            Cmd::Run => run.run(),
+            Cmd::Send(e, p) => {
+                let p: Vec<(&str, Value)> = p.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+                run.send(&e, &p);
+            }
+            Cmd::Advance(s) => run.advance(s),
+        }
+    }
+    let outputs: std::collections::BTreeMap<String, String> = run.outputs().iter().map(|(k, v)| (k.clone(), format_value(v))).collect();
+    if json {
+        let out = serde_json::json!({
+            "action": prog.root, "machineHash": prog.hash, "status": run.status(), "time": run.time(),
+            "outputs": outputs, "sent": run.sent(), "error": run.error(), "trace": run.trace(),
+        });
+        println!("{}", serde_json::to_string_pretty(&out).expect("serialises"));
+    } else {
+        println!("{}  (hash {})", prog.root, prog.hash);
+        for s in run.trace() {
+            println!("  {:>3}  t={:<6} {:<10} {:<20} {}", s.n, syscribe_model::expr::format_number(s.time), s.kind, s.node, s.note.clone().unwrap_or_default());
+            for c in &s.changed {
+                println!("            {} : {} → {}", c.var, c.old, c.new);
+            }
+        }
+        println!("status: {:?}   time: {}s", run.status(), syscribe_model::expr::format_number(run.time()));
+        for (k, v) in &outputs {
+            println!("  {k} = {v}");
+        }
+        if let Some(e) = run.error() {
+            println!("ERROR: {e}");
+        }
+    }
+    if run.status() == RS::Error {
+        eprintln!("error: {}", run.error().unwrap_or(""));
+        return 2;
     }
     0
 }

@@ -1,8 +1,10 @@
 #![deny(warnings)]
 
+pub mod act_cov;
 pub mod act_exec;
 pub mod act_ir;
 pub mod act_run;
+pub mod act_scen;
 pub mod annotations;
 pub mod attack_tree;
 pub mod baseline;
