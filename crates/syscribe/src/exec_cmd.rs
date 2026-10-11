@@ -1870,7 +1870,7 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             }
         }
         if let Some(n) = campaign.cut_set_order {
-            println!("  cut sets of the fault tree up to order {n} were run; larger orders are not{}", if campaign.cut_sets_truncated { " (the analysis itself stopped early: too many cut sets)" } else { "" });
+            println!("  cut sets of the fault tree up to order {n} were run; larger orders are not{}", if campaign.cut_sets_truncated { " (the tree has cut sets of a higher order, which were left out)" } else { "" });
         }
         for n in &campaign.not_injectable {
             println!("  not run   {} ({}): {}", n.events.join(", "), n.origin, n.reason);

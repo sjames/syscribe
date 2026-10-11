@@ -651,7 +651,7 @@ impl<'m> System<'m> {
 
     /// Advance the shared clock by `secs`, stopping at every instant at which anything is due.
     pub fn advance(&mut self, secs: f64) {
-        let target = self.time + secs;
+        let target = crate::sm_run::quantise(self.time + secs);
         let h = self.model.plant_step;
         if let Some(h) = h {
             // a step this small (or a run this long) would take effectively forever, and float grid arithmetic degrades
@@ -758,7 +758,7 @@ impl<'m> System<'m> {
                         }
                     }
                 }
-                let mk = |seq: usize, to: Option<(usize, String)>, delay: f64| Message { seq, sent: self.time, due: self.time + delay + extra_delay, delivered: None, from, from_port: s.via.clone(), to, event: s.event.clone(), payload: payload.clone(), lost: lost.clone() };
+                let mk = |seq: usize, to: Option<(usize, String)>, delay: f64| Message { seq, sent: self.time, due: crate::sm_run::quantise(self.time + delay + extra_delay), delivered: None, from, from_port: s.via.clone(), to, event: s.event.clone(), payload: payload.clone(), lost: lost.clone() };
                 if links.is_empty() {
                     // nothing is connected to that port: the message is recorded, and goes nowhere
                     self.seq += 1;

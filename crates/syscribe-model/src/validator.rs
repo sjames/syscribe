@@ -903,6 +903,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
     let mut findings: Vec<Finding> = Vec::new();
+    // machines that use feature-parameter placeholders are checked at the parameters' default values (GH #311)
+    let at_defaults = crate::placeholders::machines_at_defaults(elements);
+    let machine_view: &[RawElement] = at_defaults.as_deref().unwrap_or(elements);
+    let machine_fm = |q: &str| at_defaults.as_ref().and_then(|v| v.iter().find(|e| e.qualified_name == q)).map(|e| &e.frontmatter);
 
     // Collect findings stashed on `RawElement.derive_findings` by more than one
     // walker post-processing pass: the derive pass (E504-E506) and native
@@ -2912,7 +2916,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E936 (REQ-TRS-FAULT-001): the fault model of an FMEA row or a fault-tree event.
-        if let (Some(inj), Some(ElementType::FMEAEntry | ElementType::FaultTreeEvent)) = (fm.injection.as_ref(), fm.element_type.as_ref()) {
+        if let (Some(inj), Some(ElementType::FMEAEntry | ElementType::FaultTreeEvent)) = (machine_fm(&elem.qualified_name).unwrap_or(fm).injection.as_ref(), fm.element_type.as_ref()) {
             if let Err(errs) = crate::fault::parse_injection(inj) {
                 for e in errs {
                     findings.push(error("E936", &file, &e));
@@ -2923,7 +2927,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E935 (REQ-TRS-STYPE-001): type and dimension errors in the expressions of an executable state machine, found by
         // lowering it and checking the IR. The other lowering diagnostics are the schema checks, reported elsewhere.
         if matches!(fm.element_type, Some(ElementType::StateDef)) && crate::sm_exec::is_executable(fm.variables.as_deref(), fm.initial_effect.as_ref(), fm.sub_states.as_deref().unwrap_or(&[]), fm.transitions.as_deref().unwrap_or(&[])) {
-            if let Err(diags) = crate::ir::lower(elements, &elem.qualified_name) {
+            if let Err(diags) = crate::ir::lower(machine_view, &elem.qualified_name) {
                 // only this machine's own findings: those of an action it references start with "behavior" and are reported on the action
                 for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935" && !d.1.starts_with("behavior ")) {
                     findings.push(error(code, &file, &msg));
@@ -2973,7 +2977,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         }
                         // E937 (REQ-TRS-FAULT-001): a fault step names an FMEA row or fault-tree event that has a fault model
                         let named = crate::system_scen::fault_ids_in(&elem.doc);
-                        let known: std::collections::HashSet<String> = if named.is_empty() { Default::default() } else { crate::fault::fault_defs(elements).into_iter().map(|f| f.id).collect() };
+                        let known: std::collections::HashSet<String> = if named.is_empty() { Default::default() } else { crate::fault::fault_defs(machine_view).into_iter().map(|f| f.id).collect() };
                         for (line, id) in named {
                             if !known.contains(&id) {
                                 findings.push(error("E937", &file, &format!("line {line} of the body: '{id}' is not an FMEAEntry or FaultTreeEvent with an `injection:`")));
@@ -3879,11 +3883,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
 
             // E882–E885 / W933 — the executable-machine schema (REQ-TRS-SMSCHEMA-001).
+            let mfm = machine_fm(&elem.qualified_name).unwrap_or(fm);
+            let msubs = mfm.sub_states.as_deref().filter(|s| !s.is_empty());
             for (code, msg) in crate::sm_exec::check(
-                fm.variables.as_deref(),
-                fm.initial_effect.as_ref(),
-                subs_opt.unwrap_or(&[]),
-                fm.transitions.as_deref().unwrap_or(&[]),
+                mfm.variables.as_deref(),
+                mfm.initial_effect.as_ref(),
+                msubs.unwrap_or(&[]),
+                mfm.transitions.as_deref().unwrap_or(&[]),
             ) {
                 findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
             }
@@ -4630,7 +4636,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // E922: unknown key in FMEA entry — silent drops in a safety analysis are errors
             for key in &fm.unknown_fmea_keys {
                 findings.push(error("E922", &file, &format!(
-                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies, ftaRef, failureRate, diagnosticCoverage, latentDiagnosticCoverage, injection)", key)));
+                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies, ftaRef, failureRate, diagnosticCoverage, latentDiagnosticCoverage, injection, appliesWhen)", key)));
             }
         }
 

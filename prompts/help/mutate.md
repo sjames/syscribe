@@ -1,7 +1,7 @@
 # mutate — judge the quality of a machine's scenarios by seeding faults
 
 ## SYNOPSIS
-    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--json]
+    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--config <C>] [--json]
 
 ## DESCRIPTION
 Seeds one fault at a time into the machine's IR (the model files are never touched) and
@@ -36,6 +36,7 @@ part and `--min-score` is checked for every part, naming the one below it.
 ## OPTIONS
     --part <name>        composite only: mutate just this part
     --min-score <pct>    gate: exit 2 when the score (of any part, for a composite) is below it
+    --config <C>         run on the model projected onto this Configuration: feature parameters written as {{Features::F.param}} in guards, assignments and durations take its values
     --json               machine-readable report
 
 ## EXIT STATUS

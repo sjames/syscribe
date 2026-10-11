@@ -659,7 +659,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W016` | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used an unrecognized `selections:` key instead of the `features:` map. Surfaces the otherwise-silent all-N/A footgun. Not emitted when no `FeatureDef` is present. |
 | `W017` | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion — see the core warnings.) |
 | `W018` | (`feature-check --deep`) a **false-optional** feature — declared `optional` but forced selected whenever its parent is |
-| `W019` | (`validate --config`) an active element's traceability reference escapes the configuration (target inactive in this variant) |
+| `W019` | (`validate --config`) an active element's traceability reference escapes the configuration (target inactive in this variant); `satisfies:` of an inactive Requirement is exempt |
 | `W020` | (`feature-check --deep`) a traceability reference is provably violable across some valid configuration |
 | `W021` | (`feature-check --deep`) a dead element — its `appliesWhen` is unsatisfiable under the feature model |
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |

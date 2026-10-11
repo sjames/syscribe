@@ -198,6 +198,15 @@ fn lensed_for_key(elems: &[RawElement], config: Option<&str>, key: &str) -> Vec<
 /// elements ∪ the plan's Configurations; `--config` then projects onto the
 /// variant. Either lens may be absent. Exits 1 on an unresolvable plan id and on
 /// an unresolvable configuration. Dormant-safe.
+/// `--config <C>` on `compile`, `mutate` and `inject`: run on the model projected onto the Configuration, so feature
+/// parameters used in a machine's expressions take its values (GH #311). Returns the other arguments.
+fn with_config_lens(args: &[String], elems: &[syscribe_model::element::RawElement]) -> (Vec<String>, Option<Vec<syscribe_model::element::RawElement>>) {
+    let Some(i) = args.iter().position(|a| a == "--config") else { return (args.to_vec(), None) };
+    let Some(c) = args.get(i + 1) else { return (args.to_vec(), None) };
+    let rest: Vec<String> = args.iter().enumerate().filter(|(j, _)| *j != i && *j != i + 1).map(|(_, a)| a.clone()).collect();
+    (rest, Some(lensed_elements(elems, None, Some(c.as_str()))))
+}
+
 fn lensed_elements(
     elems: &[RawElement],
     plan: Option<&str>,
@@ -1295,7 +1304,9 @@ fn main() {
             "mutate" => {
                 // Mutation analysis of state-machine scenarios (GH #282). Read-only. Exit 0 · 1 usage · 2 gate.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = exec_cmd::cmd_mutate(&elems, rest, &model_root);
+                let (rest, projected) = with_config_lens(rest, &elems);
+                let elems = projected.as_deref().unwrap_or(&elems);
+                let code = exec_cmd::cmd_mutate(elems, &rest, &model_root);
                 if code != 0 {
                     std::process::exit(code);
                 }
@@ -1303,7 +1314,9 @@ fn main() {
             "inject" => {
                 // Fault-injection campaign over a composite's @invariant scenarios (GH #306). Read-only. Exit 0 · 1 usage · 2 defeated.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = exec_cmd::cmd_inject(&elems, rest, &model_root);
+                let (rest, projected) = with_config_lens(rest, &elems);
+                let elems = projected.as_deref().unwrap_or(&elems);
+                let code = exec_cmd::cmd_inject(elems, &rest, &model_root);
                 if code != 0 {
                     std::process::exit(code);
                 }
@@ -1319,7 +1332,9 @@ fn main() {
             "compile" => {
                 // State-machine IR (GH #278). Read-only. Exit 0 · 1 usage · 2 lowering diagnostics.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = exec_cmd::cmd_compile(&elems, rest);
+                let (rest, projected) = with_config_lens(rest, &elems);
+                let elems = projected.as_deref().unwrap_or(&elems);
+                let code = exec_cmd::cmd_compile(elems, &rest);
                 if code != 0 {
                     std::process::exit(code);
                 }

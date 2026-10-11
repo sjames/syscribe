@@ -128,3 +128,18 @@ fn no_scenarios_is_a_usage_error() {
     let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&root).args(["mutate", "M"]).output().unwrap();
     assert_eq!(o.status.code(), Some(1));
 }
+
+#[test]
+fn swapping_transitions_with_disjoint_guards_is_not_a_mutant_but_overlapping_guards_are() {
+    // GH #315
+    let run = |g1: &str, g2: &str| {
+        let root = model("  Scenario: s\n    Then 1 == 1\n");
+        let m = format!("---\ntype: StateDef\nname: M\nvariables:\n  - {{name: x, value: \"0\"}}\nsubStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {{target: B, accept: Go, guard: \"{g1}\"}}\n      - {{target: C, accept: Go, guard: \"{g2}\"}}\n  - name: B\n  - name: C\n---\n");
+        std::fs::write(root.join("M.md"), m).unwrap();
+        let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&root).args(["mutate", "M", "--json"]).output().unwrap();
+        let j: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap_or_else(|e| panic!("{e}: {}", String::from_utf8_lossy(&o.stdout)));
+        ops(&j)
+    };
+    assert!(!run("x <= 10", "x > 10").contains(&"swap-order".to_string()));
+    assert!(run("x <= 10", "x >= 10").contains(&"swap-order".to_string()));
+}

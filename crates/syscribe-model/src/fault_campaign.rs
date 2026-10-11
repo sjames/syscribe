@@ -59,7 +59,7 @@ pub struct Campaign {
     pub not_injectable: Vec<NotInjectable>,
     /// The largest cut-set order that was run (with `--ft`); larger orders are not run.
     pub cut_set_order: Option<usize>,
-    /// The cut-set analysis itself stopped early (too many cut sets).
+    /// The fault tree has minimal cut sets above `cut_set_order`; they were left out of the campaign.
     pub cut_sets_truncated: bool,
     pub fmea: FmeaCoverage,
 }

@@ -125,11 +125,15 @@ pub fn effective_testcases<'a>(
         }
     }
 
-    // Additive selection matches.
+    // Additive selection matches. A test case that runs in none of the plan's bound products is not swept in (GH #314);
+    // explicit members stay, so `W611` still reports a named one that escapes.
     if let Some(sel) = &plan.frontmatter.selection {
+        let configs = plan_configs(plan, elements, resolver);
+        let (pkg, alias) = (crate::variability::package_conditions(elements), crate::variability::feature_id_to_qname(elements));
         for elem in elements {
             if is_testcase(elem)
                 && selection_matches(elem, sel, elements, resolver)
+                && member_active_in_any_config(elem, &configs, &pkg, &alias)
                 && seen.insert(tc_key(elem))
             {
                 out.push(elem);
