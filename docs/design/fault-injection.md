@@ -29,6 +29,17 @@ The kinds are the classic set of fault-injection (stuck-at, bias, fail-silent, o
 
 `System::inject(id)` activates the items, records "fault X injected at t s", and runs the system to quiescence; `clear_fault(id)` removes pins and port faults (a silent part stays failed). Scenario steps: `Given|When fault <id> is injected`, `When fault <id> is cleared`. The verdict lists the fault events first, then the messages, and a message lost to a fault says so. An injected fault is part of the scenario's text, so it is part of the evidence a recorded run keeps.
 
-## Phase 2 (not here)
+## The campaign (phase 2, REQ-TRS-FAULT-002)
 
-A campaign: run the scenarios under every single FMEA fault and every minimal cut set of a fault tree up to an order, and report which fault sets the design survives, and which FMEA rows are exercised by an injection run at all.
+`syscribe inject <composite|TestCase>` answers "does the design survive this failure?" without a second set of scenarios. The notion of *safe* is the TestCase's own: a scenario tagged `@invariant` (Gherkin tags are recorded by the extractor; a tag before `Feature:` applies to all) states a property that must hold whatever fails. The campaign
+
+1. checks the invariants pass **without** faults (a property that is false without faults cannot judge them);
+2. builds the fault sets: every fault that applies to the composite on its own, restricted by `--fmea <sheet>`, plus — with `--ft <FaultTree>` — every minimal cut set up to `--max-order` (default 2) whose events all have a fault model (a cut set with an event that has none is listed as *not run*; common-cause pseudo-events fall under that);
+3. injects each set at time 0 and runs every invariant unchanged: **survived** (all pass), **defeated** (one fails; the invariant and the failing step are reported), **error** (the run could not be made);
+4. reports which FMEA rows / fault-tree events of the composite's parts were exercised, which have a fault model but were not, and which are prose only.
+
+Exit 0 when every set survived, 2 on any defeat or error (`--report-only` reports and exits 0), 1 for usage errors. The fixed order (single faults in element order, then cut sets by order) makes the report reproducible.
+
+A defeat is the useful result: it names a failure mode (or a combination) under which a stated safety property is violated, and the trace of that run (`simulate` with the fault steps) shows how. The cut-set mode connects the quantitative fault tree to the executable model: the sets the tree says are minimal are the ones tried.
+
+**Later:** faults injected after time 0, sampled sets, and quantitative use of the probabilities.

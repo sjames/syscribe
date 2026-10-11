@@ -1300,6 +1300,14 @@ fn main() {
                     std::process::exit(code);
                 }
             }
+            "inject" => {
+                // Fault-injection campaign over a composite's @invariant scenarios (GH #306). Read-only. Exit 0 · 1 usage · 2 defeated.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = exec_cmd::cmd_inject(&elems, rest, &model_root);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "export-scxml" => {
                 // SCXML export of a state machine (GH #283). Read-only. Exit 0 · 1 usage · 2 diagnostics.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

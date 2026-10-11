@@ -731,6 +731,19 @@ entries:
 
 `part:` names an instance of the composite; without it the fault applies to every part whose definition is, or specialises, `ref`. A malformed list is **`E936`**. Scenarios use `Given|When fault FM-LINK-001 is injected` and `When fault FM-LINK-001 is cleared` (`E937` for an unknown id); see `docs/design/fault-injection.md`.
 
+### Fault-injection campaign — `inject`
+
+`syscribe -m model/ inject <composite|TestCase> [--ft <FT-id>] [--max-order N] [--fmea <sheet>]` runs the **`@invariant`** scenarios of a composite under every single fault and (with `--ft`) every minimal cut set of a fault tree up to the given order, and says which fault sets the design survives:
+
+```gherkin
+@invariant
+Scenario: the receiver never sees more than the nominal value
+  When tx receives Tick
+  Then rx.got <= 7
+```
+
+The invariants must pass without faults first; each fault set is then injected at time 0 and the invariants run unchanged. `survived` / `defeated` / `error` are reported per set with the failing invariant and step; the report also lists the FMEA rows of the composite's parts that were exercised, those with a fault model that were not, and those with none (prose only). Exit status 2 on a defeat unless `--report-only`. See `syscribe help inject` and `docs/design/fault-injection.md`.
+
 ### Generating a template
 
 ```bash

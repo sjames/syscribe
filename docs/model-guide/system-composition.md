@@ -86,6 +86,8 @@ Scenario: the receiver stays safe when the command is lost
 
 The verdict lists every injection and clearing with its time among its messages, and a message lost to a fault says why. Faults are deterministic; a part that failed silent stays failed. A fault that applies to the composite but does not fit it (an unknown variable, a stuck value of the wrong dimension) is `E936` when a scenario injects it; the other scenarios are unaffected. An unknown id in a step is `E937`. Faults are part of the composite's evidence hash.
 
+`syscribe inject` runs the scenarios tagged `@invariant` under every single fault and every minimal cut set of a fault tree and reports which sets the design survives (see [Safety & Security Analysis](safety-analysis.md#fault-injection-campaign--inject)).
+
 ## Diagnostics
 
 | Code | Meaning |

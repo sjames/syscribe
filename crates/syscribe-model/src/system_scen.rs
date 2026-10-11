@@ -165,7 +165,13 @@ pub fn vocabulary_findings(doc: &str) -> Vec<(usize, String)> {
 
 /// Run one scenario on a fresh system.
 pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -> Verdict {
+    run_system_scenario_faulted(model, sc, opts, &[])
+}
+
+/// Run one scenario on a fresh system with the faults of `faults` (analysis element ids) injected before its first step.
+pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Options, faults: &[String]) -> Verdict {
     let mut sys = System::new(model, opts.clone());
+    let injected: Result<(), String> = faults.iter().try_for_each(|f| sys.inject(f).map_err(|e| format!("injecting {f}: {e}")));
     let steps: Vec<String> = sc.steps.iter().map(|s: &GStep| format!("{} {}", match s.kw { Kw::Given => "Given", Kw::When => "When", Kw::Then => "Then" }, s.text)).collect();
     let done = |sys: &System, status: Status, message: Option<String>| Verdict {
         scenario: sc.title.clone(),
@@ -187,6 +193,9 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
         plants: sys.plant_provenance(),
         messages: sys.fault_events().iter().cloned().chain(sys.messages().iter().map(|m| sys.describe(m))).collect(),
     };
+    if let Err(e) = injected {
+        return done(&sys, Status::Error, Some(e));
+    }
     if let Some(e) = sys.error() {
         return done(&sys, Status::Error, Some(e));
     }

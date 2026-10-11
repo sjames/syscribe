@@ -1684,3 +1684,172 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
     }
     exit
 }
+
+/// `inject <composite|TestCase> [--ft <FT>] [--max-order N] [--fmea <sheet>] [--report-only] [--json]` (REQ-TRS-FAULT-002):
+/// run the `@invariant` scenarios of a composite under every single fault and every minimal cut set. Exit 0 every set
+/// survived · 1 usage · 2 a set defeated an invariant or could not be run (`--report-only` makes defeats exit 0).
+pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path::Path) -> i32 {
+    use syscribe_model::element::ElementType;
+    use syscribe_model::fault_campaign::{self, FaultSet, NotInjectable};
+    use syscribe_model::sm_scen::{extract_scenarios, subject_of};
+    let flag = |f: &str| args.iter().any(|a| a == f);
+    let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| matches!(a.as_str(), "--ft" | "--max-order" | "--fmea")).map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
+        eprintln!("Usage: syscribe --model <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--json]");
+        return 1;
+    };
+    let max_order = match value("--max-order").map(|v| v.parse::<usize>()) {
+        None => 2,
+        Some(Ok(n)) if n >= 1 => n,
+        _ => {
+            eprintln!("error: --max-order needs a positive integer");
+            return 1;
+        }
+    };
+    let resolver = syscribe_model::resolver::Resolver::new(elems);
+    let Some(target) = resolver.resolve_ref(elems, &name) else {
+        eprintln!("error: no element '{name}'");
+        return 1;
+    };
+    let is_composite = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::PartDef));
+    let (composite, tcs): (String, Vec<&RawElement>) = if matches!(target.frontmatter.element_type, Some(ElementType::TestCase)) {
+        match subject_of(elems, target) {
+            Ok(s) if is_composite(s) => (s.qualified_name.clone(), vec![target]),
+            Ok(s) => {
+                eprintln!("error: the subject '{}' of {name} is not a composite part", s.qualified_name);
+                return 1;
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                return 1;
+            }
+        }
+    } else if is_composite(target) {
+        let tcs = elems.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase))).filter(|e| subject_of(elems, e).map(|s| s.qualified_name == target.qualified_name).unwrap_or(false)).collect();
+        (target.qualified_name.clone(), tcs)
+    } else {
+        eprintln!("error: '{name}' is neither a TestCase nor a composite part");
+        return 1;
+    };
+    let invariants: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).filter(|s| s.has_tag("invariant")).collect();
+    if invariants.is_empty() {
+        eprintln!("error: no scenario of {composite} is tagged @invariant; tag the scenarios that state a safety property that must hold under faults (a Gherkin tag on the line before `Scenario:`)");
+        return 1;
+    }
+    let model = match syscribe_model::system_run::SystemModel::build_in(elems, &composite, model_root) {
+        Ok(m) => m,
+        Err(errs) => {
+            for e in &errs {
+                eprintln!("error: {e}");
+            }
+            return if errs.iter().any(|e| e.contains("no FMI support") || e.contains("is not a composite with an executable")) { 1 } else { 2 };
+        }
+    };
+    // single faults: every fault that applies to the composite, optionally only the rows of one sheet
+    let sheet_rows: Option<Vec<String>> = match value("--fmea") {
+        None => None,
+        Some(id) => match resolver.resolve_ref(elems, &id).filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FMEASheet))) {
+            Some(sheet) => {
+                let prefix = format!("{}::", sheet.qualified_name);
+                Some(elems.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FMEAEntry)) && e.qualified_name.starts_with(&prefix)).filter_map(|e| e.frontmatter.id.clone()).collect())
+            }
+            None => {
+                eprintln!("error: '{id}' is not an FMEASheet");
+                return 1;
+            }
+        },
+    };
+    let mut sets: Vec<FaultSet> = Vec::new();
+    let push = |sets: &mut Vec<FaultSet>, mut ids: Vec<String>, origin: String| {
+        ids.sort();
+        ids.dedup();
+        if !sets.iter().any(|s| s.ids == ids) {
+            sets.push(FaultSet { ids, origin });
+        }
+    };
+    for f in &model.faults {
+        if sheet_rows.as_ref().is_none_or(|rows| rows.contains(&f.id)) {
+            push(&mut sets, vec![f.id.clone()], format!("single fault {}", f.id));
+        }
+    }
+    let mut not_injectable: Vec<NotInjectable> = Vec::new();
+    if let Some(ft_id) = value("--ft") {
+        let Some(tree) = syscribe_model::fta::find_fault_tree(elems, &ft_id) else {
+            eprintln!("error: no fault tree '{ft_id}'");
+            return 1;
+        };
+        let opts = syscribe_model::fta::AnalysisOptions { max_order: Some(max_order), ..Default::default() };
+        let analysis = match syscribe_model::fta::analyze_fault_tree(elems, &resolver, tree, &opts) {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("error: fault tree {ft_id}: {e:?}");
+                return 2;
+            }
+        };
+        let tree_label = tree.frontmatter.id.clone().unwrap_or_else(|| tree.qualified_name.clone());
+        for cs in analysis.cut_sets.iter().filter(|c| c.order <= max_order) {
+            let missing: Vec<String> = cs.events.iter().filter(|e| !model.faults.iter().any(|f| &f.id == *e)).cloned().collect();
+            let origin = format!("cut set of {tree_label}, order {}", cs.order);
+            if missing.is_empty() {
+                push(&mut sets, cs.events.clone(), origin);
+            } else {
+                not_injectable.push(NotInjectable { origin, events: missing, reason: "no fault model (`injection:`) applies to the composite".into() });
+            }
+        }
+    }
+    let opts = syscribe_model::sm_run::Options::default();
+    let mut campaign = match fault_campaign::run(&model, &invariants, &opts, &sets) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+    campaign.not_injectable = not_injectable;
+    let rows = fault_campaign::analysis_rows(elems, &resolver, &model);
+    let ran: std::collections::HashSet<&str> = sets.iter().flat_map(|s| s.ids.iter().map(|x| x.as_str())).collect();
+    for (id, has_model) in &rows {
+        if !has_model {
+            campaign.fmea.without_model.push(id.clone());
+        } else if ran.contains(id.as_str()) {
+            campaign.fmea.exercised.push(id.clone());
+        } else {
+            campaign.fmea.not_exercised.push(id.clone());
+        }
+    }
+    let (survived, defeated, errored) = (
+        campaign.sets.iter().filter(|s| s.status == "survived").count(),
+        campaign.sets.iter().filter(|s| s.status == "defeated").count(),
+        campaign.sets.iter().filter(|s| s.status == "error").count(),
+    );
+    if flag("--json") {
+        println!("{}", serde_json::to_string_pretty(&campaign).expect("serialises"));
+    } else {
+        println!("fault campaign on {} (hash {}): {} invariant scenario(s), {} fault set(s)", campaign.composite, &campaign.hash[..12], campaign.invariants, campaign.sets.len());
+        for s in &campaign.sets {
+            println!("  {:<9} {}   ({})", s.status.to_uppercase(), s.label, s.origin);
+            for d in &s.defeats {
+                println!("      defeats \"{}\": {}", d.scenario, d.message);
+            }
+            for d in &s.errors {
+                println!("      error in \"{}\": {}", d.scenario, d.message);
+            }
+        }
+        for n in &campaign.not_injectable {
+            println!("  not run   {} ({}): {}", n.events.join(", "), n.origin, n.reason);
+        }
+        println!("FMEA/FTA rows of the composite's parts: {} exercised, {} with a fault model but not exercised, {} with no fault model (prose only)", campaign.fmea.exercised.len(), campaign.fmea.not_exercised.len(), campaign.fmea.without_model.len());
+        if !campaign.fmea.not_exercised.is_empty() {
+            println!("  not exercised: {}", campaign.fmea.not_exercised.join(", "));
+        }
+        if !campaign.fmea.without_model.is_empty() {
+            println!("  no fault model: {}", campaign.fmea.without_model.join(", "));
+        }
+        println!("summary: {survived} survived, {defeated} defeated, {errored} could not be run");
+    }
+    if (defeated > 0 || errored > 0) && !flag("--report-only") {
+        return 2;
+    }
+    0
+}

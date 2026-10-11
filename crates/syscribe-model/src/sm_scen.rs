@@ -30,6 +30,16 @@ pub struct Scenario {
     /// The outline's own title, for an expanded row.
     pub outline: Option<String>,
     pub steps: Vec<GStep>,
+    /// Gherkin tags (`@invariant`), the scenario's own after those of the feature.
+    pub tags: Vec<String>,
+}
+
+impl Scenario {
+    /// Whether the scenario carries the tag, ignoring case and the leading `@`.
+    pub fn has_tag(&self, tag: &str) -> bool {
+        let want = tag.trim_start_matches('@');
+        self.tags.iter().any(|t| t.trim_start_matches('@').eq_ignore_ascii_case(want))
+    }
 }
 
 fn is_fence(line: &str) -> Option<bool> {
@@ -100,6 +110,7 @@ pub(crate) fn find_unquoted(hay: &str, needle: &str) -> Option<usize> {
 pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     struct Raw {
         title: String,
+        tags: Vec<String>,
         outline: bool,
         steps: Vec<GStep>,
         header: Vec<String>,
@@ -113,6 +124,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     let mut in_doc = false;
     let mut in_examples = false;
     let mut last_kw = Kw::Given;
+    let mut feature_tags: Vec<String> = Vec::new();
+    let mut pending_tags: Vec<String> = Vec::new();
     for (i, line) in doc.lines().enumerate() {
         if let Some(open) = is_fence(line) {
             in_block = open;
@@ -133,19 +146,23 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             continue;
         }
         let lower = t.to_ascii_lowercase();
-        if t.is_empty() || t.starts_with('#') || t.starts_with('@') {
+        if t.starts_with('@') {
+            pending_tags.extend(t.split_whitespace().filter(|x| x.starts_with('@')).map(String::from));
+            continue;
+        }
+        if t.is_empty() || t.starts_with('#') {
             continue;
         }
         if lower.starts_with("scenario outline:") || lower.starts_with("scenario template:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
             in_examples = false;
             in_background = false;
             continue;
         }
         if lower.starts_with("scenario:") || lower.starts_with("example:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
             in_examples = false;
             in_background = false;
             continue;
@@ -165,6 +182,9 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             continue;
         }
         if lower.starts_with("feature:") || lower.starts_with("rule:") {
+            if lower.starts_with("feature:") {
+                feature_tags = std::mem::take(&mut pending_tags);
+            }
             in_examples = false;
             in_background = false;
             continue;
@@ -202,12 +222,12 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     let mut out = Vec::new();
     for r in raws {
         if !r.outline {
-            out.push(Scenario { title: r.title, outline: None, steps: r.steps });
+            out.push(Scenario { title: r.title, outline: None, steps: r.steps, tags: r.tags });
             continue;
         }
         if r.rows.is_empty() {
             // An outline with no example rows would silently run nothing: make it an erroring scenario.
-            out.push(Scenario { title: format!("{} [no examples]", r.title), outline: Some(r.title.clone()), steps: vec![] });
+            out.push(Scenario { title: format!("{} [no examples]", r.title), outline: Some(r.title.clone()), steps: vec![], tags: r.tags.clone() });
             continue;
         }
         for (n, (header, row)) in r.rows.iter().enumerate() {
@@ -222,6 +242,7 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
                 title: format!("{} [row {}]", r.title, n + 1),
                 outline: Some(r.title.clone()),
                 steps: r.steps.iter().map(|s| GStep { kw: s.kw, text: sub(&s.text), line: s.line }).collect(),
+                tags: r.tags.clone(),
             });
         }
     }

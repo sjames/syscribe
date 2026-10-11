@@ -819,6 +819,14 @@ With a `TestCase` (or a machine, meaning every scenario `TestCase` whose `subjec
 
 `compile`, `simulate` (script, scenarios, `--coverage`, `--record`) and `mutate` also take an executable `ActionDef` (GH #276): token semantics, a closed Gherkin vocabulary, node/edge/decision/loop/guard coverage with the gates `--min-nodes`, `--min-edges`, `--min-guards`, and mutation of successions, guards and assignments. See `docs/model-guide/action-flows.md`.
 
+## Fault-injection campaign (`inject`)
+
+```bash
+syscribe -m <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--json]
+```
+
+Runs the `@invariant` scenarios of a composite under every single fault (the `injection:` of FMEA rows and fault-tree events) and, with `--ft`, every minimal cut set of a fault tree up to `--max-order`, and reports which fault sets the design survives (GH #306). The invariants must hold without faults first; a defeated invariant exits 2 unless `--report-only`. The report also lists the FMEA rows that were exercised and those that have no fault model. See `syscribe help inject` and `docs/design/fault-injection.md`.
+
 ## Mutation analysis (`mutate`)
 
 ```bash
