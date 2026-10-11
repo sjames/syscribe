@@ -268,6 +268,52 @@ fn apply_field(fm: &mut crate::element::RawFrontmatter, key: &str, value: &str) 
     }
 }
 
+/// Replace placeholders in every string of a YAML value (a state machine's guards, assignments, durations, variable
+/// initial values).
+fn substitute_yaml(v: &mut serde_yaml::Value, f: &dyn Fn(&Placeholder) -> Option<String>) {
+    match v {
+        serde_yaml::Value::String(s) if s.contains("{{") => *s = substitute_text(s, f),
+        serde_yaml::Value::Sequence(xs) => xs.iter_mut().for_each(|x| substitute_yaml(x, f)),
+        serde_yaml::Value::Mapping(m) => m.iter_mut().for_each(|(_, x)| substitute_yaml(x, f)),
+        _ => {}
+    }
+}
+
+fn has_placeholder_yaml(v: &serde_yaml::Value) -> bool {
+    match v {
+        serde_yaml::Value::String(s) => s.contains("{{") && !find(s).is_empty(),
+        serde_yaml::Value::Sequence(xs) => xs.iter().any(has_placeholder_yaml),
+        serde_yaml::Value::Mapping(m) => m.iter().any(|(_, x)| has_placeholder_yaml(x)),
+        _ => false,
+    }
+}
+
+/// Substitute in the state-machine parts of an element, where a placeholder is read as an expression (GH #311).
+fn substitute_machine(fm: &mut crate::element::RawFrontmatter, f: &dyn Fn(&Placeholder) -> Option<String>) {
+    for list in [fm.sub_states.as_mut()].into_iter().flatten() {
+        list.iter_mut().for_each(|v| substitute_yaml(v, f));
+    }
+    for list in [fm.transitions.as_mut()].into_iter().flatten() {
+        list.iter_mut().for_each(|v| substitute_yaml(v, f));
+    }
+    for list in [fm.variables.as_mut()].into_iter().flatten() {
+        list.iter_mut().for_each(|v| substitute_yaml(v, f));
+    }
+    if let Some(v) = fm.initial_effect.as_mut() {
+        substitute_yaml(v, f);
+    }
+    if let Some(v) = fm.entry_action.as_mut() {
+        substitute_yaml(v, f);
+    }
+}
+
+fn machine_has_placeholder(e: &RawElement) -> bool {
+    let fm = &e.frontmatter;
+    [fm.sub_states.as_ref(), fm.transitions.as_ref(), fm.variables.as_ref()].into_iter().flatten().any(|l| l.iter().any(has_placeholder_yaml))
+        || fm.initial_effect.as_ref().is_some_and(has_placeholder_yaml)
+        || fm.entry_action.as_ref().is_some_and(has_placeholder_yaml)
+}
+
 fn texts(e: &RawElement) -> [&str; 2] {
     [e.doc.as_str(), e.frontmatter.name.as_deref().unwrap_or("")]
 }
@@ -281,7 +327,7 @@ pub fn of_element(e: &RawElement) -> Vec<Placeholder> {
 
 /// Whether any element uses a placeholder (cheap pre-check).
 pub fn any(elements: &[RawElement]) -> bool {
-    elements.iter().any(|e| !e.frontmatter.placeholder_fields.is_empty() || texts(e).iter().any(|t| t.contains("{{") && !find(t).is_empty()))
+    elements.iter().any(|e| !e.frontmatter.placeholder_fields.is_empty() || texts(e).iter().any(|t| t.contains("{{") && !find(t).is_empty()) || machine_has_placeholder(e))
 }
 
 /// A parameter declared on a `FeatureDef`.
@@ -405,6 +451,11 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
                 }
             }
         }
+        if machine_has_placeholder(e) {
+            // a machine's expressions take the variant's parameter values; one that cannot be resolved stays written and
+            // lowering reports it (GH #311)
+            substitute_machine(&mut e.frontmatter, &f);
+        }
         if e.doc.contains("{{") {
             e.doc = substitute_text(&e.doc, &f);
         }
@@ -414,6 +465,21 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
             }
         }
     }
+}
+
+/// The model with every placeholder in a state machine replaced by its parameter's fixed or default value, so the
+/// symbolic base model can be checked like any other (GH #311). `None` when no machine uses a placeholder.
+pub fn machines_at_defaults(elements: &[RawElement]) -> Option<Vec<RawElement>> {
+    if !elements.iter().any(machine_has_placeholder) {
+        return None;
+    }
+    let resolver = Resolver::new(elements);
+    let f = |ph: &Placeholder| value_for(elements, &resolver, None, ph);
+    let mut out = elements.to_vec();
+    for e in out.iter_mut().filter(|e| machine_has_placeholder(e)) {
+        substitute_machine(&mut e.frontmatter, &f);
+    }
+    Some(out)
 }
 
 /// `(is_error, code, file, message)` for every placeholder problem in the base model.

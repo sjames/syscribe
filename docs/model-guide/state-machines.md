@@ -173,6 +173,15 @@ subStates:
       - {target: Closed, accept: Cmd::Close}
 ```
 
+### Feature parameters in a machine
+
+A guard, an assignment, a variable's initial value or a duration can use a feature parameter, written as a placeholder (`{{Features::GridProfile.reconnectDelayS}}`, see [Variability](variability.md)). `simulate`, `compile`, `mutate` and `inject` take `--config <Configuration>` and run on that product, with the placeholder replaced by the Configuration's binding, else the parameter's fixed or default value. `validate` checks the symbolic base model at the parameters' defaults. Without `--config` a run sees the written placeholder and reports it as an expression error.
+
+```text
+accept: {after: "{{Features::GridProfile.reconnectDelayS}} s"}
+guard: "s.v > {{Features::GridProfile.overVoltagePu}}"
+```
+
 Virtual time is kept on a grid of one nanosecond, so a delay split into parts (`99 ms` then `1 ms`) reaches a timer exactly like the whole (`100 ms`) at any absolute time; durations finer than 1 ns are rounded.
 
 Deviations from SCXML, deliberately: no history, fork/join, `invoke`, external `send` or multi-event transitions (none exist in the SysML v2 model); typed, unit-checked expressions instead of ECMAScript; a virtual clock instead of delayed sends; an expression error stops the run instead of raising `error.execution`; equal-priority conflicts and unhandled events are reported in strict mode; change triggers are SysML v2 one-shot observations, not SCXML level-triggered eventless transitions; behaviour references (`effect: Pkg::Action`, `entryAction: Pkg::Action`) are recorded in the trace but not executed.

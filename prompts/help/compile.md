@@ -1,7 +1,7 @@
 # compile — lower a state machine to its intermediate representation
 
 ## SYNOPSIS
-    syscribe compile <StateDef> [--json]
+    syscribe compile <StateDef> [--config <C>] [--json]
 
 ## DESCRIPTION
 Lowers a `StateDef` (or `State`) to the machine IR that the simulator, coverage,
@@ -20,6 +20,10 @@ an unresolved or ambiguous transition endpoint (W076).
 
 An `ActionDef` is lowered to the action-graph IR instead (nodes, guarded successions, slots, data
 flows, called actions): see `syscribe help simulate`.
+
+## OPTIONS
+    --config <C>         run on the model projected onto this Configuration: feature parameters written as {{Features::F.param}} in guards, assignments and durations take its values
+    --json               machine-readable output
 
 ## EXIT STATUS
 0 lowered · 1 usage, or the element is not a state machine · 2 diagnostics.

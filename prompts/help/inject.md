@@ -1,7 +1,7 @@
 # inject — run a composite's safety invariants under injected faults
 
 ## SYNOPSIS
-    syscribe inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--json]
+    syscribe inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--config <C>] [--json]
 
 ## DESCRIPTION
 The campaign of fault injection (see `syscribe help simulate` for the scenario steps). The scenarios of the
@@ -29,6 +29,7 @@ every fault set rebuilds the system (and re-instantiates plants), so a large ord
     --max-order <N>       largest cut set to run (default 2)
     --fmea <FMEASheet>    only the single faults of this sheet's rows (fault-tree events and cut sets are unaffected)
     --report-only         report defeats and errors but exit 0
+    --config <C>         run on the model projected onto this Configuration: feature parameters written as {{Features::F.param}} in guards, assignments and durations take its values
     --json                machine-readable report
 
 ## EXIT STATUS
