@@ -174,6 +174,7 @@ pub fn run_action_scenario(prog: &ActionProgram, sc: &Scenario, opts: &ActOption
         trace: to_trace(run),
         coverage: Coverage::default(),
         act_coverage: run.coverage(),
+        part_coverage: vec![],
         plants: vec![],
         messages: vec![],
     };

@@ -583,10 +583,6 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             }
         };
         if is_composite(subject) {
-            if flag("--coverage") {
-                eprintln!("error: {tc_id}: --coverage is not available for composite subjects yet; run it on each part's machine");
-                return 1;
-            }
             if !composites.contains_key(&subject.qualified_name) {
                 match syscribe_model::system_run::SystemModel::build_in(active, &subject.qualified_name, model_root) {
                     Ok(m) => {
@@ -692,6 +688,65 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         machines.dedup();
         for mname in machines {
             let mine: Vec<&Out> = outs.iter().filter(|o| o.machine == mname).collect();
+            if let Some(sm) = composites.get(&mname) {
+                let reqs = verified_requirements(active, &resolver, &mine.iter().map(|o| (o.tc.as_str(), o.v.status == Status::Pass)).collect::<Vec<_>>());
+                let (mut agg_s, mut agg_t, mut agg_g) = ((0usize, 0usize), (0usize, 0usize), (0usize, 0usize));
+                let mut parts_json: Vec<serde_json::Value> = Vec::new();
+                for (pi, inst) in sm.spec.instances.iter().enumerate() {
+                    let Some(m) = sm.machines[pi].as_ref() else { continue };
+                    let mut cov = syscribe_model::sm_run::Coverage::default();
+                    for o in &mine {
+                        if let Some(pc) = o.v.part_coverage.iter().find(|c| c.part == inst.name) {
+                            cov.merge(&pc.coverage);
+                        }
+                    }
+                    let rep = syscribe_model::sm_cov::report(m, &cov, mine.len(), config.clone(), &reqs);
+                    let label = format!("{}.{} ({})", mname, inst.name, m.machine);
+                    for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)] {
+                        if let Some(min) = min {
+                            if got + 1e-9 < min {
+                                eprintln!("coverage gate: {mname}.{} {what} {:.1}% is below the required {min}%", inst.name, got);
+                                exit = 2;
+                            }
+                        }
+                    }
+                    agg_s = (agg_s.0 + rep.states.covered, agg_s.1 + rep.states.total);
+                    agg_t = (agg_t.0 + rep.transitions.covered, agg_t.1 + rep.transitions.total);
+                    agg_g = (agg_g.0 + rep.guards.covered, agg_g.1 + rep.guards.total);
+                    coverage_text.push_str(&format!(
+                        "coverage of {label} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
+                        &rep.basis.machine_hash[..12], rep.basis.scenarios,
+                        rep.states.covered, rep.states.total, rep.states_percent(),
+                        rep.transitions.covered, rep.transitions.total, rep.transitions_percent(),
+                        rep.pairs.covered, rep.pairs.total,
+                        rep.guards.covered, rep.guards.total, rep.guards_percent(),
+                        rep.timers.covered, rep.timers.total,
+                    ));
+                    for u in &rep.states.uncovered {
+                        coverage_text.push_str(&format!("    state not entered: {u}\n"));
+                    }
+                    for u in &rep.transitions.uncovered {
+                        coverage_text.push_str(&format!("    transition not taken: t{} {}\n", u.id, u.description));
+                    }
+                    for u in &rep.timers.uncovered {
+                        coverage_text.push_str(&format!("    timer: {}\n", u.description));
+                    }
+                    let mut pj = serde_json::to_value(&rep).expect("serialises");
+                    pj["part"] = serde_json::json!(inst.name);
+                    pj["basis"]["machine"] = serde_json::json!(label);
+                    parts_json.push(pj);
+                }
+                coverage_text.push_str(&format!("aggregate coverage of {mname} (hash {}): states {}/{}, transitions {}/{}, guard conds {}/{}\n", &sm.hash[..12], agg_s.0, agg_s.1, agg_t.0, agg_t.1, agg_g.0, agg_g.1));
+                coverage_json.push(serde_json::json!({
+                    "composite": mname, "hash": sm.hash, "parts": parts_json,
+                    "aggregate": {
+                        "states": {"covered": agg_s.0, "total": agg_s.1},
+                        "transitions": {"covered": agg_t.0, "total": agg_t.1},
+                        "guards": {"covered": agg_g.0, "total": agg_g.1},
+                    },
+                }));
+                continue;
+            }
             let act_prog = lowered_act.values().find(|p| p.root == mname);
             let mut cov = syscribe_model::sm_run::Coverage::default();
             let mut acov = syscribe_model::act_run::ActCoverage::default();
@@ -1540,4 +1595,24 @@ fn plant_factory(elems: &[RawElement], tc: &RawElement, machine: &syscribe_model
     // build once now so wiring errors are reported before any scenario runs
     build().map_err(fail("E889"))?;
     Ok(Some(Box::new(build)))
+}
+
+/// Requirements verified by the scenario TestCases that ran: verified when every scenario of one verifying TestCase passed.
+fn verified_requirements(active: &[RawElement], resolver: &syscribe_model::resolver::Resolver, ran: &[(&str, bool)]) -> Vec<(String, bool)> {
+    let mut reqs: Vec<(String, bool)> = Vec::new();
+    let mut tc_ids: Vec<&str> = ran.iter().map(|r| r.0).collect();
+    tc_ids.sort();
+    tc_ids.dedup();
+    for tc_id in tc_ids {
+        let all_pass = ran.iter().filter(|r| r.0 == tc_id).all(|r| r.1);
+        let Some(tc) = active.iter().find(|e| e.frontmatter.id.as_deref() == Some(tc_id) || e.qualified_name == tc_id) else { continue };
+        for r in tc.frontmatter.verifies.iter().flatten() {
+            let id = resolver.resolve_ref(active, r).map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())).unwrap_or_else(|| r.clone());
+            match reqs.iter_mut().find(|x| x.0 == id) {
+                Some(x) => x.1 |= all_pass,
+                None => reqs.push((id, all_pass)),
+            }
+        }
+    }
+    reqs
 }

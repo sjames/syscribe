@@ -387,6 +387,18 @@ impl<'m> System<'m> {
         self.run(part)?.eval_str(src)
     }
 
+    /// What each part's machine has exercised so far.
+    pub fn part_coverage(&self) -> Vec<crate::sm_scen::PartCoverage> {
+        self.runs
+            .iter()
+            .zip(&self.model.spec.instances)
+            .filter_map(|(r, i)| match (r, &i.behavior) {
+                (Some(r), Behavior::Machine(q)) => Some(crate::sm_scen::PartCoverage { part: i.name.clone(), machine: q.clone(), coverage: r.coverage() }),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Every message sent so far (delivered or not), in emission order.
     pub fn messages(&self) -> &[Message] {
         &self.log

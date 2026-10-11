@@ -163,6 +163,7 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
             .collect(),
         coverage: Default::default(),
         act_coverage: Default::default(),
+        part_coverage: sys.part_coverage(),
         plants: sys.plant_provenance(),
         messages: sys.messages().iter().map(|m| sys.describe(m)).collect(),
     };

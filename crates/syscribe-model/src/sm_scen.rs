@@ -381,6 +381,15 @@ pub enum Status {
     Error,
 }
 
+/// What one part of a composite exercised in a scenario (REQ-TRS-SYSCOV-001).
+#[derive(Debug, Clone)]
+pub struct PartCoverage {
+    pub part: String,
+    /// The qualified name of the part's state machine.
+    pub machine: String,
+    pub coverage: crate::sm_run::Coverage,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Verdict {
     pub scenario: String,
@@ -393,6 +402,9 @@ pub struct Verdict {
     pub coverage: crate::sm_run::Coverage,
     #[serde(skip)]
     pub act_coverage: crate::act_run::ActCoverage,
+    /// Per part of a composite; empty for a single machine.
+    #[serde(skip)]
+    pub part_coverage: Vec<PartCoverage>,
     /// What identifies each plant of the run (FMU hash, FMI version, step, platform); empty without plants.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub plants: Vec<serde_json::Value>,
@@ -429,6 +441,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
                     trace: vec![],
                     coverage: Default::default(),
                     act_coverage: Default::default(),
+                    part_coverage: vec![],
                     plants: vec![],
                     messages: vec![],
                 }
@@ -445,6 +458,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
         trace: run.trace().to_vec(),
         coverage: run.coverage(),
         act_coverage: Default::default(),
+        part_coverage: vec![],
         plants: run.plant_provenance(),
         messages: vec![],
     };
