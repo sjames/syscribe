@@ -172,3 +172,73 @@ fn coverage_gates_decide_the_exit_code() {
     assert_eq!(run(&one, &["simulate", "A", "--all", "--coverage", "--min-edges", "76"]).0, 2, "3/4 = 75%");
     assert_eq!(run(&one, &["simulate", "A", "--min-nodes", "50"]).0, 1, "needs --coverage");
 }
+
+const M1: &str = "---
+type: ActionDef
+name: M1
+parameters:
+  - {name: n, direction: in}
+  - {name: result, direction: out}
+variables:
+  - {name: acc, value: \"0\"}
+subActions:
+  - {name: init, kind: AssignmentAction, assign: \"acc := n\"}
+  - {name: big, kind: AssignmentAction, assign: \"result := 1\"}
+  - {name: small, kind: AssignmentAction, assign: \"result := 0\"}
+controlNodes:
+  - {name: d, kind: DecisionNode}
+successionConnections:
+  - {after: init, before: d}
+  - {after: d, before: big, guard: \"acc > 10\"}
+  - {after: d, before: small, guard: else}
+---
+";
+const S_BIG: &str = "  Scenario: eleven
+    Given n is 11
+    When the action runs
+    Then result == 1
+    And big ran
+    And small did not run
+";
+const S_EDGE: &str = "
+  Scenario: ten
+    Given n is 10
+    When the action runs
+    Then result == 0
+    And small ran
+    And big did not run
+";
+
+fn mutate(scenarios: &str, extra: &[&str]) -> (i32, serde_json::Value, String) {
+    let root = model(&[("M1", M1), ("TC-ACT-001", &tc("M1", scenarios))]);
+    let (c, t) = run(&root, &[&["mutate", "M1", "--json"][..], extra].concat());
+    (c, serde_json::from_str(&t).unwrap_or(serde_json::Value::Null), t)
+}
+
+#[test]
+fn a_thorough_scenario_set_kills_every_action_mutant() {
+    let (c, j, t) = mutate(&format!("{S_BIG}{S_EDGE}"), &[]);
+    assert_eq!(c, 0, "{t}");
+    // Removing or redirecting `init → d` survives by construction: `init` is declared before `d`, so the
+    // document-order tie-break runs it first anyway. Mutation analysis exposes this reliance on ordering;
+    // every other mutant is killed.
+    let survivors: Vec<_> = j["mutants"].as_array().unwrap().iter().filter(|m| m["fate"] == "survived").collect();
+    assert!(survivors.iter().all(|m| m["origin"]["path"] == "successionConnections[0]"), "{t}");
+    assert_eq!(survivors.len(), 3, "{t}");
+    assert!(j["score"].as_f64().unwrap() > 85.0);
+    let ops: Vec<_> = j["mutants"].as_array().unwrap().iter().map(|m| m["operator"].as_str().unwrap().to_string()).collect();
+    for want in ["negate-condition", "relational-operator", "literal-shift", "remove-succession", "retarget", "swap-branches", "remove-assignment", "assign-self", "remove-action"] {
+        assert!(ops.iter().any(|o| o == want), "{want} not generated: {ops:?}");
+    }
+}
+
+#[test]
+fn a_weak_scenario_set_leaves_survivors_and_min_score_gates() {
+    let (c, j, t) = mutate(S_BIG, &[]);
+    assert_eq!(c, 0, "{t}");
+    assert!(j["survived"].as_u64().unwrap() > 0, "{t}");
+    let surv: Vec<_> = j["mutants"].as_array().unwrap().iter().filter(|m| m["fate"] == "survived").collect();
+    assert!(surv.iter().any(|m| m["description"].as_str().unwrap().contains(">=")), "{t}");
+    assert_eq!(mutate(S_BIG, &["--min-score", "99"]).0, 2);
+    assert_eq!(mutate(&format!("{S_BIG}{S_EDGE}"), &["--min-score", "85"]).0, 0);
+}

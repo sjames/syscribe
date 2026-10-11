@@ -34,7 +34,7 @@ pub struct Mutant {
     pub machine: Machine,
 }
 
-fn rebuild(old: &IrExpr, ast: Expr) -> IrExpr {
+pub(crate) fn rebuild(old: &IrExpr, ast: Expr) -> IrExpr {
     IrExpr { src: ast.to_source(), refs: old.refs.clone(), ast }
 }
 
@@ -51,7 +51,7 @@ fn swap_rel(op: &str) -> Option<&'static str> {
 }
 
 /// Every single-point relational-operator and literal mutation of an expression.
-fn expr_mutations(e: &Expr) -> Vec<(&'static str, String, Expr)> {
+pub(crate) fn expr_mutations(e: &Expr) -> Vec<(&'static str, String, Expr)> {
     let mut out = Vec::new();
     match e {
         Expr::Bin(op, a, b) => {

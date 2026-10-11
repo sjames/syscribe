@@ -939,7 +939,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
         eprintln!("error: no element '{name}'");
         return 1;
     };
-    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action));
     let (machine_q, tcs): (String, Vec<&RawElement>) = if matches!(target.frontmatter.element_type, Some(ElementType::TestCase)) {
         match subject_of(elems, target) {
             Ok(s) => (s.qualified_name.clone(), vec![target]),
@@ -964,16 +964,29 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
         eprintln!("error: no scenarios to run against {machine_q}");
         return 1;
     }
-    let machine = match syscribe_model::ir::lower(elems, &machine_q) {
-        Ok(m) => m,
-        Err(diags) => {
-            for (c, msg) in &diags {
-                eprintln!("{c}: {msg}");
+    let subject_is_action = resolver.resolve_ref(elems, &machine_q).is_some_and(|e| matches!(e.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)));
+    let analysed = if subject_is_action {
+        match syscribe_model::act_ir::lower_action(elems, &machine_q) {
+            Ok(p) => syscribe_model::act_mut::analyse(&p, &scenarios, &syscribe_model::act_run::ActOptions::default()),
+            Err(diags) => {
+                for (c, msg) in &diags {
+                    eprintln!("{c}: {msg}");
+                }
+                return 2;
             }
-            return 2;
+        }
+    } else {
+        match syscribe_model::ir::lower(elems, &machine_q) {
+            Ok(m) => syscribe_model::sm_mut::analyse(&m, &scenarios, &syscribe_model::sm_run::Options::default()),
+            Err(diags) => {
+                for (c, msg) in &diags {
+                    eprintln!("{c}: {msg}");
+                }
+                return 2;
+            }
         }
     };
-    let report = match syscribe_model::sm_mut::analyse(&machine, &scenarios, &syscribe_model::sm_run::Options::default()) {
+    let report = match analysed {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: {e}");
