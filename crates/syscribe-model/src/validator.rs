@@ -2855,6 +2855,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 findings.push(error("E011", &file, "TestCase body has no ```gherkin fenced block"));
             }
 
+        // E886: a TestCase whose subject is an executable state machine uses only the executable step
+        // vocabulary (REQ-TRS-SMSCEN-001). Dormant for every other TestCase.
+        if matches!(fm.element_type, Some(ElementType::TestCase)) && fm.subject.is_some() {
+            if let Ok(subject) = crate::sm_scen::subject_of(elements, elem) {
+                let sf = &subject.frontmatter;
+                if crate::sm_exec::is_executable(sf.variables.as_deref(), sf.initial_effect.as_ref(), sf.sub_states.as_deref().unwrap_or(&[]), sf.transitions.as_deref().unwrap_or(&[])) {
+                    for (line, msg) in crate::sm_scen::vocabulary_findings(&elem.doc) {
+                        findings.push(error("E886", &file, &format!("line {line} of the body: {msg}")));
+                    }
+                }
+            }
+        }
+
         // E012: native Requirement normative text must be non-empty
         if let Some(ElementType::Requirement) = &fm.element_type {
             if fm.id.as_deref().map(is_req_id).unwrap_or(false) {

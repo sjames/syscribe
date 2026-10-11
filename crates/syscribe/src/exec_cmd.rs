@@ -315,7 +315,7 @@ pub fn cmd_compile(elems: &[RawElement], args: &[String]) -> i32 {
 /// Entry point for `simulate <StateDef> --do "<script>" [--strict] [--json]` (GH #279): lower the machine,
 /// run a script of `send <event> [k=v ...]`, `advance <duration>` and `set <var>=<value>` commands and print
 /// the trace. Exit 0 · 1 usage · 2 a lowering diagnostic or a run error.
-pub fn cmd_simulate(elems: &[RawElement], args: &[String]) -> i32 {
+fn simulate_script(elems: &[RawElement], args: &[String]) -> i32 {
     use syscribe_model::expr::{format_value, parse_value, Value};
     use syscribe_model::sm_run::{Options, Run};
     let json = args.iter().any(|a| a == "--json");
@@ -439,4 +439,233 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String]) -> i32 {
         return 2;
     }
     0
+}
+
+/// Entry point for `simulate`: a state machine with `--do` runs a script; a `TestCase` (or a machine, with
+/// every scenario `TestCase` whose subject it is) runs its Gherkin scenarios (GH #279, #280).
+pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>, model_root: &std::path::Path) -> i32 {
+    use syscribe_model::element::ElementType;
+    use syscribe_model::sm_scen::{extract_scenarios, run_scenario, subject_of, Status};
+    let flag = |f: &str| args.iter().any(|a| a == f);
+    let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
+    let valued = ["--do", "--scenario", "--run", "--config"];
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| valued.contains(&a.as_str())).map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
+        eprintln!("Usage: syscribe --model <root> simulate <TestCase|StateDef> [--scenario <title>] [--do \"<script>\"] [--trace] [--record [--run <id>] [--config <C>]] [--strict] [--json]");
+        return 1;
+    };
+    let config = value("--config");
+    let projected;
+    let active: &[RawElement] = match &config {
+        Some(c) => {
+            projected = lens(Some(c));
+            &projected
+        }
+        None => elems,
+    };
+    let resolver = syscribe_model::resolver::Resolver::new(active);
+    let Some(target) = resolver.resolve_ref(active, &name) else {
+        eprintln!("error: no element '{name}'");
+        return 1;
+    };
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State));
+    if is_machine(target) && flag("--do") {
+        return simulate_script(active, args);
+    }
+    // The scenario TestCases to run.
+    let tcs: Vec<&RawElement> = match target.frontmatter.element_type {
+        Some(ElementType::TestCase) => vec![target],
+        _ if is_machine(target) => active
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase)))
+            .filter(|e| subject_of(active, e).map(|s| s.qualified_name == target.qualified_name).unwrap_or(false))
+            .collect(),
+        _ => {
+            eprintln!("error: '{name}' is neither a TestCase nor a StateDef");
+            return 1;
+        }
+    };
+    let filter = value("--scenario");
+    let strict = flag("--strict");
+    let opts = syscribe_model::sm_run::Options { strict, ..Default::default() };
+    struct Out {
+        tc: String,
+        machine: String,
+        hash: String,
+        v: syscribe_model::sm_scen::Verdict,
+    }
+    let mut outs: Vec<Out> = Vec::new();
+    let mut lowered: std::collections::HashMap<String, syscribe_model::ir::Machine> = Default::default();
+    let mut exit = 0;
+    for tc in tcs {
+        let tc_id = tc.frontmatter.id.clone().unwrap_or_else(|| tc.qualified_name.clone());
+        let scenarios: Vec<_> = extract_scenarios(&tc.doc)
+            .into_iter()
+            .filter(|sc| filter.as_ref().is_none_or(|f| &sc.title == f || sc.outline.as_ref() == Some(f)))
+            .collect();
+        if scenarios.is_empty() {
+            continue;
+        }
+        let subject = match subject_of(active, tc) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("error: {tc_id}: {e}");
+                exit = 2;
+                continue;
+            }
+        };
+        if !lowered.contains_key(&subject.qualified_name) {
+            match syscribe_model::ir::lower(active, &subject.qualified_name) {
+                Ok(m) => {
+                    lowered.insert(subject.qualified_name.clone(), m);
+                }
+                Err(diags) => {
+                    for (c, msg) in &diags {
+                        eprintln!("{c}: {msg}");
+                    }
+                    exit = 2;
+                    continue;
+                }
+            }
+        }
+        let m = &lowered[&subject.qualified_name];
+        for sc in &scenarios {
+            outs.push(Out { tc: tc_id.clone(), machine: m.machine.clone(), hash: m.hash.clone(), v: run_scenario(m, sc, &opts) });
+        }
+    }
+    if outs.is_empty() {
+        if exit == 0 {
+            eprintln!("error: no scenario to run{}", filter.map(|f| format!(" matching '{f}'")).unwrap_or_default());
+            return 1;
+        }
+        return exit;
+    }
+    if outs.iter().any(|o| o.v.status != Status::Pass) {
+        exit = 2;
+    }
+    if flag("--json") {
+        let verdicts: Vec<_> = outs
+            .iter()
+            .map(|o| {
+                let mut j = serde_json::json!({
+                    "testCase": o.tc, "scenario": o.v.scenario, "outline": o.v.outline, "status": o.v.status,
+                    "message": o.v.message, "machine": o.machine, "machineHash": o.hash, "steps": o.v.steps,
+                });
+                if flag("--trace") {
+                    j["trace"] = serde_json::to_value(&o.v.trace).unwrap_or_default();
+                }
+                j
+            })
+            .collect();
+        let hash = outs.first().map(|o| o.hash.clone()).unwrap_or_default();
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "machineHash": hash, "verdicts": verdicts })).expect("serialises"));
+    } else {
+        for o in &outs {
+            let tag = match o.v.status {
+                Status::Pass => "PASS ",
+                Status::Fail => "FAIL ",
+                Status::Error => "ERROR",
+            };
+            println!("{tag}  {}  {}", o.tc, o.v.scenario);
+            if let Some(m) = &o.v.message {
+                println!("       {m}");
+            }
+            if flag("--trace") {
+                for t in &o.v.trace {
+                    println!("       {:>3} t={:<6} {:<22} {}", t.n, syscribe_model::expr::format_number(t.time), t.cause, t.note.clone().unwrap_or_else(|| match (&t.from, &t.to) {
+                        (Some(f), Some(to)) => format!("{f} → {to}"),
+                        (Some(f), None) => format!("{f} (internal)"),
+                        _ => String::new(),
+                    }));
+                }
+            }
+        }
+        let pass = outs.iter().filter(|o| o.v.status == Status::Pass).count();
+        println!("{pass}/{} scenario(s) pass", outs.len());
+    }
+    if flag("--record") {
+        if let Err(e) = record_scenarios(model_root, elems, &outs.iter().map(|o| (o.tc.as_str(), &o.hash, &o.v)).collect::<Vec<_>>(), value("--run").as_deref(), config.as_deref()) {
+            eprintln!("error: {e}");
+            return 1;
+        }
+    }
+    exit
+}
+
+/// Write scenario verdicts as session-log evidence (kept alongside manual session-log verdicts) and the
+/// traces under `.syscribe/traces/` (REQ-TRS-SMSCEN-001).
+fn record_scenarios(
+    model_root: &std::path::Path,
+    elems: &[RawElement],
+    outs: &[(&str, &String, &syscribe_model::sm_scen::Verdict)],
+    run: Option<&str>,
+    config: Option<&str>,
+) -> Result<(), String> {
+    use syscribe_model::results::{ResultsData, RunHistory};
+    use syscribe_model::sm_scen::Status;
+    let config_key: Option<String> = match config {
+        None => None,
+        Some(c) => Some(
+            elems
+                .iter()
+                .find(|e| {
+                    matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::Configuration))
+                        && (e.frontmatter.id.as_deref() == Some(c) || e.qualified_name == c)
+                })
+                .map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()))
+                .ok_or_else(|| format!("--config '{c}' is not a Configuration of this model; nothing was written"))?,
+        ),
+    };
+    let result = |s: Status| if s == Status::Pass { "pass" } else { "fail" };
+    // One record per expanded scenario, plus the outline's own title carrying the worst of its rows.
+    let mut records: Vec<serde_json::Value> = Vec::new();
+    let mut outline_worst: std::collections::BTreeMap<(String, String), (&str, Vec<String>)> = Default::default();
+    for (tc, _, v) in outs {
+        records.push(serde_json::json!({"testCase": tc, "scenario": v.scenario, "steps": v.steps, "result": result(v.status), "timestamp": ""}));
+        if let Some(o) = &v.outline {
+            let e = outline_worst.entry((tc.to_string(), o.clone())).or_insert(("pass", v.steps.clone()));
+            if v.status != Status::Pass {
+                e.0 = "fail";
+            }
+        }
+    }
+    for ((tc, o), (r, steps)) in outline_worst {
+        records.push(serde_json::json!({"testCase": tc, "scenario": o, "steps": steps, "result": r, "timestamp": ""}));
+    }
+    let text = serde_json::to_string(&records).map_err(|e| e.to_string())?;
+    let mut data = ResultsData::parse_session_log(&text, "syscribe simulate --record")?;
+    // Keep the verdicts of scenarios this run did not cover (manual session logs, other TestCases).
+    if let Some(old) = ResultsData::load_sidecar(model_root) {
+        let base = match &config_key {
+            Some(c) => old.by_config.get(c).map(|x| x.by_scenario.clone()).unwrap_or_default(),
+            None => old.by_scenario.clone(),
+        };
+        for (k, v) in base {
+            data.by_scenario.entry(k).or_insert(v);
+        }
+    }
+    let mut history = None;
+    if let Some(r) = run {
+        let mut h = RunHistory::load(model_root)?;
+        h.record_for(r, &data, config_key.as_deref());
+        history = Some(h);
+    }
+    match &config_key {
+        Some(c) => data.merge_config_into_sidecar(model_root, c),
+        None => data.merge_into_sidecar(model_root),
+    }
+    .map_err(|e| format!("cannot write the results sidecar: {e}"))?;
+    if let Some(h) = history {
+        h.save(model_root).map_err(|e| format!("cannot write run history: {e}"))?;
+    }
+    let dir = model_root.join(".syscribe").join("traces");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    for (tc, hash, v) in outs {
+        let slug: String = v.scenario.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
+        let file = dir.join(format!("{tc}__{slug}.json"));
+        let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "trace": v.trace});
+        std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    }
+    println!("Recorded {} scenario verdict(s){}.", outs.len(), run.map(|r| format!(" in run '{r}'")).unwrap_or_default());
+    Ok(())
 }

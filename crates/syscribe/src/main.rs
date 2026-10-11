@@ -1283,7 +1283,8 @@ fn main() {
             "simulate" => {
                 // State-machine interpreter (GH #279). Read-only. Exit 0 · 1 usage · 2 run error.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = exec_cmd::cmd_simulate(&elems, rest);
+                let lens = |cfg: Option<&str>| lensed_elements(&elems, None, cfg);
+                let code = exec_cmd::cmd_simulate(&elems, rest, &lens, &model_root);
                 if code != 0 {
                     std::process::exit(code);
                 }

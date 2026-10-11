@@ -198,6 +198,69 @@ impl<'m> Run<'m> {
         self.finish(r);
     }
 
+    /// Evaluate an expression over the variables (no payload scope).
+    pub fn eval_str(&self, src: &str) -> Result<Value, String> {
+        let ast = crate::expr::parse(src).map_err(|e| format!("`{src}`: {e}"))?;
+        let m = self.m;
+        let lookup = |name: &str| m.variables.iter().position(|v| v.name == name).map(|i| self.vars[i].clone());
+        ast.eval(&lookup).map_err(|e| format!("`{src}`: {e}"))
+    }
+
+    fn find_state(&self, name: &str) -> R<usize> {
+        let hits: Vec<usize> = self
+            .m
+            .states
+            .iter()
+            .filter(|s| s.path == name || s.path.ends_with(&format!(".{name}")) || (!name.contains('.') && s.name == name))
+            .map(|s| s.id)
+            .collect();
+        let exact: Vec<usize> = hits.iter().copied().filter(|i| self.m.states[*i].path == name).collect();
+        match (exact.len(), hits.len()) {
+            (1, _) => Ok(exact[0]),
+            (_, 1) => Ok(hits[0]),
+            (_, 0) => Err(format!("'{name}' is not a state of the machine")),
+            _ => Err(format!("state name '{name}' is ambiguous; use a dotted path")),
+        }
+    }
+
+    /// Whether the named state (a name, `a/b` or dotted path) is active.
+    pub fn holds_state(&self, name: &str) -> Result<bool, String> {
+        Ok(self.active[self.find_state(name)?])
+    }
+
+    /// Put the machine directly into a state (and its default descendants and ancestors) without running any
+    /// actions: the set-up of a scenario `Given … is in state …`. Timers and change observations are armed as
+    /// on entry.
+    pub fn force(&mut self, name: &str) -> Result<(), String> {
+        let id = self.find_state(name)?;
+        let m = self.m;
+        self.active.iter_mut().for_each(|a| *a = false);
+        self.timers.clear();
+        self.watches.clear();
+        self.internal.clear();
+        let mut on_path = self.ancestors(id);
+        on_path.push(id);
+        let tops: Vec<usize> = if m.parallel {
+            m.states.iter().filter(|s| s.parent.is_none()).map(|s| s.id).collect()
+        } else {
+            vec![*on_path.last().unwrap()]
+        };
+        let mut list = Vec::new();
+        for t in tops {
+            self.plan_enter(t, &on_path, &mut list);
+        }
+        for s in &list {
+            self.active[*s] = true;
+        }
+        let mut step = self.begin(format!("given {name}"));
+        step.entered = list.iter().map(|s| m.states[*s].path.clone()).collect();
+        step.note = Some("state set directly, no actions run".into());
+        self.trace.push(step);
+        let r = self.arm(&list).and_then(|_| self.settle());
+        self.finish(r.clone());
+        r
+    }
+
     // ── machinery ───────────────────────────────────────────────────────────
 
     fn begin(&self, cause: String) -> Step {

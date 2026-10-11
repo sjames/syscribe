@@ -37,6 +37,7 @@ pub mod safety_case;
 pub mod risk;
 pub mod sm_exec;
 pub mod sm_run;
+pub mod sm_scen;
 pub mod solver;
 pub mod structural_refs;
 pub mod security_checks;
