@@ -16,6 +16,7 @@ use crate::sm_run::{Options, Run, Step};
 use crate::system::{self, Behavior, SystemSpec};
 
 /// An FMU plant part, resolved: its file, declared hash, parameters and what the file says about itself.
+#[derive(Clone)]
 pub struct PlantSpec {
     pub file: PathBuf,
     pub sha256: Option<String>,
@@ -24,6 +25,7 @@ pub struct PlantSpec {
 }
 
 /// A binding between a plant variable and a machine variable, checked.
+#[derive(Clone)]
 pub enum Exchange {
     /// A plant output read into a machine variable at each communication point.
     Read { plant: usize, var: VarInfo, sink: (usize, String), machine_bool: bool, machine_dim: Dim },
@@ -32,6 +34,7 @@ pub enum Exchange {
 }
 
 /// A composite resolved, checked and lowered: the wiring and one machine per part that has behaviour.
+#[derive(Clone)]
 pub struct SystemModel {
     pub spec: SystemSpec,
     pub machines: Vec<Option<Machine>>,

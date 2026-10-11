@@ -228,6 +228,9 @@ mod composite_without_the_feature {
         let (c, t) = run(&root, &["validate"]);
         assert_eq!(c, 0, "{t}");
         assert!(t.contains("I011"), "{t}");
+        let (c, t) = run(&root, &["mutate", "Sys"]);
+        assert_eq!(c, 1, "{t}");
+        assert!(t.contains("no FMI support"), "{t}");
     }
 }
 
@@ -255,6 +258,18 @@ mod composite_with_the_feature {
         let (c, t) = run(&composite_model("deadbeef"), &["simulate", "TC-SYS-FMI-001"]);
         assert_ne!(c, 0, "{t}");
         assert!(t.contains("sha256"), "{t}");
+    }
+
+    #[test]
+    fn mutation_of_a_part_runs_every_mutant_against_a_fresh_real_plant() {
+        let root = composite_model(GOOD_SHA);
+        let (c, t) = run(&root, &["mutate", "Sys", "--json"]);
+        assert_eq!(c, 0, "{t}");
+        let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+        let parts = j["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 1, "the plant part has no machine to mutate: {t}");
+        assert_eq!(parts[0]["part"], "ctl");
+        assert!(parts[0]["killed"].as_u64().unwrap() >= 1, "{t}");
     }
 
     #[test]

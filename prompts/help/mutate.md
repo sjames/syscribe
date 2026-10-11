@@ -1,7 +1,7 @@
 # mutate — judge the quality of a machine's scenarios by seeding faults
 
 ## SYNOPSIS
-    syscribe mutate <StateDef|TestCase> [--min-score <percent>] [--json]
+    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--json]
 
 ## DESCRIPTION
 Seeds one fault at a time into the machine's IR (the model files are never touched) and
@@ -26,6 +26,17 @@ For an executable `ActionDef` the operators act on the action graph: negate a gu
 condition, change a relational operator or literal, remove or retarget a succession, swap the
 targets of two decision branches, remove an assignment or assign a variable to itself, make a
 node complete without effect.
+
+For a composite `Part`/`PartDef` (or a TestCase whose subject is one), the machine of each part is
+mutated in turn and every mutant is judged by running all the composite scenarios with that one part
+replaced; plant parts get fresh plants for every run. The report has one block per part
+(`<composite>.<part> (<machine>)`) and an aggregate score; `--part <name>` restricts the analysis to one
+part and `--min-score` is checked for every part, naming the one below it.
+
+## OPTIONS
+    --part <name>        composite only: mutate just this part
+    --min-score <pct>    gate: exit 2 when the score (of any part, for a composite) is below it
+    --json               machine-readable report
 
 ## EXIT STATUS
 0 done (and above `--min-score`) · 1 usage, or no scenarios · 2 below `--min-score`, a

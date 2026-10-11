@@ -1022,14 +1022,14 @@ fn record_scenarios(
 /// Entry point for `mutate <StateDef|TestCase> [--min-score <pct>] [--json]` (GH #282): seed faults into the
 /// machine's IR and re-run its scenarios. Exit 0 · 1 usage · 2 below `--min-score`, or the scenarios do not
 /// pass on the unmutated machine.
-pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
+pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path::Path) -> i32 {
     use syscribe_model::element::ElementType;
     use syscribe_model::sm_scen::{extract_scenarios, subject_of};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--min-score").map(|(i, _)| i + 1).collect();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--min-score" || *a == "--part").map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
-        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase> [--min-score <percent>] [--json]");
+        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--json]");
         return 1;
     };
     let min = match value("--min-score").map(|v| v.parse::<f64>()) {
@@ -1045,7 +1045,8 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
         eprintln!("error: no element '{name}'");
         return 1;
     };
-    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action));
+    let is_composite = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::PartDef));
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action)) || is_composite(e);
     let (machine_q, tcs): (String, Vec<&RawElement>) = if matches!(target.frontmatter.element_type, Some(ElementType::TestCase)) {
         match subject_of(elems, target) {
             Ok(s) => (s.qualified_name.clone(), vec![target]),
@@ -1062,9 +1063,16 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String]) -> i32 {
             .collect();
         (target.qualified_name.clone(), tcs)
     } else {
-        eprintln!("error: '{name}' is neither a StateDef nor a TestCase");
+        eprintln!("error: '{name}' is neither a StateDef, a composite part nor a TestCase");
         return 1;
     };
+    if resolver.resolve_ref(elems, &machine_q).is_some_and(is_composite) {
+        return mutate_composite(elems, &machine_q, &tcs, min, value("--part").as_deref(), flag("--json"), model_root);
+    }
+    if value("--part").is_some() {
+        eprintln!("error: --part applies to a composite subject");
+        return 1;
+    }
     if tcs.iter().any(|tc| syscribe_model::plant_cfg::declares_plants(&tc.frontmatter)) {
         eprintln!("error: mutation analysis of scenarios that use plants is not supported yet (each mutant would need its own co-simulation)");
         return 1;
@@ -1615,4 +1623,60 @@ fn verified_requirements(active: &[RawElement], resolver: &syscribe_model::resol
         }
     }
     reqs
+}
+
+/// `mutate` of a composite: every part's machine is mutated and judged by the composite scenarios (REQ-TRS-SYSMUT-001).
+fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], min: Option<f64>, only_part: Option<&str>, json: bool, model_root: &std::path::Path) -> i32 {
+    use syscribe_model::sm_scen::extract_scenarios;
+    let scenarios: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).collect();
+    if scenarios.is_empty() {
+        eprintln!("error: no scenarios to run against {composite}");
+        return 1;
+    }
+    let model = match syscribe_model::system_run::SystemModel::build_in(elems, composite, model_root) {
+        Ok(m) => m,
+        Err(errs) => {
+            for e in &errs {
+                eprintln!("error: {e}");
+            }
+            return if errs.iter().any(|e| e.contains("no FMI support")) { 1 } else { 2 };
+        }
+    };
+    let report = match syscribe_model::system_mut::analyse(&model, &scenarios, &syscribe_model::sm_run::Options::default(), only_part) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report).expect("serialises"));
+    } else {
+        println!(
+            "mutation score {:.1}%  ({} killed, {} survived, {} equivalent-suspect) over {} scenario(s) on {} (hash {})",
+            report.score, report.killed, report.survived, report.equivalent_suspect, report.scenarios, report.composite, &report.hash[..12]
+        );
+        for p in &report.parts {
+            println!("{}: {:.1}%  ({} killed, {} survived, {} equivalent-suspect)", p.machine, p.score, p.killed, p.survived, p.equivalent_suspect);
+            for m in p.mutants.iter().filter(|m| m.fate == "survived") {
+                println!("  SURVIVED  {}  [{} at {}]{}", m.description, m.operator, m.origin.path, m.closest.as_ref().map(|c| format!("  (closest: {c})")).unwrap_or_default());
+            }
+            for m in p.mutants.iter().filter(|m| m.fate == "equivalentSuspect") {
+                println!("  uncovered {}  [{}]", m.description, m.operator);
+            }
+            if !p.uncovered.states.is_empty() {
+                println!("  states never entered: {}", p.uncovered.states.join(", "));
+            }
+        }
+    }
+    let mut exit = 0;
+    if let Some(min) = min {
+        for p in &report.parts {
+            if p.score + 1e-9 < min {
+                eprintln!("mutation gate: {} score {:.1}% is below the required {min}%", p.machine, p.score);
+                exit = 2;
+            }
+        }
+    }
+    exit
 }

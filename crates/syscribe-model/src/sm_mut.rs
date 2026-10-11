@@ -20,7 +20,7 @@ use crate::sm_run::{Coverage, Options};
 use crate::sm_scen::{run_scenario, Scenario, Status};
 
 #[derive(Debug, Clone, Copy)]
-enum Elem {
+pub(crate) enum Elem {
     Transition(usize),
     State(usize),
 }
@@ -30,7 +30,7 @@ pub struct Mutant {
     pub operator: &'static str,
     pub description: String,
     pub origin: Origin,
-    elem: Elem,
+    pub(crate) elem: Elem,
     pub machine: Machine,
 }
 
@@ -273,7 +273,7 @@ pub struct MutReport {
     pub uncovered: Uncovered,
 }
 
-fn trace_distance(a: &[crate::sm_run::Step], b: &[crate::sm_run::Step]) -> usize {
+pub(crate) fn trace_distance(a: &[crate::sm_run::Step], b: &[crate::sm_run::Step]) -> usize {
     a.iter().zip(b).filter(|(x, y)| x != y).count() + a.len().abs_diff(b.len())
 }
 

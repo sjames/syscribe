@@ -79,10 +79,14 @@ Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-0
 
 ## Deliberately not here
 
-Mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
+Mutation of the wiring and of plant parameters, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
 
 ## Known limits
 
 * `E930` is only raised for composites that have at least one executable part (the checks are dormant otherwise, so existing models see nothing). A part with several `exhibitsStates` is an error in a composite, although SysML allows several exhibited states.
 * Ports declared as separate `Port` elements (rather than inline `features:`) and inherited composite wiring (`connections:` from a supertype) are not read.
 * `trace()` orders steps of different parts by time only.
+
+## Mutation (REQ-TRS-SYSMUT-001)
+
+`system_mut::analyse` takes the resolved `SystemModel`, the scenarios and an optional part. The baseline runs all scenarios and must pass; the per-part coverage of the baseline decides whether an unkilled mutant is an equivalent suspect (never exercised) or a survivor. For each mutant of a part's machine (`sm_mut::generate`) the model is cloned with that one machine replaced and every scenario runs on it (`run_system_scenario`, which instantiates fresh plants); the first failing scenario kills it. Reports are per part with an aggregate; gates apply to every part.

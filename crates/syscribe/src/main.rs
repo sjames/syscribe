@@ -1295,7 +1295,7 @@ fn main() {
             "mutate" => {
                 // Mutation analysis of state-machine scenarios (GH #282). Read-only. Exit 0 · 1 usage · 2 gate.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = exec_cmd::cmd_mutate(&elems, rest);
+                let code = exec_cmd::cmd_mutate(&elems, rest, &model_root);
                 if code != 0 {
                     std::process::exit(code);
                 }

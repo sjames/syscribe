@@ -35,6 +35,7 @@ pub mod plant;
 pub mod plant_cfg;
 pub mod plant_checks;
 pub mod system;
+pub mod system_mut;
 pub mod system_run;
 pub mod system_scen;
 pub mod plugins;

@@ -65,6 +65,10 @@ Scenario: the command arrives after the link delay
 
 `simulate <TestCase|composite> --coverage` reports every part that has a state machine with the usual state, transition, pair, guard-condition (MC/DC) and timer coverage, labelled `<composite>.<part> (<machine>)`, merged over the scenarios that ran, followed by an aggregate of states, transitions and guard conditions. `--min-states`, `--min-transitions` and `--min-guards` are checked for every part, and the part below a threshold is named (exit 2). In `--json`, `coverage` is `{composite, hash, parts: […], aggregate}`.
 
+## Mutation
+
+`syscribe mutate <composite|TestCase>` seeds one fault at a time into the machine of each part (the operators of `syscribe help mutate`) and judges every mutant by running all the composite's scenarios with that one part replaced, so a weak scenario set shows up as a surviving mutant under the part it concerns. `--part <name>` limits the analysis to one part; `--min-score` is checked for every part. Composites with FMU parts work too: each mutant run gets fresh plants.
+
 ## Diagnostics
 
 | Code | Meaning |
@@ -91,4 +95,4 @@ The loop, units and evidence are those of the FMI page: inputs are held over a s
 
 ## Not in this version
 
-Mutation against composite scenarios, coverage of plant parts and of messages, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
+Mutation of the wiring (connections, bindings, delays) and of plant parameters, coverage of plant parts and of messages, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
