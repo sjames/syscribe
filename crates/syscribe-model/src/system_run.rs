@@ -127,6 +127,31 @@ impl<'m> System<'m> {
         self.run(part)?.var(name).ok_or_else(|| format!("part '{part}' has no variable '{name}'"))
     }
 
+    /// Force a part's machine into a state (a Given step).
+    pub fn force(&mut self, part: &str, state: &str) {
+        let i = match self.part(part) {
+            Ok(i) => i,
+            Err(e) => return self.fail(e),
+        };
+        let r = match self.runs[i].as_mut() {
+            Some(r) => r.force(state),
+            None => Err(format!("part '{part}' has no state machine")),
+        };
+        if let Err(e) = r {
+            self.fail(format!("part '{part}': {e}"));
+        }
+    }
+
+    /// Evaluate an expression over the variables of all parts, written `<part>.<variable>`.
+    pub fn eval_qualified(&self, src: &str) -> Result<Value, String> {
+        let ast = crate::expr::parse(src).map_err(|e| format!("`{src}`: {e}"))?;
+        let lookup = |name: &str| {
+            let (p, v) = name.split_once('.')?;
+            self.var(p, v).ok()
+        };
+        ast.eval(&lookup).map_err(|e| format!("`{src}`: {e}"))
+    }
+
     /// Evaluate an expression in one part's variables.
     pub fn eval(&self, part: &str, src: &str) -> Result<Value, String> {
         self.run(part)?.eval_str(src)

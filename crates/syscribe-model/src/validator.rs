@@ -2935,6 +2935,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             findings.push(error("E886", &file, &format!("line {line} of the body: {msg}")));
                         }
                     }
+                } else if matches!(sf.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) {
+                    if crate::system::resolve(elements, &resolver, subject).0.is_some() {
+                        for (line, msg) in crate::system_scen::vocabulary_findings(&elem.doc) {
+                            findings.push(error("E886", &file, &format!("line {line} of the body: {msg}")));
+                        }
+                    }
                 } else if crate::sm_exec::is_executable(sf.variables.as_deref(), sf.initial_effect.as_ref(), sf.sub_states.as_deref().unwrap_or(&[]), sf.transitions.as_deref().unwrap_or(&[])) {
                     for (line, msg) in crate::sm_scen::vocabulary_findings(&elem.doc) {
                         findings.push(error("E886", &file, &format!("line {line} of the body: {msg}")));

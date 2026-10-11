@@ -525,8 +525,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         return 1;
     };
     let is_action = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action));
-    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State)) || is_action(e);
-    if is_machine(target) && flag("--do") {
+    let is_composite = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::PartDef));
+    let is_machine = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State)) || is_action(e) || is_composite(e);
+    if (is_machine(target) && !is_composite(target)) && flag("--do") {
         return if is_action(target) { simulate_action_script(active, args) } else { simulate_script(active, args, model_root) };
     }
     // The scenario TestCases to run.
@@ -538,7 +539,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             .filter(|e| subject_of(active, e).map(|s| s.qualified_name == target.qualified_name).unwrap_or(false))
             .collect(),
         _ => {
-            eprintln!("error: '{name}' is neither a TestCase nor a StateDef");
+            eprintln!("error: '{name}' is neither a TestCase, a StateDef nor a composite Part");
             return 1;
         }
     };
@@ -562,6 +563,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
     let mut outs: Vec<Out> = Vec::new();
     let mut lowered: std::collections::HashMap<String, syscribe_model::ir::Machine> = Default::default();
     let mut lowered_act: std::collections::HashMap<String, syscribe_model::act_ir::ActionProgram> = Default::default();
+    let mut composites: std::collections::HashMap<String, syscribe_model::system_run::SystemModel> = Default::default();
     let mut exit = 0;
     for tc in tcs {
         let tc_id = tc.frontmatter.id.clone().unwrap_or_else(|| tc.qualified_name.clone());
@@ -580,6 +582,31 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                 continue;
             }
         };
+        if is_composite(subject) {
+            if flag("--coverage") {
+                eprintln!("error: {tc_id}: --coverage is not available for composite subjects yet; run it on each part's machine");
+                return 1;
+            }
+            if !composites.contains_key(&subject.qualified_name) {
+                match syscribe_model::system_run::SystemModel::build(active, &subject.qualified_name) {
+                    Ok(m) => {
+                        composites.insert(subject.qualified_name.clone(), m);
+                    }
+                    Err(errs) => {
+                        for e in &errs {
+                            eprintln!("error: {tc_id}: {e}");
+                        }
+                        exit = 2;
+                        continue;
+                    }
+                }
+            }
+            let sm = &composites[&subject.qualified_name];
+            for sc in &scenarios {
+                outs.push(Out { tc: tc_id.clone(), machine: sm.spec.composite.clone(), hash: sm.hash.clone(), v: syscribe_model::system_scen::run_system_scenario(sm, sc, &opts) });
+            }
+            continue;
+        }
         if is_action(subject) {
             if !lowered_act.contains_key(&subject.qualified_name) {
                 match syscribe_model::act_ir::lower_action(active, &subject.qualified_name) {
@@ -769,6 +796,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                 if !o.v.plants.is_empty() {
                     j["plants"] = serde_json::Value::Array(o.v.plants.clone());
                 }
+                if !o.v.messages.is_empty() {
+                    j["messages"] = serde_json::json!(o.v.messages);
+                }
                 if flag("--trace") {
                     j["trace"] = serde_json::to_value(&o.v.trace).unwrap_or_default();
                 }
@@ -921,6 +951,9 @@ fn record_scenarios(
         let mut body = body;
         if !v.plants.is_empty() {
             body["plants"] = serde_json::Value::Array(v.plants.clone());
+        }
+        if !v.messages.is_empty() {
+            body["messages"] = serde_json::json!(v.messages);
         }
         std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     }

@@ -396,6 +396,9 @@ pub struct Verdict {
     /// What identifies each plant of the run (FMU hash, FMI version, step, platform); empty without plants.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub plants: Vec<serde_json::Value>,
+    /// The messages exchanged between the parts of a composite, in emission order; empty for a single machine.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub messages: Vec<String>,
 }
 
 fn const_value(run: &Run, src: &str) -> Result<Value, String> {
@@ -427,6 +430,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
                     coverage: Default::default(),
                     act_coverage: Default::default(),
                     plants: vec![],
+                    messages: vec![],
                 }
             }
         },
@@ -442,6 +446,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
         coverage: run.coverage(),
         act_coverage: Default::default(),
         plants: run.plant_provenance(),
+        messages: vec![],
     };
     if let Some(e) = run.error() {
         let e = e.to_string();
@@ -517,11 +522,11 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
 pub fn subject_of<'a>(elements: &'a [crate::element::RawElement], tc: &crate::element::RawElement) -> Result<&'a crate::element::RawElement, String> {
     use crate::element::ElementType;
     let resolver = crate::resolver::Resolver::new(elements);
-    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action));
+    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action) | Some(ElementType::Part) | Some(ElementType::PartDef));
     if let Some(s) = &tc.frontmatter.subject {
         return match resolver.resolve_ref(elements, s) {
             Some(e) if is_machine(e) => Ok(e),
-            Some(e) => Err(format!("subject '{s}' is a {:?}, not a StateDef or ActionDef", e.frontmatter.element_type)),
+            Some(e) => Err(format!("subject '{s}' is a {:?}, not a StateDef, ActionDef or composite Part", e.frontmatter.element_type)),
             None => Err(format!("subject '{s}' does not resolve")),
         };
     }

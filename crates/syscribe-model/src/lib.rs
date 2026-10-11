@@ -36,6 +36,7 @@ pub mod plant_cfg;
 pub mod plant_checks;
 pub mod system;
 pub mod system_run;
+pub mod system_scen;
 pub mod plugins;
 pub mod projection;
 pub mod remote;

@@ -175,6 +175,7 @@ pub fn run_action_scenario(prog: &ActionProgram, sc: &Scenario, opts: &ActOption
         coverage: Coverage::default(),
         act_coverage: run.coverage(),
         plants: vec![],
+        messages: vec![],
     };
     if sc.steps.is_empty() {
         let why = if sc.title.ends_with("[no examples]") { "the Scenario Outline has no Examples rows" } else { "the scenario has no steps" };
