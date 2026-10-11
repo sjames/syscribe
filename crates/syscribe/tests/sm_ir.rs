@@ -192,7 +192,7 @@ fn run_cli(machine: &str, args: &[&str]) -> (i32, String, String) {
 fn export_scxml_writes_a_document_and_notes() {
     let (c, out, err) = run_cli(MACHINE, &["export-scxml", "M"]);
     assert_eq!(c, 0, "{err}");
-    assert!(out.contains("<scxml ") && out.contains("<final id=\"B_B2\""), "{out}");
+    assert!(out.contains("<scxml ") && out.contains("<final id=\"B.B2\""), "{out}");
     assert!(err.contains("Pkg::Beep"), "behaviour references are reported: {err}");
     let (c, _, _) = run_cli(MACHINE, &["export-scxml", "Nope"]);
     assert_eq!(c, 1);

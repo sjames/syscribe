@@ -8,8 +8,9 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+/// Dotted state paths are valid NCNames and unique, so they are the SCXML ids.
 fn id_of(path: &str) -> String {
-    path.replace('.', "_")
+    esc(path)
 }
 
 /// The SCXML event name of a syscribe event (`<port>/<payload>` → dotted).
@@ -68,7 +69,10 @@ fn ecma(e: &Expr, bind: Option<&str>, warnings: &mut Vec<String>) -> String {
                 "sqrt" => "Math.sqrt",
                 "floor" => "Math.floor",
                 "ceil" => "Math.ceil",
-                "round" => "Math.round",
+                "round" => {
+                    warnings.push("round(): JavaScript Math.round rounds halves towards +infinity, syscribe rounds them away from zero".to_string());
+                    "Math.round"
+                }
                 "pow" => "Math.pow",
                 other => {
                     warnings.push(format!("function '{other}' has no ECMAScript equivalent"));
@@ -127,6 +131,9 @@ impl Out {
         let out: Vec<&crate::ir::Transition> = m.transitions.iter().filter(|t| t.source == id).collect();
         let empty = kids.is_empty() && out.is_empty() && st.entry.is_empty() && st.exit.is_empty();
         if st.kind == Kind::Final {
+            if st.parent.is_none() {
+                self.warnings.push(format!("top-level final state {}: an SCXML engine ends the session on entering it, while syscribe keeps it in the configuration", st.path));
+            }
             if empty {
                 self.line(depth, &format!("<final id=\"{sid}\"/>"));
             } else {
@@ -163,6 +170,12 @@ impl Out {
             for t in &arming {
                 match &t.trigger {
                     Trigger::Timer { delay_seconds } => {
+                        if (delay_seconds * 1000.0).fract().abs() > 1e-9 {
+                            self.warnings.push(format!("transition t{}: the delay {delay_seconds} s is rounded to whole milliseconds", t.id));
+                        }
+                        if t.internal {
+                            self.warnings.push(format!("transition t{}: an internal `after` transition is re-armed after it fires in syscribe, but the SCXML <send> is not repeated", t.id));
+                        }
                         self.line(depth + 1, &format!("<send id=\"timer_t{0}\" event=\"timer.t{0}\" delay=\"{1}ms\"/>", t.id, num((delay_seconds * 1000.0).round())));
                     }
                     Trigger::Change { .. } => self.line(depth + 1, &format!("<assign location=\"armed_t{}\" expr=\"true\"/>", t.id)),
@@ -247,17 +260,14 @@ pub fn export(m: &Machine) -> (String, Vec<String>) {
     let tops: Vec<usize> = m.states.iter().filter(|s| s.parent.is_none()).map(|s| s.id).collect();
     let initial_attr = if m.parallel { "__machine".to_string() } else { m.initial.map(|i| id_of(&m.states[i].path)).unwrap_or_default() };
     let use_initial_element = !m.initial_actions.is_empty() && !m.parallel;
-    if use_initial_element {
-        o.line(0, "<scxml xmlns=\"http://www.w3.org/2005/07/scxml\" version=\"1.0\" datamodel=\"ecmascript\">");
-    } else {
-        o.line(0, &format!("<scxml xmlns=\"http://www.w3.org/2005/07/scxml\" version=\"1.0\" datamodel=\"ecmascript\" initial=\"{initial_attr}\">"));
-    }
+    let initial_attr_final = if use_initial_element { "__init".to_string() } else { initial_attr.clone() };
+    o.line(0, &format!("<scxml xmlns=\"http://www.w3.org/2005/07/scxml\" version=\"1.0\" datamodel=\"ecmascript\" initial=\"{initial_attr_final}\">"));
     o.line(1, "<datamodel>");
     for v in &m.variables {
         let init = match &v.value {
             Value::Num(q) => num(q.v),
             Value::Bool(b) => b.to_string(),
-            Value::Str(s) => format!("'{}'", s.replace('\'', "\\'")),
+            Value::Str(s) => format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'")),
         };
         let _ = format_value;
         o.line(2, &format!("<data id=\"{}\" expr=\"{}\"/>", esc(&v.name), esc(&init)));
@@ -267,12 +277,14 @@ pub fn export(m: &Machine) -> (String, Vec<String>) {
     }
     o.line(1, "</datamodel>");
     if use_initial_element {
-        o.line(1, "<initial>");
+        // SCXML allows only the `initial` attribute on <scxml>, so the initial effect runs on the transition
+        // out of a synthetic first state.
+        o.line(1, "<state id=\"__init\">");
         o.line(2, &format!("<transition target=\"{initial_attr}\">"));
         let acts = m.initial_actions.clone();
         o.actions(m, 3, &acts, None, "initialEffect");
         o.line(2, "</transition>");
-        o.line(1, "</initial>");
+        o.line(1, "</state>");
     }
     if m.parallel {
         o.line(1, "<state id=\"__machine\" initial=\"__regions\">");

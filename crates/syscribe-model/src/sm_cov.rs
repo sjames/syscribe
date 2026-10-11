@@ -146,14 +146,14 @@ pub fn report(m: &Machine, cov: &Coverage, scenarios: usize, configuration: Opti
         for (kind, e) in items {
             let atoms = e.ast.atoms();
             let seen = cov.conds.get(&(tr.id, kind));
-            let vecs: Vec<&(Vec<bool>, bool)> = seen.map(|s| s.iter().collect()).unwrap_or_default();
+            let vecs: Vec<&(Vec<Option<bool>>, bool)> = seen.map(|s| s.iter().collect()).unwrap_or_default();
             let atom_cov: Vec<Atom> = atoms
                 .iter()
                 .enumerate()
                 .map(|(i, a)| Atom {
                     text: a.to_source(),
-                    seen_true: vecs.iter().any(|(v, _)| v.get(i) == Some(&true)),
-                    seen_false: vecs.iter().any(|(v, _)| v.get(i) == Some(&false)),
+                    seen_true: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(true))),
+                    seen_false: vecs.iter().any(|(v, _)| v.get(i) == Some(&Some(false))),
                 })
                 .collect();
             for a in &atom_cov {
@@ -166,7 +166,7 @@ pub fn report(m: &Machine, cov: &Coverage, scenarios: usize, configuration: Opti
                     .map(|i| Mcdc {
                         atom: i,
                         independent: vecs.iter().any(|(v1, o1)| {
-                            vecs.iter().any(|(v2, o2)| o1 != o2 && v1.len() == v2.len() && (0..v1.len()).all(|j| (v1[j] != v2[j]) == (j == i)))
+                            vecs.iter().any(|(v2, o2)| o1 != o2 && v1.len() == v2.len() && v1[i].is_some() && v2[i].is_some() && (0..v1.len()).all(|j| if j == i { v1[j] != v2[j] } else { v1[j].is_some() && v1[j] == v2[j] }))
                         }),
                     })
                     .collect()

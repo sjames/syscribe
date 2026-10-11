@@ -131,3 +131,23 @@ fn the_report_states_its_basis() {
     assert_eq!(b["machineHash"].as_str().unwrap().len(), 64);
     assert!(b["toolVersion"].as_str().is_some_and(|v| !v.is_empty()));
 }
+
+#[test]
+fn a_short_circuited_atom_still_shows_its_other_values() {
+    let machine = MACHINE.replace("x > 1 and y", "x != 0 and 10 / x > 1");
+    static N: AtomicU64 = AtomicU64::new(5000);
+    let root = std::env::temp_dir().join(format!("syscribe-smcov-sc-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
+    std::fs::write(root.join("M.md"), format!("---\ntype: StateDef\nname: M\n{machine}---\n")).unwrap();
+    std::fs::write(
+        root.join("TC-DOOR-001.md"),
+        "---\ntype: TestCase\nid: TC-DOOR-001\nname: Door\nstatus: active\ntestLevel: L2\nsubject: M\n---\n\n```gherkin\nFeature: f\n\n  Scenario: zero\n    Given M is in state A\n    And x is 0\n    When Cmd::Go is injected\n    Then M is in state A\n\n  Scenario: five\n    Given M is in state A\n    And x is 5\n    When Cmd::Go is injected\n    Then M is in state B\n```\n",
+    )
+    .unwrap();
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&root).args(["simulate", "M", "--all", "--coverage", "--json"]).output().unwrap();
+    let j: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap_or_else(|_| panic!("{}", String::from_utf8_lossy(&o.stderr)));
+    let atoms = &j["coverage"]["guards"]["expressions"][0]["atoms"];
+    assert_eq!(atoms[0]["seenFalse"], true, "x != 0 was false when x = 0 even though the division was short-circuited: {j}");
+    assert_eq!(atoms[0]["seenTrue"], true);
+}

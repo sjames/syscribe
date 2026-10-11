@@ -46,16 +46,54 @@ fn is_fence(line: &str) -> Option<bool> {
 fn kw_of(line: &str) -> Option<(Option<Kw>, &str, bool)> {
     let t = line.trim_start();
     for (w, k) in [("given", Some(Kw::Given)), ("when", Some(Kw::When)), ("then", Some(Kw::Then)), ("and", None), ("but", None)] {
-        if t.len() > w.len() && t[..w.len()].eq_ignore_ascii_case(w) && t.as_bytes()[w.len()] == b' ' {
-            return Some((k, t[w.len()..].trim(), k.is_none()));
+        if let (Some(head), Some(rest)) = (t.get(..w.len()), t.get(w.len()..)) {
+            if head.eq_ignore_ascii_case(w) && rest.starts_with(' ') {
+                return Some((k, rest.trim(), k.is_none()));
+            }
         }
     }
     None
 }
 
 fn cells(line: &str) -> Vec<String> {
-    let t = line.trim().trim_matches('|');
-    t.split('|').map(|c| c.trim().to_string()).collect()
+    let t = line.trim();
+    let t = t.strip_prefix('|').unwrap_or(t);
+    let t = t.strip_suffix('|').filter(|_| !t.ends_with("\\|")).unwrap_or(t);
+    let mut out = vec![String::new()];
+    let mut chars = t.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if chars.peek() == Some(&'|') => {
+                out.last_mut().unwrap().push('|');
+                chars.next();
+            }
+            '|' => out.push(String::new()),
+            c => out.last_mut().unwrap().push(c),
+        }
+    }
+    out.into_iter().map(|c| c.trim().to_string()).collect()
+}
+
+/// `find` that ignores matches inside single or double quotes.
+fn find_unquoted(hay: &str, needle: &str) -> Option<usize> {
+    let mut quote: Option<char> = None;
+    for (i, c) in hay.char_indices() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                }
+            }
+            None => {
+                if c == '\'' || c == '"' {
+                    quote = Some(c);
+                } else if hay[i..].starts_with(needle) {
+                    return Some(i);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Every scenario of every ```gherkin block of a `TestCase` body, outlines expanded one scenario per row.
@@ -65,54 +103,88 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         outline: bool,
         steps: Vec<GStep>,
         header: Vec<String>,
-        rows: Vec<Vec<String>>,
+        header_pending: bool,
+        rows: Vec<(Vec<String>, Vec<String>)>,
     }
     let mut raws: Vec<Raw> = Vec::new();
+    let mut background: Vec<GStep> = Vec::new();
+    let mut in_background = false;
     let mut in_block = false;
+    let mut in_doc = false;
     let mut in_examples = false;
     let mut last_kw = Kw::Given;
     for (i, line) in doc.lines().enumerate() {
         if let Some(open) = is_fence(line) {
             in_block = open;
             in_examples = false;
+            in_background = false;
+            in_doc = false;
             continue;
         }
         if !in_block {
             continue;
         }
         let t = line.trim();
+        if t.starts_with("\"\"\"") || t.starts_with("```") {
+            in_doc = !in_doc;
+            continue;
+        }
+        if in_doc {
+            continue;
+        }
         let lower = t.to_ascii_lowercase();
         if t.is_empty() || t.starts_with('#') || t.starts_with('@') {
             continue;
         }
-        if let Some(rest) = lower.strip_prefix("scenario outline:").or_else(|| lower.strip_prefix("scenario template:")) {
-            let _ = rest;
+        if lower.starts_with("scenario outline:") || lower.starts_with("scenario template:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, outline: true, steps: vec![], header: vec![], rows: vec![] });
+            raws.push(Raw { title, outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
             in_examples = false;
+            in_background = false;
             continue;
         }
         if lower.starts_with("scenario:") || lower.starts_with("example:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, outline: false, steps: vec![], header: vec![], rows: vec![] });
+            raws.push(Raw { title, outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![] });
             in_examples = false;
+            in_background = false;
             continue;
         }
         if lower.starts_with("examples:") || lower.starts_with("scenarios:") {
             in_examples = true;
+            if let Some(cur) = raws.last_mut() {
+                // a further Examples table has its own header row
+                cur.header.clear();
+                cur.header_pending = true;
+            }
             continue;
         }
-        if lower.starts_with("feature:") || lower.starts_with("background:") || lower.starts_with("rule:") {
+        if lower.starts_with("background:") {
+            in_background = true;
             in_examples = false;
+            continue;
+        }
+        if lower.starts_with("feature:") || lower.starts_with("rule:") {
+            in_examples = false;
+            in_background = false;
+            continue;
+        }
+        if in_background {
+            if let Some((k, text, cont)) = kw_of(t) {
+                let kw = if cont { last_kw } else { k.unwrap() };
+                last_kw = kw;
+                background.push(GStep { kw, text: text.to_string(), line: i + 1 });
+            }
             continue;
         }
         let Some(cur) = raws.last_mut() else { continue };
         if in_examples && t.starts_with('|') {
             let c = cells(t);
-            if cur.header.is_empty() {
+            if cur.header_pending {
                 cur.header = c;
+                cur.header_pending = false;
             } else {
-                cur.rows.push(c);
+                cur.rows.push((cur.header.clone(), c));
             }
             continue;
         }
@@ -122,16 +194,26 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             cur.steps.push(GStep { kw, text: text.to_string(), line: i + 1 });
         }
     }
+    for r in raws.iter_mut() {
+        let mut steps = background.clone();
+        steps.append(&mut r.steps);
+        r.steps = steps;
+    }
     let mut out = Vec::new();
     for r in raws {
         if !r.outline {
             out.push(Scenario { title: r.title, outline: None, steps: r.steps });
             continue;
         }
-        for (n, row) in r.rows.iter().enumerate() {
+        if r.rows.is_empty() {
+            // An outline with no example rows would silently run nothing: make it an erroring scenario.
+            out.push(Scenario { title: format!("{} [no examples]", r.title), outline: Some(r.title.clone()), steps: vec![] });
+            continue;
+        }
+        for (n, (header, row)) in r.rows.iter().enumerate() {
             let sub = |s: &str| {
                 let mut s = s.to_string();
-                for (h, v) in r.header.iter().zip(row) {
+                for (h, v) in header.iter().zip(row) {
                     s = s.replace(&format!("<{h}>"), v);
                 }
                 s
@@ -192,7 +274,7 @@ fn split_top(s: &str) -> Vec<String> {
 pub fn parse_step(kw: Kw, text: &str) -> Result<Cmd, String> {
     let t = text.trim();
     let lower = t.to_ascii_lowercase();
-    if let Some(i) = lower.find(" is in state ") {
+    if let Some(i) = find_unquoted(&lower, " is in state ") {
         if kw == Kw::When {
             return Err("`is in state` is a Given or Then step".into());
         }
@@ -212,7 +294,7 @@ pub fn parse_step(kw: Kw, text: &str) -> Result<Cmd, String> {
             };
         }
     }
-    if let Some(i) = lower.find(" is injected") {
+    if let Some(i) = find_unquoted(&lower, " is injected") {
         if kw != Kw::When {
             return Err("`is injected` is a When step".into());
         }
@@ -238,7 +320,7 @@ pub fn parse_step(kw: Kw, text: &str) -> Result<Cmd, String> {
         }
         return Ok(Cmd::Inject(ev.to_string(), fields));
     }
-    if let Some(i) = lower.find(" becomes ") {
+    if let Some(i) = find_unquoted(&lower, " becomes ") {
         if kw != Kw::When {
             return Err("`becomes` is a When step".into());
         }
@@ -250,7 +332,7 @@ pub fn parse_step(kw: Kw, text: &str) -> Result<Cmd, String> {
         };
     }
     if kw == Kw::Given {
-        if let Some(i) = lower.find(" is ") {
+        if let Some(i) = find_unquoted(&lower, " is ") {
             let (var, e) = (t[..i].trim(), t[i + 4..].trim());
             if !var.is_empty() && !var.contains(char::is_whitespace) {
                 return match expr::parse(e) {
@@ -275,6 +357,10 @@ pub fn vocabulary_findings(doc: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for sc in extract_scenarios(doc) {
+        if sc.steps.is_empty() {
+            let why = if sc.title.ends_with("[no examples]") { "the Scenario Outline has no Examples rows" } else { "the scenario has no steps" };
+            out.push((0, format!("scenario '{}': {why}", sc.title)));
+        }
         for st in &sc.steps {
             if !seen.insert((st.line, st.text.clone())) {
                 continue;
@@ -327,6 +413,10 @@ pub fn run_scenario(machine: &Machine, sc: &Scenario, opts: &Options) -> Verdict
     if let Some(e) = run.error() {
         let e = e.to_string();
         return done(&run, Status::Error, Some(e));
+    }
+    if sc.steps.is_empty() {
+        let why = if sc.title.ends_with("[no examples]") { "the Scenario Outline has no Examples rows" } else { "the scenario has no steps" };
+        return done(&run, Status::Error, Some(why.to_string()));
     }
     for (i, st) in sc.steps.iter().enumerate() {
         let label = format!("step {} (`{}`)", i + 1, steps[i]);

@@ -59,7 +59,7 @@ pub struct Coverage {
     /// Consecutive transitions through a state: the first one's target is the second one's source.
     pub pairs: BTreeSet<(usize, usize)>,
     /// Per (transition, 0 = guard / 1 = `when`): the atomic-condition vectors seen with the outcome.
-    pub conds: BTreeMap<(usize, u8), BTreeSet<(Vec<bool>, bool)>>,
+    pub conds: BTreeMap<(usize, u8), BTreeSet<(Vec<Option<bool>>, bool)>>,
     pub timers_fired: BTreeSet<usize>,
     pub timers_cancelled: BTreeSet<usize>,
 }
@@ -277,7 +277,7 @@ impl<'m> Run<'m> {
         let tops: Vec<usize> = if m.parallel {
             m.states.iter().filter(|s| s.parent.is_none()).map(|s| s.id).collect()
         } else {
-            vec![*on_path.last().unwrap()]
+            vec![self.ancestors(id).last().copied().unwrap_or(id)]
         };
         let mut list = Vec::new();
         for t in tops {
@@ -285,7 +285,6 @@ impl<'m> Run<'m> {
         }
         for s in &list {
             self.active[*s] = true;
-            self.cov.borrow_mut().states.insert(*s);
         }
         self.last_taken = None;
         let mut step = self.begin(format!("given {name}"));
@@ -468,13 +467,16 @@ impl<'m> Run<'m> {
 
     /// Record the atomic conditions of a guard / `when` evaluation and its outcome.
     fn record_cond(&self, t: usize, kind: u8, e: &IrExpr, scope: Option<&Scope>, outcome: bool) {
-        let mut vec = Vec::new();
-        for a in e.ast.atoms() {
-            match self.eval_ast(a, scope) {
-                Ok(Value::Bool(b)) => vec.push(b),
-                _ => return,
-            }
-        }
+        // An atom that cannot be evaluated (a short-circuited division by zero, say) is recorded as unknown.
+        let vec: Vec<Option<bool>> = e
+            .ast
+            .atoms()
+            .into_iter()
+            .map(|a| match self.eval_ast(a, scope) {
+                Ok(Value::Bool(b)) => Some(b),
+                _ => None,
+            })
+            .collect();
         self.cov.borrow_mut().conds.entry((t, kind)).or_default().insert((vec, outcome));
     }
 

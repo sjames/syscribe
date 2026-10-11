@@ -170,3 +170,56 @@ fn a_failing_scenario_is_recorded_as_a_failure() {
     let j: serde_json::Value = serde_json::from_str(&sidecar).unwrap();
     assert_eq!(j["by_scenario"]["TC-DOOR-001::wrong"].as_str().map(|s| s.to_lowercase()), Some("fail".into()), "{sidecar}");
 }
+
+#[test]
+fn given_a_nested_state_enters_its_ancestors_and_arms_their_timers() {
+    static N: AtomicU64 = AtomicU64::new(1000);
+    let root = std::env::temp_dir().join(format!("syscribe-smscen-n-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
+    std::fs::write(
+        root.join("M.md"),
+        "---\ntype: StateDef\nname: M\nsubStates:\n  - name: Outer\n    isInitial: true\n    transitions: [{target: Done, accept: {after: \"2 s\"}}]\n    subStates: [{name: A, isInitial: true}, {name: B}]\n  - name: Done\n---\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("TC-N-001.md"),
+        "---\ntype: TestCase\nid: TC-N-001\nname: nested\nstatus: active\ntestLevel: L2\nsubject: M\n---\n\n```gherkin\nFeature: f\n\n  Scenario: nested given\n    Given M is in state Outer/B\n    Then M is in state Outer\n    When 2 s elapse\n    Then M is in state Done\n```\n",
+    )
+    .unwrap();
+    let (c, t) = run(&root, &["simulate", "TC-N-001", "--json"]);
+    assert_eq!(c, 0, "{t}");
+}
+
+const OUTLINE: &str = "  Scenario Outline: obstruction <n>
+    Given M is in state Opening
+    When level becomes <n>
+    Then M is in state <state>
+
+    Examples:
+      | n | state   |
+      | 1 | Opening |
+      | 3 | Closed  |
+";
+
+#[test]
+fn recording_one_row_of_an_outline_keeps_the_outline_verdict_consistent() {
+    let root = model(&OUTLINE.replace("| 3 | Closed  |", "| 3 | Opening |"));
+    // row 2 is wrong (3 closes the door) and fails
+    let (c, _) = run(&root, &["simulate", "TC-DOOR-001", "--record"]);
+    assert_eq!(c, 2);
+    // re-running only the passing row must not turn the outline green
+    let (c, _) = run(&root, &["simulate", "TC-DOOR-001", "--scenario", "obstruction <n> [row 1]", "--record"]);
+    assert_eq!(c, 0);
+    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(root.join(".syscribe/results.json")).unwrap()).unwrap();
+    let v = |k: &str| j["by_scenario"][k].as_str().unwrap().to_lowercase();
+    assert_eq!(v("TC-DOOR-001::obstruction <n> [row 2]"), "fail");
+    assert_eq!(v("TC-DOOR-001::obstruction <n>"), "fail", "{j}");
+}
+
+#[test]
+fn crosscheck_and_thresholds_have_clear_preconditions() {
+    let root = model(GOOD);
+    assert_eq!(run(&root, &["simulate", "TC-DOOR-001", "--crosscheck", "true"]).0, 1);
+    assert_eq!(run(&root, &["simulate", "TC-DOOR-001", "--min-states", "50"]).0, 1);
+}

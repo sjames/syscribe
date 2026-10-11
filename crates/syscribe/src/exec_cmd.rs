@@ -510,6 +510,14 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             return 1;
         }
     };
+    if flag("--crosscheck") {
+        eprintln!("error: --crosscheck needs a script (`simulate <StateDef> --do \"…\" --crosscheck <engine>`); it is not available for scenarios");
+        return 1;
+    }
+    if !flag("--coverage") && (flag("--min-states") || flag("--min-transitions") || flag("--min-guards")) {
+        eprintln!("error: --min-states, --min-transitions and --min-guards need --coverage");
+        return 1;
+    }
     let filter = value("--scenario");
     let strict = flag("--strict");
     let opts = syscribe_model::sm_run::Options { strict, ..Default::default() };
@@ -693,7 +701,21 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
         print!("{coverage_text}");
     }
     if flag("--record") {
-        if let Err(e) = record_scenarios(model_root, elems, &outs.iter().map(|o| (o.tc.as_str(), &o.hash, &o.v)).collect::<Vec<_>>(), value("--run").as_deref(), config.as_deref()) {
+        // The current number of example rows of every outline of the TestCases that ran.
+        let mut rows: std::collections::BTreeMap<(String, String), usize> = Default::default();
+        for o in &outs {
+            if o.v.outline.is_some() {
+                if let Some(tc) = active.iter().find(|e| e.frontmatter.id.as_deref() == Some(o.tc.as_str()) || e.qualified_name == o.tc) {
+                    for sc in extract_scenarios(&tc.doc) {
+                        if let Some(ol) = sc.outline {
+                            *rows.entry((o.tc.clone(), ol)).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+        }
+        rows.iter_mut().for_each(|(_, n)| *n = (*n).max(1));
+        if let Err(e) = record_scenarios(model_root, elems, &outs.iter().map(|o| (o.tc.as_str(), &o.hash, &o.v)).collect::<Vec<_>>(), value("--run").as_deref(), config.as_deref(), &rows) {
             eprintln!("error: {e}");
             return 1;
         }
@@ -709,6 +731,7 @@ fn record_scenarios(
     outs: &[(&str, &String, &syscribe_model::sm_scen::Verdict)],
     run: Option<&str>,
     config: Option<&str>,
+    outline_rows: &std::collections::BTreeMap<(String, String), usize>,
 ) -> Result<(), String> {
     use syscribe_model::results::{ResultsData, RunHistory};
     use syscribe_model::sm_scen::Status;
@@ -726,24 +749,17 @@ fn record_scenarios(
         ),
     };
     let result = |s: Status| if s == Status::Pass { "pass" } else { "fail" };
-    // One record per expanded scenario, plus the outline's own title carrying the worst of its rows.
+    // One record per scenario that ran; an outline's own title is derived below from all of its rows.
     let mut records: Vec<serde_json::Value> = Vec::new();
-    let mut outline_worst: std::collections::BTreeMap<(String, String), (&str, Vec<String>)> = Default::default();
     for (tc, _, v) in outs {
-        records.push(serde_json::json!({"testCase": tc, "scenario": v.scenario, "steps": v.steps, "result": result(v.status), "timestamp": ""}));
-        if let Some(o) = &v.outline {
-            let e = outline_worst.entry((tc.to_string(), o.clone())).or_insert(("pass", v.steps.clone()));
-            if v.status != Status::Pass {
-                e.0 = "fail";
-            }
-        }
-    }
-    for ((tc, o), (r, steps)) in outline_worst {
-        records.push(serde_json::json!({"testCase": tc, "scenario": o, "steps": steps, "result": r, "timestamp": ""}));
+        let steps = if v.steps.is_empty() { vec!["(no steps)".to_string()] } else { v.steps.clone() };
+        records.push(serde_json::json!({"testCase": tc, "scenario": v.scenario, "steps": steps, "result": result(v.status), "timestamp": ""}));
     }
     let text = serde_json::to_string(&records).map_err(|e| e.to_string())?;
-    let mut data = ResultsData::parse_session_log(&text, "syscribe simulate --record")?;
-    // Keep the verdicts of scenarios this run did not cover (manual session logs, other TestCases).
+    let ran = ResultsData::parse_session_log(&text, "syscribe simulate --record")?;
+    let mut data = ran.clone();
+    // Keep the verdicts of scenarios this run did not cover (manual session logs, other TestCases), drop
+    // example rows an outline no longer has, and derive each touched outline's own verdict from all its rows.
     if let Some(old) = ResultsData::load_sidecar(model_root) {
         let base = match &config_key {
             Some(c) => old.by_config.get(c).map(|x| x.by_scenario.clone()).unwrap_or_default(),
@@ -753,10 +769,30 @@ fn record_scenarios(
             data.by_scenario.entry(k).or_insert(v);
         }
     }
+    for ((tc, outline), n) in outline_rows {
+        let prefix = format!("{tc}::{outline} [row ");
+        data.by_scenario.retain(|k, _| {
+            k.strip_prefix(&prefix).and_then(|r| r.strip_suffix(']')).and_then(|r| r.parse::<usize>().ok()).is_none_or(|row| row <= *n)
+        });
+        let rows: Vec<syscribe_model::results::Verdict> = data.by_scenario.iter().filter(|(k, _)| k.starts_with(&prefix)).map(|(_, v)| *v).collect();
+        use syscribe_model::results::Verdict as V;
+        let worst = if rows.contains(&V::Fail) { V::Fail } else if rows.contains(&V::Flaky) { V::Flaky } else if rows.is_empty() { V::Ignored } else { V::Pass };
+        data.by_scenario.insert(format!("{tc}::{outline}"), worst);
+    }
     let mut history = None;
     if let Some(r) = run {
+        // The run history records what this run ran, not verdicts carried over from earlier runs.
         let mut h = RunHistory::load(model_root)?;
-        h.record_for(r, &data, config_key.as_deref());
+        let mut only = ran.clone();
+        for ((tc, outline), _) in outline_rows {
+            let prefix = format!("{tc}::{outline} [row ");
+            let rows: Vec<_> = only.by_scenario.iter().filter(|(k, _)| k.starts_with(&prefix)).map(|(_, v)| *v).collect();
+            if !rows.is_empty() {
+                use syscribe_model::results::Verdict as V;
+                only.by_scenario.insert(format!("{tc}::{outline}"), if rows.contains(&V::Fail) { V::Fail } else { V::Pass });
+            }
+        }
+        h.record_for(r, &only, config_key.as_deref());
         history = Some(h);
     }
     match &config_key {
@@ -771,7 +807,8 @@ fn record_scenarios(
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     for (tc, hash, v) in outs {
         let slug: String = v.scenario.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
-        let file = dir.join(format!("{tc}__{slug}.json"));
+        let tag = format!("{:08x}", v.scenario.bytes().fold(0x811c9dc5u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193)));
+        let file = dir.join(format!("{tc}__{slug}-{tag}.json"));
         let body = serde_json::json!({"testCase": tc, "scenario": v.scenario, "status": v.status, "message": v.message, "machineHash": hash, "steps": v.steps, "trace": v.trace});
         std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     }
@@ -894,8 +931,13 @@ fn crosscheck_engine(machine: &syscribe_model::ir::Machine, engine: &str, wire: 
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("cannot start the engine '{command}': {e}"))?;
-    child.stdin.take().expect("piped").write_all(input.as_bytes()).map_err(|e| e.to_string())?;
+    // Write on a thread so an engine that answers before it has read everything cannot deadlock the pipes.
+    let mut stdin = child.stdin.take().expect("piped");
+    let writer = std::thread::spawn(move || {
+        let _ = stdin.write_all(input.as_bytes());
+    });
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    let _ = writer.join();
     if !out.status.success() {
         return Err(format!("the engine failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).trim()));
     }
@@ -904,9 +946,9 @@ fn crosscheck_engine(machine: &syscribe_model::ir::Machine, engine: &str, wire: 
     if theirs.len() != ours.len() {
         return Err(format!("the engine returned {} configuration(s), expected {}", theirs.len(), ours.len()));
     }
-    let known: std::collections::BTreeSet<String> = machine.states.iter().map(|s| s.path.replace('.', "_")).collect();
+    let known: std::collections::BTreeSet<String> = machine.states.iter().map(|s| s.path.clone()).collect();
     for (i, (o, t)) in ours.iter().zip(theirs).enumerate() {
-        let mut a: Vec<String> = o.iter().map(|p| p.replace('.', "_")).collect();
+        let mut a: Vec<String> = o.clone();
         let mut b: Vec<String> = t.as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).filter(|s| known.contains(s)).collect()).unwrap_or_default();
         a.sort();
         b.sort();

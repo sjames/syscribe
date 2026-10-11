@@ -65,8 +65,8 @@ fn structure_and_data_map_onto_scxml() {
     assert!(doc.contains("<data id=\"count\" expr=\"0\"/>"), "{doc}");
     assert!(doc.contains("<data id=\"limit\" expr=\"2\"/>"), "SI base value");
     assert!(doc.contains("<state id=\"A\">") && doc.contains("<final id=\"Done\"/>") || doc.contains("<final id=\"Done\">"), "{doc}");
-    assert!(doc.contains("<state id=\"B\"") && doc.contains("<state id=\"B_B1\">") && doc.contains("<final id=\"B_B2\""), "{doc}");
-    assert!(doc.contains("<initial>") && doc.contains("<assign location=\"count\" expr=\"1\"/>"), "initialEffect on the initial transition: {doc}");
+    assert!(doc.contains("<state id=\"B\"") && doc.contains("<state id=\"B.B1\">") && doc.contains("<final id=\"B.B2\""), "{doc}");
+    assert!(doc.contains("<assign location=\"count\" expr=\"1\"/>"), "initialEffect assignment: {doc}");
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn triggers_guards_and_actions_are_translated() {
     assert!(doc.contains("_event.data.n"), "{doc}");
     assert!(doc.contains("<assign location=\"count\" expr=\"count + _event.data.n\"/>"), "{doc}");
     // done
-    assert!(doc.contains("event=\"done.state.B_B1\"") || doc.contains("event=\"done.state.B1\""), "{doc}");
+    assert!(doc.contains("event=\"done.state.B.B1\"") || doc.contains("event=\"done.state.B1\""), "{doc}");
 }
 
 #[test]
@@ -105,10 +105,29 @@ fn parallel_regions_become_parallel() {
         "isParallel: true\nsubStates:\n  - name: R1\n    subStates: [{name: a, isInitial: true}]\n  - name: R2\n    subStates: [{name: b, isInitial: true}]\n",
     ));
     assert!(doc.contains("<parallel"), "{doc}");
-    assert!(doc.contains("id=\"R1\"") && doc.contains("id=\"R2_b\""), "{doc}");
+    assert!(doc.contains("id=\"R1\"") && doc.contains("id=\"R2.b\""), "{doc}");
 }
 
 #[test]
 fn the_export_is_deterministic() {
     assert_eq!(export(&machine(MACHINE)).0, export(&machine(MACHINE)).0);
+}
+
+#[test]
+fn the_initial_effect_runs_on_a_synthetic_first_state_not_an_invalid_initial_element() {
+    let (doc, _) = export(&machine(MACHINE));
+    assert!(!doc.contains("<initial>"), "<initial> is not allowed under <scxml>: {doc}");
+    assert!(doc.contains("initial=\"__init\"") && doc.contains("<state id=\"__init\">"), "{doc}");
+}
+
+#[test]
+fn state_ids_are_unique_dotted_paths() {
+    let (doc, _) = export(&machine("subStates:\n  - {name: A_B, isInitial: true}\n  - name: A\n    subStates: [{name: B, isInitial: true}]\n"));
+    assert!(doc.contains("id=\"A_B\"") && doc.contains("id=\"A.B\""), "{doc}");
+}
+
+#[test]
+fn internal_timers_and_submillisecond_delays_are_noted() {
+    let (_, w) = export(&machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {internal: true, accept: {after: \"0.0004 s\"}}\n"));
+    assert!(w.iter().any(|x| x.contains("re-armed")) && w.iter().any(|x| x.contains("rounded")), "{w:?}");
 }
