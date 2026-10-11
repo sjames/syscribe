@@ -167,6 +167,11 @@ impl<'m> Run<'m> {
         };
         for (name, v) in initial {
             if let Some(i) = m.variables.iter().position(|x| &x.name == name) {
+                // an environment value must have the variable's kind and dimension, as for every other write
+                if let Err(e) = check_assignable(name, &r.vars[i], v) {
+                    r.finish(Err(e));
+                    return r;
+                }
                 r.vars[i] = v.clone();
             }
         }

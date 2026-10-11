@@ -579,9 +579,6 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         }
     }
     diags.append(&mut cx.diags);
-    if !diags.is_empty() {
-        return Err(diags);
-    }
     let mut m = Machine {
         machine: el.qualified_name.clone(),
         hash: String::new(),
@@ -594,9 +591,10 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         states: cx.states,
         transitions,
     };
-    let types = crate::typecheck::machine_diags(&m);
-    if !types.is_empty() {
-        return Err(types);
+    // the types are checked even when other diagnostics exist, so one W933 does not hide an E935 elsewhere
+    diags.extend(crate::typecheck::machine_diags(&m));
+    if !diags.is_empty() {
+        return Err(diags);
     }
     m.hash = m.compute_hash();
     Ok(m)

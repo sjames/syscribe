@@ -144,8 +144,17 @@ pub fn infer(e: &Expr, env: &dyn Fn(&str) -> Ty) -> Result<Ty, String> {
                     if exp.is_some_and(|d| d != NONE) {
                         return Err("pow needs a dimensionless integer exponent (|n| <= 1024)".into());
                     }
-                    match &args[1] {
-                        Expr::Lit(Value::Num(q)) => {
+                    // a negative literal is parsed as a unary minus over a literal
+                    let lit = match &args[1] {
+                        Expr::Lit(Value::Num(q)) => Some(*q),
+                        Expr::Unary("-", inner) => match &**inner {
+                            Expr::Lit(Value::Num(q)) => Some(crate::expr::Quantity { v: -q.v, dim: q.dim }),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    match &lit {
+                        Some(q) => {
                             if q.v.fract() != 0.0 || q.v.abs() > 1024.0 {
                                 return Err("pow needs a dimensionless integer exponent (|n| <= 1024)".into());
                             }
@@ -164,7 +173,7 @@ pub fn infer(e: &Expr, env: &dyn Fn(&str) -> Ty) -> Result<Ty, String> {
                                 None => Ty::Num(None),
                             }
                         }
-                        _ => Ty::Num(None),
+                        None => Ty::Num(None),
                     }
                 }
                 _ => {

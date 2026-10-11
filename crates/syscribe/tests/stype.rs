@@ -100,3 +100,20 @@ fn compile_refuses_what_validate_reports() {
     assert_ne!(c, 0, "{t}");
     assert!(t.contains("E935"), "{t}");
 }
+
+#[test]
+fn another_lowering_diagnostic_does_not_hide_a_type_error() {
+    // the first guard is prose (W933); the second is a certain dimension error elsewhere in the same machine
+    let m = format!("{VARS}subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {{target: B, accept: Go, guard: \"the door is jammed\"}}\n      - {{target: B, accept: Go2, guard: \"height < 5\"}}\n  - name: B\n    transitions:\n      - {{target: A, accept: Back}}\n");
+    let (bad, t) = e935(&m);
+    assert!(bad, "{t}");
+    assert!(t.contains("W933"), "{t}");
+}
+
+#[test]
+fn a_negative_literal_exponent_is_checked_like_a_positive_one() {
+    let (bad, t) = e935(&with("pow(height, -2000) > 0 m", ""));
+    assert!(bad, "{t}");
+    let (bad, t) = e935(&with("pow(height, -1) * height > 0.5", ""));
+    assert!(!bad, "{t}");
+}

@@ -16,10 +16,21 @@ fn operands() -> Vec<(&'static str, Value)> {
         ("text", Value::Str("on".into())),
         ("vel", v("5 m / 1 s")),
         ("area", v("9 m * 1 m")),
+        ("nobody", v("0")),
     ]
 }
 
 fn check(src: &str) {
+    check_with(src, true)
+}
+
+/// Only the direction that must always hold: a static error is a real error (the checker may be lenient, e.g. about
+/// the join of two different branch types of an `if`).
+fn check_sound(src: &str) {
+    check_with(src, false)
+}
+
+fn check_with(src: &str, complete: bool) {
     let ops = operands();
     let env = |n: &str| ops.iter().find(|o| o.0 == n).map(|o| Ty::of_value(&o.1)).unwrap_or(Ty::Unknown);
     let ast = expr::parse(src).unwrap_or_else(|e| panic!("{src}: {e}"));
@@ -34,6 +45,7 @@ fn check(src: &str) {
         .collect();
     let type_error = |r: &Result<Value, ExprError>| matches!(r, Err(ExprError::Type(_) | ExprError::Dimension(_)));
     match &stat {
+        Ok(_) if !complete => {}
         Ok(t) => {
             for r in &runs {
                 assert!(!type_error(r), "`{src}`: static Ok({t:?}) but runtime {r:?}");
@@ -51,12 +63,59 @@ fn check(src: &str) {
     }
 }
 
+/// Names the type checker knows nothing about; the evaluator is given a number, a length, a boolean and a string in turn.
+fn check_unknown(src: &str) {
+    let ops = operands();
+    let ast = expr::parse(src).unwrap_or_else(|e| panic!("{src}: {e}"));
+    let stat = infer(&ast, &|n: &str| ops.iter().find(|o| o.0 == n).map(|o| Ty::of_value(&o.1)).unwrap_or(Ty::Unknown));
+    let unknowns: Vec<Value> = vec![Value::Bool(true), Value::Bool(false), Value::Str("a".into()), expr::parse("3").unwrap().eval(&|_: &str| None).unwrap(), expr::parse("3 m").unwrap().eval(&|_: &str| None).unwrap()];
+    let any_ok = unknowns.iter().any(|u| {
+        let lookup = |n: &str| if n == "unk" { Some(u.clone()) } else if n == "flag" { Some(Value::Bool(true)) } else { ops.iter().find(|o| o.0 == n).map(|o| o.1.clone()) };
+        !matches!(ast.eval(&lookup), Err(ExprError::Type(_) | ExprError::Dimension(_)))
+    });
+    let all_ok = unknowns.iter().all(|u| {
+        let lookup = |n: &str| if n == "unk" { Some(u.clone()) } else if n == "flag" { Some(Value::Bool(true)) } else { ops.iter().find(|o| o.0 == n).map(|o| o.1.clone()) };
+        !matches!(ast.eval(&lookup), Err(ExprError::Type(_) | ExprError::Dimension(_)))
+    });
+    // a static error with an unknown operand must be real for at least one value of it: either the known part is wrong,
+    // or (lazy `and`/`or`) the evaluator reaches it for some value
+    if stat.is_err() {
+        assert!(!all_ok, "`{src}`: static {stat:?} but the evaluator accepts every tried value of the unknown name (any accepted: {any_ok})");
+    }
+}
+
+#[test]
+fn unknown_operands_are_never_rejected_unless_the_known_part_is_wrong() {
+    let names: Vec<&str> = operands().iter().map(|o| o.0).collect();
+    for a in &names {
+        for op in ["+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "and", "or"] {
+            check_unknown(&format!("unk {op} {a}"));
+            check_unknown(&format!("{a} {op} unk"));
+        }
+        check_unknown(&format!("min(unk, {a})"));
+        check_unknown(&format!("pow({a}, unk)"));
+        check_unknown(&format!("if unk then {a} else {a}"));
+    }
+    check_unknown("-unk == true");
+    check_unknown("not unk");
+}
+
+#[test]
+fn pow_with_a_negative_literal_exponent() {
+    check("pow(len, -1)");
+    check("pow(len, -2)");
+    check("pow(plain, -2)");
+    check("pow(len, -1.5)");
+    check("pow(len, -2000)");
+    check("pow(flag, -2)");
+}
+
 #[test]
 fn binary_operators_agree_with_the_evaluator() {
     let names: Vec<&str> = operands().iter().map(|o| o.0).collect();
     for a in &names {
         for b in &names {
-            for op in ["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "and", "or"] {
+            for op in ["+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "and", "or"] {
                 check(&format!("{a} {op} {b}"));
             }
         }
@@ -92,4 +151,10 @@ fn conditionals_agree_with_the_evaluator() {
     }
     check("if flag then len else len2");
     check("if flag then len else plain");
+    for a in &names {
+        for b in &names {
+            check_sound(&format!("if flag then {a} else {b}"));
+            check_sound(&format!("(if flag then {a} else {b}) == {a}"));
+        }
+    }
 }
