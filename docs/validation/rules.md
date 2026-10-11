@@ -935,6 +935,10 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E718 | Error | an `Argument.evidence` entry is not a scalar reference (a string id/qname is expected — e.g. a `PlanningItem`-style `{ref:, path:}` mapping was used on an `Argument`) |
 | W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
 | E881 | Error | an `Argument` is part of a cycle: it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning) |
+| E882 | Error | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is not a non-negative duration, a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
+| E883 | Error | a `variables:` entry of a `StateDef` is malformed: not a mapping, no `name`, an invalid or duplicate name, or an initial `value` that does not evaluate (GH #277) |
+| E884 | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
+| E885 | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)
@@ -1066,6 +1070,7 @@ FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.e
 | W927 | An `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
 | W931 | Warning | the row declares no `fmeaSeverity`, `occurrence` and/or `detection` — the RPN cannot be computed and the row escapes the RPN/severity rules (draft-suppressed) |
 | W932 | Warning | `fmeaSeverity` ≥ 9 (and `occurrence` ≥ 2 or absent) with no `recommendedAction`, regardless of RPN — the severity-priority rule; skipped when `W903` already fires (draft-suppressed) |
+| W933 | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 
 The canonical severity key is **`fmeaSeverity:`** (camelCase, integer 1–10). The deprecated alias `severity:` is accepted and silently mapped for backward compatibility. RPN is computed automatically as `fmeaSeverity × occurrence × detection` when `rpn:` is absent; an explicit `rpn:` overrides the computed value.
 

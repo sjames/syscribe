@@ -92,6 +92,8 @@ computed by the tool and never authored.
 | `doAction` | StateDef/State | string or map | Ongoing behaviour |
 | `exitAction` | StateDef/State | string or map | Behaviour on exit |
 | `isParallel` | StateDef/State | bool | Parallel (orthogonal) region container |
+| `variables` | StateDef/State | list | Executable machines: `{name, value, typedBy?, unit?}` data of the machine (`E883`) |
+| `initialEffect` | StateDef/State | map | Executable machines: `{assign}` run by the initial transition (`E884`) |
 | `subStates` | StateDef/State | list | Nested states; each may itself carry `transitions`/`subStates` |
 | `transitions` | StateDef/State | list | Each entry: `source` · `target` · `accept` (event/payload) · `guard`. The deprecated spellings `from`/`to`/`trigger` still parse but warn **W075** — prefer `source`/`target`/`accept`. |
 

@@ -2136,6 +2136,8 @@ Defines a state node in a state machine. States can own entry/do/exit behaviors 
 |---|---|---|---|
 | `supertype` | string or list | absent | Supertype StateDefs |
 | `isParallel` | bool | `false` | Parallel (orthogonal) state with concurrent sub-regions |
+| `variables` | list | absent | Executable machines: `{name, value, typedBy?, unit?}` — the machine's data; `value` is an expression with no names (`E883`) |
+| `initialEffect` | map | absent | Executable machines: `{assign: "name := expr; …"}` run by the initial transition (`E884`) |
 | `entryAction` | string or map | absent | Entry behavior; qualified name of ActionDef or inline sub-action map |
 | `doAction` | string or map | absent | Do behavior; qualified name of ActionDef or inline sub-action map |
 | `exitAction` | string or map | absent | Exit behavior; qualified name of ActionDef or inline sub-action map |
@@ -6577,9 +6579,14 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E858` | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `W040` | Warning | a `claim`/`strategy` `Argument` has empty `supports` **and** empty `evidence` (an orphan GSN node) |
 | `E881` | Error | an `Argument` is part of a cycle (it transitively supports itself through `supports:`/`evidence:`) |
+| `E882` | Error | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is not a non-negative duration, a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
+| `E883` | Error | a `variables:` entry of a `StateDef` is malformed: not a mapping, no `name`, an invalid or duplicate name, or an initial `value` that does not evaluate (GH #277) |
+| `E884` | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
+| `E885` | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
+| `W933` | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.

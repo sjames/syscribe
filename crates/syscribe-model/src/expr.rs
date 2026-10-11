@@ -574,6 +574,55 @@ pub fn parse(src: &str) -> Result<Expr, ExprError> {
     Ok(e)
 }
 
+/// Parse a `;`-separated list of `name := expression` statements (REQ-TRS-SMSCHEMA-001). A `;` inside a
+/// quoted string or a parenthesis does not separate; empty statements (a trailing `;`) are ignored.
+pub fn parse_statements(src: &str) -> Result<Vec<(String, Expr)>, ExprError> {
+    let mut parts: Vec<String> = Vec::new();
+    let (mut cur, mut depth, mut quote) = (String::new(), 0i32, None::<char>);
+    for c in src.chars() {
+        match quote {
+            Some(q) => {
+                if c == q {
+                    quote = None;
+                }
+                cur.push(c);
+            }
+            None => match c {
+                '\'' | '"' => {
+                    quote = Some(c);
+                    cur.push(c);
+                }
+                '(' => {
+                    depth += 1;
+                    cur.push(c);
+                }
+                ')' => {
+                    depth -= 1;
+                    cur.push(c);
+                }
+                ';' if depth == 0 => parts.push(std::mem::take(&mut cur)),
+                _ => cur.push(c),
+            },
+        }
+    }
+    parts.push(cur);
+    let mut out = Vec::new();
+    for part in parts.iter().map(|p| p.trim()).filter(|p| !p.is_empty()) {
+        let Some((name, rhs)) = part.split_once(":=") else {
+            return Err(ExprError::Parse(format!("'{part}' is not an assignment `name := expression`")));
+        };
+        let name = name.trim();
+        let ok = !name.is_empty()
+            && name.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !ok {
+            return Err(ExprError::Parse(format!("'{name}' is not a variable name")));
+        }
+        out.push((name.to_string(), parse(rhs)?));
+    }
+    Ok(out)
+}
+
 /// Read a binding value: `50ms`, `-3.5 V`, `true`, `'x'`, `ArmStatus::armed`, `12`.
 pub fn parse_value(text: &str) -> Option<Value> {
     let t = text.trim();

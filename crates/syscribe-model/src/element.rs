@@ -1415,6 +1415,9 @@ pub struct ColdFrontmatter3 {
     pub entry_action: Option<serde_yaml::Value>,
     pub do_action: Option<serde_yaml::Value>,
     pub exit_action: Option<serde_yaml::Value>,
+    /// Executable state machines (REQ-TRS-SMSCHEMA-001): the machine's data and the effect of its initial transition.
+    pub variables: Option<Vec<serde_yaml::Value>>,
+    pub initial_effect: Option<serde_yaml::Value>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -1989,6 +1992,9 @@ struct ColdWire {
     pub entry_action: Option<serde_yaml::Value>,
     pub do_action: Option<serde_yaml::Value>,
     pub exit_action: Option<serde_yaml::Value>,
+    /// Executable state machines (REQ-TRS-SMSCHEMA-001): the machine's data and the effect of its initial transition.
+    pub variables: Option<Vec<serde_yaml::Value>>,
+    pub initial_effect: Option<serde_yaml::Value>,
     pub is_negated: Option<bool>,
 
     // §8.11.1 — RequirementDef
@@ -2277,6 +2283,8 @@ impl ColdWire {
                     entry_action: w.entry_action,
                     do_action: w.do_action,
                     exit_action: w.exit_action,
+                    variables: w.variables,
+                    initial_effect: w.initial_effect,
                     is_negated: w.is_negated,
                     framed_concerns: w.framed_concerns,
                     result_type: w.result_type,
