@@ -163,3 +163,40 @@ fn the_hash_covers_machines_and_wiring_and_is_stable() {
     assert_eq!(a.hash, b.hash);
     assert_ne!(a.hash, c.hash);
 }
+
+#[test]
+fn a_timer_is_not_lost_to_float_drift_when_another_part_makes_the_clock_stop_early() {
+    let slow = "subStates:\n  - name: Wait\n    isInitial: true\n    transitions:\n      - {target: Timeout, accept: {after: \"14 ms\"}}\n  - {name: Timeout, isFinal: true}\n";
+    let fast = "subStates:\n  - name: Wait\n    isInitial: true\n    transitions:\n      - {target: Hit, accept: {after: \"3 ms\"}}\n  - {name: Hit, isFinal: true}\n";
+    let m = system(vec![sm("SlowM", slow), sm("FastM", fast), def("SlowP", "SlowM", &[]), def("FastP", "FastM", &[])], "  - {name: a, typedBy: SlowP}\n  - {name: b, typedBy: FastP}\n", "", "");
+    let mut s = System::new(&m, Options::default());
+    s.advance(0.014);
+    assert_eq!(s.active("b").unwrap(), ["Hit"]);
+    assert_eq!(s.active("a").unwrap(), ["Timeout"], "0.003 + (0.014 - 0.003) is one ulp short of 0.014");
+}
+
+#[test]
+fn a_halted_sink_does_not_make_the_bindings_look_unconverged() {
+    let src = "variables:\n  - {name: x, value: \"0\"}\nsubStates:\n  - {name: A, isInitial: true}\n";
+    let sink = "variables:\n  - {name: x, value: \"0\"}\nsubStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {target: Z, accept: Stop}\n  - {name: Z, isFinal: true}\n";
+    let m = system(vec![sm("SrcM", src), sm("SinkM", sink), def("SrcP", "SrcM", &[]), def("SinkP", "SinkM", &[])], "  - {name: s, typedBy: SrcP}\n  - {name: k, typedBy: SinkP}\n", "", "  - {from: s.x, to: k.x}\n");
+    let mut s = System::new(&m, Options::default());
+    s.receive("k", None, "Stop", &[]);
+    s.set("s", "x", parse_value("5").unwrap());
+    assert!(s.error().is_none(), "{:?}", s.error());
+}
+
+#[test]
+fn inferring_a_subject_from_satisfies_still_picks_the_single_state_machine() {
+    use syscribe_model::sm_scen::subject_of;
+    let root = std::env::temp_dir().join(format!("syscribe-subj-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
+    std::fs::write(root.join("REQ-A-001.md"), "---\ntype: Requirement\nid: REQ-A-001\nname: a\nstatus: approved\nreqDomain: software\n---\n\nShall.\n").unwrap();
+    std::fs::write(root.join("M.md"), "---\ntype: StateDef\nname: M\nsatisfies: [REQ-A-001]\nsubStates:\n  - {name: A, isInitial: true}\n---\n").unwrap();
+    std::fs::write(root.join("P.md"), "---\ntype: PartDef\nname: P\nsatisfies: [REQ-A-001]\n---\nPart.\n").unwrap();
+    std::fs::write(root.join("TC-A-001.md"), "---\ntype: TestCase\nid: TC-A-001\nname: t\nstatus: active\ntestLevel: L2\nverifies: [REQ-A-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Then 1 == 1\n```\n").unwrap();
+    let elems = walk_model(&root).unwrap();
+    let tc = elems.iter().find(|e| e.frontmatter.id.as_deref() == Some("TC-A-001")).unwrap();
+    assert_eq!(subject_of(&elems, tc).unwrap().qualified_name, "M");
+}

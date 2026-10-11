@@ -522,10 +522,12 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
 pub fn subject_of<'a>(elements: &'a [crate::element::RawElement], tc: &crate::element::RawElement) -> Result<&'a crate::element::RawElement, String> {
     use crate::element::ElementType;
     let resolver = crate::resolver::Resolver::new(elements);
-    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action) | Some(ElementType::Part) | Some(ElementType::PartDef));
+    let is_machine = |e: &crate::element::RawElement| matches!(e.frontmatter.element_type, Some(ElementType::StateDef) | Some(ElementType::State) | Some(ElementType::ActionDef) | Some(ElementType::Action));
+    // an explicit `subject:` may also be a composite part; inference from `satisfies` stays with machines
+    let is_subject = |e: &crate::element::RawElement| is_machine(e) || matches!(e.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::PartDef));
     if let Some(s) = &tc.frontmatter.subject {
         return match resolver.resolve_ref(elements, s) {
-            Some(e) if is_machine(e) => Ok(e),
+            Some(e) if is_subject(e) => Ok(e),
             Some(e) => Err(format!("subject '{s}' is a {:?}, not a StateDef, ActionDef or composite Part", e.frontmatter.element_type)),
             None => Err(format!("subject '{s}' does not resolve")),
         };

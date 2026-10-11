@@ -211,6 +211,11 @@ impl<'m> Run<'m> {
         }
     }
 
+    /// Whether the run has stopped (an error or termination); it ignores further events and writes.
+    pub fn is_halted(&self) -> bool {
+        self.halted()
+    }
+
     fn halted(&self) -> bool {
         self.error.is_some() || self.terminated
     }
@@ -235,7 +240,17 @@ impl<'m> Run<'m> {
         if self.cosim.is_some() {
             return self.advance_with_plants(secs);
         }
-        let target = self.time + secs;
+        self.advance_to(self.time + secs);
+    }
+
+    /// Advance the virtual clock to the absolute time `target` (no rounding of `time + (target - time)`), firing due timers.
+    pub fn advance_to(&mut self, target: f64) {
+        if self.halted() || target <= self.time {
+            return;
+        }
+        if self.cosim.is_some() {
+            return self.advance_with_plants(target - self.time);
+        }
         loop {
             let next = self.timers.iter().map(|t| t.0).filter(|d| *d <= target).fold(f64::INFINITY, f64::min);
             if !next.is_finite() {

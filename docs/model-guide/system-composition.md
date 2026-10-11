@@ -59,7 +59,7 @@ Scenario: the command arrives after the link delay
   Then ctl.last == 7
 ```
 
-`simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part. The machine hash of a composite covers every part's machine hash and the wiring.
+`Then <part> sent …` looks at every message the part sent earlier in the scenario. `simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part. The machine hash of a composite covers every part's machine hash and the wiring.
 
 ## Diagnostics
 
@@ -74,4 +74,4 @@ Scenario: the command arrives after the link delay
 
 ## Not in this version
 
-FMU plants as parts, coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
+FMU plants as parts (a composite with one is refused), coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.

@@ -150,3 +150,28 @@ fn a_part_composition_without_executable_machines_sees_nothing_new() {
     let bad = SYSTEM.replace("rx.inp", "rx.nowhere");
     clean(&validate(&[("SenderMachine", plain_sender), ("ReceiverMachine", plain_receiver), ("System", &bad)]));
 }
+
+#[test]
+fn a_typo_in_a_part_name_is_reported_not_dropped() {
+    assert!(has(&validate(&[("System", &SYSTEM.replace("{from: tx.out, to: rx.inp}", "{from: txx.out, to: rx.inp}"))]), "E931"), "connection");
+    assert!(has(&validate(&[("System", &SYSTEM.replace("{from: tx.dist, to: rx.dist}", "{from: txx.dist, to: rx.dist}"))]), "E933"), "binding");
+}
+
+#[test]
+fn a_relay_without_variables_is_still_an_executable_machine() {
+    let relay = "---\ntype: StateDef\nname: SenderMachine\nsubStates:\n  - name: Idle\n    isInitial: true\n    transitions:\n      - {internal: true, accept: {payload: Tick, via: out}, effect: {send: Cmd, via: nowhere}}\n---\n";
+    assert!(has(&validate(&[("SenderMachine", relay)]), "E932"), "the port checks apply to it");
+}
+
+#[test]
+fn send_checks_cover_entry_and_exit_actions() {
+    let bad = SENDER.replace("subStates:\n  - name: Idle\n    isInitial: true\n", "subStates:\n  - name: Idle\n    isInitial: true\n    entryAction: {send: Oops, payload: [1]}\n");
+    assert!(has(&validate(&[("SenderMachine", &bad)]), "E884"));
+}
+
+#[test]
+fn fan_in_and_environment_events_are_not_w936_false_positives() {
+    let rx_extra = RECEIVER.replace("  - name: Done\n", "  - name: Done\n    transitions:\n      - {target: Waiting, accept: Reset}\n");
+    let o = validate(&[("ReceiverMachine", &rx_extra)]);
+    assert!(!has(&o, "W936"), "an event injected from the environment is fine: {o}");
+}

@@ -210,11 +210,20 @@ pub fn resolve(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) 
         return (None, Vec::new());
     }
     let q = &elem.qualified_name;
+    let feature_names: Vec<&str> = elem.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping().and_then(|m| field(m, "name")).and_then(|n| n.as_str())).collect();
+    // an end `a.b` whose `a` is no feature of the composite at all is a typo, not a structural connection
+    let unknown_part = |e: &str| endpoint(e).filter(|(p, _)| !feature_names.contains(p)).map(|(p, _)| p.to_string());
     let mut links = Vec::new();
     for (i, c) in elem.frontmatter.connections.iter().flatten().enumerate() {
         let Some(m) = c.as_mapping() else { continue };
         let (Some(f), Some(t)) = (field(m, "from").and_then(text), field(m, "to").and_then(text)) else { continue };
         let ends = (endpoint(&f), endpoint(&t));
+        if let Some(p) = unknown_part(&f).or_else(|| unknown_part(&t)) {
+            {
+                out.push(("E931", format!("{q}: connection[{i}] {f} → {t}: '{p}' is not a part of this composite")));
+                continue;
+            }
+        }
         let (Some((fi, fp)), Some((ti, tp))) = ends else {
             // a connection that does not name `part.port` at both ends is the structural kind and not ours
             continue;
@@ -246,10 +255,13 @@ pub fn resolve(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) 
     for (i, c) in elem.frontmatter.binding_connections.iter().flatten().enumerate() {
         let Some(m) = c.as_mapping() else { continue };
         let (Some(f), Some(t)) = (field(m, "from").and_then(text), field(m, "to").and_then(text)) else { continue };
+        if let Some(p) = endpoint(&f).filter(|(p, _)| !feature_names.contains(p)).or_else(|| endpoint(&t).filter(|(p, _)| !feature_names.contains(p))).map(|(p, _)| p) {
+            out.push(("E933", format!("{q}: binding[{i}] {f} → {t}: '{p}' is not a part of this composite")));
+            continue;
+        }
         let (Some((fi, fv)), Some((ti, tv))) = (endpoint(&f), endpoint(&t)) else { continue };
         let (Some(a), Some(b)) = (instances.iter().position(|x| x.name == fi), instances.iter().position(|x| x.name == ti)) else { continue };
         bindings.push(Binding { from: (a, fv.to_string()), to: (b, tv.to_string()) });
-        let _ = i;
     }
     (Some(SystemSpec { composite: q.clone(), instances, links, bindings }), out)
 }
@@ -362,11 +374,23 @@ pub fn check(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) ->
                 out.push(("W936", format!("{q}: {si} sends {ev} via {}, but {ri} accepts no {ev} via {}", l.from.1, l.to.1)));
             }
         }
-        let sent_here: BTreeSet<&String> = sent.iter().filter(|(v, _)| v.as_deref() == Some(l.from.1.as_str())).map(|(_, e)| e).collect();
-        for (p, ev) in accepted.iter().filter(|(p, _)| *p == l.to.1) {
-            let _ = p;
-            if !sent_here.contains(ev) {
-                out.push(("W936", format!("{q}: {ri} accepts {ev} via {}, but {si} never sends it via {}", l.to.1, l.from.1)));
+    }
+    // an event accepted at a port that is connected, but that none of the connected senders ever sends
+    let mut seen: BTreeSet<(usize, String)> = BTreeSet::new();
+    for l in &spec.links {
+        if !seen.insert(l.to.clone()) {
+            continue;
+        }
+        let senders: Vec<&crate::system::Link> = spec.links.iter().filter(|x| x.to == l.to).collect();
+        if senders.iter().any(|x| machines[x.from.0].is_none()) {
+            continue;
+        }
+        let Some(mr) = &machines[l.to.0] else { continue };
+        let sent: BTreeSet<String> = senders.iter().flat_map(|x| traffic(machines[x.from.0].as_ref().expect("checked")).0.into_iter().filter(|(v, _)| v.as_deref() == Some(x.from.1.as_str())).map(|(_, e)| e)).collect();
+        let ri = &spec.instances[l.to.0].name;
+        for (p, ev) in traffic(mr).1.iter().filter(|(p, _)| *p == l.to.1) {
+            if !sent.contains(ev) {
+                out.push(("W936", format!("{q}: {ri} accepts {ev} via {p}, but no connected part sends it")));
             }
         }
     }

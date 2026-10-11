@@ -29,7 +29,7 @@ composite Part/PartDef
 * The behaviour of a part is the one `StateDef` in its definition's `exhibitsStates:` (inherited through `supertype`). Zero → inert (still a valid endpoint for static checks); more than one → `E930`.
 * A port connection joins an `out`/`inout` port to an `in`/`inout` port. Fan-out (one output, several inputs) delivers to each in connection order.
 * The machine side: `effect: {send: Cmd, via: cmdOut, payload: {level: "x + 1"}}` and the existing `accept: {payload: Cmd, via: cmdIn}`. Payload entries are expressions evaluated at send time in the sender's scope. `via` must name a port of the owning part (`E932`). Within one action map `assign:` runs before `send:`, so the payload reports the updated values; a `send` in `initialEffect`, `entryAction` or `exitAction` works the same way.
-* Plants are parts with `fmu:`; they take part through `bindingConnections` only (no messages), using the FMI loop of `fmi-plant-cosimulation.md` with the part's own `plantStep` (default: the composite's `plantStep`).
+* Plants are parts with `fmu:`; they will take part through `bindingConnections` only (no messages), using the FMI loop of `fmi-plant-cosimulation.md` with the part's own `plantStep`. Not in the first version: a composite with a plant part is refused.
 
 ## Execution
 
@@ -61,13 +61,13 @@ Determinism: no threads, no wall clock; every ordering is a total order (declara
 
 ## Scenarios
 
-Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-001`): `When ctl receives Start`, `Then ctl is in state Running`, `Then ball.h < 0.5 m`, `Then ctl sent Brake via cmdOut`, `When 50 ms elapses`. "Sent" is satisfied by a message emitted since the previous `Then`-checked point of that part (a per-part sent log, cleared when the scenario ends). Plants are exposed as `<part>.<variable>` read-only.
+Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-001`): `When ctl receives Start`, `Then ctl is in state Running`, `Then ball.h < 0.5 m`, `Then ctl sent Brake via cmdOut`, `When 50 ms elapses`. "Sent" is satisfied by any message the part emitted earlier in the same scenario (the log is per scenario, not windowed); `did not send` is its negation. A part variable is written `<part>.<variable>` in expressions. Plants as parts are not in the first version.
 
 ## Evidence and trace
 
-* Hash of a composite run: BLAKE3 over the canonical JSON of `{parts: [{name, machineHash}], connections, bindings}`.
-* Trace: one timeline; each step carries `part`, and message steps carry `from`, `port`, `sent`, `delivered`. Plant provenance as in the FMI note.
-* Coverage: per part (existing coverage structures), reported per part and aggregated.
+* Hash of a composite run: BLAKE3 over the canonical JSON of `{parts: [{name, machine}], connections, bindings}` (each part's machine hash, then the wiring).
+* Trace: the steps of every part merged by time and tagged `[part]`; the messages are a separate list in the verdict (`messages`: who sent what via which port, when, and when it was delivered). Plant provenance as in the FMI note once plants are parts.
+* Coverage: not yet; `--coverage` is refused for composite subjects.
 
 ## Staging
 
@@ -79,4 +79,10 @@ Same Gherkin, closed vocabulary, with instance qualification (`REQ-TRS-SYSCOMP-0
 
 ## Deliberately not here
 
-Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
+Plants as parts (stage 5), per-part coverage, mutation against composite scenarios, Action flows as part behaviour, multiplicity > 1, lossy/reordering channels, preemptive or parallel scheduling, mutation against composite scenarios, a graphical timeline. All are additive later.
+
+## Known limits
+
+* `E930` is only raised for composites that have at least one executable part (the checks are dormant otherwise, so existing models see nothing). A part with several `exhibitsStates` is an error in a composite, although SysML allows several exhibited states.
+* Ports declared as separate `Port` elements (rather than inline `features:`) and inherited composite wiring (`connections:` from a supertype) are not read.
+* `trace()` orders steps of different parts by time only.

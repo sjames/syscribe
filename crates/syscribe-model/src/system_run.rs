@@ -216,10 +216,7 @@ impl<'m> System<'m> {
             let due = self.queue.iter().map(|m| m.due).chain(timers).filter(|d| *d > self.time).fold(f64::INFINITY, f64::min);
             let t = due.min(target);
             for r in self.runs.iter_mut().flatten() {
-                let dt = t - r.time();
-                if dt > 0.0 {
-                    r.advance(dt);
-                }
+                r.advance_to(t);
             }
             self.time = t;
             self.quiesce();
@@ -235,7 +232,9 @@ impl<'m> System<'m> {
                 return;
             }
             self.collect();
-            if let Some(pos) = self.queue.iter().position(|m| m.due <= self.time + 1e-12) {
+            let tol = 1e-12_f64.max(self.time.abs() * 1e-15);
+            let next = self.queue.iter().enumerate().filter(|(_, m)| m.due <= self.time + tol).min_by(|a, b| a.1.due.partial_cmp(&b.1.due).unwrap_or(std::cmp::Ordering::Equal).then(a.1.seq.cmp(&b.1.seq))).map(|(i, _)| i);
+            if let Some(pos) = next {
                 micro += 1;
                 if micro > MICRO_STEP_LIMIT {
                     return self.fail(format!("livelock: more than {MICRO_STEP_LIMIT} messages at t = {} s; the parts keep answering each other ({})", self.time, self.chatter()));
@@ -307,12 +306,16 @@ impl<'m> System<'m> {
         let mut changed = false;
         for b in &model.spec.bindings {
             let Some(v) = self.runs[b.from.0].as_ref().and_then(|r| r.var(&b.from.1)) else { continue };
-            let differs = self.runs[b.to.0].as_ref().and_then(|r| r.var(&b.to.1)).is_some_and(|cur| cur != v);
-            if differs {
-                if let Some(r) = self.runs[b.to.0].as_mut() {
-                    r.set(&b.to.1, v);
-                    changed = true;
-                }
+            // compared as text so that NaN equals NaN and a halted sink cannot keep the loop spinning
+            let same = |a: &Value, b: &Value| format_value(a) == format_value(b);
+            let Some(r) = self.runs[b.to.0].as_mut() else { continue };
+            let Some(cur) = r.var(&b.to.1) else { continue };
+            if r.is_halted() || same(&cur, &v) {
+                continue;
+            }
+            r.set(&b.to.1, v);
+            if r.var(&b.to.1).is_some_and(|now| !same(&now, &cur)) {
+                changed = true;
             }
         }
         changed
