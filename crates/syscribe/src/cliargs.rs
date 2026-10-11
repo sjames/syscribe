@@ -121,7 +121,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "mutate" => &[("--json", Switch), ("--min-score", Value)],
         "export-scxml" => &[("--output", Value)],
         "compile" => &[("--json", Switch)],
-        "constraints" => &[("--json", Switch), ("--strict", Switch), ("--all-configs", Switch), LENS, ("--set", Value)],
+        "constraints" => &[("--json", Switch), ("--strict", Switch), ("--all-configs", Switch), LENS, ("--set", Value), ("--param", Value), ("--show", Value)],
         "mechanisms" => &[("--json", Switch), ("--uncovered", Switch)],
         "compliance" => &[("--standard", Value), LENS, ("--json", Switch), ("--fail-on-missing", Switch)],
         "results" => &[("--json", Switch), ("--fail-on-regression", Switch), LENS],

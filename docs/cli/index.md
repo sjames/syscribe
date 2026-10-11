@@ -784,7 +784,14 @@ Evaluates one expression of the execution engine's typed, dimension-checked lang
 syscribe -m <root> constraints check [--json] [--strict] [--config <CONF-id> | --all-configs] [--set <qname.feature>=<value>]...
 ```
 
-Evaluates every `Constraint` usage and every `requires:`/`assume:` clause against Attribute values, default bindings, Configuration parameters and `--set` overrides (GH #274). Exit `0` all hold, `2` one failed (or, with `--strict`, one is unresolved because an input has no value), `1` usage. `constraints calc` and `constraints sweep` are specified in `REQ-TRS-PARAM-001` and follow. See `syscribe help constraints`.
+Evaluates every `Constraint` usage and every `requires:`/`assume:` clause against Attribute values, default bindings, Configuration parameters and `--set` overrides (GH #274). Exit `0` all hold, `2` one failed (or, with `--strict`, one is unresolved because an input has no value), `1` usage. 
+
+```bash
+syscribe -m <root> constraints calc <CalculationDef> [--config <C>] [--set name=value]... [--json]
+syscribe -m <root> constraints sweep --param name=<lo>..<hi>:<step> [--param …] [--config <C>] [--set …] [--show '<expr>'] [--json]
+```
+
+`calc` evaluates a `CalculationDef` body with its parameters from `--set` or their defaults and prints the result in SI base units. `sweep` evaluates the whole check set over a grid of parameter ranges (`3..7:1`, `1000kg..2000kg:250kg` or a list `1,2,5`; Cartesian product for several `--param`s; at most 5000 points) and tabulates the pass/fail/unresolved/error counts per point, with an optional `--show` expression: a trade-off sweep across values; it reports, it does not gate. See `syscribe help constraints`.
 
 ## State-machine IR (`compile`)
 

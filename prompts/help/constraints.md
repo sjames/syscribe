@@ -3,6 +3,10 @@
 ## SYNOPSIS
     syscribe -m <root> constraints check [--config <CONF> | --all-configs]
         [--set name=value]... [--strict] [--json]
+    syscribe -m <root> constraints calc <CalculationDef> [--config <CONF>]
+        [--set name=value]... [--json]
+    syscribe -m <root> constraints sweep --param name=<lo>..<hi>:<step> [--param ...]
+        [--config <CONF>] [--set name=value]... [--show '<expr>'] [--json]
 
 ## DESCRIPTION
 `constraints check` evaluates, with the expression language of `syscribe help eval`:
@@ -44,3 +48,21 @@ Each check is `pass`, `fail`, `unresolved` (a name has no value; they are listed
 
 Exit 0 when nothing failed or errored; 2 when a check failed or errored (or, with
 `--strict`, is unresolved); 1 for a usage error (unknown option or Configuration).
+
+## CALC
+`constraints calc` evaluates the `body:` of a `CalculationDef` (`bodyLanguage` absent,
+`budget` or `syscribe`) with its `in` parameters from `--set`, else their `value:` defaults
+(read with their `unit:`), over the same attribute and configuration environment as `check`.
+It prints the result in SI base units (`--json`: {calculation, value, unit, dimension,
+bindings}). A missing input or an evaluation error exits 2; something that is not an
+evaluable CalculationDef (a ConstraintDef, an `alf`/`kerml`/`ocl` body, an unknown name) is a
+usage error (1).
+
+## SWEEP
+`constraints sweep` evaluates the whole check set once per point of the grid spanned by the
+`--param` ranges: `3..7:1`, `1000kg..2000kg:250kg` (inclusive of the upper bound, positive step
+of the bounds' dimension) or a list `1,2,5`; several `--param`s form a Cartesian product, the
+last varying fastest. Each point binds its values last. The table (`--json`: points:[{values,
+summary, show}]) gives per point the pass/fail/unresolved/error counts and, with `--show`, the
+value of an expression at that point. A malformed range, or more than 5000 points, is a usage
+error (1); otherwise a sweep exits 0: it reports, it does not gate.

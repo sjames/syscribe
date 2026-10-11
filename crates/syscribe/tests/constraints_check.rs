@@ -222,7 +222,6 @@ fn calc(m: &M, args: &[&str]) -> (serde_json::Value, i32) {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn calc_evaluates_a_calculation_body_with_defaults_and_overrides() {
     let m = M::new();
     m.w("Defs/Range.md", RANGE_CALC);
@@ -236,7 +235,6 @@ fn calc_evaluates_a_calculation_body_with_defaults_and_overrides() {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn calc_bodies_can_read_attributes_and_report_missing_inputs() {
     let m = M::new();
     m.w("Defs/Twice.md", "---\ntype: CalculationDef\nname: Twice\nbody: \"Vehicle::massKg * 2\"\n---\n\nT.\n");
@@ -251,7 +249,6 @@ fn calc_bodies_can_read_attributes_and_report_missing_inputs() {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn calc_refuses_what_is_not_an_evaluable_calculation() {
     let m = M::new();
     m.w("Defs/MassMargin.md", MASS_DEF);
@@ -270,7 +267,6 @@ fn sweep(m: &M, args: &[&str]) -> (serde_json::Value, i32) {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn sweep_evaluates_the_checks_over_the_grid() {
     let m = base(Some("4"));
     let (v, c) = sweep(&m, &["--param", "Vehicle::massKg=3..7:1"]);
@@ -287,7 +283,6 @@ fn sweep_evaluates_the_checks_over_the_grid() {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn sweep_takes_lists_and_a_cartesian_product() {
     let m = base(Some("4"));
     let (v, _) = sweep(&m, &["--param", "Vehicle::massKg=1,5,9"]);
@@ -298,7 +293,6 @@ fn sweep_takes_lists_and_a_cartesian_product() {
 }
 
 #[test]
-#[ignore = "calc/sweep are specified in REQ-TRS-PARAM-001 and implemented next (GH #274)"]
 fn sweep_rejects_bad_ranges_and_huge_grids() {
     let m = base(Some("4"));
     for bad in ["Vehicle::massKg=3..7", "Vehicle::massKg=3..7:0", "Vehicle::massKg=7..3:1", "Vehicle::massKg=3kg..7s:1kg", "nonsense", "Vehicle::massKg=1..100000:1"] {

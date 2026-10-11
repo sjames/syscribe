@@ -96,7 +96,7 @@ use syscribe_model::constraints::{attribute_env, check_all, config_env, summary,
 use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::resolver::Resolver;
 
-const CONSTRAINTS_USAGE: &str = "Usage: syscribe -m <root> constraints check [--config <CONF> | --all-configs] [--set name=value]... [--strict] [--json]";
+const CONSTRAINTS_USAGE: &str = "Usage: syscribe -m <root> constraints check [--config <CONF> | --all-configs] [--set name=value]... [--strict] [--json]\n       syscribe -m <root> constraints calc <CalculationDef> [--config <CONF>] [--set name=value]... [--json]\n       syscribe -m <root> constraints sweep --param name=<lo>..<hi>:<step> [--param ...] [--config <CONF>] [--set name=value]... [--show '<expr>'] [--json]";
 
 fn usage_err(msg: &str) -> i32 {
     eprintln!("constraints: {msg}\n{CONSTRAINTS_USAGE}");
@@ -190,6 +190,8 @@ fn summary_line(results: &[CheckResult]) -> String {
 pub fn cmd_constraints(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>) -> i32 {
     match args.first().map(String::as_str) {
         Some("check") => {}
+        Some("calc") => return cmd_calc(&args[1..], lens),
+        Some("sweep") => return cmd_sweep(&args[1..], lens),
         Some(other) => return usage_err(&format!("unknown subcommand '{other}'")),
         None => return usage_err("a subcommand is required"),
     }
@@ -946,6 +948,200 @@ pub fn cmd_export_scxml(elems: &[RawElement], args: &[String]) -> i32 {
             println!("Wrote {f} ({} state(s), {} transition(s), {} note(s))", machine.states.len(), machine.transitions.len(), warnings.len());
         }
         None => print!("{doc}"),
+    }
+    0
+}
+
+// ── constraints calc / sweep (GH #274) ───────────────────────────────────────
+
+use syscribe_model::constraints::{calc_params, coerce_param, evaluate_value};
+
+/// `constraints calc <CalculationDef> [--config <C>] [--set name=value]... [--json]`
+fn cmd_calc(args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>) -> i32 {
+    let pos = args.iter().enumerate().position(|(i, a)| !a.starts_with("--") && !(i > 0 && matches!(args[i - 1].as_str(), "--set" | "--config")));
+    let Some(pos) = pos else { return usage_err("calc needs a CalculationDef") };
+    let name = &args[pos];
+    let rest: Vec<String> = args.iter().enumerate().filter(|(i, _)| *i != pos).map(|(_, a)| a.clone()).collect();
+    let o = match parse_opts(&rest) {
+        Ok(o) => o,
+        Err(m) => return usage_err(&m),
+    };
+    let view = lens(o.config.as_deref());
+    let resolver = Resolver::new(&view);
+    let Some(def) = resolver.resolve_ref(&view, name).filter(|d| d.frontmatter.element_type == Some(ElementType::CalculationDef)) else {
+        return usage_err(&format!("'{name}' is not a CalculationDef of the model"));
+    };
+    if !matches!(def.frontmatter.body_language.as_deref(), None | Some("budget") | Some("syscribe")) {
+        return usage_err(&format!("the body of {} is written in {}, which syscribe does not evaluate", def.qualified_name, def.frontmatter.body_language.as_deref().unwrap_or("")));
+    }
+    let Some(body) = def.frontmatter.body.as_deref() else { return usage_err(&format!("{} has no body", def.qualified_name)) };
+    let mut env = build_env(&view, o.config.as_deref(), &o.sets);
+    let mut bound: BTreeMap<String, String> = BTreeMap::new();
+    for (pname, ty, unit, default) in calc_params(def) {
+        let given = o.sets.iter().find(|(k, _)| *k == pname).map(|(_, v)| v.clone());
+        let v = match given {
+            Some(v) => Some(v),
+            None => default.and_then(|d| evaluate_value(&view, &d, &syscribe_model::constraints::Env::new()).ok()),
+        };
+        if let Some(v) = v {
+            let v = coerce_param(v, ty.as_deref(), unit.as_deref());
+            bound.insert(pname.clone(), format_value(&v));
+            env.insert(pname, v);
+        }
+    }
+    match evaluate_value(&view, body, &env) {
+        Ok(v) => {
+            if o.json {
+                let (value, unit, dim) = match &v {
+                    Value::Num(q) => (json!(q.v), json!(unit_label(&q.dim)), q.dim.human()),
+                    Value::Bool(b) => (json!(b), json!(null), "n/a".into()),
+                    Value::Str(s) => (json!(s), json!(null), "n/a".into()),
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({"calculation": def.qualified_name, "value": value, "unit": unit, "dimension": dim, "bindings": bound})).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_value(&v));
+            }
+            0
+        }
+        Err(e) => {
+            if o.json {
+                println!("{}", serde_json::to_string_pretty(&json!({"calculation": def.qualified_name, "error": e, "bindings": bound})).unwrap_or_default());
+            } else {
+                eprintln!("constraints calc: {e}");
+            }
+            2
+        }
+    }
+}
+
+const MAX_SWEEP_POINTS: usize = 5000;
+
+/// One `--param` range: `lo..hi:step` (inclusive) or a list `a,b,c`.
+fn parse_range(spec: &str) -> Result<(String, Vec<Value>), String> {
+    let (name, range) = spec.split_once('=').filter(|(n, _)| !n.trim().is_empty()).ok_or_else(|| format!("--param expects name=range, got '{spec}'"))?;
+    let name = name.trim().to_string();
+    if let Some((lo, rest)) = range.split_once("..") {
+        let (hi, step) = rest.split_once(':').ok_or_else(|| format!("--param {name}: a range is lo..hi:step"))?;
+        let get = |t: &str, what: &str| parse_value(t.trim()).and_then(|v| if let Value::Num(q) = v { Some(q) } else { None }).ok_or_else(|| format!("--param {name}: {what} '{t}' is not a number"));
+        let (lo, hi, step) = (get(lo, "the lower bound")?, get(hi, "the upper bound")?, get(step, "the step")?);
+        if lo.dim != hi.dim || lo.dim != step.dim {
+            return Err(format!("--param {name}: the bounds and the step must have the same dimension"));
+        }
+        if !(step.v > 0.0) {
+            return Err(format!("--param {name}: the step must be positive"));
+        }
+        if hi.v < lo.v {
+            return Err(format!("--param {name}: the upper bound is below the lower bound"));
+        }
+        let n = ((hi.v - lo.v) / step.v + 1e-9).floor() as usize + 1;
+        if n > MAX_SWEEP_POINTS {
+            return Err(format!("--param {name}: {n} values exceed the limit of {MAX_SWEEP_POINTS} points"));
+        }
+        Ok((name, (0..n).map(|i| Value::Num(syscribe_model::expr::Quantity { v: lo.v + step.v * i as f64, dim: lo.dim })).collect()))
+    } else {
+        let vals: Option<Vec<Value>> = range.split(',').map(|t| parse_value(t.trim())).collect();
+        match vals {
+            Some(v) if !v.is_empty() => Ok((name, v)),
+            _ => Err(format!("--param {name}: '{range}' is neither lo..hi:step nor a comma-separated list of values")),
+        }
+    }
+}
+
+/// `constraints sweep --param name=<range> ... [--show '<expr>'] [--config <C>] [--set ...] [--json]`
+fn cmd_sweep(args: &[String], lens: &dyn Fn(Option<&str>) -> Vec<RawElement>) -> i32 {
+    let mut params: Vec<(String, Vec<Value>)> = Vec::new();
+    let mut show: Option<String> = None;
+    let mut rest: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--param" => {
+                i += 1;
+                let Some(spec) = args.get(i) else { return usage_err("--param expects name=range") };
+                match parse_range(spec) {
+                    Ok(p) => params.push(p),
+                    Err(m) => return usage_err(&m),
+                }
+            }
+            "--show" => {
+                i += 1;
+                let Some(e) = args.get(i) else { return usage_err("--show expects an expression") };
+                show = Some(e.clone());
+            }
+            other => {
+                rest.push(other.to_string());
+                if matches!(other, "--set" | "--config") {
+                    i += 1;
+                    match args.get(i) {
+                        Some(v) => rest.push(v.clone()),
+                        None => return usage_err(&format!("{other} expects a value")),
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    if params.is_empty() {
+        return usage_err("sweep needs at least one --param");
+    }
+    let o = match parse_opts(&rest) {
+        Ok(o) => o,
+        Err(m) => return usage_err(&m),
+    };
+    let total = params.iter().try_fold(1usize, |a, p| a.checked_mul(p.1.len()));
+    match total {
+        Some(t) if t <= MAX_SWEEP_POINTS => {}
+        _ => return usage_err(&format!("the grid exceeds {MAX_SWEEP_POINTS} points")),
+    }
+    let view = lens(o.config.as_deref());
+    let base_env = build_env(&view, o.config.as_deref(), &o.sets);
+    // Cartesian product in --param order, the last parameter varying fastest.
+    let mut points: Vec<Vec<usize>> = vec![vec![]];
+    for (_, vals) in &params {
+        points = points.into_iter().flat_map(|p| (0..vals.len()).map(move |k| { let mut q = p.clone(); q.push(k); q })).collect();
+    }
+    let alt_key = |k: &str| -> Option<String> {
+        if let Some(pos) = k.rfind("::") {
+            Some(format!("{}.{}", &k[..pos], &k[pos + 2..]))
+        } else {
+            k.rfind('.').map(|pos| format!("{}::{}", &k[..pos], &k[pos + 1..]))
+        }
+    };
+    let mut rows: Vec<serde_json::Value> = Vec::new();
+    for p in &points {
+        let mut env = base_env.clone();
+        let mut values: BTreeMap<String, String> = BTreeMap::new();
+        for ((name, vals), k) in params.iter().zip(p) {
+            let v = vals[*k].clone();
+            values.insert(name.clone(), format_value(&v));
+            if let Some(a) = alt_key(name) {
+                env.insert(a, v.clone());
+            }
+            env.insert(name.clone(), v);
+        }
+        let results = check_all(&view, &env);
+        let s = summary(&results);
+        let shown = show.as_ref().map(|e| evaluate_value(&view, e, &env).map(|v| format_value(&v)).unwrap_or_else(|m| format!("({m})")));
+        rows.push(json!({"values": values, "summary": {"pass": s["pass"], "fail": s["fail"], "unresolved": s["unresolved"], "error": s["error"]}, "show": shown}));
+    }
+    if o.json {
+        println!("{}", serde_json::to_string_pretty(&json!({"params": params.iter().map(|p| p.0.clone()).collect::<Vec<_>>(), "points": rows})).unwrap_or_default());
+    } else {
+        let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+        println!("| {} | pass | fail | unresolved | error |{}", names.join(" | "), if show.is_some() { " show |" } else { "" });
+        println!("|{}---|---|---|---|{}", "---|".repeat(names.len()), if show.is_some() { "---|" } else { "" });
+        for r in &rows {
+            let vals: Vec<String> = names.iter().map(|n| r["values"][n].as_str().unwrap_or("").to_string()).collect();
+            println!(
+                "| {} | {} | {} | {} | {} |{}",
+                vals.join(" | "),
+                r["summary"]["pass"], r["summary"]["fail"], r["summary"]["unresolved"], r["summary"]["error"],
+                r["show"].as_str().map(|s| format!(" {s} |")).unwrap_or_default()
+            );
+        }
     }
     0
 }
