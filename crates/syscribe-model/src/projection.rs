@@ -176,6 +176,10 @@ pub fn project(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
     view
 }
 
+fn true_features(sel: &Selection) -> std::collections::BTreeSet<String> {
+    sel.iter().filter(|(_, v)| **v).map(|(k, _)| k.clone()).collect()
+}
+
 /// The projected (active) element set with placeholders left symbolic. Validation, suspect-link
 /// and baseline checks use this: their recorded hashes were taken on the base model, so a
 /// substituted body would read as drift (GH #265 review).
@@ -185,7 +189,16 @@ pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> 
     let sel = variability::canon_selection(sel, &alias);
     let resolver = Resolver::new(elements);
     let gate = |e: &RawElement| is_active_canon(e, &sel, &pkg, &alias);
-    elements.iter().filter(|e| gate(e) && !allocation_gated_off(e, elements, &resolver, &gate)).cloned().collect()
+    // a TestPlan bound to Configurations (and gated by no `appliesWhen`) is a plan for those products only (GH #314)
+    let on = true_features(&sel);
+    let plan_bound_here = |e: &RawElement| {
+        if !matches!(e.frontmatter.element_type, Some(ElementType::TestPlan)) || e.frontmatter.configurations.is_none() || variability::effective_applies_when(e, &pkg).is_some() {
+            return true;
+        }
+        let bound = crate::testplan::plan_configs(e, elements, &resolver);
+        bound.is_empty() || bound.iter().any(|c| true_features(&variability::canon_selection(&c.frontmatter.feature_selections(), &alias)) == on)
+    };
+    elements.iter().filter(|e| gate(e) && plan_bound_here(e) && !allocation_gated_off(e, elements, &resolver, &gate)).cloned().collect()
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────
