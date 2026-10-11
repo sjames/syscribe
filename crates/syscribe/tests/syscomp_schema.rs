@@ -175,3 +175,12 @@ fn fan_in_and_environment_events_are_not_w936_false_positives() {
     let o = validate(&[("ReceiverMachine", &rx_extra)]);
     assert!(!has(&o, "W936"), "an event injected from the environment is fine: {o}");
 }
+
+#[test]
+fn a_binding_needs_a_source_per_sink_and_a_part_with_behaviour() {
+    let idle = "---\ntype: PartDef\nname: IdleP\n---\nNo behaviour.\n";
+    let sys = SYSTEM.replace("  - {name: rx, typedBy: ReceiverPart}\n", "  - {name: rx, typedBy: ReceiverPart}\n  - {name: idle, typedBy: IdleP}\n").replace("{from: tx.dist, to: rx.dist}", "{from: tx.dist, to: idle.x}");
+    assert!(has(&validate(&[("System", &sys), ("IdleP", idle)]), "E933"), "inert part");
+    let twice = SYSTEM.replace("{from: tx.dist, to: rx.dist}", "{from: tx.dist, to: rx.dist}\n  - {from: tx.level, to: rx.dist}");
+    assert!(has(&validate(&[("System", &twice)]), "E933"), "two sources");
+}

@@ -83,7 +83,7 @@ bindingConnections:
   - {from: ctl.thrust, to: ball.thrust} # machine variable → plant input
 ```
 
-The loop, units and evidence are those of the FMI page: inputs are held over a step, the step is cut at the earliest timer or delayed message, outputs are read at the boundary and the machines then settle; every scenario starts with fresh plants and the verdict lists their provenance. Direction, type and unit dimension of each plant binding are checked before the run. A composite with a plant part is refused (exit 1) in a build without the feature.
+The loop, units and evidence are those of the FMI page: inputs are held over a step, the step is cut at the earliest timer or delayed message, outputs are read at the boundary and the machines then settle; every scenario starts with fresh plants and the verdict lists their provenance. Direction, type and unit dimension of each plant binding are checked before the run. Outputs of one communication point reach the machines together, before any timer due at that instant fires. A variable has at most one source (`E933`), and a binding needs parts that have behaviour. `validate` checks the plant files and `plantStep`; the direction, type and unit dimension of each plant binding are checked when `simulate` builds the system. The evidence hash covers the communication step and every plant's file hash and parameters. A composite with a plant part is refused (exit 1) in a build without the feature.
 
 ## Not in this version
 

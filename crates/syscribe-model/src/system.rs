@@ -334,6 +334,23 @@ pub fn check(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) ->
         }
     }
 
+    // E933 — one source per sink, and no binding to a part that has no behaviour.
+    let mut sinks: BTreeSet<(usize, String)> = BTreeSet::new();
+    for b in &spec.bindings {
+        let (fi, ti) = (&spec.instances[b.from.0], &spec.instances[b.to.0]);
+        if !sinks.insert(b.to.clone()) {
+            out.push(("E933", format!("{q}: binding {}.{} → {}.{}: {}.{} already has a source", fi.name, b.from.1, ti.name, b.to.1, ti.name, b.to.1)));
+        }
+        for i in [fi, ti] {
+            if matches!(i.behavior, Behavior::Inert) {
+                out.push(("E933", format!("{q}: binding {}.{} → {}.{}: part '{}' has no behaviour to bind to", fi.name, b.from.1, ti.name, b.to.1, i.name)));
+            }
+        }
+    }
+    if crate::plant::backend().is_some() && spec.instances.iter().any(|i| matches!(i.behavior, Behavior::Plant(_))) && elem.frontmatter.plant_step.is_none() {
+        out.push(("E888", format!("{q}: a composite with plant parts needs a `plantStep:` (the communication step)")));
+    }
+
     // E933 — bindings join variables of compatible type and dimension.
     for b in &spec.bindings {
         let (fi, ti) = (&spec.instances[b.from.0], &spec.instances[b.to.0]);

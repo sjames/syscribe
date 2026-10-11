@@ -1,7 +1,6 @@
 //! TC-TRS-SYSCOMP-001 / REQ-TRS-SYSCOMP-001 (GH #299): FMU plants as parts of a composite, tested with an analytic mock
 //! plant so no FMI library is needed. (The backend is process-global; the "no backend" case is in `system_plant_gating.rs`.)
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, Once};
@@ -28,6 +27,7 @@ fn info(file: &str) -> FmuInfo {
         supports_cosimulation: true,
         variables: vec![
             var("h", Causality::Output, VarType::Real, Some(Dim([1, 0, 0, 0, 0, 0, 0]))),
+            var("v", Causality::Output, VarType::Real, Some(Dim([1, 0, -1, 0, 0, 0, 0]))),
             var("thrust", Causality::Input, VarType::Real, None),
             var("e", Causality::Parameter, VarType::Real, None),
         ],
@@ -60,6 +60,7 @@ impl Plant for Ball {
     fn get(&mut self, name: &str) -> Result<f64, String> {
         match name {
             "h" => Ok(self.h),
+            "v" => Ok(self.v),
             o => Err(format!("cannot get {o}")),
         }
     }
@@ -252,5 +253,52 @@ fn a_step_budget_refuses_absurd_runs() {
     assert!(s.error().is_some_and(|e| e.contains("communication steps")), "{:?}", s.error());
 }
 
-#[allow(dead_code)]
-fn unused(_: HashMap<String, Value>) {}
+
+#[test]
+fn a_timer_due_at_a_communication_point_sees_the_plant_outputs_of_that_point() {
+    let ctl = "variables:
+  - {name: height, value: \"0\", unit: \"SI::m\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: Landed, accept: {after: \"300 ms\"}, guard: \"height < 0.7 m\"}
+  - name: Landed
+";
+    let w = world(Some(ctl), READ, Some("100 ms"), "ball-{id}.fmu");
+    let m = build(&w).unwrap();
+    let mut s = System::new(&m, Options::default());
+    s.advance(0.3);
+    // at 0.2 s the ball is at 0.804 m (not below 0.7); at 0.3 s it is at 0.559 m: the guard must see the 0.3 s value
+    assert_eq!(s.active("ctl").unwrap(), ["Landed"]);
+}
+
+#[test]
+fn all_outputs_of_a_communication_point_reach_the_machine_together() {
+    let ctl = "variables:
+  - {name: height, value: \"0\", unit: \"SI::m\"}
+  - {name: velocity, value: \"0 m / 1 s\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: Wrong, accept: {when: \"height < 0.7 m and velocity > -2.5 m / 1 s\"}}
+  - name: Wrong
+";
+    let w = world(Some(ctl), &format!("{READ}  - {{from: ball.v, to: ctl.velocity}}\n"), Some("100 ms"), "ball-{id}.fmu");
+    let m = build(&w).unwrap();
+    let mut s = System::new(&m, Options::default());
+    s.advance(0.5);
+    // at 0.3 s the true snapshot is h = 0.559 m, v = -2.94 m/s (guard false); a new height with the previous velocity
+    // (-1.96 m/s) would make it true
+    assert_eq!(s.active("ctl").unwrap(), ["A"], "the guard never saw a half-updated snapshot");
+}
+
+#[test]
+fn two_sources_for_one_variable_and_a_changed_plant_configuration() {
+    let w = world(None, &format!("{READ}{READ}"), Some("100 ms"), "ball-{id}.fmu");
+    assert!(build(&w).err().unwrap().iter().any(|x| x.contains("already has a source")));
+    let a = build(&world(None, READ, Some("100 ms"), "ball-{id}.fmu")).unwrap();
+    let b = build(&world(None, READ, Some("20 ms"), "ball-{id}.fmu")).unwrap();
+    assert_ne!(a.hash, b.hash, "the communication step is part of the evidence hash");
+}

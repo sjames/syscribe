@@ -89,7 +89,8 @@ impl SystemModel {
             let parts: Vec<_> = spec.instances.iter().zip(&machines).map(|(i, m)| serde_json::json!({"name": i.name, "machine": m.as_ref().map(|m| m.hash.clone())})).collect();
             let links: Vec<_> = spec.links.iter().map(|l| serde_json::json!([spec.instances[l.from.0].name, l.from.1, spec.instances[l.to.0].name, l.to.1, l.delay])).collect();
             let binds: Vec<_> = spec.bindings.iter().map(|b| serde_json::json!([spec.instances[b.from.0].name, b.from.1, spec.instances[b.to.0].name, b.to.1])).collect();
-            blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds}).to_string().as_bytes()).to_hex().to_string()
+            let plant_cfg: Vec<_> = spec.instances.iter().zip(&plants).filter_map(|(i, p)| p.as_ref().map(|p| serde_json::json!({"name": i.name, "sha256": p.info.sha256, "fmiVersion": p.info.fmi_version, "parameters": p.params}))).collect();
+            blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds, "plantStep": plant_step, "plants": plant_cfg}).to_string().as_bytes()).to_hex().to_string()
         };
         Ok(SystemModel { spec, machines, plants, exchanges, plant_step, hash })
     }
@@ -304,21 +305,23 @@ impl<'m> System<'m> {
         }
     }
 
-    /// Read plant outputs into the machine variables bound to them; a sink that changed settles.
-    fn read_plants(&mut self) {
+    /// Read the plant outputs at communication point `t` and hand them to the machines bound to them, all together and
+    /// without settling: the next `advance_to` makes them visible at once, so a guard never sees half an update.
+    fn read_plants(&mut self, t: f64) {
         let model = self.model;
+        let mut staged: Vec<Vec<(String, Value)>> = model.machines.iter().map(|_| Vec::new()).collect();
         for ex in &model.exchanges {
             if let Exchange::Read { plant: pi, var, sink, machine_bool, machine_dim } = ex {
                 let Some(p) = self.plants.get_mut(*pi).and_then(|p| p.as_mut()) else { continue };
-                let v = match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
-                    Ok(v) => v,
+                match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
+                    Ok(v) => staged[sink.0].push((sink.1.clone(), v)),
                     Err(e) => return self.fail(e),
-                };
-                if let Some(r) = self.runs[sink.0].as_mut() {
-                    if r.var(&sink.1).is_none_or(|cur| format_value(&cur) != format_value(&v)) {
-                        r.set(&sink.1, v);
-                    }
                 }
+            }
+        }
+        for (r, vals) in self.runs.iter_mut().zip(&staged) {
+            if let (Some(r), false) = (r.as_mut(), vals.is_empty()) {
+                r.stage_values(t, vals);
             }
         }
     }
@@ -445,7 +448,7 @@ impl<'m> System<'m> {
                 return self.fail(format!("{secs} s at a plant step of {h} s is more than 5,000,000 communication steps; use a larger `plantStep`"));
             }
         }
-        while self.time < target && self.error().is_none() {
+        while self.time < target - 1e-12 && self.error().is_none() {
             let timers = self.runs.iter().flatten().filter_map(|r| r.next_timer());
             let grid = h.map(|h| ((self.time / h + 1e-9).floor() + 1.0) * h);
             let due = self.queue.iter().map(|m| m.due).chain(timers).chain(grid).filter(|d| *d > self.time).fold(f64::INFINITY, f64::min);
@@ -457,13 +460,22 @@ impl<'m> System<'m> {
                     return;
                 }
             }
+            // the outputs of the step are visible to the machines before any timer due at `t` fires
+            if h.is_some() {
+                self.read_plants(t);
+            }
             for r in self.runs.iter_mut().flatten() {
                 r.advance_to(t);
             }
             self.time = t;
-            if h.is_some() {
-                self.read_plants();
+            self.quiesce();
+        }
+        if self.time < target && self.error().is_none() {
+            // less than the loop's tolerance remains
+            for r in self.runs.iter_mut().flatten() {
+                r.advance_to(target);
             }
+            self.time = target;
             self.quiesce();
         }
     }

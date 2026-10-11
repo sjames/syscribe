@@ -364,6 +364,35 @@ impl<'m> Run<'m> {
         self.finish(r);
     }
 
+    /// Write environment values that arrive at virtual time `at` (a plant's outputs at a communication point) without
+    /// running the machine: all of them become visible together at the next `advance_to`, which settles once. The change is
+    /// traced as one `plant` step.
+    pub fn stage_values(&mut self, at: f64, values: &[(String, Value)]) {
+        if self.halted() {
+            return;
+        }
+        let before = self.vars.clone();
+        let r = (|| -> R<()> {
+            for (name, v) in values {
+                let Some(slot) = self.m.variables.iter().position(|x| &x.name == name) else {
+                    return Err(format!("set: '{name}' is not a variable of the machine"));
+                };
+                check_assignable(name, &self.vars[slot], v)?;
+                self.vars[slot] = v.clone();
+            }
+            Ok(())
+        })();
+        let saved = self.time;
+        self.time = at;
+        let mut step = self.begin("plant".into());
+        self.time = saved;
+        self.record_changes(&before, &mut step);
+        if !step.changed.is_empty() {
+            self.trace.push(step);
+        }
+        self.finish(r);
+    }
+
     /// Evaluate an expression over the variables (no payload scope).
     pub fn eval_str(&self, src: &str) -> Result<Value, String> {
         let ast = crate::expr::parse(src).map_err(|e| format!("`{src}`: {e}"))?;

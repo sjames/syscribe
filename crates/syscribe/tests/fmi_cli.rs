@@ -258,6 +258,16 @@ mod composite_with_the_feature {
     }
 
     #[test]
+    fn a_composite_with_plants_needs_a_step() {
+        let root = composite_model(GOOD_SHA);
+        let sys = std::fs::read_to_string(root.join("Sys.md")).unwrap().replace("plantStep: \"10 ms\"\n", "");
+        std::fs::write(root.join("Sys.md"), sys).unwrap();
+        let (c, t) = run(&root, &["validate"]);
+        assert_eq!(c, 1, "{t}");
+        assert!(t.contains("E888") && t.contains("plantStep"), "{t}");
+    }
+
+    #[test]
     fn a_bad_composite_step_is_e888() {
         let root = composite_model(GOOD_SHA);
         let sys = std::fs::read_to_string(root.join("Sys.md")).unwrap().replace("10 ms", "10 kg");
