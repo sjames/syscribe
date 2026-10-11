@@ -309,14 +309,14 @@ subStates:
   - name: A
     isInitial: true
     transitions:
-      - {internal: true, accept: Pkg::Bad, assign: \"t := 5\"}
+      - {internal: true, accept: {payload: Pkg::Bad, as: m}, assign: \"t := m.v\"}
       - {internal: true, accept: Pkg::Ok, assign: \"t := t + 2 s\"}
 ",
     );
     let mut r = Run::new(&m, Options::default());
     r.send("Pkg::Ok", &[]);
     assert_eq!(num(&r, "t"), "3 s");
-    r.send("Pkg::Bad", &[]);
+    r.send("Pkg::Bad", &[("v", val("5"))]);
     assert!(r.error().is_some_and(|e| e.contains("t")), "{:?}", r.error());
     let before = r.trace().len();
     r.send("Pkg::Ok", &[]);
@@ -443,9 +443,10 @@ subStates:
 
 #[test]
 fn a_run_error_is_recorded_in_the_trace() {
-    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {internal: true, accept: Pkg::E, guard: \"1 s + 1\"}\n");
+    // the payload field has no static type, so only the run can find the dimension error (a literal `1 s + 1` is E935)
+    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {internal: true, accept: {payload: Pkg::E, as: m}, guard: \"m.level + 1 s > 0 s\"}\n");
     let mut r = Run::new(&m, Options::default());
-    r.send("Pkg::E", &[]);
+    r.send("Pkg::E", &[("level", val("1"))]);
     let last = r.trace().last().unwrap();
     assert_eq!(last.cause, "error");
     assert!(last.note.as_deref().is_some_and(|n| n.contains("guard")), "{last:?}");
