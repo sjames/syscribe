@@ -1,0 +1,213 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1760 1080" width="1760" height="1080" font-family="Helvetica,Arial,sans-serif">
+<title>BDD Grid-Tie Inverter</title><defs>
+<marker id="a-pw" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/></marker>
+<marker id="a-sg" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+<marker id="a-ct" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#15803d"/></marker>
+<marker id="a-sf" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker>
+<marker id="a-ex" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+<marker id="a-op" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+<marker id="dia" viewBox="0 0 14 10" refX="1" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L7,0 L14,5 L7,10 z" fill="#374151"/></marker>
+<marker id="tri" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#374151"/></marker>
+</defs>
+<rect width="1760" height="1080" fill="#ffffff"/>
+<text x="20" y="24" font-size="16" font-weight="bold" fill="#111827" text-anchor="start">bdd  [Package] Grid-Tie Inverter — system context and decomposition</text>
+<rect x="30" y="45" width="190" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="125.0" y="61" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="125.0" y="76" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">PV Array</text>
+<text x="125.0" y="92" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">up to 3 trackers × 2 strings</text>
+<text x="125.0" y="106" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">1000 V DC</text>
+<rect x="240" y="45" width="190" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="335.0" y="61" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="335.0" y="76" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Utility grid</text>
+<text x="335.0" y="92" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">US 208 V 60 Hz</text>
+<text x="335.0" y="106" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IN 415 V 50 Hz</text>
+<rect x="450" y="45" width="190" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="545.0" y="61" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="545.0" y="76" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Owner / utility head-end</text>
+<text x="545.0" y="92" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">SunSpec Modbus</text>
+<text x="545.0" y="106" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IEEE 2030.5 (US)</text>
+<rect x="660" y="45" width="190" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="755.0" y="61" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="755.0" y="76" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Installer service tool</text>
+<text x="755.0" y="92" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">commissioning, region lock</text>
+<text x="755.0" y="106" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">service credential</text>
+<rect x="870" y="45" width="190" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="965.0" y="61" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="965.0" y="76" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">RSD initiator</text>
+<text x="965.0" y="92" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">NEC 690.12 (US only)</text>
+<text x="965.0" y="106" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">firefighter / building</text>
+<rect x="560" y="190" width="640" height="120" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="880.0" y="206" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«system»</text>
+<text x="880.0" y="221" font-size="15" font-weight="bold" fill="#111827" text-anchor="middle">Grid-Tie Inverter  (GTI-10K)</text>
+<text x="880.0" y="237" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">10 kVA · 3-phase 4-wire · Vdc ≤ 1000 V · 2 or 3 MPPT trackers · 50 / 60 Hz · IP65</text>
+<text x="880.0" y="251" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">regions: US (IEEE 1547 · UL 1741 SB · NEC 690)  /  India (CEA · IS 16221 · IS 16169)</text>
+<text x="880.0" y="265" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">one hardware platform, region by authenticated commissioning profile</text>
+<text x="880.0" y="279" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">controller: STM32 (REQ-GTI-SYS-070, ADR-GTI-MCU-001)</text>
+<path d="M125,115 L125,178 L600,178 L600,190" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="129" y="174" font-size="9.5" font-weight="normal" fill="#6b7280" text-anchor="start">PV strings (DC)</text>
+<path d="M335,115 L335,166 L680,166 L680,190" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="339" y="162" font-size="9.5" font-weight="normal" fill="#6b7280" text-anchor="start">3φ AC</text>
+<path d="M545,115 L545,154 L760,154 L760,190" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="549" y="150" font-size="9.5" font-weight="normal" fill="#6b7280" text-anchor="start">Modbus / 2030.5</text>
+<path d="M755,115 L755,142 L840,142 L840,190" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="759" y="138" font-size="9.5" font-weight="normal" fill="#6b7280" text-anchor="start">RS-485 / Ethernet</text>
+<path d="M965,115 L965,130 L920,130 L920,190" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="969" y="126" font-size="9.5" font-weight="normal" fill="#6b7280" text-anchor="start">initiator signal</text>
+<path d="M640,310 L640,350" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M1120,310 L1120,350" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linejoin="round"/>
+<rect x="20" y="350" width="1000" height="700" rx="10" fill="#fbfdff" stroke="#2c5a8c" stroke-width="1.8"/>
+<text x="34" y="370" font-size="13" font-weight="bold" fill="#2c5a8c" text-anchor="start">«hw»  Hardware</text>
+<rect x="1040" y="350" width="700" height="700" rx="10" fill="#fbfefb" stroke="#2f7a3d" stroke-width="1.8"/>
+<text x="1054" y="370" font-size="13" font-weight="bold" fill="#2f7a3d" text-anchor="start">«deploymentPackage»  Firmware  (System::Software::Firmware)</text>
+<rect x="40" y="390" width="300" height="130" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="190.0" y="406" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="190.0" y="421" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">DC Input</text>
+<text x="190.0" y="437" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">2 strings per tracker · 1000 V gPV fuses</text>
+<text x="190.0" y="451" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">reverse diodes · DC switch · type-II SPD</text>
+<text x="190.0" y="465" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: pvIn · dcOut · strSense</text>
+<text x="190.0" y="479" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SYS-034 SYS-035 HW-007</text>
+<rect x="360" y="390" width="300" height="130" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="510.0" y="406" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="510.0" y="421" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Power Stage</text>
+<text x="510.0" y="437" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">boost per tracker (SiC 1200 V) → DC link ≈ 800 V</text>
+<text x="510.0" y="451" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">3-level T-type bridge · 16–48 kHz</text>
+<text x="510.0" y="465" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator overcurrent trip ≤ 10 µs</text>
+<text x="510.0" y="479" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: dcIn · acOut · gate · hwDisable · tempOut</text>
+<text x="510.0" y="493" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SYS-037 HW-006</text>
+<rect x="680" y="390" width="320" height="130" rx="6" fill="#fdeceb" stroke="#b42318" stroke-width="1.5"/>
+<text x="840.0" y="406" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="840.0" y="421" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">AC Output</text>
+<text x="840.0" y="437" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">LCL filter · Relay A + Relay B in series</text>
+<text x="840.0" y="451" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">weld detection · type-II AC SPD · RCMU</text>
+<text x="840.0" y="465" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: acIn · gridOut · relayDrive · relayTrip · relayAux · acSense</text>
+<text x="840.0" y="479" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SYS-038 HW-002 HW-009</text>
+<rect x="40" y="540" width="300" height="130" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="190.0" y="556" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="190.0" y="571" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Sensing</text>
+<text x="190.0" y="587" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">grid V ×2 independent isolated chains</text>
+<text x="190.0" y="601" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">AC / DC / string current · RCMU · insulation · temps</text>
+<text x="190.0" y="615" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: dcSig · acSig · tempSig · adcOut · hwVoltage</text>
+<text x="190.0" y="629" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SYS-031 HW-001 HW-003 HW-008 HW-010</text>
+<rect x="360" y="540" width="300" height="130" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="510.0" y="556" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="510.0" y="571" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Arc-Fault Front End</text>
+<text x="510.0" y="587" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">10 kHz–1 MHz current pickups per input</text>
+<text x="510.0" y="601" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: pvTap · sig</text>
+<text x="510.0" y="615" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ HW-004 (SYS-032)</text>
+<rect x="616" y="545" width="38" height="14" rx="7" fill="#b45309"/>
+<text x="635.0" y="555.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">Afci</text>
+<rect x="680" y="540" width="320" height="130" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="840.0" y="556" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="840.0" y="571" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Rapid Shutdown Driver</text>
+<text x="840.0" y="587" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">power-line keep-alive / shutdown to module devices</text>
+<text x="840.0" y="601" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: cmd · dcLine</text>
+<text x="840.0" y="615" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ HW-005 (SYS-033)</text>
+<rect x="963" y="545" width="31" height="14" rx="7" fill="#b45309"/>
+<text x="978.5" y="555.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">RSD</text>
+<rect x="40" y="690" width="300" height="130" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="190.0" y="706" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="190.0" y="721" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Enclosure</text>
+<text x="190.0" y="737" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IP65 (NEMA 4X US) · passive heatsink</text>
+<text x="190.0" y="751" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">−25…+60 °C · derate above 45 °C</text>
+<text x="190.0" y="765" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SYS-040</text>
+<rect x="360" y="690" width="640" height="330" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="680.0" y="706" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="680.0" y="721" font-size="14" font-weight="bold" fill="#111827" text-anchor="middle">Control Board</text>
+<rect x="700" y="735" width="280" height="150" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="840.0" y="751" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="840.0" y="766" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">STM32G474  (Stm32G474)</text>
+<text x="840.0" y="782" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Cortex-M4F 170 MHz · 512 kB / 128 kB</text>
+<text x="840.0" y="796" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">HRTIM · 5 ADC · 7 comparators</text>
+<text x="840.0" y="810" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">CORDIC / FMAC</text>
+<text x="840.0" y="824" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S070 (STM32 constraint)</text>
+<rect x="380" y="735" width="300" height="150" rx="6" fill="#fdeceb" stroke="#b42318" stroke-width="1.5"/>
+<text x="530.0" y="751" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«safety, no firmware»</text>
+<text x="530.0" y="766" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Hardware trip + watchdog</text>
+<text x="530.0" y="782" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator window on chain B voltage</text>
+<text x="530.0" y="796" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">latch → gate disable (hwDisable)</text>
+<text x="530.0" y="810" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">latch → relay B open (relayTrip)</text>
+<text x="530.0" y="824" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">independent hardware watchdog</text>
+<rect x="700" y="900" width="280" height="100" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="840.0" y="916" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="840.0" y="931" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Comms HW</text>
+<text x="840.0" y="947" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">RS-485 · Ethernet PHY · status LED</text>
+<text x="840.0" y="961" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">ports: comms (inout) · initIn</text>
+<rect x="380" y="900" width="300" height="100" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="530.0" y="916" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Ports of Control Board</text>
+<text x="530.0" y="932" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">in: adcIn hwVin arcIn auxIn initIn</text>
+<text x="530.0" y="946" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">out: pwmOut hwTripGate relayCmd</text>
+<text x="530.0" y="960" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">hwTripRelay rsdCmd · inout: comms</text>
+<rect x="1060" y="385" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="401" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="416" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Supervisor</text>
+<text x="1215.0" y="432" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">state machine · start/stop · derate</text>
+<text x="1215.0" y="446" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S010 S036 S072 S080 SW007 SW005</text>
+<rect x="1390" y="385" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1545.0" y="401" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="416" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">MPPT Controller</text>
+<text x="1545.0" y="432" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">1 instance per tracker · P&amp;O + scan</text>
+<text x="1545.0" y="446" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S022 SW006 S023</text>
+<rect x="1060" y="490" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="506" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="521" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Grid Controller</text>
+<text x="1215.0" y="537" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">PLL · current loop · ride-through · VAr/Hz-Watt</text>
+<text x="1215.0" y="551" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S008 S011 S012 S013</text>
+<rect x="1390" y="490" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1545.0" y="506" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="521" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Protection Manager</text>
+<text x="1545.0" y="537" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">V/f trip table · anti-islanding · relays</text>
+<text x="1545.0" y="551" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SW001 SW002 SW008</text>
+<rect x="1060" y="595" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="611" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="626" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Grid Profile Manager</text>
+<text x="1215.0" y="642" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">active profile, locked at commissioning</text>
+<text x="1215.0" y="656" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S060</text>
+<rect x="1390" y="595" width="310" height="92" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="1545.0" y="611" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="626" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Arc-Fault Analyser</text>
+<text x="1545.0" y="642" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">spectral signature classification</text>
+<text x="1545.0" y="656" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SW004</text>
+<rect x="1656" y="600" width="38" height="14" rx="7" fill="#b45309"/>
+<text x="1675.0" y="610.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">Afci</text>
+<rect x="1060" y="700" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="716" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="731" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Insulation Monitor</text>
+<text x="1215.0" y="747" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">insulation check · RCMU</text>
+<text x="1215.0" y="761" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ SW003</text>
+<rect x="1390" y="700" width="310" height="92" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="1545.0" y="716" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="731" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">String Monitor</text>
+<text x="1545.0" y="747" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">under-performance detection</text>
+<text x="1545.0" y="761" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S024</text>
+<rect x="1642" y="705" width="52" height="14" rx="7" fill="#b45309"/>
+<text x="1668.0" y="715.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">StrMon</text>
+<rect x="1060" y="805" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="821" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="836" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Comms Stack</text>
+<text x="1215.0" y="852" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">SunSpec Modbus · IEEE 2030.5 · auth</text>
+<text x="1215.0" y="866" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S053 S050 S051</text>
+<rect x="1390" y="805" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1545.0" y="821" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="836" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Secure Update</text>
+<text x="1545.0" y="852" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">signed image · anti-rollback</text>
+<text x="1545.0" y="866" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S054</text>
+<rect x="1060" y="910" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1215.0" y="926" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1215.0" y="941" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Self Test</text>
+<text x="1215.0" y="957" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Class B style CPU/RAM/flash/clock/ADC</text>
+<text x="1215.0" y="971" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S071</text>
+<rect x="1390" y="910" width="310" height="92" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="1545.0" y="926" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1545.0" y="941" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Event Logger</text>
+<text x="1545.0" y="957" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">non-volatile ring log ≥ 1000 events</text>
+<text x="1545.0" y="971" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">REQ S052</text>
+<path d="M1040,810 L1000,810 L1000,810" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M1040,820 L960,820 L960,820" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M1040,815 L1002,815" stroke="#374151" stroke-width="1.8" stroke-dasharray="6 4" fill="none" marker-end="url(#tri)"/>
+<text x="1018" y="806" font-size="10" font-weight="bold" fill="#374151" text-anchor="middle">«allocate»</text>
+<path d="M640,310 l-7,10 l7,10 l7,-10 z" fill="#374151"/>
+<path d="M1120,310 l-7,10 l7,10 l7,-10 z" fill="#374151"/>
+<text x="650" y="345" font-size="10" font-weight="normal" fill="#374151" text-anchor="start">hardware: 8 parts (Control Board holds the STM32)</text>
+<text x="1130" y="345" font-size="10" font-weight="normal" fill="#374151" text-anchor="start">software: 1 deployment package, 12 components</text>
+<text x="20" y="1068" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="start">REQ Snnn = REQ-GTI-SYS-nnn · SWnnn / HWnnn = REQ-GTI-SW-nnn / REQ-GTI-HW-nnn. Amber = optional by feature (appliesWhen); red = safety path. Regulatory values are unverified review inputs.</text>
+</svg>

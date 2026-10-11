@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1060" width="1900" height="1060" font-family="Helvetica,Arial,sans-serif">
+<title>IBD Grid-Tie Inverter</title><defs>
+<marker id="a-pw" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/></marker>
+<marker id="a-sg" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+<marker id="a-ct" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#15803d"/></marker>
+<marker id="a-sf" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker>
+<marker id="a-ex" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+<marker id="a-op" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+<marker id="dia" viewBox="0 0 14 10" refX="1" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L7,0 L14,5 L7,10 z" fill="#374151"/></marker>
+<marker id="tri" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#374151"/></marker>
+</defs>
+<rect width="1900" height="1060" fill="#ffffff"/>
+<text x="20" y="24" font-size="16" font-weight="bold" fill="#111827" text-anchor="start">ibd  [System] Grid-Tie Inverter — power, sensing, control and protection</text>
+<rect x="20" y="380" width="160" height="120" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="100.0" y="396" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="100.0" y="411" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">PV Array</text>
+<text x="100.0" y="427" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">up to 3 trackers × 2 strings</text>
+<text x="100.0" y="441" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Voc ≤ 1000 V DC</text>
+<text x="100.0" y="455" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">MPPT window 200–850 V</text>
+<rect x="1720" y="380" width="160" height="120" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1800.0" y="396" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="1800.0" y="411" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Utility grid</text>
+<text x="1800.0" y="427" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">3-phase 4-wire</text>
+<text x="1800.0" y="441" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">US 208 V / 60 Hz</text>
+<text x="1800.0" y="455" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IN 415 V / 50 Hz</text>
+<rect x="1720" y="170" width="160" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1800.0" y="186" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="1800.0" y="201" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Owner / utility head-end</text>
+<text x="1800.0" y="217" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">SunSpec Modbus · IEEE 2030.5</text>
+<rect x="1720" y="260" width="160" height="56" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1800.0" y="276" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="1800.0" y="291" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Installer service tool</text>
+<text x="1800.0" y="307" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">commissioning · profile lock</text>
+<rect x="1720" y="70" width="160" height="64" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="1800.0" y="86" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
+<text x="1800.0" y="101" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">RSD initiator</text>
+<text x="1800.0" y="117" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">US only · NEC 690.12</text>
+<rect x="200" y="40" width="1500" height="1000" rx="10" fill="#fbfdff" stroke="#2c5a8c" stroke-width="1.8"/>
+<text x="214" y="60" font-size="13" font-weight="bold" fill="#2c5a8c" text-anchor="start">«system»  Grid-Tie Inverter  (System::GridTieInverter)</text>
+<rect x="520" y="70" width="1000" height="200" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="1020.0" y="86" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1020.0" y="101" font-size="14" font-weight="bold" fill="#111827" text-anchor="middle">Control Board</text>
+<rect x="545" y="112" width="335" height="120" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
+<text x="712.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="712.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">STM32G474RE  (Stm32G474)</text>
+<text x="712.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Cortex-M4F · HRTIM · 5 ADC · 7 comparators</text>
+<text x="712.5" y="173" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">runs: Firmware (12 components)</text>
+<text x="712.5" y="187" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">self-test, window + independent watchdog</text>
+<rect x="900" y="112" width="345" height="120" rx="6" fill="#fdeceb" stroke="#b42318" stroke-width="1.5"/>
+<text x="1072.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«safety, independent of software»</text>
+<text x="1072.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Hardware trip</text>
+<text x="1072.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator window on chain B voltage</text>
+<text x="1072.5" y="173" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">latch → gate disable + relay B open</text>
+<text x="1072.5" y="187" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">re-arms when voltage returns</text>
+<rect x="1265" y="112" width="235" height="60" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="1382.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1382.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Comms HW</text>
+<text x="1382.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">RS-485 · Ethernet PHY · status LED</text>
+<rect x="260" y="400" width="260" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="390.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="390.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">DC Input</text>
+<text x="390.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">string fuses 1000 V gPV, reverse diodes</text>
+<text x="390.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">load-break DC switch · type-II SPD</text>
+<text x="390.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">per-string current sensing</text>
+<text x="390.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">1100 V-rated parts</text>
+<rect x="640" y="400" width="320" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="800.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="800.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Power Stage</text>
+<text x="800.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">interleaved boost per tracker (SiC 1200 V)</text>
+<text x="800.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">DC link ≈ 800 V</text>
+<text x="800.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">3-level T-type bridge · 16–48 kHz HRTIM</text>
+<text x="800.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator overcurrent trip ≤ 10 µs</text>
+<rect x="1040" y="400" width="320" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="1200.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1200.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">AC Output</text>
+<text x="1200.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">LCL filter</text>
+<text x="1200.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Relay A + Relay B in series (independent drivers)</text>
+<text x="1200.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">weld detection by aux contacts</text>
+<text x="1200.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">type-II AC SPD · RCMU sensor</text>
+<rect x="1400" y="330" width="230" height="52" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="1515.0" y="346" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1515.0" y="361" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Arc-Fault Front End</text>
+<text x="1515.0" y="377" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">10 kHz–1 MHz current pickups</text>
+<rect x="1586" y="335" width="38" height="14" rx="7" fill="#b45309"/>
+<text x="1605.0" y="345.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">Afci</text>
+<rect x="1400" y="430" width="230" height="60" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
+<text x="1515.0" y="446" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="1515.0" y="461" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Rapid Shutdown Driver</text>
+<text x="1515.0" y="477" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">power-line keep-alive / shutdown</text>
+<rect x="1593" y="435" width="31" height="14" rx="7" fill="#b45309"/>
+<text x="1608.5" y="445.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">RSD</text>
+<rect x="300" y="690" width="1060" height="100" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="830.0" y="706" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="830.0" y="721" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Sensing</text>
+<text x="830.0" y="737" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">grid voltage ×2 independent isolated chains (A → STM32 ADC, B → hardware trip) · AC current (perturbation check) · DC voltage · per-string current</text>
+<text x="830.0" y="751" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">residual-current (RCMU) · insulation-measurement network · temperatures</text>
+<rect x="300" y="880" width="330" height="64" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
+<text x="465.0" y="896" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
+<text x="465.0" y="911" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Enclosure</text>
+<text x="465.0" y="927" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IP65 (NEMA 4X US) · passive heatsink</text>
+<text x="465.0" y="941" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">−25…+60 °C, derate above 45 °C</text>
+<rect x="680" y="880" width="360" height="64" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="860.0" y="896" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Design notes</text>
+<text x="860.0" y="912" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">blue = power · grey = measurement · green = control</text>
+<text x="860.0" y="926" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">red = protection path independent of the firmware</text>
+<rect x="565.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="576" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">adcIn</text>
+<rect x="995.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1006" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwVin</text>
+<rect x="855.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="866" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pwmOut</text>
+<rect x="925.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="936" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwTripGate</text>
+<rect x="1125.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1136" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayCmd</text>
+<rect x="1195.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1206" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwTripRelay</text>
+<rect x="1275.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1286" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">auxIn</text>
+<rect x="1475.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1486" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">rsdCmd</text>
+<rect x="1515.5" y="145.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<path d="M1515.5,154.5 L1524.5,145.5 L1524.5,154.5 z" fill="#1f2937"/>
+<text x="1512" y="153.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">comms</text>
+<rect x="1515.5" y="100.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1512" y="108.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">initIn</text>
+<rect x="1515.5" y="210.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1512" y="218.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">arcIn</text>
+<rect x="255.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="268" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pvIn</text>
+<rect x="515.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="512" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">dcOut</text>
+<rect x="385.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="396" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">strSense</text>
+<rect x="635.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="648" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">dcIn</text>
+<rect x="955.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="952" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">acOut</text>
+<rect x="855.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="866" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">gate</text>
+<rect x="925.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="936" y="394" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwDisable</text>
+<rect x="695.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="706" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">tempOut</text>
+<rect x="1035.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1048" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acIn</text>
+<rect x="1355.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1352" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">gridOut</text>
+<rect x="1125.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1136" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayDrive</text>
+<rect x="1195.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1206" y="394" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">relayTrip</text>
+<rect x="1275.5" y="395.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1286" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayAux</text>
+<rect x="1315.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1326" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acSense</text>
+<rect x="1395.5" y="351.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1408" y="359.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pvTap</text>
+<rect x="1625.5" y="351.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1622" y="359.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">sig</text>
+<rect x="1510.5" y="425.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1521" y="424" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">cmd</text>
+<rect x="1625.5" y="455.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1622" y="463.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">dcLine</text>
+<rect x="385.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="396" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">dcSig</text>
+<rect x="695.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="706" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">tempSig</text>
+<rect x="1315.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1326" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acSig</text>
+<rect x="565.5" y="685.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="576" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">adcOut</text>
+<rect x="995.5" y="685.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
+<text x="1006" y="684" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwVoltage</text>
+<path d="M180,495 L260,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
+<text x="220" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">strings</text>
+<path d="M520,495 L640,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
+<text x="580" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">DC 200–850 V</text>
+<path d="M960,495 L1040,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
+<text x="1000" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">3φ PWM</text>
+<path d="M1360,495 L1720,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
+<text x="1540" y="519" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">3φ AC to grid</text>
+<path d="M390,590 L390,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
+<text x="392" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">string I, Vdc</text>
+<path d="M700,590 L700,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
+<text x="702" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">temps</text>
+<path d="M1320,590 L1320,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
+<text x="1322" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">grid V/I, RCMU</text>
+<path d="M570,690 L570,270" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
+<text x="564" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">chain A: grid V, I, DC</text>
+<path d="M1000,690 L1000,270" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
+<text x="1006" y="640" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">chain B: grid voltage (independent)</text>
+<path d="M860,270 L860,400" fill="none" stroke="#15803d" stroke-width="1.5" marker-end="url(#a-ct)" stroke-linejoin="round"/>
+<text x="866" y="335" font-size="10" fill="#15803d" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">PWM</text>
+<path d="M930,270 L930,400" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
+<text x="936" y="335" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">gate disable</text>
+<path d="M1130,270 L1130,400" fill="none" stroke="#15803d" stroke-width="1.5" marker-end="url(#a-ct)" stroke-linejoin="round"/>
+<text x="1124" y="335" font-size="10" fill="#15803d" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">relay A/B drive</text>
+<path d="M1200,270 L1200,400" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
+<text x="1206" y="335" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">trip → relay B</text>
+<path d="M1280,400 L1280,270" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
+<text x="1286" y="335" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">aux contacts</text>
+<path d="M1630,356 L1650,356 L1650,215 L1520,215" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
+<text x="1652" y="290" font-size="10" fill="#b45309" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">arc signature</text>
+<path d="M1400,356 L1384,356" fill="none" stroke="#b45309" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M1480,270 L1480,300 L1515,300 L1515,430" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
+<text x="1475" y="300" font-size="10" fill="#b45309" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">shutdown cmd</text>
+<path d="M1630,460 L1670,460 L1670,1015 L100,1015 L100,500" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
+<text x="900" y="1010" font-size="10" fill="#b45309" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">DC line keep-alive / shutdown signal to module devices</text>
+<path d="M1720,102 L1560,102 L1560,105 L1520,105" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-ex)" stroke-linejoin="round"/>
+<text x="1640" y="96" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">initiator signal</text>
+<path d="M1720,205 L1700,205 L1700,150 L1520,150" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-ex)" stroke-linejoin="round"/>
+<path d="M1720,288 L1700,288 L1700,150" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
+<text x="1590" y="168" font-size="10" font-weight="normal" fill="#6b7280" text-anchor="middle">RS-485 / Ethernet</text>
+<path d="M100,380 L100,340 L1385,340 L1385,356 L1400,356" fill="none" stroke="#b45309" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-op)" stroke-linejoin="round"/>
+<text x="700" y="334" font-size="10" fill="#b45309" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">PV HF current tap</text>
+<rect x="1180" y="880" width="256.0" height="126" rx="6" fill="#fff" stroke="#d1d5db"/>
+<line x1="1190" y1="896" x2="1226" y2="896" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)"/>
+<text x="1234" y="900" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">power flow</text>
+<line x1="1190" y1="915" x2="1226" y2="915" stroke="#6b7280" stroke-width="1.8" marker-end="url(#a-sg)"/>
+<text x="1234" y="919" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">measurement</text>
+<line x1="1190" y1="934" x2="1226" y2="934" stroke="#15803d" stroke-width="1.8" marker-end="url(#a-ct)"/>
+<text x="1234" y="938" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">control command</text>
+<line x1="1190" y1="953" x2="1226" y2="953" stroke="#b42318" stroke-width="1.8" marker-end="url(#a-sf)"/>
+<text x="1234" y="957" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">protection path (hardware)</text>
+<line x1="1190" y1="972" x2="1226" y2="972" stroke="#b45309" stroke-width="1.8" marker-end="url(#a-op)"/>
+<text x="1234" y="976" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">optional feature (appliesWhen)</text>
+<line x1="1190" y1="991" x2="1226" y2="991" stroke="#6b7280" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#a-ex)"/>
+<text x="1234" y="995" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">external interface</text>
+</svg>
