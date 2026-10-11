@@ -778,6 +778,22 @@ syscribe eval '<expression>' [--set name=value]... [--unit <unit>] [--json]
 
 Evaluates one expression of the execution engine's typed, dimension-checked language (GH #273): numbers with units (`50 ms + 1 s` is `1.05 s`, `3 V * 2 A` is `6 W`), booleans, strings and enumeration literals; `+ - * / %`, comparisons, `and`/`or`/`not` (short-circuit), `if … then … else …` and `abs min max sqrt floor ceil round pow`. Adding incompatible dimensions or comparing a time with a plain number is an error, as is an unbound name, division by zero or a non-finite result. `--set` binds names (`50ms`, `true`, `'text'`, `Enum::lit`); `--unit` converts a numeric result. The command reads no model and is deterministic; it exits `1` with a message on stderr for any error. See `syscribe help eval`.
 
+## Constraint checking (`constraints`)
+
+```bash
+syscribe -m <root> constraints check [--json] [--strict] [--config <CONF-id> | --all-configs] [--set <qname.feature>=<value>]...
+```
+
+Evaluates every `Constraint` usage and every `requires:`/`assume:` clause against Attribute values, default bindings, Configuration parameters and `--set` overrides (GH #274). Exit `0` all hold, `2` one failed (or, with `--strict`, one is unresolved because an input has no value), `1` usage. `constraints calc` and `constraints sweep` are specified in `REQ-TRS-PARAM-001` and follow. See `syscribe help constraints`.
+
+## State-machine IR (`compile`)
+
+```bash
+syscribe -m <root> compile <StateDef> [--json]
+```
+
+Lowers a `StateDef` to the intermediate representation that simulation, coverage, mutation and SCXML export read (GH #278): flat state and transition tables in document order, variable slots, resolved and parsed guards, and a source pointer on every node; the BLAKE3 hash of the canonical JSON identifies the machine in recorded evidence. Exit `2` with the diagnostics (E882–E885, W933, W076) when the machine cannot be lowered. See `syscribe help compile` and `docs/design/state-machine-execution-semantics.md`.
+
 ## Safety mechanisms (`mechanisms`)
 
 ```
