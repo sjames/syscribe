@@ -298,6 +298,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E932` | an executable machine sends or accepts through a port its part definition does not have, or in the wrong direction (GH #297) |
 | `E933` | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297) |
 | `E934` | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297) |
+| `E935` | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272) |
 | `W861` | An `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite what discharges it (draft-suppressed; GH #217) |
 
 ## Budget expression validation (E866–E868, W060)

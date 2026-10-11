@@ -151,7 +151,7 @@ history) — those are not part of SysMLv2.
 
 ## Executing a machine
 
-A machine that declares `variables:` or uses `after`, `when`, `done`, `internal`, `assign` or `initialEffect` is *executable*. `syscribe compile` lowers it to an IR and `syscribe simulate` runs it; the semantics and where each rule comes from are in `docs/design/state-machine-execution-semantics.md`.
+A machine that declares `variables:` or uses `after`, `when`, `done`, `internal`, `assign` or `initialEffect` is *executable*. `syscribe compile` lowers it to an IR and `syscribe simulate` runs it; the semantics and where each rule comes from are in `docs/design/state-machine-execution-semantics.md`. Type and unit errors in the expressions (a guard comparing metres with a plain number, a non-boolean guard, an assignment of the wrong dimension) are found without running anything and reported as `E935`; names that are not variables, such as event payload fields, are never errors (`docs/design/static-typing.md`).
 
 ```yaml
 type: StateDef

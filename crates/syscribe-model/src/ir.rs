@@ -594,6 +594,10 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         states: cx.states,
         transitions,
     };
+    let types = crate::typecheck::machine_diags(&m);
+    if !types.is_empty() {
+        return Err(types);
+    }
     m.hash = m.compute_hash();
     Ok(m)
 }

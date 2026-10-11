@@ -2911,6 +2911,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E935 (REQ-TRS-STYPE-001): type and dimension errors in the expressions of an executable state machine, found by
+        // lowering it and checking the IR. The other lowering diagnostics are the schema checks, reported elsewhere.
+        if matches!(fm.element_type, Some(ElementType::StateDef)) && crate::sm_exec::is_executable(fm.variables.as_deref(), fm.initial_effect.as_ref(), fm.sub_states.as_deref().unwrap_or(&[]), fm.transitions.as_deref().unwrap_or(&[])) {
+            if let Err(diags) = crate::ir::lower(elements, &elem.qualified_name) {
+                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935") {
+                    findings.push(error(code, &file, &msg));
+                }
+            }
+        }
+
         // E930–E934/W936 (REQ-TRS-SYSCOMP-001): a composite part with executable behaviours. Dormant for every part
         // that has no part with an executable state machine.
         if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.features.is_some() {
