@@ -58,7 +58,7 @@ impl SystemModel {
         let Some(elem) = resolver.resolve_ref(elements, target) else { return Err(vec![format!("no element '{target}'")]) };
         let (spec, mut findings) = system::resolve(elements, &resolver, elem);
         let Some(spec) = spec else { return Err(vec![format!("'{}' is not a composite with an executable state machine", elem.qualified_name)]) };
-        findings.extend(system::check(elements, &resolver, elem).into_iter().filter(|f| f.0 != "W936"));
+        findings.extend(system::check_all(elements, &resolver, elem).into_iter().filter(|f| f.0 != "W936"));
         let mut errs: Vec<String> = findings.iter().filter(|f| f.0.starts_with('E')).map(|(c, m)| format!("{c}: {m}")).collect();
         errs.sort();
         errs.dedup();
@@ -573,7 +573,7 @@ impl<'m> System<'m> {
             r.send(&format!("{port}/{}", m.event), &payload);
             // the step the message caused in the receiver names where it came from
             let from_port = m.from_port.as_ref().map(|p| format!(".{p}")).unwrap_or_default();
-            r.annotate_step(before, &format!("received {} from {}{from_port} (sent at {} s)", m.event, self.model.spec.instances[m.from].name, m.sent));
+            r.annotate_step(before, &format!("received {} from {}{from_port} (sent at {} s)", m.event, self.model.spec.instances[m.from].name, crate::expr::format_number(m.sent)));
         }
         // every sequence number is one log entry, in order
         if let Some(l) = self.log.get_mut(m.seq - 1) {

@@ -251,6 +251,11 @@ fn an_inherited_composite_runs_with_the_wiring_of_its_base_plus_its_own() {
     s.advance(0.006);
     assert_eq!(s.active("rx").unwrap(), ["Done"], "the inherited 5 ms delay");
     drop(m);
+    // a variant that restates a connection of the base replaces it (here: no delay instead of 5 ms)
+    std::fs::write(root.join("Fast.md"), "---\ntype: PartDef\nname: Fast\nsupertype: Base\nconnections:\n  - {from: tx.out, to: rx.inp, delay: \"1 ms\"}\n---\nFast.\n").unwrap();
+    let f = SystemModel::build_in(&walk_model(&root).unwrap(), "Fast", &root).unwrap_or_else(|e| panic!("{e:?}"));
+    assert_eq!(f.spec.links.len(), 1, "replaced, not doubled");
+    assert!((f.spec.links[0].delay - 0.001).abs() < 1e-12);
 }
 
 #[test]

@@ -36,7 +36,7 @@ bindingConnections:
 ```
 
 * Ports are the `features:` of `type: Port` of the part definition and its **child `Port` elements** (a file `Def/out.md` with `type: Port` and `direction:` is `Def::out`); ports of a supertype are inherited.
-* A composite **inherits** the `features:` (parts), `connections:`, `bindingConnections:` and `plantStep:` of its supertypes: a part of the same name is overridden by the nearest definition, the base's connections and bindings come first, and an entry the base already has is kept once. A variant therefore only states what it adds or replaces.
+* A composite **inherits** the `features:` (parts), `connections:`, `bindingConnections:` and `plantStep:` of its supertypes: a part of the same name is overridden by the nearest definition, the base's connections and bindings come first, and a subtype's connection with the same two ends (or binding into the same variable) replaces the base's in place, so a variant can change a `delay:` or re-source a variable. Only `supertype:` is followed (a part typed by a composite does not inherit its wiring), and a finding that comes from the inherited wiring is reported on the base, not again on every subtype. A variant therefore only states what it adds or replaces.
 * A part's behaviour is the one `StateDef` named by `exhibitsStates:` on its definition (or an ancestor). A part with none is inert.
 * `connections:` join an out/inout port to an in/inout port. The message arrives as the event `<port>/<event>`, the same name `accept: {payload: Reading, via: inp}` listens for. `delay:` (default none) postpones delivery.
 * `bindingConnections:` keep a variable of one part equal to a variable of another, in the unit of the sink. Types and unit dimensions must agree (`E933`).

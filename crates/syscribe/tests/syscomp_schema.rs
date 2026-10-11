@@ -193,7 +193,7 @@ fn ports_may_be_separate_child_elements() {
     let root = model(&[("SenderPart", tx), ("ReceiverPart", rx)]);
     std::fs::create_dir_all(root.join("SenderPart")).unwrap();
     std::fs::create_dir_all(root.join("ReceiverPart")).unwrap();
-    std::fs::write(root.join("SenderPart/out.md"), "---\ntype: Port\nname: out\ndirection: out\n---\nOut.\n").unwrap();
+    std::fs::write(root.join("SenderPart/out.md"), "---\ntype: Port\nname: \"Out port of the transmitter\"\ndirection: out\n---\nOut.\n").unwrap();
     std::fs::write(root.join("ReceiverPart/inp.md"), "---\ntype: Port\nname: inp\ndirection: in\n---\nIn.\n").unwrap();
     let run = |root: &PathBuf| {
         let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(root).arg("validate").output().unwrap();
@@ -215,6 +215,13 @@ fn a_composite_inherits_the_wiring_of_its_supertype() {
     // an error in the inherited wiring is found on the variant as well
     let bad_base = SYSTEM.replace("rx.inp", "rx.nowhere");
     let o = validate(&[("System", &bad_base), ("Derived", derived)]);
-    let rows = o.lines().filter(|l| l.contains("E931")).count();
-    assert!(rows >= 2, "the base and the variant that inherits it both report: {o}");
+    let rows: Vec<&str> = o.lines().filter(|l| l.contains("E931")).collect();
+    assert_eq!(rows.len(), 1, "reported once, on the base where the wiring is: {o}");
+    assert!(rows[0].contains("System.md"), "{o}");
+    // a variant that adds its own error is reported for that error only
+    let worse = "---\ntype: PartDef\nname: Derived\nsupertype: System\nconnections:\n  - {from: tx.out, to: rx.missing}\n---\nA variant.\n";
+    let o = validate(&[("Derived", worse)]);
+    let derived: Vec<&str> = o.lines().filter(|l| l.contains("E931") && l.contains("Derived.md")).collect();
+    assert_eq!(derived.len(), 1, "{o}");
+    assert!(derived[0].contains("rx.missing"), "{o}");
 }
