@@ -708,7 +708,6 @@ Two row-integrity checks keep a sheet honest:
 
 A failure mode can carry a machine-readable **fault model** so that scenarios of an executable composite ([System composition](system-composition.md)) can inject it. `injection:` is a list on an FMEA row (and on a `FaultTreeEvent`); the row's `ref:` names the part definition that fails, and the element's id is the fault's id:
 
-<!-- syscribe-example: skip reason="a fragment of an FMEASheet's entries, shown without the sheet around it" -->
 ```yaml
 entries:
   - id: FM-LINK-001

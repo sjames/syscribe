@@ -37,7 +37,7 @@ fn qualified(s: &str) -> Option<(String, String)> {
 pub fn parse_step(kw: Kw, text: &str) -> Result<SCmd, String> {
     let t = text.trim();
     let lower = t.to_ascii_lowercase();
-    if lower.starts_with("fault ") {
+    if lower.starts_with("fault ") && (lower.ends_with(" is injected") || lower.ends_with(" is cleared")) {
         let rest = t["fault ".len()..].trim();
         let rl = rest.to_ascii_lowercase();
         for (suffix, inject) in [(" is injected", true), (" is cleared", false)] {

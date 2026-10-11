@@ -49,6 +49,9 @@ pub enum FaultItem {
 pub struct ResolvedFault {
     pub id: String,
     pub items: Vec<FaultItem>,
+    /// Why the fault does not fit a part it applies to (`E936`); reported when it is injected, so one unfitting analysis
+    /// row cannot break every scenario of the composite.
+    pub problems: Vec<String>,
 }
 
 /// A composite resolved, checked and lowered: the wiring and one machine per part that has behaviour.
@@ -105,13 +108,7 @@ impl SystemModel {
                 Err(es) => errs.extend(es),
             }
         }
-        let faults = match resolve_faults(elements, &resolver, &spec, &machines) {
-            Ok(f) => f,
-            Err(es) => {
-                errs.extend(es);
-                Vec::new()
-            }
-        };
+        let faults = resolve_faults(elements, &resolver, &spec, &machines);
         if !errs.is_empty() {
             return Err(errs);
         }
@@ -120,7 +117,7 @@ impl SystemModel {
             let links: Vec<_> = spec.links.iter().map(|l| serde_json::json!([spec.instances[l.from.0].name, l.from.1, spec.instances[l.to.0].name, l.to.1, l.delay])).collect();
             let binds: Vec<_> = spec.bindings.iter().map(|b| serde_json::json!([spec.instances[b.from.0].name, b.from.1, spec.instances[b.to.0].name, b.to.1])).collect();
             let plant_cfg: Vec<_> = spec.instances.iter().zip(&plants).filter_map(|(i, p)| p.as_ref().map(|p| serde_json::json!({"name": i.name, "sha256": p.info.sha256, "fmiVersion": p.info.fmi_version, "parameters": p.params}))).collect();
-            blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds, "plantStep": plant_step, "plants": plant_cfg}).to_string().as_bytes()).to_hex().to_string()
+            blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds, "plantStep": plant_step, "plants": plant_cfg, "faults": faults.iter().map(|f| format!("{f:?}")).collect::<Vec<_>>()}).to_string().as_bytes()).to_hex().to_string()
         };
         Ok(SystemModel { spec, machines, plants, exchanges, plant_step, faults, hash })
     }
@@ -133,11 +130,11 @@ fn constant(src: &str) -> Result<Value, String> {
 /// Resolve the faults of every FMEA row and fault-tree event against the parts of the composite. A fault whose target is
 /// not a part of it does not apply and is left out; one that applies but names a variable, port or value that does not
 /// fit is an error (`E936`).
-fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpec, machines: &[Option<Machine>]) -> Result<Vec<ResolvedFault>, Vec<String>> {
+fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpec, machines: &[Option<Machine>]) -> Vec<ResolvedFault> {
     use crate::fault::FaultKind;
     let mut out = Vec::new();
-    let mut errs = Vec::new();
     for def in crate::fault::fault_defs(elements) {
+        let mut errs: Vec<String> = Vec::new();
         // the definition (and so its specialisations) the fault's `ref` stands for
         let target: Option<String> = def.target.as_deref().and_then(|t| resolver.resolve_ref(elements, t)).map(|e| e.qualified_name.clone());
         let mut items = Vec::new();
@@ -197,15 +194,11 @@ fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpe
                 }
             }
         }
-        if !items.is_empty() {
-            out.push(ResolvedFault { id: def.id, items });
+        if !items.is_empty() || !errs.is_empty() {
+            out.push(ResolvedFault { id: def.id, items, problems: errs });
         }
     }
-    if errs.is_empty() {
-        Ok(out)
-    } else {
-        Err(errs)
-    }
+    out
 }
 
 /// The plant parts of a composite: their FMU files (verified against the declared hash), the communication step, and
@@ -543,21 +536,36 @@ impl<'m> System<'m> {
             return Err(format!("fault '{id}' is already injected"));
         }
         let model = self.model;
+        if !model.faults[fi].problems.is_empty() {
+            return Err(model.faults[fi].problems.join("; "));
+        }
+        // value faults first, a fail-silent part last: if one cannot be applied, nothing stays half-applied
+        let mut pinned: Vec<usize> = Vec::new();
         for item in &model.faults[fi].items {
-            match item {
-                FaultItem::Stuck { part, variable, value } => {
-                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
-                    r.pin(id, variable, Pin::Stuck(value.clone()))?;
+            let r = match item {
+                FaultItem::Stuck { part, variable, value } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Stuck(value.clone())))),
+                FaultItem::Offset { part, variable, by } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Offset(by.clone())))),
+                _ => None,
+            };
+            match r {
+                Some((part, Ok(()))) => pinned.push(part),
+                Some((part, Err(e))) => {
+                    pinned.push(part);
+                    for p in pinned {
+                        if let Some(r) = self.runs[p].as_mut() {
+                            r.unpin_cause(id);
+                        }
+                    }
+                    return Err(format!("E936: fault {id}: {e}"));
                 }
-                FaultItem::Offset { part, variable, by } => {
-                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
-                    r.pin(id, variable, Pin::Offset(by.clone()))?;
-                }
-                FaultItem::Silent { part } => {
-                    let r = self.runs[*part].as_mut().ok_or("no machine")?;
+                None => {}
+            }
+        }
+        for item in &model.faults[fi].items {
+            if let FaultItem::Silent { part } = item {
+                if let Some(r) = self.runs[*part].as_mut() {
                     r.silence(id);
                 }
-                _ => {}
             }
         }
         self.active.push(fi);
@@ -579,12 +587,14 @@ impl<'m> System<'m> {
         for item in &model.faults[fi].items {
             if let FaultItem::Stuck { part, variable, .. } | FaultItem::Offset { part, variable, .. } = item {
                 if let Some(r) = self.runs[*part].as_mut() {
-                    r.unpin(variable);
+                    r.unpin(id, variable);
                 }
             }
         }
         self.active.retain(|x| *x != fi);
         self.fault_log.push(format!("fault {id} cleared at {} s", crate::expr::format_number(self.time)));
+        // bound values resynchronise with their sources now that the fault no longer shapes them
+        self.quiesce();
         Ok(())
     }
 
@@ -800,7 +810,9 @@ impl<'m> System<'m> {
             let same = |a: &Value, b: &Value| format_value(a) == format_value(b);
             let Some(r) = self.runs[b.to.0].as_mut() else { continue };
             let Some(cur) = r.var(&b.to.1) else { continue };
-            if r.is_halted() || same(&cur, &v) {
+            // a pinned sink stores something other than the source value: compare with what it would store
+            let target = r.would_store(&b.to.1, v.clone()).unwrap_or_else(|| v.clone());
+            if r.is_halted() || same(&cur, &target) {
                 continue;
             }
             r.set(&b.to.1, v);

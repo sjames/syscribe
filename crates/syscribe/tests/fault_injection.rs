@@ -180,3 +180,43 @@ fn a_fault_that_does_not_fit_the_composite_is_an_error_and_one_for_another_part_
     let (_, t) = run(&root, &["simulate", "TC-SYS-001", "--scenario", "a dead receiver"]);
     assert!(t.contains("no fault 'FM-RX-001' applies"), "{t}");
 }
+
+#[test]
+fn clearing_one_fault_keeps_the_other_fault_on_the_same_variable() {
+    let tc = TC.replace("  Scenario: a lost command", "  Scenario: overlapping value faults\n    Given fault FM-TX-003 is injected\n    And fault FM-TX-004 is injected\n    When fault FM-TX-003 is cleared\n    And tx.level becomes 10\n    Then tx.level == 12\n\n  Scenario: a lost command");
+    let (_, t) = run(&model(&tc), &["simulate", "TC-SYS-001", "--json", "--scenario", "overlapping value faults"]);
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap_or_else(|e| panic!("{e}: {t}"));
+    assert_eq!(j["verdicts"][0]["status"], "pass", "the offset of FM-TX-004 still applies after FM-TX-003 is cleared: {t}");
+}
+
+#[test]
+fn an_unfitting_fault_fails_only_the_scenarios_that_inject_it() {
+    let root = model(TC);
+    std::fs::write(root.join("FMEA-LINK-001.md"), FMEA.replace("value: \"3\"", "value: \"true\"")).unwrap();
+    let (_, t) = run(&root, &["simulate", "TC-SYS-001", "--json"]);
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+    let by = |title: &str| j["verdicts"].as_array().unwrap().iter().find(|v| v["scenario"] == title).unwrap().clone();
+    assert_eq!(by("a lost command")["status"], "pass", "unrelated scenarios still run");
+    assert_eq!(by("a stuck sensor")["status"], "error");
+    assert!(by("a stuck sensor")["message"].as_str().unwrap().contains("E936"), "{t}");
+}
+
+#[test]
+fn the_fault_model_is_part_of_the_evidence_hash() {
+    let a = run(&model(TC), &["simulate", "TC-SYS-001", "--json", "--scenario", "a lost command"]).1;
+    let root = model(TC);
+    std::fs::write(root.join("FMEA-LINK-001.md"), FMEA.replace("by: \"10 ms\"", "by: \"20 ms\"")).unwrap();
+    let b = run(&root, &["simulate", "TC-SYS-001", "--json", "--scenario", "a lost command"]).1;
+    let h = |t: &str| serde_json::from_str::<serde_json::Value>(t).unwrap()["machineHash"].as_str().unwrap().to_string();
+    assert_ne!(h(&a), h(&b), "changing a fault changes what a run can show, so it changes the hash");
+}
+
+#[test]
+fn a_part_may_be_called_fault() {
+    use syscribe_model::sm_scen::Kw;
+    use syscribe_model::system_scen::{parse_step, SCmd};
+    assert!(matches!(parse_step(Kw::Then, "fault is in state Idle"), Ok(SCmd::ExpectState(..))));
+    assert!(matches!(parse_step(Kw::When, "fault receives Tick"), Ok(SCmd::Receive { .. })));
+    assert!(matches!(parse_step(Kw::When, "fault FM-1 is cleared"), Ok(SCmd::Fault { inject: false, .. })));
+    assert!(parse_step(Kw::Given, "fault FM-1 is cleared").is_err());
+}

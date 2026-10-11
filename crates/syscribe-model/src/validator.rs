@@ -2972,8 +2972,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             findings.push(error("E886", &file, &format!("line {line} of the body: {msg}")));
                         }
                         // E937 (REQ-TRS-FAULT-001): a fault step names an FMEA row or fault-tree event that has a fault model
-                        let known: std::collections::HashSet<String> = crate::fault::fault_defs(elements).into_iter().map(|f| f.id).collect();
-                        for (line, id) in crate::system_scen::fault_ids_in(&elem.doc) {
+                        let named = crate::system_scen::fault_ids_in(&elem.doc);
+                        let known: std::collections::HashSet<String> = if named.is_empty() { Default::default() } else { crate::fault::fault_defs(elements).into_iter().map(|f| f.id).collect() };
+                        for (line, id) in named {
                             if !known.contains(&id) {
                                 findings.push(error("E937", &file, &format!("line {line} of the body: '{id}' is not an FMEAEntry or FaultTreeEvent with an `injection:`")));
                             }

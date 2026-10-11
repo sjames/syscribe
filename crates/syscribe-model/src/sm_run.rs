@@ -120,7 +120,7 @@ pub struct Run<'m> {
     cosim: Option<crate::plant::CoSim>,
     outbox: Vec<Sent>,
     /// Injected value faults (REQ-TRS-FAULT-001): applied to every write of the variable.
-    pins: Vec<(usize, Pin)>,
+    pins: Vec<(usize, String, Pin)>,
     /// Injected fail-silent fault: the run handles nothing, fires nothing and sends nothing.
     silent: bool,
 }
@@ -272,8 +272,7 @@ impl<'m> Run<'m> {
     /// What a write of `v` to variable `slot` stores, given the injected value faults.
     fn pinned(&self, slot: usize, v: Value) -> Value {
         let mut v = v;
-        for (s, p) in self.pins.iter().filter(|(s, _)| *s == slot) {
-            let _ = s;
+        for (_, _, p) in self.pins.iter().filter(|(s, _, _)| *s == slot) {
             v = match (p, &v) {
                 (Pin::Stuck(held), _) => held.clone(),
                 (Pin::Offset(Value::Num(by)), Value::Num(q)) if by.dim == q.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim }),
@@ -301,7 +300,7 @@ impl<'m> Run<'m> {
             },
             Pin::Offset(other) => return Err(format!("an offset must be a number, got {}", other.kind())),
         };
-        self.pins.push((slot, pin));
+        self.pins.push((slot, cause.to_string(), pin));
         if self.halted() {
             return Ok(());
         }
@@ -315,11 +314,22 @@ impl<'m> Run<'m> {
         Ok(())
     }
 
-    /// Remove the value fault on `name`; the variable keeps its current value.
-    pub fn unpin(&mut self, name: &str) {
+    /// Remove the value fault `cause` put on `name` (other faults on the variable stay); the variable keeps its value.
+    pub fn unpin(&mut self, cause: &str, name: &str) {
         if let Some(slot) = self.m.variables.iter().position(|v| v.name == name) {
-            self.pins.retain(|(s, _)| *s != slot);
+            self.pins.retain(|(s, c, _)| !(*s == slot && c == cause));
         }
+    }
+
+    /// Remove every value fault `cause` put on this run.
+    pub fn unpin_cause(&mut self, cause: &str) {
+        self.pins.retain(|(_, c, _)| c != cause);
+    }
+
+    /// What a write of `v` to `name` would store now, given the injected value faults (`None` for an unknown variable).
+    pub fn would_store(&self, name: &str, v: Value) -> Option<Value> {
+        let slot = self.m.variables.iter().position(|x| x.name == name)?;
+        Some(self.pinned(slot, v))
     }
 
     /// Inject a fail-silent fault: from now on the run handles no event, fires no timer and sends nothing.

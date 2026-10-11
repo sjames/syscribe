@@ -57,3 +57,18 @@ fn machines_without_send_keep_their_ir_and_hash() {
     assert!(with.canonical_json().contains("\"kind\":\"send\""));
     assert_ne!(plain.hash, with.hash);
 }
+
+#[test]
+fn a_value_fault_shapes_what_a_write_would_store() {
+    use syscribe_model::sm_run::Pin;
+    let m = machine("variables:\n  - {name: v, value: \"1\"}\nsubStates:\n  - {name: A, isInitial: true}\n");
+    let mut r = Run::new(&m, Options::default());
+    assert_eq!(format_value(&r.would_store("v", parse_value("5").unwrap()).unwrap()), "5");
+    r.pin("F1", "v", Pin::Stuck(parse_value("3").unwrap())).unwrap();
+    assert_eq!(format_value(&r.would_store("v", parse_value("5").unwrap()).unwrap()), "3", "stuck");
+    r.pin("F2", "v", Pin::Offset(parse_value("2").unwrap())).unwrap();
+    r.unpin("F1", "v");
+    assert_eq!(format_value(&r.would_store("v", parse_value("5").unwrap()).unwrap()), "7", "F2 stays after F1 is removed");
+    r.unpin_cause("F2");
+    assert_eq!(format_value(&r.would_store("v", parse_value("5").unwrap()).unwrap()), "5");
+}
