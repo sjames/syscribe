@@ -770,6 +770,14 @@ $ syscribe -m model/ find . --where custom.supplier                  # presence
 
 ---
 
+## Expression evaluation (`eval`)
+
+```bash
+syscribe eval '<expression>' [--set name=value]... [--unit <unit>] [--json]
+```
+
+Evaluates one expression of the execution engine's typed, dimension-checked language (GH #273): numbers with units (`50 ms + 1 s` is `1.05 s`, `3 V * 2 A` is `6 W`), booleans, strings and enumeration literals; `+ - * / %`, comparisons, `and`/`or`/`not` (short-circuit), `if … then … else …` and `abs min max sqrt floor ceil round pow`. Adding incompatible dimensions or comparing a time with a plain number is an error, as is an unbound name, division by zero or a non-finite result. `--set` binds names (`50ms`, `true`, `'text'`, `Enum::lit`); `--unit` converts a numeric result. The command reads no model and is deterministic; it exits `1` with a message on stderr for any error. See `syscribe help eval`.
+
 ## Safety mechanisms (`mechanisms`)
 
 ```

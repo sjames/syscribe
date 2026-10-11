@@ -13,6 +13,7 @@ mod covtree;
 mod runhist;
 mod reqif_import;
 mod compliance;
+mod exec_cmd;
 mod mechanisms;
 mod cyberrisk;
 mod connectivity;
@@ -734,6 +735,10 @@ fn main() {
             let section = subcommand_args.get(1).map(String::as_str).unwrap_or("toc");
             spec::cmd_spec(section);
             return;
+        }
+        Some("eval") => {
+            // Model-free; parses its own arguments so an expression may start with `-`.
+            std::process::exit(exec_cmd::cmd_eval(&subcommand_args[1..]));
         }
         Some("help") => {
             help::cmd_help(subcommand_args.get(1).map(String::as_str));

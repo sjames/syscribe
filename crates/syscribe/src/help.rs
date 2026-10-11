@@ -21,6 +21,12 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     (
+        "Execution",
+        &[
+            ("eval", include_str!("../../../prompts/help/eval.md")),
+        ],
+    ),
+    (
         "Large-model overview & search",
         &[
             ("stats", include_str!("../../../prompts/help/stats.md")),
