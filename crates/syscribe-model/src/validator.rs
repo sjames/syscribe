@@ -2921,6 +2921,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E935 for an executable ActionDef (REQ-TRS-STYPE-002), the same way.
+        if matches!(fm.element_type, Some(ElementType::ActionDef)) && crate::act_exec::is_executable(fm.variables.as_deref(), fm.sub_actions.as_deref().unwrap_or(&[])) {
+            if let Err(diags) = crate::act_ir::lower_action(elements, &elem.qualified_name) {
+                for (code, msg) in diags.into_iter().filter(|d| d.0 == "E935") {
+                    findings.push(error(code, &file, &msg));
+                }
+            }
+        }
+
         // E930–E934/W936 (REQ-TRS-SYSCOMP-001): a composite part with executable behaviours. Dormant for every part
         // that has no part with an executable state machine.
         if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.features.is_some() {

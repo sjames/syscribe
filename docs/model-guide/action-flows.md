@@ -34,6 +34,8 @@ Classifies a level against a threshold of 10.
 * `PerformAction` (or an action with `typedBy:`) runs another `ActionDef` to completion; its `parameters:` bind the callee's inputs (`{name, value: <expression>}`), and `flowConnections: [{from: a.p, to: b.q}]` and `bindingConnections` copy values when the source completes.
 * `SendAction` records the event it sends; `AcceptAction` waits for an event (`payload`, `via`, `as`) or for `after: <duration>` on the virtual clock; `TerminateAction` ends the whole action.
 
+Type and unit errors in an action's expressions (a succession guard that is a number, a loop condition comparing metres with a plain number, an assignment of the wrong dimension) are found without running anything and reported as `E935`; parameters without a default, sub-action pins and accept bindings are never errors (`docs/design/static-typing.md`).
+
 ## Semantics
 
 Token semantics as in UML activities and fUML. The action starts with a token on every node that has no incoming succession (or is named after `start`). A node fires when every incoming succession holds a token (a `merge` fires on any one); an action then offers a token on every outgoing succession whose guard holds, a `fork` on all, a `join` once all its inputs are present, a `decision` on one. Enabled nodes fire in document order (sub-actions first, then control nodes), so parallel branches run deterministically; the trace records each firing. The run *completes* when no token is left and nothing waits, is *deadlocked* when tokens remain but nothing is enabled (a node with several incoming successions needs a token on each — join alternatives with a `merge`), is *waiting* while an `AcceptAction` has no event, and is *terminated* by `TerminateAction`.

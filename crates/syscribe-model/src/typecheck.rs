@@ -4,6 +4,7 @@
 //! an expression is rejected only when the error is certain.
 
 use crate::expr::{Expr, Value};
+use crate::act_ir::{ActionIr, ActionProgram, NodeKind, Stmt};
 use crate::ir::{Action, IrExpr, Machine, Trigger};
 use crate::units::Dim;
 
@@ -189,15 +190,28 @@ pub fn infer(e: &Expr, env: &dyn Fn(&str) -> Ty) -> Result<Ty, String> {
     })
 }
 
-/// Check an expression of the IR against the types of the machine's variables.
-fn infer_ir(m: &Machine, e: &IrExpr) -> Result<Ty, String> {
+/// Check an expression of the IR; `slot_ty` gives the type of a variable slot (unknown when it has none).
+fn infer_refs(e: &IrExpr, slot_ty: &dyn Fn(usize) -> Ty) -> Result<Ty, String> {
     let env = |n: &str| -> Ty {
         match e.refs.iter().find(|r| r.name == n) {
-            Some(r) if r.kind == "var" => r.slot.and_then(|s| m.variables.get(s)).map(|v| Ty::of_value(&v.value)).unwrap_or(Ty::Unknown),
+            Some(r) if r.kind == "var" => r.slot.map(slot_ty).unwrap_or(Ty::Unknown),
             _ => Ty::Unknown,
         }
     };
     infer(&e.ast, &env).map_err(|why| format!("`{}`: {why}", e.src))
+}
+
+fn infer_ir(m: &Machine, e: &IrExpr) -> Result<Ty, String> {
+    infer_refs(e, &|s| m.variables.get(s).map(|v| Ty::of_value(&v.value)).unwrap_or(Ty::Unknown))
+}
+
+/// Why a value of type `rhs` cannot be assigned to a variable of type `lhs`, if it certainly cannot.
+fn assign_mismatch(lhs: Ty, rhs: Ty) -> Option<String> {
+    match (lhs, rhs) {
+        (Ty::Num(Some(a)), Ty::Num(Some(b))) if a != b => Some(format!("{} to {}", b.human(), a.human())),
+        (Ty::Num(_), Ty::Bool | Ty::Str) | (Ty::Bool, Ty::Num(_) | Ty::Str) | (Ty::Str, Ty::Num(_) | Ty::Bool) => Some(format!("{} to {}", rhs.describe(), lhs.describe())),
+        _ => None,
+    }
 }
 
 fn check_bool(m: &Machine, e: &IrExpr, ctx: &str, what: &str, out: &mut Vec<Diag>) {
@@ -216,12 +230,7 @@ fn check_actions(m: &Machine, acts: &[Action], ctx: &str, out: &mut Vec<Diag>) {
                 Ok(rhs) => {
                     let v = &m.variables[*var];
                     let lhs = Ty::of_value(&v.value);
-                    let bad = match (lhs, rhs) {
-                        (Ty::Num(Some(a)), Ty::Num(Some(b))) if a != b => Some(format!("{} to {}", b.human(), a.human())),
-                        (Ty::Num(_), Ty::Bool | Ty::Str) | (Ty::Bool, Ty::Num(_) | Ty::Str) | (Ty::Str, Ty::Num(_) | Ty::Bool) => Some(format!("{} to {}", rhs.describe(), lhs.describe())),
-                        _ => None,
-                    };
-                    if let Some(b) = bad {
+                    if let Some(b) = assign_mismatch(lhs, rhs) {
                         out.push(("E935", format!("{ctx}: `{} := {}` assigns {b}", v.name, expr.src)));
                     }
                 }
@@ -255,6 +264,74 @@ pub fn machine_diags(m: &Machine) -> Vec<Diag> {
             check_bool(m, cond, &ctx, "`when`", &mut out);
         }
         check_actions(m, &t.actions, &ctx, &mut out);
+    }
+    out
+}
+
+// ── action flows (REQ-TRS-STYPE-002) ─────────────────────────────────────────────────────────────────────────────────
+
+fn slot_type(def: &ActionIr, slot: usize) -> Ty {
+    def.slots.get(slot).and_then(|s| s.value.as_ref()).map(Ty::of_value).unwrap_or(Ty::Unknown)
+}
+
+fn check_stmt(def: &ActionIr, s: &Stmt, out: &mut Vec<Diag>) {
+    let ctx = format!("action '{}', node '{}'", def.qname, s.name);
+    let ty = |e: &IrExpr| infer_refs(e, &|slot| slot_type(def, slot));
+    let bool_of = |e: &IrExpr, what: &str, out: &mut Vec<Diag>| match ty(e) {
+        Ok(Ty::Bool | Ty::Unknown) => {}
+        Ok(other) => out.push(("E935", format!("{ctx}: {what} `{}` is {}, not a boolean", e.src, other.describe()))),
+        Err(why) => out.push(("E935", format!("{ctx}: {what} {why}"))),
+    };
+    match &s.kind {
+        NodeKind::Assign { assigns } => {
+            for a in assigns {
+                match ty(&a.expr) {
+                    Err(why) => out.push(("E935", format!("{ctx}: assignment {why}"))),
+                    Ok(rhs) => {
+                        if let Some(b) = assign_mismatch(slot_type(def, a.slot), rhs) {
+                            let name = def.slots.get(a.slot).map(|x| x.name.as_str()).unwrap_or("?");
+                            out.push(("E935", format!("{ctx}: `{name} := {}` assigns {b}", a.expr.src)));
+                        }
+                    }
+                }
+            }
+        }
+        NodeKind::Perform { args, .. } | NodeKind::Send { args, .. } => {
+            for a in args {
+                if let Err(why) = ty(&a.expr) {
+                    out.push(("E935", format!("{ctx}: parameter '{}' {why}", a.name)));
+                }
+            }
+        }
+        NodeKind::If { cond, then, els } => {
+            bool_of(cond, "condition", out);
+            then.iter().chain(els).for_each(|c| check_stmt(def, c, out));
+        }
+        NodeKind::Loop { cond, body, .. } => {
+            bool_of(cond, "condition", out);
+            body.iter().for_each(|c| check_stmt(def, c, out));
+        }
+        _ => {}
+    }
+}
+
+/// `E935` findings of a lowered action program, every definition in its own scope.
+pub fn program_diags(p: &ActionProgram) -> Vec<Diag> {
+    let mut out = Vec::new();
+    for def in &p.defs {
+        for n in &def.nodes {
+            check_stmt(def, &n.stmt, &mut out);
+        }
+        for e in &def.edges {
+            if let Some(g) = &e.guard {
+                let ctx = format!("action '{}', succession {} → {}", def.qname, def.nodes.get(e.from).map(|n| n.stmt.name.as_str()).unwrap_or("?"), def.nodes.get(e.to).map(|n| n.stmt.name.as_str()).unwrap_or("?"));
+                match infer_refs(g, &|slot| slot_type(def, slot)) {
+                    Ok(Ty::Bool | Ty::Unknown) => {}
+                    Ok(other) => out.push(("E935", format!("{ctx}: guard `{}` is {}, not a boolean", g.src, other.describe()))),
+                    Err(why) => out.push(("E935", format!("{ctx}: guard {why}"))),
+                }
+            }
+        }
     }
     out
 }

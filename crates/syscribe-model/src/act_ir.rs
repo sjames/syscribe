@@ -549,13 +549,15 @@ pub fn lower_action(elements: &[RawElement], target: &str) -> Result<ActionProgr
     cx.def(el);
     diags.append(&mut cx.diags);
     // A name that is not a declared parameter or variable is a diagnostic here (W935 is fatal when lowering).
+    // The types are checked even then (on the definitions that did lower), so one diagnostic does not hide an E935.
+    let defs: Vec<ActionIr> = cx.defs.into_iter().flatten().collect();
+    let mut p = ActionProgram { root: el.qualified_name.clone(), hash: String::new(), defs };
+    diags.extend(crate::typecheck::program_diags(&p));
     if !diags.is_empty() {
         diags.sort();
         diags.dedup();
         return Err(diags);
     }
-    let defs: Vec<ActionIr> = cx.defs.into_iter().map(|d| d.expect("every reserved def is filled")).collect();
-    let mut p = ActionProgram { root: el.qualified_name.clone(), hash: String::new(), defs };
     p.hash = p.compute_hash();
     Ok(p)
 }

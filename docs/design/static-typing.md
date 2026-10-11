@@ -22,6 +22,10 @@ The expression language (`expr`) is dynamically typed: a guard such as `height <
 
 `crates/syscribe-model/tests/typecheck_diff.rs` compares the checker with the evaluator for every operator, function and operand type over a spread of values, under both truth values of a boolean operand: a static error requires a runtime type or dimension error for at least one of them, and a static success requires none for both, with matching result types and dimensions.
 
+## Action flows (REQ-TRS-STYPE-002)
+
+`typecheck::program_diags` applies the same rules to a lowered `ActionProgram`, each definition in its own scope. A slot (variable, or parameter with a default value) takes the type of its declared value; a parameter without one, a pin of a sub-action, an accept binding and any other name are unknown. Checked: succession guards and `if`/loop conditions (Boolean), assignments against the slot, `perform` and `send` arguments, nested blocks. `lower_action` reports the findings together with its other diagnostics; the validator surfaces only `E935` for executable `ActionDef`s.
+
 ## Not in the first version
 
-Action flows (`ActionDef`): their expressions have the same rules but parameters are untyped, so the benefit is smaller; dimension inference through payload fields; constants propagated across variables.
+Dimension inference through payload fields and sub-action pins; types of parameters from `typedBy:`; constants propagated across variables.
