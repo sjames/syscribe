@@ -4,7 +4,6 @@ id: TP-GTI-US-M2-001
 name: "Verification plan — US-M2"
 status: approved
 scope: certification
-appliesWhen: Features::Region::US and Features::PvInput::Mppt2
 configurations: [CONF-GTI-US-M2-001]
 testCases:
   - TC-GTI-CERT-001

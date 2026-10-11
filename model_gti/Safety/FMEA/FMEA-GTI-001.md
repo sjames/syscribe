@@ -5,7 +5,8 @@ name: "FMEA — Inverter architecture (prose view)"
 status: draft
 entries:
   - id: FM-GTI-101
-    ref: System::Software::Firmware
+    ref: System::Software::ArcFaultAnalyser
+    appliesWhen: Features::Protection::Afci
     failureMode: "Arc-fault analyser: arc not recognised (false negative) on a degraded connector"
     effect: "Sustained series arc on a 1000 V string; fire risk"
     cause: "Signature of the arc falls below the detection threshold, or the front end saturates"
@@ -14,7 +15,8 @@ entries:
     detection: 6
     recommendedAction: "Test with UL 1699B arc generator; self-test injection of a synthetic signature at start-up"
   - id: FM-GTI-102
-    ref: System::Software::Firmware
+    ref: System::Software::ArcFaultAnalyser
+    appliesWhen: Features::Protection::Afci
     failureMode: "Arc-fault analyser: nuisance trip (false positive) from inverter switching noise or lightning"
     effect: "Lost energy yield; service call"
     cause: "Threshold too low in a noisy installation"

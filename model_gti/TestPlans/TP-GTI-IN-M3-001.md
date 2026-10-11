@@ -4,7 +4,6 @@ id: TP-GTI-IN-M3-001
 name: "Verification plan — IN-M3"
 status: approved
 scope: certification
-appliesWhen: Features::Region::IN and Features::PvInput::Mppt3
 configurations: [CONF-GTI-IN-M3-001]
 testCases:
   - TC-GTI-CERT-002

@@ -4,7 +4,6 @@ id: TP-GTI-EXEC-US-001
 name: "Executable scenarios — US regression"
 status: approved
 scope: regression
-appliesWhen: Features::Region::US and Features::PvInput::Mppt3
 configurations: [CONF-GTI-US-M3-001]
 testCases: [TC-GTI-PROT-US-001, TC-GTI-MPPT-001]
 ---
