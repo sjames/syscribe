@@ -36,6 +36,20 @@ TestCase whose subject it is. The step vocabulary is closed; a step outside it i
     Then  <machine> is in state <state>
     Then  <boolean expression over the variables>
 
+A `TestCase` whose `subject:` is a composite `Part`/`PartDef` (parts that exhibit executable state machines,
+joined by `connections:` and `bindingConnections:`) runs all the parts on one virtual clock. Its steps name the
+part; `--coverage` is not available for composites yet:
+
+    Given <part> is in state <state>
+    Given <part>.<variable> is <expression>
+    When  <part> receives <event> [via <port>] [with <field> = <expression>[, ...]]
+    When  <part>.<variable> becomes <expression>
+    When  <duration> elapse[s]
+    Then  <part> is in state <state>
+    Then  <boolean expression over <part>.<variable> names>
+    Then  <part> sent <event> [via <port>]
+    Then  <part> did not send <event> [via <port>]
+
 `And`/`But` continue the previous keyword. `Scenario Outline` with `Examples:` expands to one
 scenario per row, named `<title> [row N]`. A scenario is `pass`, `fail` (a Then did not hold,
 with expected and actual) or `error` (a run error, an unknown state, an unusable step).

@@ -1,0 +1,77 @@
+# System composition
+
+Several parts, each with its own behaviour, can be executed together: every part runs its state machine, messages travel along the port connections the model already declares, values travel along binding connections, and all of it runs on one deterministic virtual clock (GH #297; requirement `REQ-TRS-SYSCOMP-001`, design note `docs/design/system-composition.md`). The checks `E930`–`E934` and `W936` apply to a composite that has at least one part with an executable state machine; every other model sees nothing new.
+
+## A small system
+
+```yaml
+---
+type: StateDef
+name: Sensor
+variables:
+  - {name: level, value: "0"}
+subStates:
+  - name: Idle
+    isInitial: true
+    transitions:
+      - {internal: true, accept: Sample, effect: {send: Reading, via: out, payload: {value: "level"}}}
+---
+```
+
+`send` is an effect (also allowed in `initialEffect`, `entryAction` and `exitAction`): the event, the port of the owning part it leaves through, and a payload of expressions evaluated at send time. Within one effect `assign:` runs before `send:`.
+
+<!-- syscribe-example: skip reason="a fragment of a composite shown beside the machines it refers to" -->
+```yaml
+---
+type: PartDef
+name: System
+features:
+  - {name: sensor, typedBy: SensorPart}
+  - {name: ctl, typedBy: ControllerPart}
+connections:
+  - {from: sensor.out, to: ctl.inp, delay: "2 ms"}
+bindingConnections:
+  - {from: sensor.level, to: ctl.level}
+---
+```
+
+* A part's behaviour is the one `StateDef` named by `exhibitsStates:` on its definition (or an ancestor). A part with none is inert.
+* `connections:` join an out/inout port to an in/inout port. The message arrives as the event `<port>/<event>`, the same name `accept: {payload: Reading, via: inp}` listens for. `delay:` (default none) postpones delivery.
+* `bindingConnections:` keep a variable of one part equal to a variable of another, in the unit of the sink. Types and unit dimensions must agree (`E933`).
+
+## Semantics
+
+* **One clock.** The next instant is the earliest of a part's timer and a pending delayed message. Everything due at one instant is processed until nothing changes before time moves on.
+* **Messages** are asynchronous and reliable. Each is one run-to-completion step of the receiver. Delivery order is fixed: by due time, then by emission order; one output connected to several inputs delivers in connection order. A message sent through a port that nothing is connected to is recorded and goes nowhere.
+* **Bindings** are copied after every settle, source to sink, until nothing changes (at most 1000 rounds).
+* **Livelock.** More than 100,000 messages at one instant is an error that names the parts answering each other.
+* **No threads, no wall clock:** the same model and scenario always produce the same trace.
+
+## Scenarios
+
+A `TestCase` whose `subject:` is the composite uses the Gherkin step vocabulary with part names; see `syscribe help simulate`.
+
+```gherkin
+Scenario: the command arrives after the link delay
+  When sensor receives Sample
+  Then sensor sent Reading via out
+  When 3 ms elapses
+  Then ctl.last == 7
+```
+
+`simulate --json` and `--record` carry a `messages` list in each verdict (who sent what, when, and when it was delivered); the trace steps are tagged with their part. The machine hash of a composite covers every part's machine hash and the wiring.
+
+## Diagnostics
+
+| Code | Meaning |
+|---|---|
+| `E930` | a part has more than one behaviour, or its `exhibitsStates` does not resolve to a StateDef |
+| `E931` | a connection end is not a port of that part, or the direction is wrong |
+| `E932` | a machine sends or accepts through a port its part does not have |
+| `E933` | a binding names an unknown variable or joins different types or dimensions |
+| `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration |
+| `W936` | an event is sent through a connection but never accepted at the other end, or the reverse |
+
+## Not in this version
+
+FMU plants as parts, coverage and mutation against composite scenarios, action flows as part behaviour, parts with a multiplicity above one, lossy or reordering channels.
