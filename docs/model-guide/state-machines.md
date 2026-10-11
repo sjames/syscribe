@@ -170,6 +170,7 @@ subStates:
   - name: Open
     transitions:
       - {internal: true, accept: Cmd::Obstruct, assign: "obstructions := obstructions + 1"}
+      - {target: Closed, accept: Cmd::Close}
 ```
 
 Deviations from SCXML, deliberately: no history, fork/join, `invoke`, external `send` or multi-event transitions (none exist in the SysML v2 model); typed, unit-checked expressions instead of ECMAScript; a virtual clock instead of delayed sends; an expression error stops the run instead of raising `error.execution`; equal-priority conflicts and unhandled events are reported in strict mode; change triggers are SysML v2 one-shot observations, not SCXML level-triggered eventless transitions; behaviour references (`effect: Pkg::Action`, `entryAction: Pkg::Action`) are recorded in the trace but not executed.
