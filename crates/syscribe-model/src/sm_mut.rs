@@ -232,6 +232,7 @@ fn action_text(m: &Machine, a: &Action) -> String {
     match a {
         Action::Assign { var, expr } => format!("`{} := {}`", m.variables[*var].name, expr.src),
         Action::Behavior { target, .. } => format!("`{target}`"),
+        Action::Send { event, .. } => format!("`send {event}`"),
     }
 }
 

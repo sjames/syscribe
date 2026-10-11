@@ -147,8 +147,36 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
         }
     };
 
+    let check_send = |am: &Mapping, where_: &str, out: &mut Vec<Finding>| {
+        let Some(v) = field(am, "send") else {
+            if field(am, "via").is_some() || field(am, "payload").is_some() {
+                out.push(("E884", format!("{where_}: `via`/`payload` need a `send:` event")));
+            }
+            return;
+        };
+        if !text(v).is_some_and(|s| !s.trim().is_empty()) {
+            out.push(("E884", format!("{where_}: `send:` must name an event")));
+        }
+        if field(am, "via").is_some_and(|p| text(p).is_none()) {
+            out.push(("E884", format!("{where_}: `via:` of a `send:` must be a port name")));
+        }
+        match field(am, "payload") {
+            None => {}
+            Some(Y::Mapping(pm)) => {
+                for (k, e) in pm {
+                    let ok = k.as_str().is_some() && text(e).is_some_and(|s| expr::parse(&s).is_ok());
+                    if !ok {
+                        out.push(("E884", format!("{where_}: `send:` payload entry '{}' must be `name: <expression>`", k.as_str().unwrap_or("?"))));
+                    }
+                }
+            }
+            Some(_) => out.push(("E884", format!("{where_}: `send:` payload must be a mapping of name to expression"))),
+        }
+    };
+
     // initialEffect / entryAction / exitAction maps may carry `assign:`.
     if let Some(Y::Mapping(m)) = initial_effect {
+        check_send(m, "initialEffect", &mut out);
         if let Some(a) = field(m, "assign").and_then(text) {
             check_assign(&a, "initialEffect", &mut out);
         }
@@ -246,6 +274,7 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
         }
 
         if let Some(Y::Mapping(em)) = field(t, "effect") {
+            check_send(em, &label, &mut out);
             if let Some(a) = field(em, "assign").and_then(text) {
                 check_assign(&a, &label, &mut out);
             }

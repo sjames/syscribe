@@ -51,6 +51,15 @@ pub struct Step {
     pub note: Option<String>,
 }
 
+/// A message a machine sent with a `send` effect, waiting to be taken by whoever composes the machine.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Sent {
+    pub time: f64,
+    pub event: String,
+    pub via: Option<String>,
+    pub payload: Vec<(String, Value)>,
+}
+
 /// What a run exercised, for coverage reports (REQ-TRS-SMCOV-001).
 #[derive(Debug, Clone, Default)]
 pub struct Coverage {
@@ -109,6 +118,7 @@ pub struct Run<'m> {
     cov: RefCell<Coverage>,
     last_taken: Option<usize>,
     cosim: Option<crate::plant::CoSim>,
+    outbox: Vec<Sent>,
 }
 
 impl<'m> Run<'m> {
@@ -147,6 +157,7 @@ impl<'m> Run<'m> {
             cov: RefCell::new(Coverage::default()),
             last_taken: None,
             cosim,
+            outbox: Vec::new(),
         };
         let init = r.plants_read();
         r.finish(init);
@@ -169,6 +180,11 @@ impl<'m> Run<'m> {
     pub fn trace(&self) -> &[Step] {
         &self.trace
     }
+    /// The messages sent since the last call, oldest first.
+    pub fn take_outbox(&mut self) -> Vec<Sent> {
+        std::mem::take(&mut self.outbox)
+    }
+
     pub fn time(&self) -> f64 {
         self.time
     }
@@ -916,6 +932,15 @@ impl<'m> Run<'m> {
                     }
                     None => step.actions.push(format!("behavior {target}")),
                 },
+                Action::Send { event, via, payload } => {
+                    let mut vals = Vec::new();
+                    for (k, e) in payload {
+                        vals.push((k.clone(), self.eval(e, scope, &format!("payload '{k}' of send {event}"))?));
+                    }
+                    let shown = vals.iter().map(|(k, v)| format!("{k}={}", format_value(v))).collect::<Vec<_>>().join(", ");
+                    step.actions.push(format!("send {event}{}{}", via.as_ref().map(|p| format!(" via {p}")).unwrap_or_default(), if shown.is_empty() { String::new() } else { format!(" ({shown})") }));
+                    self.outbox.push(Sent { time: self.time, event: event.clone(), via: via.clone(), payload: vals });
+                }
                 Action::Assign { var, expr } => {
                     let name = self.m.variables[*var].name.clone();
                     let v = self.eval(expr, scope, &format!("assignment to '{name}'"))?;

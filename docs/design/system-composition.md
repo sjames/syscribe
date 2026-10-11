@@ -28,7 +28,7 @@ composite Part/PartDef
 
 * The behaviour of a part is the one `StateDef` in its definition's `exhibitsStates:` (inherited through `supertype`). Zero → inert (still a valid endpoint for static checks); more than one → `E930`.
 * A port connection joins an `out`/`inout` port to an `in`/`inout` port. Fan-out (one output, several inputs) delivers to each in connection order.
-* The machine side: `effect: {send: Cmd, via: cmdOut, payload: {level: "x + 1"}}` and the existing `accept: {payload: Cmd, via: cmdIn}`. Payload entries are expressions evaluated at send time in the sender's scope. `via` must name a port of the owning part (`E932`).
+* The machine side: `effect: {send: Cmd, via: cmdOut, payload: {level: "x + 1"}}` and the existing `accept: {payload: Cmd, via: cmdIn}`. Payload entries are expressions evaluated at send time in the sender's scope. `via` must name a port of the owning part (`E932`). Within one action map `assign:` runs before `send:`, so the payload reports the updated values; a `send` in `initialEffect`, `entryAction` or `exitAction` works the same way.
 * Plants are parts with `fmu:`; they take part through `bindingConnections` only (no messages), using the FMI loop of `fmi-plant-cosimulation.md` with the part's own `plantStep` (default: the composite's `plantStep`).
 
 ## Execution

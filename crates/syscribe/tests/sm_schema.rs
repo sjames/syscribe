@@ -128,3 +128,14 @@ fn variable_units_are_checked() {
     assert!(has(&validate("variables:\n  - {name: v, value: \"5\", unit: \"furlongs\"}\nsubStates:\n  - {name: A, isInitial: true}\n"), "E883"), "unknown unit");
     assert!(has(&validate("variables:\n  - {name: v, value: \"5 s\", unit: \"kg\"}\nsubStates:\n  - {name: A, isInitial: true}\n"), "E883"), "unit on a value that already has one");
 }
+
+#[test]
+fn send_effects_are_checked() {
+    let v = "variables:\n  - {name: count, value: \"0\"}\n";
+    let ok = |eff: &str| format!("{v}subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {{target: B, accept: Pkg::Go, effect: {eff}}}\n  - name: B\n");
+    assert!(!has(&validate(&ok("{send: Out, via: p, payload: {x: \"count + 1\"}}")), "E884"), "a good send");
+    assert!(has(&validate(&ok("{send: \"\"}")), "E884"), "empty event");
+    assert!(has(&validate(&ok("{via: p}")), "E884"), "via without send");
+    assert!(has(&validate(&ok("{send: Out, payload: {x: \"1 +\"}}")), "E884"), "bad payload expression");
+    assert!(has(&validate(&ok("{send: Out, payload: [1]}")), "E884"), "payload not a mapping");
+}

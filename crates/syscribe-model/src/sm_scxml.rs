@@ -107,6 +107,19 @@ impl Out {
                     let e = ecma(&expr.ast, bind, &mut self.warnings);
                     self.line(depth, &format!("<assign location=\"{}\" expr=\"{}\"/>", esc(&m.variables[*var].name), esc(&e)));
                 }
+                Action::Send { event, via, payload } => {
+                    let name = via.as_ref().map(|p| format!("{p}/{event}")).unwrap_or_else(|| event.clone());
+                    if payload.is_empty() {
+                        self.line(depth, &format!("<send event=\"{}\"/>", esc(&name)));
+                    } else {
+                        self.line(depth, &format!("<send event=\"{}\">", esc(&name)));
+                        for (k, e) in payload {
+                            let x = ecma(&e.ast, bind, &mut self.warnings);
+                            self.line(depth + 1, &format!("<param name=\"{}\" expr=\"{}\"/>", esc(k), esc(&x)));
+                        }
+                        self.line(depth, "</send>");
+                    }
+                }
                 Action::Behavior { target, role } => {
                     if *role == Some("do") {
                         self.warnings.push(format!("doAction {target} of {owner} runs to completion on entry in syscribe; it has no SCXML form and is not represented"));

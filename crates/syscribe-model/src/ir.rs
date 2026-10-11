@@ -70,6 +70,15 @@ pub enum Action {
         #[serde(skip_serializing_if = "Option::is_none")]
         role: Option<&'static str>,
     },
+    /// Send an event out of the machine (REQ-TRS-SYSCOMP-001), optionally through a port of the owning part; the payload
+    /// expressions are evaluated at send time. Outside a composition the message is recorded in the trace only.
+    Send {
+        event: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        via: Option<String>,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        payload: Vec<(String, IrExpr)>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -224,11 +233,29 @@ impl<'a> Ctx<'a> {
                     if let Some(a) = field(am, "assign").and_then(text) {
                         out.extend(self.assigns(&a, bound, where_));
                     }
+                    out.extend(self.send(am, bound, where_));
                 }
                 _ => {}
             }
         }
         out
+    }
+
+    /// The `send:` of an action map (`{send: Event, via: port, payload: {name: expression}}`), if it has one.
+    fn send(&mut self, am: &Mapping, bound: &HashSet<String>, where_: &str) -> Option<Action> {
+        let event = field(am, "send").and_then(text).filter(|s| !s.trim().is_empty())?;
+        let via = field(am, "via").and_then(text);
+        let mut payload = Vec::new();
+        if let Some(Y::Mapping(pm)) = field(am, "payload") {
+            for (k, v) in pm {
+                if let (Some(k), Some(src)) = (k.as_str(), text(v)) {
+                    if let Some(e) = self.expr(&src, bound, where_) {
+                        payload.push((k.to_string(), e));
+                    }
+                }
+            }
+        }
+        Some(Action::Send { event, via, payload })
     }
 
     fn assigns(&mut self, src: &str, bound: &HashSet<String>, where_: &str) -> Vec<Action> {
@@ -404,6 +431,7 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         if let Some(a) = field(m, "assign").and_then(text) {
             initial_actions.extend(cx.assigns(&a, &none, "initialEffect"));
         }
+        initial_actions.extend(cx.send(m, &none, "initialEffect"));
     }
 
     // Transitions: nested ones in state document order, then the machine's own list.
