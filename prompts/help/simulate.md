@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe simulate <TestCase|StateDef> [--scenario <title>] [--trace] [--record [--run <id>] [--config <C>]] [--coverage [--min-states <pct>] [--min-transitions <pct>] [--min-guards <pct>]] [--strict] [--json]
-    syscribe simulate <StateDef> --do "<script>" [--strict] [--json]
+    syscribe simulate <StateDef> --do "<script>" [--crosscheck <engine>] [--strict] [--json]
 
 ## DESCRIPTION
 Lowers the state machine (see `syscribe help compile`) and runs a script on the
@@ -55,6 +55,14 @@ several conditions); timers (each `after` both fired and cancelled); and require
 TestCase all of whose scenarios passed. The report states its basis: scenarios run, machine hash,
 Configuration, tool version. `--min-states`, `--min-transitions` and `--min-guards` (percent) exit 2
 when missed.
+
+## OPTIONS
+    --scenario <title>   Run one scenario (or all rows of one outline).
+    --all                Run every scenario TestCase of the machine (the default for a machine).
+    --do "<script>"      Script mode: send / advance / set commands.
+    --crosscheck <eng>   Script mode: compare an external SCXML engine (see `syscribe help export-scxml`).
+    --trace, --record, --run, --config, --coverage, --min-states, --min-transitions,
+    --min-guards, --strict, --json   as described above.
 
 ## EXIT STATUS
 0 ran, or every scenario passed · 1 usage or bad script · 2 lowering diagnostic, run error or a scenario that did not pass.
