@@ -342,3 +342,122 @@ fn a_rerun_gives_an_identical_trace() {
     };
     assert_eq!(run(), run());
 }
+
+// ── review fixes (GH #279) ───────────────────────────────────────────────────
+
+#[test]
+fn a_descendant_transition_in_one_region_preempts_the_ancestors_when_another_region_has_none() {
+    let m = machine(
+        "subStates:
+  - name: P
+    isInitial: true
+    isParallel: true
+    transitions:
+      - {target: Z, accept: Pkg::Go}
+    subStates:
+      - name: R1
+        subStates:
+          - {name: a, isInitial: true}
+      - name: R2
+        subStates:
+          - {name: b, isInitial: true, transitions: [{target: c, accept: Pkg::Go}]}
+          - {name: c}
+  - name: Z
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    assert_eq!(r.active(), ["P", "P.R1", "P.R1.a", "P.R2", "P.R2.c"], "R2.b → R2.c wins; P is not left");
+}
+
+#[test]
+fn repeated_assignments_to_one_variable_run_in_order_and_strings_may_contain_semicolons() {
+    let m = machine(
+        "variables:
+  - {name: x, value: \"0\"}
+  - {name: s, value: \"'z'\"}
+subStates:
+  - name: A
+    isInitial: true
+    entryAction: {assign: \"x := 1; x := x + 1; s := 'a;b'\"}
+",
+    );
+    let r = Run::new(&m, Options::default());
+    assert_eq!(num(&r, "x"), "2");
+    assert_eq!(r.var("s"), Some(Value::Str("a;b".into())));
+}
+
+#[test]
+fn a_nested_compound_without_an_initial_child_starts_in_its_first() {
+    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {target: C, accept: Pkg::Go}\n  - name: C\n    subStates:\n      - {name: x}\n      - {name: y}\n");
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    assert_eq!(r.active(), ["C", "C.x"]);
+}
+
+#[test]
+fn a_when_on_a_composite_is_armed_after_the_whole_entry_set_has_run() {
+    let m = machine(
+        "variables:
+  - {name: v, value: \"0\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: C, accept: Pkg::Go}
+  - name: C
+    transitions:
+      - {target: Out, accept: {when: \"v == 1\"}}
+    subStates:
+      - name: c1
+        isInitial: true
+        entryAction: {assign: \"v := 1\"}
+  - name: Out
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    assert_eq!(r.active(), ["Out"], "v is 1 once c1's entry action has run, so the observation starts true");
+}
+
+#[test]
+fn a_machine_level_parallel_terminates_when_every_region_is_final() {
+    let m = machine(
+        "isParallel: true
+subStates:
+  - name: R1
+    subStates:
+      - {name: a, isInitial: true, transitions: [{target: af, accept: Pkg::Go}]}
+      - {name: af, isFinal: true}
+  - name: R2
+    subStates:
+      - {name: b, isInitial: true, transitions: [{target: bf, accept: Pkg::Go}]}
+      - {name: bf, isFinal: true}
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    assert!(!r.terminated());
+    r.send("Pkg::Go", &[]);
+    assert!(r.terminated());
+}
+
+#[test]
+fn a_run_error_is_recorded_in_the_trace() {
+    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {internal: true, accept: Pkg::E, guard: \"1 s + 1\"}\n");
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::E", &[]);
+    let last = r.trace().last().unwrap();
+    assert_eq!(last.cause, "error");
+    assert!(last.note.as_deref().is_some_and(|n| n.contains("guard")), "{last:?}");
+}
+
+#[test]
+fn strict_mode_reports_any_conflicting_pair() {
+    let m = machine("subStates:\n  - name: A\n    isInitial: true\n    transitions:\n      - {target: B, accept: Pkg::Go}\n      - {target: B, accept: Pkg::Go}\n      - {target: C, accept: Pkg::Go}\n  - {name: B}\n  - {name: C}\n");
+    let r = {
+        let mut r = Run::new(&m, Options { strict: true, ..Options::default() });
+        r.send("Pkg::Go", &[]);
+        r
+    };
+    assert!(r.error().is_some_and(|e| e.contains("t0") && e.contains("t2")), "{:?}", r.error());
+}

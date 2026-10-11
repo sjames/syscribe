@@ -576,7 +576,7 @@ pub fn parse(src: &str) -> Result<Expr, ExprError> {
 
 /// Parse a `;`-separated list of `name := expression` statements (REQ-TRS-SMSCHEMA-001). A `;` inside a
 /// quoted string or a parenthesis does not separate; empty statements (a trailing `;`) are ignored.
-pub fn parse_statements(src: &str) -> Result<Vec<(String, Expr)>, ExprError> {
+pub fn split_statements(src: &str) -> Result<Vec<(String, String)>, ExprError> {
     let mut parts: Vec<String> = Vec::new();
     let (mut cur, mut depth, mut quote) = (String::new(), 0i32, None::<char>);
     for c in src.chars() {
@@ -618,9 +618,14 @@ pub fn parse_statements(src: &str) -> Result<Vec<(String, Expr)>, ExprError> {
         if !ok {
             return Err(ExprError::Parse(format!("'{name}' is not a variable name")));
         }
-        out.push((name.to_string(), parse(rhs)?));
+        out.push((name.to_string(), rhs.trim().to_string()));
     }
     Ok(out)
+}
+
+/// [`split_statements`] with each right-hand side parsed.
+pub fn parse_statements(src: &str) -> Result<Vec<(String, Expr)>, ExprError> {
+    split_statements(src)?.into_iter().map(|(n, rhs)| Ok((n, parse(&rhs)?))).collect()
 }
 
 /// Read a binding value: `50ms`, `-3.5 V`, `true`, `'x'`, `ArmStatus::armed`, `12`.

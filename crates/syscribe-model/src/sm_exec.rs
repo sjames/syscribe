@@ -20,7 +20,7 @@ fn transition_is_executable(m: &Mapping) -> bool {
     field(m, "internal").is_some()
         || field(m, "assign").is_some()
         || matches!(field(m, "accept"), Some(Y::Mapping(a))
-            if ["after", "when", "done"].iter().any(|k| field(a, k).is_some()))
+            if field(a, "payload").is_none() || ["after", "when", "done"].iter().any(|k| field(a, k).is_some()))
 }
 
 /// Every (state name, transition mapping) of the machine, descending into composite substates.
@@ -44,14 +44,16 @@ fn transitions<'a>(subs: &'a [Y], top: &'a [Y], out: &mut Vec<(String, &'a Mappi
     }
 }
 
-fn state_names(subs: &[Y], out: &mut HashSet<String>) {
+fn state_names(subs: &[Y], prefix: &str, out: &mut HashSet<String>) {
     for s in subs {
         let Some(sm) = s.as_mapping() else { continue };
         if let Some(n) = field(sm, "name").and_then(|v| v.as_str()) {
             out.insert(n.to_string());
-        }
-        if let Some(Y::Sequence(inner)) = field(sm, "subStates") {
-            state_names(inner, out);
+            let path = if prefix.is_empty() { n.to_string() } else { format!("{prefix}.{n}") };
+            out.insert(path.clone());
+            if let Some(Y::Sequence(inner)) = field(sm, "subStates") {
+                state_names(inner, &path, out);
+            }
         }
     }
 }
@@ -103,9 +105,18 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
         } else if !declared.insert(name.to_string()) {
             out.push(("E883", format!("variable '{name}' is declared twice")));
         }
+        let unit = field(m, "unit").and_then(|u| u.as_str()).map(|u| u.trim_start_matches("SI::").to_string());
+        if let Some(u) = &unit {
+            if expr::unit_scale(u).is_none() {
+                out.push(("E883", format!("variable '{name}': unknown unit '{u}'")));
+            }
+        }
         match field(m, "value").and_then(text) {
             None => out.push(("E883", format!("variable '{name}' has no initial `value:`"))),
             Some(src) => match expr::parse(&src).and_then(|e| e.eval(&|_: &str| None)) {
+                Ok(Value::Num(q)) if unit.is_some() && q.dim != crate::units::Dim([0; 7]) => {
+                    out.push(("E883", format!("variable '{name}': `unit:` given but the value `{src}` already has a unit")));
+                }
                 Ok(_) => {}
                 Err(e) => out.push(("E883", format!("variable '{name}': initial value `{src}` does not evaluate: {e}"))),
             },
@@ -113,7 +124,7 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
     }
 
     let mut states = HashSet::new();
-    state_names(subs, &mut states);
+    state_names(subs, "", &mut states);
 
     let check_assign = |src: &str, where_: &str, out: &mut Vec<Finding>| match expr::parse_statements(src) {
         Err(e) => out.push(("E884", format!("{where_}: `assign:` {e}"))),
@@ -131,6 +142,28 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
         if let Some(a) = field(m, "assign").and_then(text) {
             check_assign(&a, "initialEffect", &mut out);
         }
+    }
+
+    // State action maps may carry `assign:` too.
+    fn state_assigns<'a>(subs: &'a [Y], out: &mut Vec<(String, String)>) {
+        for s in subs.iter().filter_map(|s| s.as_mapping()) {
+            let name = field(s, "name").and_then(|v| v.as_str()).unwrap_or("");
+            for k in ["entryAction", "doAction", "exitAction"] {
+                if let Some(Y::Mapping(am)) = field(s, k) {
+                    if let Some(a) = field(am, "assign").and_then(text) {
+                        out.push((format!("state '{name}' {k}"), a));
+                    }
+                }
+            }
+            if let Some(Y::Sequence(inner)) = field(s, "subStates") {
+                state_assigns(inner, out);
+            }
+        }
+    }
+    let mut sa = Vec::new();
+    state_assigns(subs, &mut sa);
+    for (w, a) in sa {
+        check_assign(&a, &w, &mut out);
     }
 
     let mut ts = Vec::new();
@@ -188,6 +221,9 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
                 }
             }
             let payload = field(a, "payload").is_some();
+            if kinds == 0 && !payload {
+                out.push(("E882", format!("{label}: `accept:` has no trigger (payload, after, when or done)")));
+            }
             if kinds > 1 || (kinds == 1 && payload) {
                 out.push(("E882", format!("{label}: `accept:` has more than one trigger kind")));
             }
@@ -196,6 +232,12 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
             }
             if let Some(n) = field(a, "as").and_then(|v| v.as_str()) {
                 bound.insert(n.to_string());
+            }
+        }
+
+        if let Some(Y::Mapping(em)) = field(t, "effect") {
+            if let Some(a) = field(em, "assign").and_then(text) {
+                check_assign(&a, &label, &mut out);
             }
         }
 

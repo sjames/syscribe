@@ -229,7 +229,7 @@ impl<'a> Ctx<'a> {
     }
 
     fn assigns(&mut self, src: &str, bound: &HashSet<String>, where_: &str) -> Vec<Action> {
-        let stmts = match expr::parse_statements(src) {
+        let stmts = match expr::split_statements(src) {
             Ok(s) => s,
             Err(e) => {
                 self.diags.push(("E884", format!("{where_}: `assign:` {e}")));
@@ -237,18 +237,11 @@ impl<'a> Ctx<'a> {
             }
         };
         let mut out = Vec::new();
-        // Re-lower each statement's right-hand side through `expr` so its names are resolved.
-        for (name, _) in stmts {
+        for (name, rhs) in stmts {
             let Some(var) = self.slot(&name) else {
                 self.diags.push(("E884", format!("{where_}: `assign:` assigns '{name}', which is not a declared variable")));
                 continue;
             };
-            let rhs = src
-                .split(';')
-                .map(str::trim)
-                .find_map(|p| p.strip_prefix(&name).and_then(|r| r.trim_start().strip_prefix(":=")))
-                .unwrap_or("")
-                .to_string();
             if let Some(e) = self.expr(&rhs, bound, where_) {
                 out.push(Action::Assign { var, expr: e });
             }
@@ -259,12 +252,14 @@ impl<'a> Ctx<'a> {
     /// Walk the state tree, assigning ids in document order (parents before children).
     fn walk(&mut self, subs: &'a [Y], parent: Option<usize>, parent_path: &str, yaml_path: &str, parallel: bool) -> Option<usize> {
         let mut initial = None;
+        let mut first = None;
         for (i, s) in subs.iter().enumerate() {
             let Some(sm) = s.as_mapping() else { continue };
             let Some(name) = field(sm, "name").and_then(|v| v.as_str()) else { continue };
             let path = if parent_path.is_empty() { name.to_string() } else { format!("{parent_path}.{name}") };
             let ypath = format!("{yaml_path}subStates[{i}]");
             let id = self.states.len();
+            first.get_or_insert(id);
             let has_children = matches!(field(sm, "subStates"), Some(Y::Sequence(c)) if !c.is_empty());
             let is_final = field(sm, "isFinal").and_then(|v| v.as_bool()) == Some(true);
             let is_parallel = field(sm, "isParallel").and_then(|v| v.as_bool()) == Some(true);
@@ -288,43 +283,45 @@ impl<'a> Ctx<'a> {
                 self.states[id].initial = init;
             }
         }
-        initial
+        // A compound state without an `isInitial` child starts in its first (W073/W074 report the omission).
+        if parallel { initial } else { initial.or(first) }
     }
 
-    /// Resolve a state name relative to `from`: siblings and children of each ancestor, nearest first;
-    /// a dotted path is matched against full paths.
+    /// Resolve a state name relative to `from`: a full dotted path first, then the children of `from`, of its
+    /// parent, and so on up to the top level (nearest wins); an ambiguity at one level is an error.
     fn find_state(&mut self, name: &str, from: Option<usize>, where_: &str) -> Option<usize> {
         if let Some(s) = self.states.iter().find(|s| s.path == name) {
             return Some(s.id);
         }
         let mut scope = from;
         loop {
-            let parent = scope.and_then(|s| self.states[s].parent);
-            let hits: Vec<usize> = self.states.iter().filter(|s| s.parent == parent && s.name == name).map(|s| s.id).collect();
-            if hits.len() == 1 {
-                return Some(hits[0]);
+            let hits: Vec<usize> = self.states.iter().filter(|s| s.parent == scope && s.name == name).map(|s| s.id).collect();
+            match hits.len() {
+                1 => return Some(hits[0]),
+                0 => {}
+                _ => return self.ambiguous(name, &hits, where_),
             }
             match scope {
                 None => break,
-                Some(_) => scope = parent,
-            }
-            if parent.is_none() && scope.is_none() {
-                break;
+                Some(s) => scope = self.states[s].parent,
             }
         }
-        let hits: Vec<&State> = self.states.iter().filter(|s| s.name == name).collect();
+        let hits: Vec<usize> = self.states.iter().filter(|s| s.name == name).map(|s| s.id).collect();
         match hits.len() {
-            1 => Some(hits[0].id),
+            1 => Some(hits[0]),
             0 => {
                 self.diags.push(("W076", format!("{where_}: state '{name}' is not a state of the machine")));
                 None
             }
-            _ => {
-                let all: Vec<_> = hits.iter().map(|s| s.path.as_str()).collect();
-                self.diags.push(("W076", format!("{where_}: state name '{name}' is ambiguous ({}); use a dotted path", all.join(", "))));
-                None
-            }
+            _ => self.ambiguous(name, &hits, where_),
         }
+    }
+
+    fn ambiguous(&mut self, name: &str, hits: &[usize], where_: &str) -> Option<usize> {
+        let all: Vec<_> = hits.iter().map(|i| self.states[*i].path.as_str()).collect();
+        let msg = format!("{where_}: state name '{name}' is ambiguous ({}); use a dotted path", all.join(", "));
+        self.diags.push(("W076", msg));
+        None
     }
 }
 
@@ -426,7 +423,10 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
                     Some(id) => Some(id),
                     None => return,
                 },
-                None => return,
+                None => {
+                    cx.diags.push(("W929", format!("{w}: a transition that is not `internal` needs a `target:`")));
+                    return;
+                }
             }
         };
         let mut bound: HashSet<String> = HashSet::new();
@@ -460,6 +460,10 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
                     }
                 } else {
                     let payload = field(a, "payload").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    if payload.is_empty() {
+                        cx.diags.push(("E882", format!("{w}: `accept:` has no trigger (payload, after, when or done)")));
+                        return;
+                    }
                     let name = match field(a, "via").and_then(|v| v.as_str()) {
                         Some(p) => format!("{p}/{payload}"),
                         None => payload,

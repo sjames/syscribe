@@ -106,3 +106,25 @@ fn existing_models_see_nothing_new() {
         assert!(!has(&o, c), "{c} on a non-executable machine: {o}");
     }
 }
+
+#[test]
+fn state_action_assignments_and_effect_maps_are_checked() {
+    let v = "variables:\n  - {name: count, value: \"0\"}\n";
+    let y = format!("{v}subStates:\n  - name: A\n    isInitial: true\n    entryAction: {{assign: \"zz := 1\"}}\n    transitions:\n      - {{target: B, accept: Pkg::Go}}\n  - name: B\n    transitions:\n      - {{target: A, accept: Pkg::Back, effect: {{assign: \"qq := 1\"}}}}\n");
+    let o = validate(&y);
+    assert!(o.matches("E884").count() >= 2, "entryAction and effect assigns: {o}");
+}
+
+#[test]
+fn done_may_name_a_dotted_path_and_an_empty_accept_is_rejected() {
+    let nested = "subStates:\n  - name: P\n    isInitial: true\n    transitions: [{target: Z, accept: {done: P.R}}]\n    subStates:\n      - {name: R, isInitial: true, subStates: [{name: f, isInitial: true}]}\n  - {name: Z}\n";
+    assert!(!has(&validate(nested), "E882"), "dotted done path");
+    let empty = "subStates:\n  - name: A\n    isInitial: true\n    transitions: [{target: B, accept: {}}]\n  - {name: B}\n";
+    assert!(has(&validate(empty), "E882"), "accept with nothing");
+}
+
+#[test]
+fn variable_units_are_checked() {
+    assert!(has(&validate("variables:\n  - {name: v, value: \"5\", unit: \"furlongs\"}\nsubStates:\n  - {name: A, isInitial: true}\n"), "E883"), "unknown unit");
+    assert!(has(&validate("variables:\n  - {name: v, value: \"5 s\", unit: \"kg\"}\nsubStates:\n  - {name: A, isInitial: true}\n"), "E883"), "unit on a value that already has one");
+}

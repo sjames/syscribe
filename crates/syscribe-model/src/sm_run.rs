@@ -132,6 +132,9 @@ impl<'m> Run<'m> {
     fn finish(&mut self, r: R<()>) {
         if let Err(e) = r {
             if self.error.is_none() {
+                let mut step = self.begin("error".into());
+                step.note = Some(e.clone());
+                self.trace.push(step);
                 self.error = Some(e);
             }
         }
@@ -229,7 +232,7 @@ impl<'m> Run<'m> {
         } else if let Some(i) = m.initial {
             self.plan_enter(i, &[], &mut list);
         }
-        let res = list.iter().try_for_each(|s| self.enter_one(*s, &mut step));
+        let res = list.iter().try_for_each(|s| self.enter_one(*s, &mut step)).and_then(|_| self.arm(&list));
         self.record_changes(&before, &mut step);
         self.trace.push(step);
         res?;
@@ -436,13 +439,13 @@ impl<'m> Run<'m> {
                         }
                     }
                 }
-                if self.opts.strict && enabled.len() > 1 {
-                    let (a, b) = (enabled[0], enabled[1]);
-                    if m.transitions[a].target != m.transitions[b].target {
+                if self.opts.strict {
+                    if let Some(b) = enabled.iter().skip(1).find(|b| m.transitions[**b].target != m.transitions[enabled[0]].target) {
+                        let a = enabled[0];
                         return Err(format!(
                             "strict: transitions t{a} ({}) and t{b} ({}) are both enabled with equal priority",
                             self.describe(a),
-                            self.describe(b)
+                            self.describe(*b)
                         ));
                     }
                 }
@@ -454,14 +457,27 @@ impl<'m> Run<'m> {
                 }
             }
         }
+        // SCXML removeConflictingTransitions: of two transitions that exit the same states, the one whose
+        // source is the descendant wins; otherwise the earlier one.
         let mut kept: Vec<usize> = Vec::new();
-        let mut taken_exits: Vec<usize> = Vec::new();
-        for t in chosen {
+        'next: for t in chosen {
             let ex = self.exit_set(t);
-            if ex.iter().any(|x| taken_exits.contains(x)) {
-                continue;
+            let mut i = 0;
+            while i < kept.len() {
+                let k = kept[i];
+                if self.exit_set(k).iter().any(|x| ex.contains(x)) {
+                    let (ks, ts) = (m.transitions[k].source, m.transitions[t].source);
+                    if self.ancestors(ks).contains(&ts) {
+                        continue 'next; // k is deeper: it preempts t
+                    } else if self.ancestors(ts).contains(&ks) {
+                        kept.remove(i); // t is deeper: it preempts k
+                        continue;
+                    } else {
+                        continue 'next;
+                    }
+                }
+                i += 1;
             }
-            taken_exits.extend(ex);
             kept.push(t);
         }
         Ok(if kept.is_empty() { None } else { Some(kept) })
@@ -505,6 +521,7 @@ impl<'m> Run<'m> {
                 self.run_actions(&tr.actions, Some(&scope), &mut step)?;
             }
             // entry
+            let mut entered_ids: Vec<usize> = Vec::new();
             for t in &sel {
                 let tr = &m.transitions[*t];
                 if tr.internal {
@@ -522,9 +539,11 @@ impl<'m> Run<'m> {
                 for s in list {
                     if !self.active[s] {
                         self.enter_one(s, &mut step)?;
+                        entered_ids.push(s);
                     }
                 }
             }
+            self.arm(&entered_ids)?;
             Ok(())
         })();
         self.record_changes(&before, &mut step);
@@ -578,6 +597,38 @@ impl<'m> Run<'m> {
         step.entered.push(m.states[s].path.clone());
         let acts = m.states[s].entry.clone();
         self.run_actions(&acts, None, step)?;
+        if m.states[s].kind == Kind::Final {
+            match m.states[s].parent {
+                None => self.terminated = true,
+                Some(p) if m.states[p].parent.is_none() && m.parallel => {
+                    self.internal.push_back(Ev::Done(p));
+                    let all = m.states.iter().filter(|r| r.parent.is_none()).all(|r| self.children[r.id].iter().any(|c| self.active[*c] && m.states[*c].kind == Kind::Final));
+                    if all {
+                        self.terminated = true;
+                    }
+                }
+                Some(p) => {
+                    self.internal.push_back(Ev::Done(p));
+                    if let Some(g) = m.states[p].parent {
+                        if m.states[g].kind == Kind::Parallel {
+                            let all = self.children[g].iter().all(|r| self.children[*r].iter().any(|c| self.active[*c] && m.states[*c].kind == Kind::Final));
+                            if all {
+                                self.internal.push_back(Ev::Done(g));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Arm the timers and change observations of just-entered states, after the whole entry set has run so
+    /// that a `when` sees the variables as the entry actions left them (KerML: the observation starts when the
+    /// accept becomes enabled).
+    fn arm(&mut self, entered: &[usize]) -> R<()> {
+        let m = self.m;
+        for s in entered.iter().copied().filter(|s| self.active[*s]) {
         for tr in m.transitions.iter().filter(|t| t.source == s) {
             match &tr.trigger {
                 Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, tr.id)),
@@ -593,21 +644,6 @@ impl<'m> Run<'m> {
                 _ => {}
             }
         }
-        if m.states[s].kind == Kind::Final {
-            match m.states[s].parent {
-                None => self.terminated = true,
-                Some(p) => {
-                    self.internal.push_back(Ev::Done(p));
-                    if let Some(g) = m.states[p].parent {
-                        if m.states[g].kind == Kind::Parallel {
-                            let all = self.children[g].iter().all(|r| self.children[*r].iter().any(|c| self.active[*c] && m.states[*c].kind == Kind::Final));
-                            if all {
-                                self.internal.push_back(Ev::Done(g));
-                            }
-                        }
-                    }
-                }
-            }
         }
         Ok(())
     }

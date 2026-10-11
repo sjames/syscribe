@@ -167,3 +167,18 @@ fn simulate_exits_2_on_a_run_error_and_1_on_a_bad_script() {
     let (c, _) = simulate(MACHINE, "frobnicate", &[]);
     assert_eq!(c, 1);
 }
+
+#[test]
+fn a_target_name_prefers_the_sources_own_children() {
+    let y = "subStates:\n  - name: A\n    isInitial: true\n    transitions: [{target: X, accept: Pkg::Go}]\n    subStates: [{name: X, isInitial: true}]\n  - {name: B, subStates: [{name: X, isInitial: true}]}\n";
+    let (c, t, m) = compile(y, "M");
+    assert_eq!(c, 0, "{t}");
+    assert_eq!(m["transitions"][0]["target"], state(&m, "A.X")["id"]);
+}
+
+#[test]
+fn a_transition_without_a_target_or_a_trigger_is_a_diagnostic_not_a_silent_drop() {
+    let (c, t, _) = compile("subStates:\n  - name: A\n    isInitial: true\n    transitions: [{accept: Pkg::Go}]\n", "M");
+    assert_eq!(c, 2, "{t}");
+    assert!(t.contains("W929"), "{t}");
+}
