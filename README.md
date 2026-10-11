@@ -387,6 +387,7 @@ syscribe --version          # also -V, or `syscribe version` → "syscribe <semv
 | `model_sil/` | SIL 4 Railway Interlocking | IEC 61508, EN 50128/50129, EN 50159 Cat 2 |
 | `model/` | UAV Autonomous Flight System | General SysMLv2 element palette |
 | `model_mg/` | EV DC Fast-Charging Station | MagicGrid (problem/solution × 4 pillars) |
+| `model_gti/` | Grid-tie inverter, US and India (multi-string HV PV, STM32) | IEEE 1547 / UL 1741 SB, CEA / IS 16221 (limits flagged unverified), executable state machines, fault injection |
 
 All four demo models validate with 0 errors and demonstrate full requirements traceability, safety analysis (HARA, FTA, FMEA), and security analysis (TARA); CI gates on `validate` for every model.
 

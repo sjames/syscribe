@@ -8,7 +8,6 @@ satisfies:
   - REQ-GTI-SYS-036
   - REQ-GTI-SYS-072
   - REQ-GTI-SYS-080
-  - REQ-GTI-SW-005
   - REQ-GTI-SW-007
 ---
 

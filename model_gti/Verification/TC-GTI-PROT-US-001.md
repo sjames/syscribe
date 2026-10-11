@@ -15,6 +15,7 @@ verifies:
   - REQ-GTI-SW-001
   - REQ-GTI-SW-002
   - REQ-GTI-HW-002
+  - REQ-GTI-HW-008
 tags: [executable, region-us, reg-unverified]
 appliesWhen: Features::Region::US
 ---
@@ -33,10 +34,19 @@ Feature: Grid connection and protection chain (US)
     And powerStage.pwm == 0
     When 1 s elapses
     Then supervisor is in state Closing
+    And relayA is in state Closed
+    And relayB is in state Closed
     And relayA.closed == 1 and relayB.closed == 1
-    When 100 ms elapses
-    Then powerStage.pwm == 1
-    When 5 s elapses
+    And powerStage.pwm == 0
+    When 99 ms elapses
+    Then supervisor is in state Closing
+    When 2 ms elapses
+    Then supervisor is in state Ramping
+    And powerStage is in state On
+    And powerStage.pwm == 1
+    When 4 s elapses
+    Then supervisor is in state Ramping
+    When 1 s elapses
     Then supervisor is in state Running
 
   Scenario: insulation below the limit prevents connection until it recovers
@@ -49,6 +59,29 @@ Feature: Grid connection and protection chain (US)
     When supervisor.rIso becomes 4000
     And supervisor receives Start
     Then supervisor is in state WaitGrid
+
+  Scenario Outline: the insulation limit is 34 kOhm from standby
+    Given supervisor.rIso is <r>
+    When supervisor receives Start
+    Then supervisor is in state <state>
+
+    Examples:
+      | r | state |
+      | 33 | InsulationFault |
+      | 34 | WaitGrid |
+      | 35 | WaitGrid |
+
+  Scenario Outline: the insulation limit is 34 kOhm after a fault
+    Given supervisor is in state InsulationFault
+    And supervisor.rIso is <r>
+    When supervisor receives Start
+    Then supervisor is in state <state>
+
+    Examples:
+      | r | state |
+      | 33 | InsulationFault |
+      | 34 | WaitGrid |
+      | 35 | WaitGrid |
 
   Scenario: a persistent high-frequency excursion trips after the clearing time
     Given supervisor is in state Running
@@ -114,7 +147,7 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
-    When grid receives Set with v = 0, f = 0
+    When grid receives Set with v = 0, f = 60
     Then relayB.closed == 0
     And powerStage.pwm == 0
     When 160 ms elapses
@@ -129,7 +162,7 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
-    When grid receives Set with v = 0, f = 0
+    When grid receives Set with v = 0, f = 60
     And 160 ms elapses
     And grid receives Set with v = 1.0, f = 60
     Then supervisor is in state WaitGrid
@@ -140,10 +173,20 @@ Feature: Grid connection and protection chain (US)
 
   Scenario Outline: grid loss in any connection phase aborts the connection
     Given supervisor is in state <phase>
+    And relayA is in state Closed
+    And relayA.closed is 1
+    And relayB is in state Closed
+    And relayB.closed is 1
+    And powerStage is in state On
+    And powerStage.pwm is 1
     When grid receives Set with v = 1.0, f = 62.5
     And 160 ms elapses
     Then supervisor is in state Tripped
     And powerStage.pwm == 0
+    And powerStage is in state Off
+    And relayA is in state Open
+    And relayB is in state Open
+    And relayA.closed == 0 and relayB.closed == 0
 
     Examples:
       | phase    |
@@ -159,7 +202,7 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
-    When grid receives Set with v = 0, f = 0
+    When grid receives Set with v = 0, f = 60
     And hwTrip receives Reset
     And grid receives Set with v = 1.0, f = 60
     And 1 s elapses
@@ -179,6 +222,38 @@ Feature: Grid connection and protection chain (US)
       | 1.0 | 62.1 | Excursion |
       | 1.0 | 56.5 | Normal |
       | 1.0 | 56.4 | Excursion |
+
+  Scenario Outline: the monitor recovers from Excursion exactly at the window edge
+    Given monitor is in state Excursion
+    When grid receives Set with v = <v>, f = <f>
+    Then monitor is in state <state>
+
+    Examples:
+      | v | f | state |
+      | 1.2 | 60 | Normal |
+      | 1.21 | 60 | Excursion |
+      | 0.45 | 60 | Normal |
+      | 0.44 | 60 | Excursion |
+      | 1.0 | 62 | Normal |
+      | 1.0 | 62.1 | Excursion |
+      | 1.0 | 56.5 | Normal |
+      | 1.0 | 56.4 | Excursion |
+
+  Scenario Outline: the monitor recovers from Tripped exactly at the window edge
+    Given monitor is in state Tripped
+    When grid receives Set with v = <v>, f = <f>
+    Then monitor is in state <state>
+
+    Examples:
+      | v | f | state |
+      | 1.2 | 60 | Normal |
+      | 1.21 | 60 | Tripped |
+      | 0.45 | 60 | Normal |
+      | 0.44 | 60 | Tripped |
+      | 1.0 | 62 | Normal |
+      | 1.0 | 62.1 | Tripped |
+      | 1.0 | 56.5 | Normal |
+      | 1.0 | 56.4 | Tripped |
 
   Scenario Outline: the hardware trip acts on gross voltage loss only
     When grid receives Set with v = <v>, f = 60
@@ -207,7 +282,7 @@ Feature: Grid connection and protection chain (US)
     And relayB.closed is 1
     And powerStage is in state On
     And powerStage.pwm is 1
-    When grid receives Set with v = 0, f = 0
+    When grid receives Set with v = 0, f = 60
     And 2 s elapses
     Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
 ```

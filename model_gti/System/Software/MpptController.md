@@ -4,7 +4,6 @@ name: MPPT Controller
 domain: software
 satisfies:
   - REQ-GTI-SYS-022
-  - REQ-GTI-SYS-023
   - REQ-GTI-SW-006
 ---
 

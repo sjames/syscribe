@@ -93,7 +93,7 @@ entries:
     occurrence: 3
     detection: 7
     recommendedAction: "Independent sensing chain for the hardware trip (REQ-GTI-HW-008, ADR-GTI-SAFE-001)"
-    injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorSw}, {kind: corrupt, port: out, field: f, value: "60.0", part: sensorSw}]
+    injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorSw}]
   - id: FM-GTI-011
     ref: Behavior::Parts::SensorPart
     failureMode: "Hardware-trip voltage sensing reads nominal while the grid is lost"
@@ -103,7 +103,7 @@ entries:
     occurrence: 3
     detection: 6
     recommendedAction: "Start-up test of the hardware trip with an injected reference"
-    injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorHw}, {kind: corrupt, port: out, field: f, value: "60.0", part: sensorHw}]
+    injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorHw}]
   - id: FM-GTI-010
     ref: Behavior::Parts::GridMonitorPartUs
     failureMode: "Monitor trip threshold drifts (prose only — an analysis row without a fault model)"

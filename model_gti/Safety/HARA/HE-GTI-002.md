@@ -2,6 +2,7 @@
 id: HE-GTI-002
 type: HazardousEvent
 status: approved
+appliesWhen: Features::Protection::Afci
 name: DC series arc in a roof-mounted string ignites the building
 consequence: Cc
 freqExposure: Fb

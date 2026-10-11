@@ -2,6 +2,7 @@
 id: SG-GTI-002
 type: SafetyGoal
 status: approved
+appliesWhen: Features::Protection::Afci
 name: Do not sustain a DC series arc
 silLevel: 2
 safeState: Affected input interrupted, bridge off

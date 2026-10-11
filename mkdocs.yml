@@ -84,6 +84,7 @@ nav:
       - Engine ECU (ISO 26262): demo-model/engine-ecu.md
       - SIL 4 Interlocking: demo-model/interlocking.md
       - UAV Autonomous Flight: demo-model/uav.md
+      - Grid-Tie Inverter (US / India): demo-model/grid-tie-inverter.md
   - Practitioner Guide:
       - guides/index.md
       - Introduction: guides/introduction.md

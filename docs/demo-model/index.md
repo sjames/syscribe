@@ -2,7 +2,7 @@
 
 `EXAMPLE · REFERENCE MODELS`
 
-The repository ships with four fully-worked reference models covering different engineering domains, safety standards and modeling methods. Each model is self-contained and validates with zero errors; CI gates on `validate` for every one of them. Remaining warnings are deliberate, advisory findings that show what the checks report — run `validate` for the current list.
+The repository ships with five fully-worked reference models covering different engineering domains, safety standards and modeling methods. Each model is self-contained and validates with zero errors; CI gates on `validate` for every one of them. Remaining warnings are deliberate, advisory findings that show what the checks report — run `validate` for the current list.
 
 | Model | Domain | Standards | Location |
 |---|---|---|---|
@@ -10,6 +10,7 @@ The repository ships with four fully-worked reference models covering different 
 | [SIL 4 Interlocking](interlocking.md) | Railway signalling | IEC 61508, EN 50128/50129, EN 50159 Cat 2, ISO/SAE 21434 | `model_sil/` |
 | [UAV Autonomous Flight](uav.md) | Unmanned aerial system | General SysMLv2 element palette | `model/` |
 | [EV DC Fast-Charging Station](../model-guide/magicgrid.md) | Electric-vehicle charging infrastructure | MagicGrid (problem/solution domain × four pillars) | `model_mg/` |
+| [Grid-Tie Inverter (US / India)](grid-tie-inverter.md) | Solar power electronics, two grid-code regions | IEEE 1547 / UL 1741 SB / NEC 690, CEA / IS 16221 / IS 16169 (limits flagged unverified), STM32 constraint | `model_gti/` |
 
 ## Quickstart
 
@@ -19,6 +20,7 @@ Run the validator against any model with the `-m` flag:
 syscribe -m model_auto/ validate
 syscribe -m model_sil/ validate
 syscribe -m model/ validate
+syscribe -m model_gti/ validate --all-configs
 syscribe -m model_mg/ validate --profile magicgrid
 ```
 

@@ -10,6 +10,7 @@ on:
       - "model_sil/**"
       - "model_auto/**"
       - "model_mg/**"
+      - "model_gti/**"
       - "prompts/**"
       - "spec/**"
       - "docs/**"
@@ -24,6 +25,7 @@ on:
       - "model_sil/**"
       - "model_auto/**"
       - "model_mg/**"
+      - "model_gti/**"
       - "prompts/**"
       - "spec/**"
       - "docs/**"
@@ -90,6 +92,7 @@ jobs:
             "model_auto|"
             "model_mg|--profile magicgrid"
             "model_sil|"
+            "model_gti|"
             "qual|"
           )
           fail=0

@@ -7,13 +7,7 @@ satisfies:
   - REQ-GTI-SYS-002
   - REQ-GTI-SYS-003
   - REQ-GTI-SYS-004
-  - REQ-GTI-SYS-005
-  - REQ-GTI-SYS-006
   - REQ-GTI-SYS-014
-  - REQ-GTI-SYS-042
-  - REQ-GTI-SYS-043
-  - REQ-GTI-SYS-061
-  - REQ-GTI-SYS-062
 features:
   - {name: powerStage, typedBy: System::Hardware::PowerStage}
   - {name: dcInput, typedBy: System::Hardware::DcInput}
