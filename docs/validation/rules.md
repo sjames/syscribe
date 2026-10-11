@@ -201,7 +201,7 @@ Core features (present in every valid configuration) are reported informationall
 | Code | Condition |
 |---|---|
 | E226 | (`--config`) an **active** element's **structural** reference (typedBy/supertype/subsets/redefines/allocation) escapes the variant — the target is inactive in this configuration |
-| W019 | (`--config`) an **active** element's **traceability** reference (verifies/satisfies/derivedFrom/breakdownAdr) escapes the variant |
+| W019 | (`--config`) an **active** element's **traceability** reference (verifies/derivedFrom/breakdownAdr/…) escapes the variant; a `satisfies:` of a requirement the variant does not have is not an escape |
 | E227 | (`feature-check --deep`) a **structural** edge is provably violable: a valid configuration activates the source without its target (`appliesWhen(X) ⇒ appliesWhen(Y)` fails); includes a witness |
 | W020 | (`feature-check --deep`) a **traceability** edge is provably violable across some valid configuration |
 | W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |

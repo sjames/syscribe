@@ -291,6 +291,11 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
             if is_active_canon(t, sel, &pkg, &alias) {
                 continue;
             }
+            // An element of the product that `satisfies:` a requirement the product does not have is vacuous, not a
+            // dangling trace (GH #312); `verifies:`, `derivedFrom:` and the rest of the links still escape.
+            if matches!(t.frontmatter.element_type, Some(ElementType::Requirement)) && x.frontmatter.satisfies.iter().flatten().any(|s| s == &target) {
+                continue;
+            }
             match kind {
                 RefKind::Structural => findings.push(err(
                     "E226",
