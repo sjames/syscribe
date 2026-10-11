@@ -111,6 +111,9 @@ impl Out {
                     if *role == Some("do") {
                         self.warnings.push(format!("doAction {target} of {owner} runs to completion on entry in syscribe; it has no SCXML form and is not represented"));
                         self.line(depth, &format!("<!-- doAction {target} (runs to completion on entry in syscribe; not represented) -->"));
+                    } else if m.behaviors.contains_key(target) {
+                        self.warnings.push(format!("action {target} of {owner} is executed by syscribe but has no SCXML form; the exported machine does not run it and may differ"));
+                        self.line(depth, &format!("<!-- action {target} (executed by syscribe; no SCXML form, not represented) -->"));
                     } else {
                         self.warnings.push(format!("behavior {target} of {owner} is a model reference that syscribe records but does not execute; not represented"));
                         self.line(depth, &format!("<!-- behavior {target} (a model reference; not executed) -->"));

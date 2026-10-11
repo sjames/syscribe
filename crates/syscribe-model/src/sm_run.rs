@@ -796,10 +796,41 @@ impl<'m> Run<'m> {
         Ok(())
     }
 
+    /// Run an executable `ActionDef` to completion on the machine's variables of the same names: its `in` and
+    /// `inout` parameters are read from them, its `out` and `inout` values written back.
+    fn run_behavior(&mut self, prog: &crate::act_ir::ActionProgram, target: &str) -> R<String> {
+        use crate::act_run::{ActOptions, ActRun, Status as AS};
+        let mut ar = ActRun::new(prog, ActOptions::default());
+        for slot in prog.defs[0].slots.iter().filter(|s| s.kind == "in" || s.kind == "inout") {
+            if let Some(v) = self.var(&slot.name) {
+                ar.set_input(&slot.name, v).map_err(|e| format!("behavior {target}: {e}"))?;
+            }
+        }
+        ar.run();
+        match ar.status() {
+            AS::Error => return Err(format!("behavior {target}: {}", ar.error().unwrap_or(""))),
+            AS::Waiting => return Err(format!("behavior {target}: the action waits for an event; a behaviour must complete")),
+            _ => {}
+        }
+        for (name, v) in ar.outputs() {
+            if let Some(i) = self.m.variables.iter().position(|x| x.name == name) {
+                check_assignable(&name, &self.vars[i], &v).map_err(|e| format!("behavior {target}: {e}"))?;
+                self.vars[i] = v;
+            }
+        }
+        Ok(format!("action {target} executed in {} firing(s)", ar.trace().len()))
+    }
+
     fn run_actions(&mut self, acts: &[Action], scope: Option<&Scope>, step: &mut Step) -> R<()> {
         for a in acts {
             match a {
-                Action::Behavior { target, .. } => step.actions.push(format!("behavior {target}")),
+                Action::Behavior { target, .. } => match self.m.behaviors.get(target) {
+                    Some(prog) => {
+                        let note = self.run_behavior(prog, target)?;
+                        step.actions.push(note);
+                    }
+                    None => step.actions.push(format!("behavior {target}")),
+                },
                 Action::Assign { var, expr } => {
                     let name = self.m.variables[*var].name.clone();
                     let v = self.eval(expr, scope, &format!("assignment to '{name}'"))?;

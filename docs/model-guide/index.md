@@ -107,6 +107,7 @@ Its shape:
 - [Traceability](traceability.md) — the seven §12 rules, including `implementedBy:`/`W023`, plus suspect-link detection (`traceBaselines:`/`W090`, the `suspect` commands)
 - [Architecture Decisions](adrs.md) — ADR lifecycle and breakdown rules
 - [State Machines](state-machines.md) — `StateDef` transitions, hierarchy/parallel regions, the `W070`–`W079` and `W929` completeness checks
+- [Action Flows](action-flows.md) — executable `ActionDef`s: token semantics, scenarios, coverage, mutation
 - [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens
 - [Multi-Repository Composition](multi-repo.md) — `[repos]`, `repoImports:`, cross-repo resolution, the `E510`–`E515`/`W510`–`W512` reproducibility gates, git-submodule integration
 - [Native SysMLv2 Submodels](sysmlv2-submodel.md) — `sysmlSubmodel: true`, in-process `.sysml`/`.kerml` parsing, `satisfy`/`verify`/`@SyscribeFeature` cross-references, the `W540`–`W542` diagnostics

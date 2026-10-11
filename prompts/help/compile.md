@@ -18,5 +18,8 @@ an unresolved or ambiguous transition endpoint (W076).
     syscribe compile Door            # summary
     syscribe compile Door --json     # canonical IR
 
+An `ActionDef` is lowered to the action-graph IR instead (nodes, guarded successions, slots, data
+flows, called actions): see `syscribe help simulate`.
+
 ## EXIT STATUS
 0 lowered · 1 usage, or the element is not a state machine · 2 diagnostics.

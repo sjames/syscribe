@@ -815,6 +815,10 @@ syscribe -m <root> simulate <TestCase|StateDef> [--scenario <title>] [--trace] [
 
 With a `TestCase` (or a machine, meaning every scenario `TestCase` whose `subject:` it is) `simulate` runs the Gherkin scenarios (GH #280) over a closed step vocabulary: `Given <machine> is in state <state>`, `Given <variable> is <expression>`, `When <event> is injected [with <field> = <expression>, …]`, `When <variable> becomes <expression>`, `When <duration> elapses`, `Then <machine> is in state <state>`, `Then <boolean expression>`. A step outside it is `E886` and an `error` verdict. `Scenario Outline` rows expand to `<title> [row N]`; each scenario is `pass`, `fail` or `error`; exit `2` unless all pass. `--record` writes the verdicts as session-log evidence in the results sidecar (so `trace`, `matrix`, `audit` and the safety case see them) and the traces under `.syscribe/traces/`. `--coverage` adds measured coverage (GH #281) merged over the scenarios run: states, transitions (uncovered ones listed by trigger and guard), transition pairs, guard and `when` conditions (each atomic condition both true and false, with a unique-cause MC/DC demonstration for multi-condition expressions), timers (each `after` both fired and cancelled) and requirements verified by a fully passing TestCase; `--min-states`, `--min-transitions` and `--min-guards` gate the exit code. This is measured coverage and replaces the traceability proxy of `behavioral-coverage` for machines that have scenarios. See `syscribe help simulate`.
 
+## Action flows
+
+`compile`, `simulate` (script, scenarios, `--coverage`, `--record`) and `mutate` also take an executable `ActionDef` (GH #276): token semantics, a closed Gherkin vocabulary, node/edge/decision/loop/guard coverage with the gates `--min-nodes`, `--min-edges`, `--min-guards`, and mutation of successions, guards and assignments. See `docs/model-guide/action-flows.md`.
+
 ## Mutation analysis (`mutate`)
 
 ```bash

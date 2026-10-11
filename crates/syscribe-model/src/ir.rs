@@ -133,6 +133,9 @@ pub struct Machine {
     pub variables: Vec<Var>,
     pub events: Vec<String>,
     pub initial_actions: Vec<Action>,
+    /// Executable `ActionDef`s named by behaviour references, lowered; they run at that point of a run.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub behaviors: std::collections::BTreeMap<String, crate::act_ir::ActionProgram>,
     pub states: Vec<State>,
     pub transitions: Vec<Transition>,
 }
@@ -510,6 +513,43 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         }
     }
 
+    // Behaviour references that name an executable ActionDef are lowered; they run when reached.
+    let mut behaviors = std::collections::BTreeMap::new();
+    {
+        let mut targets: Vec<String> = Vec::new();
+        let mut collect = |acts: &[Action]| {
+            for a in acts {
+                if let Action::Behavior { target, .. } = a {
+                    if !targets.contains(target) {
+                        targets.push(target.clone());
+                    }
+                }
+            }
+        };
+        collect(&initial_actions);
+        for st in &cx.states {
+            collect(&st.entry);
+            collect(&st.exit);
+        }
+        for t in &transitions {
+            collect(&t.actions);
+        }
+        for t in targets {
+            let Some(el) = resolver.resolve_ref(elements, &t) else { continue };
+            if !matches!(el.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) {
+                continue;
+            }
+            if !crate::act_exec::is_executable(el.frontmatter.variables.as_deref(), el.frontmatter.sub_actions.as_deref().unwrap_or(&[])) {
+                continue;
+            }
+            match crate::act_ir::lower_action(elements, &el.qualified_name) {
+                Ok(p) => {
+                    behaviors.insert(t.clone(), p);
+                }
+                Err(ds) => diags.extend(ds.into_iter().map(|(c, m)| (c, format!("behavior {t}: {m}")))),
+            }
+        }
+    }
     diags.append(&mut cx.diags);
     if !diags.is_empty() {
         return Err(diags);
@@ -522,6 +562,7 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
         variables: cx.vars,
         events,
         initial_actions,
+        behaviors,
         states: cx.states,
         transitions,
     };

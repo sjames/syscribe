@@ -22,6 +22,11 @@ element was never covered (reported separately, not counted). Score = killed / (
 survived). Survivors are listed with the mutation, its source location and the scenario that
 came closest to killing it. The scenarios must all pass on the unmutated machine.
 
+For an executable `ActionDef` the operators act on the action graph: negate a guard or
+condition, change a relational operator or literal, remove or retarget a succession, swap the
+targets of two decision branches, remove an assignment or assign a variable to itself, make a
+node complete without effect.
+
 ## EXIT STATUS
 0 done (and above `--min-score`) · 1 usage, or no scenarios · 2 below `--min-score`, a
 lowering diagnostic, or a scenario failing on the unmutated machine.

@@ -60,6 +60,7 @@ nav:
       - Traceability: model-guide/traceability.md
       - Architecture Decisions: model-guide/adrs.md
       - State Machines: model-guide/state-machines.md
+      - Action Flows: model-guide/action-flows.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
       - Build System Integration: model-guide/build-export.md
