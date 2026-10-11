@@ -36,6 +36,7 @@ pub mod cyber_config;
 pub mod safety_case;
 pub mod risk;
 pub mod sm_exec;
+pub mod sm_run;
 pub mod solver;
 pub mod structural_refs;
 pub mod security_checks;

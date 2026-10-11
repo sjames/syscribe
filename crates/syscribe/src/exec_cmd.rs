@@ -311,3 +311,132 @@ pub fn cmd_compile(elems: &[RawElement], args: &[String]) -> i32 {
         }
     }
 }
+
+/// Entry point for `simulate <StateDef> --do "<script>" [--strict] [--json]` (GH #279): lower the machine,
+/// run a script of `send <event> [k=v ...]`, `advance <duration>` and `set <var>=<value>` commands and print
+/// the trace. Exit 0 · 1 usage · 2 a lowering diagnostic or a run error.
+pub fn cmd_simulate(elems: &[RawElement], args: &[String]) -> i32 {
+    use syscribe_model::expr::{format_value, parse_value, Value};
+    use syscribe_model::sm_run::{Options, Run};
+    let json = args.iter().any(|a| a == "--json");
+    let strict = args.iter().any(|a| a == "--strict");
+    let script = args.windows(2).find(|w| w[0] == "--do").map(|w| w[1].clone()).unwrap_or_default();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--do").map(|(i, _)| i + 1).collect();
+    let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a) else {
+        eprintln!("Usage: syscribe --model <root> simulate <StateDef> --do \"send <event> [k=v ...]; advance <duration>; set <var>=<value>\" [--strict] [--json]");
+        return 1;
+    };
+    let machine = match syscribe_model::ir::lower(elems, name) {
+        Ok(m) => m,
+        Err(diags) => {
+            for (c, msg) in &diags {
+                eprintln!("{c}: {msg}");
+            }
+            return if diags.iter().all(|(c, _)| *c == "E001") { 1 } else { 2 };
+        }
+    };
+    // Parse the whole script before running anything.
+    enum Cmd {
+        Send(String, Vec<(String, Value)>),
+        Advance(f64),
+        Set(String, Value),
+    }
+    let mut cmds = Vec::new();
+    for raw in script.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+        let (verb, rest) = raw.split_once(char::is_whitespace).map(|(a, b)| (a, b.trim())).unwrap_or((raw, ""));
+        match verb {
+            "send" => {
+                let mut it = rest.split_whitespace();
+                let Some(ev) = it.next() else {
+                    eprintln!("error: `send` needs an event name");
+                    return 1;
+                };
+                let mut payload = Vec::new();
+                for kv in it {
+                    let Some((k, v)) = kv.split_once('=') else {
+                        eprintln!("error: payload '{kv}' is not key=value");
+                        return 1;
+                    };
+                    let Some(v) = parse_value(v) else {
+                        eprintln!("error: payload value '{v}' is not a value");
+                        return 1;
+                    };
+                    payload.push((k.to_string(), v));
+                }
+                cmds.push(Cmd::Send(ev.to_string(), payload));
+            }
+            "advance" => match parse_value(rest) {
+                Some(Value::Num(q)) if q.dim == syscribe_model::expr::unit_scale("s").map(|x| x.1).unwrap_or(q.dim) && q.v >= 0.0 => cmds.push(Cmd::Advance(q.v)),
+                _ => {
+                    eprintln!("error: `advance` needs a non-negative duration, got '{rest}'");
+                    return 1;
+                }
+            },
+            "set" => {
+                let Some((k, v)) = rest.split_once('=') else {
+                    eprintln!("error: `set` needs <var>=<value>");
+                    return 1;
+                };
+                let Some(v) = parse_value(v.trim()) else {
+                    eprintln!("error: '{}' is not a value", v.trim());
+                    return 1;
+                };
+                cmds.push(Cmd::Set(k.trim().to_string(), v));
+            }
+            other => {
+                eprintln!("error: unknown command '{other}' (send, advance, set)");
+                return 1;
+            }
+        }
+    }
+    let mut run = Run::new(&machine, Options { strict, ..Options::default() });
+    for c in cmds {
+        match c {
+            Cmd::Send(e, p) => {
+                let p: Vec<(&str, Value)> = p.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+                run.send(&e, &p);
+            }
+            Cmd::Advance(s) => run.advance(s),
+            Cmd::Set(k, v) => run.set(&k, v),
+        }
+    }
+    let vars: std::collections::BTreeMap<String, String> = machine.variables.iter().filter_map(|v| run.var(&v.name).map(|x| (v.name.clone(), format_value(&x)))).collect();
+    if json {
+        let out = serde_json::json!({
+            "machine": machine.machine,
+            "machineHash": machine.hash,
+            "time": run.time(),
+            "active": run.active(),
+            "variables": vars,
+            "terminated": run.terminated(),
+            "error": run.error(),
+            "trace": run.trace(),
+        });
+        println!("{}", serde_json::to_string_pretty(&out).expect("serialises"));
+    } else {
+        println!("{}  (hash {})", machine.machine, machine.hash);
+        for s in run.trace() {
+            let what = match (&s.from, &s.to) {
+                (Some(f), Some(t)) => format!("{f} → {t}"),
+                (Some(f), None) => format!("{f} (internal)"),
+                _ => s.note.clone().unwrap_or_default(),
+            };
+            println!("  {:>3}  t={:<8} {:<22} {}", s.n, syscribe_model::expr::format_number(s.time), s.cause, what);
+            for c in &s.changed {
+                println!("            {} : {} → {}", c.var, c.old, c.new);
+            }
+        }
+        println!("active: {}   time: {}s", run.active().join(", "), syscribe_model::expr::format_number(run.time()));
+        for (k, v) in &vars {
+            println!("  {k} = {v}");
+        }
+        if let Some(e) = run.error() {
+            println!("ERROR: {e}");
+        }
+    }
+    if let Some(e) = run.error() {
+        eprintln!("error: {e}");
+        return 2;
+    }
+    0
+}

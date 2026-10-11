@@ -140,3 +140,30 @@ fn usage() {
     let (c, _, _) = compile(MACHINE, "Root");
     assert_eq!(c, 1, "a package is not a state machine");
 }
+
+fn simulate(machine: &str, script: &str, extra: &[&str]) -> (i32, String) {
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(model(machine)).args(["simulate", "M", "--do", script]).args(extra).output().unwrap();
+    (o.status.code().unwrap_or(-1), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)))
+}
+
+#[test]
+fn simulate_runs_a_script_and_prints_the_trace() {
+    let (c, t) = simulate(MACHINE, "advance 2 s; send p/Pkg::Ping n=5", &["--json"]);
+    assert_eq!(c, 0, "{t}");
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+    assert!(j["active"].as_array().unwrap().iter().any(|s| s == "B"), "{t}");
+    assert_eq!(j["machineHash"].as_str().unwrap().len(), 64);
+    assert!(j["trace"].as_array().unwrap().iter().any(|s| s["cause"].as_str().unwrap().starts_with("timer")), "{t}");
+    assert_eq!(j["variables"]["count"], "0");
+    let (c, t) = simulate(MACHINE, "advance 2 s; send p/Pkg::Ping n=5", &[]);
+    assert_eq!(c, 0, "{t}");
+    assert!(t.contains("timer"), "{t}");
+}
+
+#[test]
+fn simulate_exits_2_on_a_run_error_and_1_on_a_bad_script() {
+    let (c, t) = simulate(MACHINE, "advance 2 s; send p/Pkg::Ping", &[]);
+    assert_eq!(c, 2, "missing payload field n: {t}");
+    let (c, _) = simulate(MACHINE, "frobnicate", &[]);
+    assert_eq!(c, 1);
+}

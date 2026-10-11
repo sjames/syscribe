@@ -1280,6 +1280,14 @@ fn main() {
                     }
                 }
             }
+            "simulate" => {
+                // State-machine interpreter (GH #279). Read-only. Exit 0 · 1 usage · 2 run error.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = exec_cmd::cmd_simulate(&elems, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "compile" => {
                 // State-machine IR (GH #278). Read-only. Exit 0 · 1 usage · 2 lowering diagnostics.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

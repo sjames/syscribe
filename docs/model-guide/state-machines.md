@@ -148,3 +148,28 @@ history) — those are not part of SysMLv2.
 
 - [Element Types](../format/elements.md) · [Frontmatter](../format/frontmatter.md#state-machine-transitions-statedefstate)
 - Full schema: `syscribe spec` (§8.8) · rule reference: [Validation Rules](../validation/rules.md#state-machine-warnings-w070w079-w929-221)
+
+## Executing a machine
+
+A machine that declares `variables:` or uses `after`, `when`, `done`, `internal`, `assign` or `initialEffect` is *executable*. `syscribe compile` lowers it to an IR and `syscribe simulate` runs it; the semantics and where each rule comes from are in `docs/design/state-machine-execution-semantics.md`.
+
+```yaml
+type: StateDef
+name: Door
+variables:
+  - {name: obstructions, value: "0"}
+subStates:
+  - name: Closed
+    isInitial: true
+    transitions:
+      - {target: Opening, accept: Cmd::Open}
+  - name: Opening
+    transitions:
+      - {target: Open, accept: {after: "3 s"}, guard: "obstructions == 0"}
+      - {target: Closed, accept: {when: "obstructions > 2"}}
+  - name: Open
+    transitions:
+      - {internal: true, accept: Cmd::Obstruct, assign: "obstructions := obstructions + 1"}
+```
+
+Deviations from SCXML, deliberately: no history, fork/join, `invoke`, external `send` or multi-event transitions (none exist in the SysML v2 model); typed, unit-checked expressions instead of ECMAScript; a virtual clock instead of delayed sends; an expression error stops the run instead of raising `error.execution`; equal-priority conflicts and unhandled events are reported in strict mode; change triggers are SysML v2 one-shot observations, not SCXML level-triggered eventless transitions; behaviour references (`effect: Pkg::Action`, `entryAction: Pkg::Action`) are recorded in the trace but not executed.

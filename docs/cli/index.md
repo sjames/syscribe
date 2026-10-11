@@ -794,6 +794,14 @@ syscribe -m <root> compile <StateDef> [--json]
 
 Lowers a `StateDef` to the intermediate representation that simulation, coverage, mutation and SCXML export read (GH #278): flat state and transition tables in document order, variable slots, resolved and parsed guards, and a source pointer on every node; the BLAKE3 hash of the canonical JSON identifies the machine in recorded evidence. Exit `2` with the diagnostics (E882–E885, W933, W076) when the machine cannot be lowered. See `syscribe help compile` and `docs/design/state-machine-execution-semantics.md`.
 
+## State-machine simulation (`simulate`)
+
+```bash
+syscribe -m <root> simulate <StateDef> --do "send Cmd::Open; advance 3 s; set level=5" [--strict] [--json]
+```
+
+Lowers the machine (`compile`) and runs a script on the interpreter (GH #279): SCXML run-to-completion (eventless work, then the internal queue, then one external event; deeper states preempt ancestors; exit, then transition content, then entry; parallel regions in lock step) with the SysML v2 / KerML change trigger (`when`, edge-triggered false→true, armed on state entry, one signal per arming) and time trigger (`after`, on a virtual clock that moves only on `advance`). Prints every microstep with the states exited and entered, actions and variable changes; `--json` adds the machine hash, final configuration and variables. An unbound name, a type or dimension error, a missing payload field or more than 1000 microsteps in one macrostep stops the run (exit `2`). `--strict` makes unhandled events and equal-priority conflicts errors. Scenarios with expectations (`simulate` over Gherkin) follow in GH #280. See `syscribe help simulate`.
+
 ## Safety mechanisms (`mechanisms`)
 
 ```

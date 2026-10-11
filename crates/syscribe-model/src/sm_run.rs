@@ -1,0 +1,661 @@
+//! The state-machine interpreter (REQ-TRS-SMEXEC-001, GH #279): SCXML run-to-completion over the IR,
+//! with SysML v2 / KerML change and time triggers (`docs/design/state-machine-execution-semantics.md`).
+//! A virtual clock, no threads, no hidden state: an IR plus a script of `send`/`advance`/`set` calls
+//! determines the whole trace.
+
+use std::collections::VecDeque;
+
+use serde::Serialize;
+
+use crate::expr::{format_value, Value};
+use crate::ir::{Action, IrExpr, Kind, Machine, Trigger};
+
+#[derive(Debug, Clone)]
+pub struct Options {
+    /// Unhandled events and equal-priority conflicts are errors instead of being ignored / resolved by document order.
+    pub strict: bool,
+    /// Microsteps allowed in one macrostep before the run stops as a livelock.
+    pub max_microsteps: usize,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options { strict: false, max_microsteps: 1000 }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Change {
+    pub var: String,
+    pub old: String,
+    pub new: String,
+}
+
+/// One entry of the trace: a microstep, or an event that was ignored, or an environment write.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct Step {
+    pub n: usize,
+    pub time: f64,
+    pub cause: String,
+    /// The first transition taken, and all of them (parallel regions take several in one microstep).
+    pub transition: Option<usize>,
+    pub taken: Vec<usize>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub guard: Option<bool>,
+    pub exited: Vec<String>,
+    pub entered: Vec<String>,
+    pub actions: Vec<String>,
+    pub changed: Vec<Change>,
+    pub note: Option<String>,
+}
+
+enum Ev {
+    Named { name: String, payload: Vec<(String, Value)> },
+    Signal(usize),
+    Done(usize),
+}
+
+struct Watch {
+    trans: usize,
+    /// The condition was true when the observation was re-armed by an internal transition: wait for it to fall first.
+    need_false: bool,
+    fired: bool,
+}
+
+type R<T> = Result<T, String>;
+
+pub struct Run<'m> {
+    m: &'m Machine,
+    opts: Options,
+    active: Vec<bool>,
+    children: Vec<Vec<usize>>,
+    vars: Vec<Value>,
+    time: f64,
+    internal: VecDeque<Ev>,
+    timers: Vec<(f64, usize)>,
+    watches: Vec<Watch>,
+    trace: Vec<Step>,
+    error: Option<String>,
+    terminated: bool,
+    micro: usize,
+}
+
+impl<'m> Run<'m> {
+    /// Create a run and start the machine (enter the initial states and settle).
+    pub fn new(m: &'m Machine, opts: Options) -> Run<'m> {
+        let mut children = vec![Vec::new(); m.states.len()];
+        for s in &m.states {
+            if let Some(p) = s.parent {
+                children[p].push(s.id);
+            }
+        }
+        let mut r = Run {
+            m,
+            opts,
+            active: vec![false; m.states.len()],
+            children,
+            vars: m.variables.iter().map(|v| v.value.clone()).collect(),
+            time: 0.0,
+            internal: VecDeque::new(),
+            timers: Vec::new(),
+            watches: Vec::new(),
+            trace: Vec::new(),
+            error: None,
+            terminated: false,
+            micro: 0,
+        };
+        let r0 = r.start();
+        r.finish(r0);
+        r
+    }
+
+    pub fn active(&self) -> Vec<String> {
+        self.m.states.iter().filter(|s| self.active[s.id]).map(|s| s.path.clone()).collect()
+    }
+    pub fn var(&self, name: &str) -> Option<Value> {
+        self.m.variables.iter().position(|v| v.name == name).map(|i| self.vars[i].clone())
+    }
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
+    }
+    pub fn trace(&self) -> &[Step] {
+        &self.trace
+    }
+    pub fn time(&self) -> f64 {
+        self.time
+    }
+    pub fn terminated(&self) -> bool {
+        self.terminated
+    }
+
+    fn finish(&mut self, r: R<()>) {
+        if let Err(e) = r {
+            if self.error.is_none() {
+                self.error = Some(e);
+            }
+        }
+    }
+
+    fn halted(&self) -> bool {
+        self.error.is_some() || self.terminated
+    }
+
+    // ── external API ────────────────────────────────────────────────────────
+
+    /// Inject an external event and run to completion.
+    pub fn send(&mut self, name: &str, payload: &[(&str, Value)]) {
+        if self.halted() {
+            return;
+        }
+        let ev = Ev::Named { name: name.to_string(), payload: payload.iter().map(|(k, v)| (k.to_string(), v.clone())).collect() };
+        let r = self.process_external(ev, format!("event {name}"));
+        self.finish(r);
+    }
+
+    /// Advance the virtual clock, firing due timers in order of due time.
+    pub fn advance(&mut self, secs: f64) {
+        if self.halted() {
+            return;
+        }
+        let target = self.time + secs;
+        loop {
+            let next = self.timers.iter().map(|t| t.0).filter(|d| *d <= target).fold(f64::INFINITY, f64::min);
+            if !next.is_finite() {
+                break;
+            }
+            self.time = next.max(self.time);
+            let r = self.settle();
+            self.finish(r);
+            if self.halted() {
+                return;
+            }
+        }
+        self.time = target;
+        let r = self.settle();
+        self.finish(r);
+    }
+
+    /// Write a variable from outside the machine (an environment input) and run to completion.
+    pub fn set(&mut self, name: &str, value: Value) {
+        if self.halted() {
+            return;
+        }
+        let r = (|| -> R<()> {
+            let Some(slot) = self.m.variables.iter().position(|v| v.name == name) else {
+                return Err(format!("set: '{name}' is not a variable of the machine"));
+            };
+            check_assignable(name, &self.vars[slot], &value)?;
+            let mut step = self.begin(format!("set {name}"));
+            step.changed.push(Change { var: name.to_string(), old: format_value(&self.vars[slot]), new: format_value(&value) });
+            self.vars[slot] = value;
+            self.trace.push(step);
+            self.settle()
+        })();
+        self.finish(r);
+    }
+
+    // ── machinery ───────────────────────────────────────────────────────────
+
+    fn begin(&self, cause: String) -> Step {
+        Step {
+            n: self.trace.len() + 1,
+            time: self.time,
+            cause,
+            transition: None,
+            taken: vec![],
+            from: None,
+            to: None,
+            guard: None,
+            exited: vec![],
+            entered: vec![],
+            actions: vec![],
+            changed: vec![],
+            note: None,
+        }
+    }
+
+    fn start(&mut self) -> R<()> {
+        let m = self.m;
+        let mut step = self.begin("start".into());
+        let before = self.vars.clone();
+        let acts = m.initial_actions.clone();
+        self.run_actions(&acts, None, &mut step)?;
+        let mut list = Vec::new();
+        if m.parallel {
+            for s in m.states.iter().filter(|s| s.parent.is_none()) {
+                self.plan_enter(s.id, &[], &mut list);
+            }
+        } else if let Some(i) = m.initial {
+            self.plan_enter(i, &[], &mut list);
+        }
+        let res = list.iter().try_for_each(|s| self.enter_one(*s, &mut step));
+        self.record_changes(&before, &mut step);
+        self.trace.push(step);
+        res?;
+        self.settle()
+    }
+
+    fn process_external(&mut self, ev: Ev, cause: String) -> R<()> {
+        self.settle()?;
+        if self.halted() {
+            return Ok(());
+        }
+        let name = if let Ev::Named { name, .. } = &ev { name.clone() } else { String::new() };
+        match self.select(Some(&ev))? {
+            Some(sel) => self.microstep(sel, Some(&ev), cause)?,
+            None => {
+                let mut step = self.begin(cause);
+                step.note = Some(format!("event {name} ignored"));
+                self.trace.push(step);
+                if self.opts.strict {
+                    return Err(format!("strict: event {name} is not handled in {:?}", self.active()));
+                }
+            }
+        }
+        self.settle()
+    }
+
+    fn settle(&mut self) -> R<()> {
+        self.micro = 0;
+        loop {
+            if self.halted() {
+                return Ok(());
+            }
+            self.micro += 1;
+            if self.micro > self.opts.max_microsteps {
+                return Err(format!("exceeded {} microsteps in one macrostep (livelock?)", self.opts.max_microsteps));
+            }
+            self.collect_signals()?;
+            if let Some(sel) = self.select(None)? {
+                self.microstep(sel, None, "eventless".into())?;
+                continue;
+            }
+            if let Some(ev) = self.internal.pop_front() {
+                let (cause, stale) = match &ev {
+                    Ev::Signal(t) => {
+                        let tr = &self.m.transitions[*t];
+                        let kind = if matches!(tr.trigger, Trigger::Timer { .. }) { "timer" } else { "change" };
+                        (format!("{kind} t{t}"), !self.active[tr.source])
+                    }
+                    Ev::Done(s) => (format!("done {}", self.m.states[*s].path), false),
+                    Ev::Named { name, .. } => (format!("event {name}"), false),
+                };
+                if stale {
+                    continue;
+                }
+                match self.select(Some(&ev))? {
+                    Some(sel) => self.microstep(sel, Some(&ev), cause)?,
+                    None => {
+                        if let Ev::Signal(_) = ev {
+                            let mut step = self.begin(cause);
+                            step.note = Some("signal consumed, no transition taken (guard false)".into());
+                            self.trace.push(step);
+                        }
+                    }
+                }
+                continue;
+            }
+            return Ok(());
+        }
+    }
+
+    /// Turn due timers and satisfied change observations into internal signals.
+    fn collect_signals(&mut self) -> R<()> {
+        let m = self.m;
+        let mut due: Vec<(f64, usize, usize)> = self.timers.iter().filter(|t| t.0 <= self.time).map(|t| (t.0, m.transitions[t.1].source, t.1)).collect();
+        due.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.timers.retain(|t| t.0 > self.time);
+        for (_, _, t) in due {
+            self.internal.push_back(Ev::Signal(t));
+        }
+        for i in 0..self.watches.len() {
+            if self.watches[i].fired {
+                continue;
+            }
+            let t = self.watches[i].trans;
+            let Trigger::Change { cond } = &m.transitions[t].trigger else { continue };
+            let v = self.truth(cond, None, &format!("transition t{t} `when`"))?;
+            let w = &mut self.watches[i];
+            if w.need_false {
+                if !v {
+                    w.need_false = false;
+                }
+            } else if v {
+                w.fired = true;
+                self.internal.push_back(Ev::Signal(t));
+            }
+        }
+        self.watches.retain(|w| !w.fired);
+        Ok(())
+    }
+
+    fn truth(&self, e: &IrExpr, scope: Option<&Scope>, where_: &str) -> R<bool> {
+        match self.eval(e, scope, where_)? {
+            Value::Bool(b) => Ok(b),
+            other => Err(format!("{where_}: `{}` is a {}, not a boolean", e.src, other.kind())),
+        }
+    }
+
+    fn eval(&self, e: &IrExpr, scope: Option<&Scope>, where_: &str) -> R<Value> {
+        let m = self.m;
+        let lookup = |name: &str| -> Option<Value> {
+            if let Some(i) = m.variables.iter().position(|v| v.name == name) {
+                return Some(self.vars[i].clone());
+            }
+            if let Some(Scope { bind: Some(b), payload }) = scope {
+                if let Some(field) = name.strip_prefix(&format!("{b}.")) {
+                    return payload.iter().find(|(k, _)| k == field).map(|(_, v)| v.clone());
+                }
+            }
+            None
+        };
+        e.ast.eval(&lookup).map_err(|x| format!("{where_}: `{}`: {x}", e.src))
+    }
+
+    // ── selection ───────────────────────────────────────────────────────────
+
+    fn ancestors(&self, s: usize) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut p = self.m.states[s].parent;
+        while let Some(x) = p {
+            out.push(x);
+            p = self.m.states[x].parent;
+        }
+        out
+    }
+
+    /// Whether transition `t` is triggered by `ev` (None = eventless pass), and the payload scope it binds.
+    fn matches<'e>(&self, t: usize, ev: Option<&'e Ev>) -> Option<Scope<'e>> {
+        let tr = &self.m.transitions[t];
+        match (&tr.trigger, ev) {
+            (Trigger::Eventless, None) => Some(Scope { bind: None, payload: &[] }),
+            (Trigger::Event { name, bind }, Some(Ev::Named { name: n, payload })) if name == n => {
+                Some(Scope { bind: bind.clone(), payload })
+            }
+            (Trigger::Timer { .. }, Some(Ev::Signal(x))) | (Trigger::Change { .. }, Some(Ev::Signal(x))) if *x == t => {
+                Some(Scope { bind: None, payload: &[] })
+            }
+            (Trigger::Done { state }, Some(Ev::Done(d))) if state == d => Some(Scope { bind: None, payload: &[] }),
+            _ => None,
+        }
+    }
+
+    /// The transition domain: the nearest proper ancestor of the source that is also a proper ancestor of the
+    /// target and is a compound state; `None` is the machine itself.
+    fn domain(&self, t: usize) -> Option<usize> {
+        let tr = &self.m.transitions[t];
+        let target = tr.target?;
+        let tgt_anc = self.ancestors(target);
+        self.ancestors(tr.source).into_iter().find(|a| tgt_anc.contains(a) && self.m.states[*a].kind == Kind::Compound)
+    }
+
+    fn exit_set(&self, t: usize) -> Vec<usize> {
+        if self.m.transitions[t].internal {
+            return vec![];
+        }
+        let dom = self.domain(t);
+        self.m
+            .states
+            .iter()
+            .filter(|s| self.active[s.id] && match dom {
+                Some(d) => self.ancestors(s.id).contains(&d),
+                None => true,
+            })
+            .map(|s| s.id)
+            .collect()
+    }
+
+    /// Select the optimal conflict-free set of enabled transitions for `ev`: per active leaf the first
+    /// enabled transition from the leaf up through its ancestors (deeper preempts), document order, then
+    /// transitions that exit the same states as an earlier one are dropped.
+    fn select(&self, ev: Option<&Ev>) -> R<Option<Vec<usize>>> {
+        let m = self.m;
+        let leaves: Vec<usize> = m
+            .states
+            .iter()
+            .filter(|s| self.active[s.id] && !self.children[s.id].iter().any(|c| self.active[*c]))
+            .map(|s| s.id)
+            .collect();
+        let mut chosen: Vec<usize> = Vec::new();
+        for leaf in leaves {
+            let mut chain = vec![leaf];
+            chain.extend(self.ancestors(leaf));
+            for s in chain {
+                let mut enabled: Vec<usize> = Vec::new();
+                for tr in m.transitions.iter().filter(|t| t.source == s) {
+                    let Some(scope) = self.matches(tr.id, ev) else { continue };
+                    let ok = match &tr.guard {
+                        None => true,
+                        Some(g) => self.truth(g, Some(&scope), &format!("transition t{} ({}) guard", tr.id, self.describe(tr.id)))?,
+                    };
+                    if ok {
+                        enabled.push(tr.id);
+                        if !self.opts.strict {
+                            break;
+                        }
+                    }
+                }
+                if self.opts.strict && enabled.len() > 1 {
+                    let (a, b) = (enabled[0], enabled[1]);
+                    if m.transitions[a].target != m.transitions[b].target {
+                        return Err(format!(
+                            "strict: transitions t{a} ({}) and t{b} ({}) are both enabled with equal priority",
+                            self.describe(a),
+                            self.describe(b)
+                        ));
+                    }
+                }
+                if let Some(t) = enabled.first() {
+                    if !chosen.contains(t) {
+                        chosen.push(*t);
+                    }
+                    break;
+                }
+            }
+        }
+        let mut kept: Vec<usize> = Vec::new();
+        let mut taken_exits: Vec<usize> = Vec::new();
+        for t in chosen {
+            let ex = self.exit_set(t);
+            if ex.iter().any(|x| taken_exits.contains(x)) {
+                continue;
+            }
+            taken_exits.extend(ex);
+            kept.push(t);
+        }
+        Ok(if kept.is_empty() { None } else { Some(kept) })
+    }
+
+    fn describe(&self, t: usize) -> String {
+        let tr = &self.m.transitions[t];
+        let to = tr.target.map(|x| self.m.states[x].path.as_str()).unwrap_or("(internal)");
+        format!("{} → {}", self.m.states[tr.source].path, to)
+    }
+
+    // ── microstep ───────────────────────────────────────────────────────────
+
+    fn microstep(&mut self, sel: Vec<usize>, ev: Option<&Ev>, cause: String) -> R<()> {
+        let m = self.m;
+        let mut step = self.begin(cause);
+        let before = self.vars.clone();
+        step.transition = sel.first().copied();
+        step.taken = sel.clone();
+        step.from = sel.first().map(|t| m.states[m.transitions[*t].source].path.clone());
+        step.to = sel.first().and_then(|t| m.transitions[*t].target).map(|x| m.states[x].path.clone());
+        if m.transitions[sel[0]].guard.is_some() {
+            step.guard = Some(true);
+        }
+        let result = (|| -> R<()> {
+            // exit
+            let mut exits: Vec<usize> = sel.iter().flat_map(|t| self.exit_set(*t)).collect();
+            exits.sort_unstable();
+            exits.dedup();
+            for s in exits.iter().rev() {
+                self.exit_one(*s, &mut step)?;
+            }
+            // transition content, in document order
+            for t in &sel {
+                let tr = &m.transitions[*t];
+                let (bind, payload): (Option<String>, &[(String, Value)]) = match (&tr.trigger, ev) {
+                    (Trigger::Event { bind, .. }, Some(Ev::Named { payload, .. })) => (bind.clone(), payload),
+                    _ => (None, &[]),
+                };
+                let scope = Scope { bind, payload };
+                self.run_actions(&tr.actions, Some(&scope), &mut step)?;
+            }
+            // entry
+            for t in &sel {
+                let tr = &m.transitions[*t];
+                if tr.internal {
+                    // an internal transition keeps its source; its timer / observation is re-armed
+                    self.rearm(*t)?;
+                    continue;
+                }
+                let Some(target) = tr.target else { continue };
+                let mut on_path = self.ancestors(target);
+                on_path.push(target);
+                let dom = self.domain(*t);
+                let top = on_path.iter().rev().find(|s| m.states[**s].parent == dom).copied().unwrap_or(target);
+                let mut list = Vec::new();
+                self.plan_enter(top, &on_path, &mut list);
+                for s in list {
+                    if !self.active[s] {
+                        self.enter_one(s, &mut step)?;
+                    }
+                }
+            }
+            Ok(())
+        })();
+        self.record_changes(&before, &mut step);
+        self.trace.push(step);
+        result
+    }
+
+    fn rearm(&mut self, t: usize) -> R<()> {
+        let tr = &self.m.transitions[t];
+        match &tr.trigger {
+            Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, t)),
+            Trigger::Change { cond } => {
+                let v = self.truth(cond, None, &format!("transition t{t} `when`"))?;
+                self.watches.push(Watch { trans: t, need_false: v, fired: false });
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn record_changes(&self, before: &[Value], step: &mut Step) {
+        for (i, v) in self.vars.iter().enumerate() {
+            if &before[i] != v {
+                step.changed.push(Change { var: self.m.variables[i].name.clone(), old: format_value(&before[i]), new: format_value(v) });
+            }
+        }
+    }
+
+    fn plan_enter(&self, s: usize, on_path: &[usize], list: &mut Vec<usize>) {
+        list.push(s);
+        let kids = &self.children[s];
+        match self.m.states[s].kind {
+            Kind::Compound => {
+                let next = kids.iter().find(|c| on_path.contains(c)).copied().or(self.m.states[s].initial);
+                if let Some(c) = next {
+                    self.plan_enter(c, on_path, list);
+                }
+            }
+            Kind::Parallel => {
+                for c in kids {
+                    self.plan_enter(*c, on_path, list);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn enter_one(&mut self, s: usize, step: &mut Step) -> R<()> {
+        let m = self.m;
+        self.active[s] = true;
+        step.entered.push(m.states[s].path.clone());
+        let acts = m.states[s].entry.clone();
+        self.run_actions(&acts, None, step)?;
+        for tr in m.transitions.iter().filter(|t| t.source == s) {
+            match &tr.trigger {
+                Trigger::Timer { delay_seconds } => self.timers.push((self.time + delay_seconds, tr.id)),
+                Trigger::Change { cond } => {
+                    // KerML ObserveChange: already true when the observation starts means the signal is sent at once.
+                    let v = self.truth(cond, None, &format!("transition t{} `when`", tr.id))?;
+                    if v {
+                        self.internal.push_back(Ev::Signal(tr.id));
+                    } else {
+                        self.watches.push(Watch { trans: tr.id, need_false: false, fired: false });
+                    }
+                }
+                _ => {}
+            }
+        }
+        if m.states[s].kind == Kind::Final {
+            match m.states[s].parent {
+                None => self.terminated = true,
+                Some(p) => {
+                    self.internal.push_back(Ev::Done(p));
+                    if let Some(g) = m.states[p].parent {
+                        if m.states[g].kind == Kind::Parallel {
+                            let all = self.children[g].iter().all(|r| self.children[*r].iter().any(|c| self.active[*c] && m.states[*c].kind == Kind::Final));
+                            if all {
+                                self.internal.push_back(Ev::Done(g));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn exit_one(&mut self, s: usize, step: &mut Step) -> R<()> {
+        let m = self.m;
+        let acts = m.states[s].exit.clone();
+        self.run_actions(&acts, None, step)?;
+        self.active[s] = false;
+        step.exited.push(m.states[s].path.clone());
+        self.timers.retain(|t| m.transitions[t.1].source != s);
+        self.watches.retain(|w| m.transitions[w.trans].source != s);
+        Ok(())
+    }
+
+    fn run_actions(&mut self, acts: &[Action], scope: Option<&Scope>, step: &mut Step) -> R<()> {
+        for a in acts {
+            match a {
+                Action::Behavior { target, .. } => step.actions.push(format!("behavior {target}")),
+                Action::Assign { var, expr } => {
+                    let name = self.m.variables[*var].name.clone();
+                    let v = self.eval(expr, scope, &format!("assignment to '{name}'"))?;
+                    check_assignable(&name, &self.vars[*var], &v)?;
+                    step.actions.push(format!("{name} := {}", format_value(&v)));
+                    self.vars[*var] = v;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+struct Scope<'a> {
+    bind: Option<String>,
+    payload: &'a [(String, Value)],
+}
+
+fn check_assignable(name: &str, old: &Value, new: &Value) -> R<()> {
+    match (old, new) {
+        (Value::Num(a), Value::Num(b)) if a.dim == b.dim => Ok(()),
+        (Value::Num(a), Value::Num(b)) => Err(format!(
+            "variable '{name}': cannot assign {} (dimension {:?}) to {} (dimension {:?})",
+            format_value(new),
+            b.dim.0,
+            format_value(old),
+            a.dim.0
+        )),
+        (Value::Bool(_), Value::Bool(_)) | (Value::Str(_), Value::Str(_)) => Ok(()),
+        _ => Err(format!("variable '{name}': cannot assign a {} to a {}", new.kind(), old.kind())),
+    }
+}

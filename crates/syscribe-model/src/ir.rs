@@ -127,6 +127,8 @@ pub struct Transition {
 pub struct Machine {
     pub machine: String,
     pub hash: String,
+    /// The machine's top-level states are parallel regions, all active together.
+    pub parallel: bool,
     pub initial: Option<usize>,
     pub variables: Vec<Var>,
     pub events: Vec<String>,
@@ -511,6 +513,7 @@ pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>
     let mut m = Machine {
         machine: el.qualified_name.clone(),
         hash: String::new(),
+        parallel: fm.is_parallel == Some(true),
         initial: machine_initial,
         variables: cx.vars,
         events,

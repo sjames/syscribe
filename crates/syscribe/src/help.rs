@@ -26,6 +26,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("eval", include_str!("../../../prompts/help/eval.md")),
             ("constraints", include_str!("../../../prompts/help/constraints.md")),
             ("compile", include_str!("../../../prompts/help/compile.md")),
+            ("simulate", include_str!("../../../prompts/help/simulate.md")),
         ],
     ),
     (
