@@ -36,7 +36,7 @@ Classifies a level against a threshold of 10.
 
 ## Semantics
 
-Token semantics as in UML activities and fUML. The action starts with a token on every node that has no incoming succession (or is named after `start`). A node fires when every incoming succession holds a token (a `merge` fires on any one); an action then offers a token on every outgoing succession whose guard holds, a `fork` on all, a `join` once all its inputs are present, a `decision` on one. Enabled nodes fire in document order (sub-actions first, then control nodes), so parallel branches run deterministically; the trace records each firing. The run *completes* when no token is left and nothing waits, is *waiting* while an `AcceptAction` has no event, and is *terminated* by `TerminateAction`.
+Token semantics as in UML activities and fUML. The action starts with a token on every node that has no incoming succession (or is named after `start`). A node fires when every incoming succession holds a token (a `merge` fires on any one); an action then offers a token on every outgoing succession whose guard holds, a `fork` on all, a `join` once all its inputs are present, a `decision` on one. Enabled nodes fire in document order (sub-actions first, then control nodes), so parallel branches run deterministically; the trace records each firing. The run *completes* when no token is left and nothing waits, is *deadlocked* when tokens remain but nothing is enabled (a node with several incoming successions needs a token on each — join alternatives with a `merge`), is *waiting* while an `AcceptAction` has no event, and is *terminated* by `TerminateAction`.
 
 Mutation analysis shows where this ordering matters: removing the succession into a decision node survives when the node before it is declared first, because the tie-break runs it first anyway.
 
@@ -59,7 +59,7 @@ A `TestCase` with `subject: Classify` is executable when its steps use the close
 | `When 2 s elapses` | advance the virtual clock |
 | `Then verdict == 1` | a boolean over parameters, variables and outputs |
 | `Then high ran` / `Then low did not run` | whether a node executed |
-| `Then the action completed` / `is waiting` / `terminated` | the run status |
+| `Then the action completed` / `is waiting` / `terminated` / `deadlocked` | the run status |
 
 A step outside it is `E886`. `--record` stores the verdicts as evidence exactly as for state machines.
 
@@ -73,4 +73,4 @@ An `entryAction`, `doAction`, `exitAction` or `effect` that names an executable 
 
 ## Limits
 
-Callee coverage is not merged into the caller's; an `AcceptAction` inside an `if`/`loop` block cannot suspend and is `E887`; `loopKind: for` is not supported; static types are checked when an expression runs, not when it is compiled.
+Callee coverage is not merged into the caller's, and mutation seeds only the top-level nodes and successions of the action itself (not nested blocks or callees); an `AcceptAction` inside an `if`/`loop` block cannot suspend and is `E887`; `loopKind: for` is not supported; static types are checked when an expression runs, not when it is compiled.

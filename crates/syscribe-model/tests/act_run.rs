@@ -314,3 +314,131 @@ fn a_rerun_gives_an_identical_trace() {
     };
     assert_eq!(go(), go());
 }
+
+// ── review fixes (GH #276) ───────────────────────────────────────────────────
+
+#[test]
+fn a_loop_head_named_after_start_fires_even_though_it_has_a_back_edge() {
+    let p = program(
+        &[(
+            "H",
+            "variables:
+  - {name: i, value: \"0\"}
+  - {name: done, value: \"0\"}
+subActions:
+  - {name: inc, kind: AssignmentAction, assign: \"i := i + 1\"}
+  - {name: fin, kind: AssignmentAction, assign: \"done := 1\"}
+controlNodes:
+  - {name: m, kind: MergeNode}
+  - {name: d, kind: DecisionNode}
+successionConnections:
+  - {after: start, before: m}
+  - {after: m, before: inc}
+  - {after: inc, before: d}
+  - {after: d, before: m, guard: \"i < 3\"}
+  - {after: d, before: fin, guard: else}
+",
+        )],
+        "H",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    assert_eq!(r.status(), Status::Completed, "{:?}", r.error());
+    assert_eq!((num(&r, "i"), num(&r, "done")), ("3".into(), "1".into()));
+}
+
+#[test]
+fn an_until_loop_runs_its_body_before_testing_the_condition() {
+    let p = program(
+        &[(
+            "U",
+            "parameters:
+  - {name: r, direction: out}
+variables:
+  - {name: i, value: \"0\"}
+subActions:
+  - name: u
+    kind: LoopAction
+    loopKind: until
+    condition: \"r >= 3\"
+    body:
+      - {name: inc, kind: AssignmentAction, assign: \"i := i + 1\"}
+      - {name: set, kind: AssignmentAction, assign: \"r := i\"}
+",
+        )],
+        "U",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    assert_eq!(r.status(), Status::Completed, "{:?}", r.error());
+    assert_eq!((num(&r, "i"), num(&r, "r")), ("3".into(), "3".into()));
+}
+
+#[test]
+fn terminate_inside_a_loop_body_stops_the_loop() {
+    let p = program(&[("T", "variables:\n  - {name: i, value: \"0\"}\nsubActions:\n  - name: w\n    kind: LoopAction\n    loopKind: while\n    condition: \"i < 5\"\n    body:\n      - {name: inc, kind: AssignmentAction, assign: \"i := i + 1\"}\n      - {name: stop, kind: TerminateAction}\n")], "T");
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    assert_eq!(r.status(), Status::Terminated);
+    assert_eq!(num(&r, "i"), "1");
+}
+
+#[test]
+fn tokens_left_on_successions_are_a_deadlock_not_a_completion() {
+    let p = program(
+        &[(
+            "D",
+            "variables:\n  - {name: v, value: \"1\"}\nsubActions:\n  - {name: a, kind: Action}\n  - {name: b, kind: Action}\n  - {name: c, kind: Action}\ncontrolNodes:\n  - {name: d, kind: DecisionNode}\nsuccessionConnections:\n  - {after: d, before: a, guard: \"v == 1\"}\n  - {after: d, before: b, guard: else}\n  - {after: a, before: c}\n  - {after: b, before: c}\n",
+        )],
+        "D",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    assert_eq!(r.status(), Status::Deadlocked, "c needs a token from both a and b");
+    assert!(r.trace().iter().any(|s| s.note.as_deref().is_some_and(|n| n.contains("deadlock"))));
+}
+
+#[test]
+fn a_binding_from_a_parameter_to_a_callee_input_feeds_the_callee() {
+    let p = program(
+        &[
+            ("B", B),
+            ("I", "parameters:\n  - {name: inp, direction: in}\n  - {name: out, direction: out}\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: call, kind: PerformAction, typedBy: B}\nbindingConnections:\n  - {left: inp, right: call.x}\n  - {left: call.y, right: out}\n"),
+        ],
+        "I",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.set_input("inp", val("4")).unwrap();
+    r.run();
+    assert_eq!(r.status(), Status::Completed, "{:?}", r.error());
+    assert_eq!(num(&r, "out"), "12");
+}
+
+#[test]
+fn nested_conditions_have_their_own_coverage_keys() {
+    let p = program(
+        &[(
+            "N",
+            "variables:\n  - {name: v, value: \"1\"}\nsubActions:\n  - name: outer\n    kind: IfAction\n    condition: \"v == 1\"\n    then:\n      - name: inner\n        kind: IfAction\n        condition: \"v > 5\"\n        then:\n          - {name: x, kind: AssignmentAction, assign: \"v := 2\"}\n",
+        )],
+        "N",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    let cov = r.coverage();
+    assert_eq!(cov.conds.len(), 2, "outer and inner conditions are separate keys: {:?}", cov.conds.keys().collect::<Vec<_>>());
+}
+
+#[test]
+fn a_performed_actions_stale_outputs_do_not_survive_a_second_call() {
+    let p = program(
+        &[
+            ("B2", "parameters:\n  - {name: x, direction: in}\n  - {name: y, direction: out}\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - name: m\n    kind: IfAction\n    condition: \"x > 0\"\n    then:\n      - {name: s, kind: AssignmentAction, assign: \"y := x\"}\n"),
+            ("S", "variables:\n  - {name: r, value: \"0\"}\nsubActions:\n  - {name: c, kind: PerformAction, typedBy: B2, parameters: [{name: x, value: \"r + 1\"}]}\n  - {name: d, kind: PerformAction, typedBy: B2, parameters: [{name: x, value: \"0 - 1\"}]}\n  - {name: use, kind: AssignmentAction, assign: \"r := d.y\"}\nsuccessionConnections:\n  - {after: c, before: d}\n  - {after: d, before: use}\n"),
+        ],
+        "S",
+    );
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.run();
+    assert_eq!(r.status(), Status::Error, "d produced no y; the stale c.y must not be read");
+}

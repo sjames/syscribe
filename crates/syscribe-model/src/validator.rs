@@ -2858,13 +2858,43 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E883/E884/E887/W935: the executable action-flow schema (REQ-TRS-ACTSCHEMA-001). Dormant unless the
         // action declares `variables:` or uses `assign:`.
         if matches!(fm.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) && fm.status.as_deref() != Some("draft") {
-            for (code, msg) in crate::act_exec::check(
+            let mut act_findings = crate::act_exec::check_with(
+                false,
                 fm.parameters.as_deref().unwrap_or(&[]),
                 fm.variables.as_deref(),
                 fm.sub_actions.as_deref().unwrap_or(&[]),
                 fm.control_nodes.as_deref().unwrap_or(&[]),
                 fm.succession_connections.as_deref().unwrap_or(&[]),
-            ) {
+                fm.flow_connections.as_deref().unwrap_or(&[]),
+                fm.binding_connections.as_deref().unwrap_or(&[]),
+            );
+            // A performed action is executed too: its expressions must be valid, even if it declares nothing
+            // executable itself.
+            if crate::act_exec::is_executable(fm.variables.as_deref(), fm.sub_actions.as_deref().unwrap_or(&[])) {
+                let mut seen: HashSet<String> = HashSet::new();
+                let mut queue: Vec<String> = Vec::new();
+                let mut all = Vec::new();
+                crate::act_exec::walk(fm.sub_actions.as_deref().unwrap_or(&[]), &mut all);
+                queue.extend(all.iter().filter_map(|m| yaml_field(m, "typedBy").and_then(|t| t.as_str()).map(String::from)));
+                while let Some(t) = queue.pop() {
+                    let Some(callee) = resolver.resolve_ref(elements, &t) else { continue };
+                    if !matches!(callee.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) || !seen.insert(callee.qualified_name.clone()) {
+                        continue;
+                    }
+                    let cf = &callee.frontmatter;
+                    let own = crate::act_exec::is_executable(cf.variables.as_deref(), cf.sub_actions.as_deref().unwrap_or(&[]));
+                    // a callee that is itself executable is validated as its own element
+                    if !own {
+                        for (c, m) in crate::act_exec::check_with(true, cf.parameters.as_deref().unwrap_or(&[]), cf.variables.as_deref(), cf.sub_actions.as_deref().unwrap_or(&[]), cf.control_nodes.as_deref().unwrap_or(&[]), cf.succession_connections.as_deref().unwrap_or(&[]), cf.flow_connections.as_deref().unwrap_or(&[]), cf.binding_connections.as_deref().unwrap_or(&[])) {
+                            act_findings.push((c, format!("performed action {}: {m}", callee.qualified_name)));
+                        }
+                    }
+                    let mut inner = Vec::new();
+                    crate::act_exec::walk(cf.sub_actions.as_deref().unwrap_or(&[]), &mut inner);
+                    queue.extend(inner.iter().filter_map(|m| yaml_field(m, "typedBy").and_then(|t| t.as_str()).map(String::from)));
+                }
+            }
+            for (code, msg) in act_findings {
                 findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
             }
         }

@@ -242,3 +242,32 @@ fn a_weak_scenario_set_leaves_survivors_and_min_score_gates() {
     assert_eq!(mutate(S_BIG, &["--min-score", "99"]).0, 2);
     assert_eq!(mutate(&format!("{S_BIG}{S_EDGE}"), &["--min-score", "85"]).0, 0);
 }
+
+#[test]
+fn step_parsing_is_not_fooled_by_keywords_and_names_must_exist() {
+    let root = model(&[("A", A), ("TC-ACT-001", &tc("A", "  Scenario: typo\n    Given n is 5\n    When the action runs\n    Then Zzz did not run\n"))]);
+    let (c, t) = run(&root, &["simulate", "TC-ACT-001", "--json"]);
+    assert_eq!(c, 2, "{t}");
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap();
+    assert_eq!(j["verdicts"][0]["status"], "error", "a node that does not exist is an error, not a vacuous pass: {t}");
+}
+
+#[test]
+fn compile_and_validate_agree() {
+    let callee = "---\ntype: ActionDef\nname: Callee\nsubActions:\n  - {name: p, kind: Action}\n  - {name: q, kind: Action}\nsuccessionConnections:\n  - {after: p, before: q, guard: \"operator confirms\"}\n---\n";
+    let top = "---\ntype: ActionDef\nname: Top\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: c, kind: PerformAction, typedBy: Callee}\n---\n";
+    let root = model(&[("Callee", callee), ("Top", top)]);
+    let (_, v) = run(&root, &["validate"]);
+    assert!(v.contains("W935") && v.contains("Callee"), "validate must see what compile will refuse: {v}");
+    let (c, _) = run(&root, &["compile", "Top"]);
+    assert_eq!(c, 2);
+    let unknown = "---\ntype: ActionDef\nname: U\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: a, kind: Action}\nsuccessionConnections:\n  - {after: a, before: ghost}\n---\n";
+    let (_, v) = run(&model(&[("U", unknown)]), &["validate"]);
+    assert!(v.contains("E887") && v.contains("ghost"), "{v}");
+    let noc = "---\ntype: ActionDef\nname: N\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: i, kind: IfAction}\n---\n";
+    let (_, v) = run(&model(&[("N", noc)]), &["validate"]);
+    assert!(v.contains("E887"), "an IfAction without a condition: {v}");
+    let bare = "---\ntype: ActionDef\nname: Bare\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: a, kind: Action}\n  - {name: b, kind: AssignmentAction, assign: \"v := a\"}\n---\n";
+    let (_, v) = run(&model(&[("Bare", bare)]), &["validate"]);
+    assert!(v.contains("W935"), "a bare sub-action name is not a value: {v}");
+}

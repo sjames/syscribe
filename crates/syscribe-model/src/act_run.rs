@@ -35,6 +35,8 @@ pub enum Status {
     Completed,
     Waiting,
     Terminated,
+    /// Tokens remain on successions but no node is enabled (a node needs a token on every incoming succession).
+    Deadlocked,
     Error,
 }
 
@@ -236,7 +238,14 @@ impl<'p> ActRun<'p> {
             return;
         }
         let d = self.d();
-        let target = self.waiting.iter().position(|w| matches!(&d.nodes[w.node].stmt.kind, NodeKind::Accept { event: Some(e), .. } if e == event));
+        // the awaiting accept earliest in document order receives it
+        let target = self
+            .waiting
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| matches!(&d.nodes[w.node].stmt.kind, NodeKind::Accept { event: Some(e), .. } if e == event))
+            .min_by_key(|(_, w)| w.node)
+            .map(|(i, _)| i);
         let r = match target {
             Some(i) => {
                 let w = self.waiting.remove(i);
@@ -287,7 +296,19 @@ impl<'p> ActRun<'p> {
         } else if self.terminated {
             self.status = Status::Terminated;
         } else if self.status != Status::Error {
-            self.status = if self.waiting.is_empty() { Status::Completed } else { Status::Waiting };
+            self.status = if !self.waiting.is_empty() {
+                Status::Waiting
+            } else if self.tokens.iter().any(|t| *t > 0) {
+                if self.status != Status::Deadlocked {
+                    let stuck: Vec<String> = self.tokens.iter().enumerate().filter(|(_, t)| **t > 0).map(|(i, _)| format!("{} → {}", self.d().nodes[self.d().edges[i].from].stmt.name, self.d().nodes[self.d().edges[i].to].stmt.name)).collect();
+                    let mut st = self.step("deadlock", "deadlock");
+                    st.note = Some(format!("deadlock: tokens remain on {} but no node is enabled", stuck.join(", ")));
+                    self.trace.push(st);
+                }
+                Status::Deadlocked
+            } else {
+                Status::Completed
+            };
         }
     }
 
@@ -301,9 +322,12 @@ impl<'p> ActRun<'p> {
 
     fn enabled(&self, n: usize) -> bool {
         let d = self.d();
+        if self.start_pending[n] {
+            return true;
+        }
         let incoming: Vec<usize> = d.edges.iter().filter(|e| e.to == n).map(|e| e.id).collect();
         if incoming.is_empty() {
-            return self.start_pending[n];
+            return false;
         }
         if matches!(d.nodes[n].stmt.kind, NodeKind::Merge) {
             incoming.iter().any(|e| self.tokens[*e] > 0)
@@ -315,11 +339,11 @@ impl<'p> ActRun<'p> {
     /// Consume the tokens that enable `n`; returns the edges they came from.
     fn consume(&mut self, n: usize) -> Vec<usize> {
         let d = self.d();
-        let incoming: Vec<usize> = d.edges.iter().filter(|e| e.to == n).map(|e| e.id).collect();
-        if incoming.is_empty() {
+        if self.start_pending[n] {
             self.start_pending[n] = false;
             return vec![];
         }
+        let incoming: Vec<usize> = d.edges.iter().filter(|e| e.to == n).map(|e| e.id).collect();
         if matches!(d.nodes[n].stmt.kind, NodeKind::Merge) {
             let e = *incoming.iter().find(|e| self.tokens[**e] > 0).expect("enabled");
             self.tokens[e] -= 1;
@@ -396,7 +420,7 @@ impl<'p> ActRun<'p> {
         let mut st = self.step(&node.stmt.name, &kind);
         st.consumed = consumed;
         let before = self.slots.clone();
-        let r = self.exec(&node.stmt, &mut st, n);
+        let r = self.exec(&node.stmt, &mut st);
         self.record_changes(&before, &mut st);
         self.cov.borrow_mut().nodes.insert(n);
         self.ran.insert(node.stmt.name.clone());
@@ -531,7 +555,7 @@ impl<'p> ActRun<'p> {
 
     // ── node execution ──────────────────────────────────────────────────────
 
-    fn exec(&mut self, s: &Stmt, st: &mut ActStep, node: usize) -> R<()> {
+    fn exec(&mut self, s: &Stmt, st: &mut ActStep) -> R<()> {
         match &s.kind {
             NodeKind::Assign { assigns } => {
                 for a in assigns {
@@ -561,6 +585,8 @@ impl<'p> ActRun<'p> {
                     Status::Waiting => return Err(format!("sub-action '{}': the called action {} waits for an event; a called action must complete", s.name, cd.qname)),
                     _ => {}
                 }
+                let prefix = format!("{}.", s.name);
+                self.pins.retain(|k, _| !(k.starts_with(&prefix) && cd.slots.iter().any(|x| (x.kind == "out" || x.kind == "inout") && k == &format!("{prefix}{}", x.name))));
                 for (k, v) in child.outputs() {
                     self.pins.insert(format!("{}.{k}", s.name), v);
                 }
@@ -576,16 +602,14 @@ impl<'p> ActRun<'p> {
                 self.sent.push(Sent { event: event.clone(), args: shown });
             }
             NodeKind::If { cond, then, els } => {
-                let b = self.truth(cond, node, 1, &format!("sub-action '{}' condition", s.name))?;
+                let b = self.truth(cond, s.uid, 1, &format!("sub-action '{}' condition", s.name))?;
                 self.block(if b { then } else { els }, st)?;
             }
             NodeKind::Loop { loop_kind, cond, body } => {
                 let mut iterations = 0usize;
                 loop {
-                    let c = self.truth(cond, node, 1, &format!("sub-action '{}' condition", s.name))?;
-                    // `until` tests after the body, so it always runs the body once
-                    let go = if *loop_kind == "until" { iterations == 0 || !c } else { c };
-                    if !go {
+                    let w = format!("sub-action '{}' condition", s.name);
+                    if *loop_kind == "while" && !self.truth(cond, s.uid, 1, &w)? {
                         break;
                     }
                     iterations += 1;
@@ -593,9 +617,22 @@ impl<'p> ActRun<'p> {
                         return Err(format!("sub-action '{}': more than {} loop iterations", s.name, self.opts.max_loop));
                     }
                     self.block(body, st)?;
+                    if self.terminated {
+                        break;
+                    }
+                    // `until` tests after the body
+                    if *loop_kind == "until" && self.truth(cond, s.uid, 1, &w)? {
+                        break;
+                    }
                 }
-                self.cov.borrow_mut().loop_some.extend(if iterations > 0 { Some(node) } else { None });
-                self.cov.borrow_mut().loop_zero.extend(if iterations == 0 { Some(node) } else { None });
+                // "zero" = no repetition beyond the minimum (a `while` that never entered, an `until` that ran once)
+                let minimum = if *loop_kind == "until" { 1 } else { 0 };
+                let mut c = self.cov.borrow_mut();
+                if iterations <= minimum {
+                    c.loop_zero.insert(s.uid);
+                } else {
+                    c.loop_some.insert(s.uid);
+                }
             }
             NodeKind::Terminate => {
                 self.terminated = true;
@@ -609,7 +646,7 @@ impl<'p> ActRun<'p> {
     fn block(&mut self, stmts: &[Stmt], st: &mut ActStep) -> R<()> {
         for s in stmts {
             self.ran.insert(s.name.clone());
-            self.exec(s, st, usize::MAX)?;
+            self.exec(s, st)?;
             if self.terminated {
                 break;
             }

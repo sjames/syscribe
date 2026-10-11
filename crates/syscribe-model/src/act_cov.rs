@@ -75,11 +75,29 @@ pub fn report(prog: &ActionProgram, cov: &ActCoverage, scenarios: usize, configu
     let decision_ids: std::collections::HashSet<usize> = d.nodes.iter().filter(|n| matches!(n.stmt.kind, NodeKind::Decision)).map(|n| n.id).collect();
     let branches: Vec<&crate::act_ir::Edge> = d.edges.iter().filter(|e| decision_ids.contains(&e.from)).collect();
     let branches_unc: Vec<Uncovered> = branches.iter().filter(|e| !cov.edges.contains(&e.id)).map(|e| Uncovered { id: e.id, description: edge_text(e) }).collect();
-    let loops: Vec<&crate::act_ir::Node> = d.nodes.iter().filter(|n| matches!(n.stmt.kind, NodeKind::Loop { .. })).collect();
+    // every If / Loop statement of the root definition, nested ones included, keyed by uid
+    fn collect<'a>(stmts: &'a [crate::act_ir::Stmt], out: &mut Vec<&'a crate::act_ir::Stmt>) {
+        for s in stmts {
+            out.push(s);
+            match &s.kind {
+                NodeKind::If { then, els, .. } => {
+                    collect(then, out);
+                    collect(els, out);
+                }
+                NodeKind::Loop { body, .. } => collect(body, out),
+                _ => {}
+            }
+        }
+    }
+    let mut all: Vec<&crate::act_ir::Stmt> = Vec::new();
+    for n in &d.nodes {
+        collect(std::slice::from_ref(&n.stmt), &mut all);
+    }
+    let loops: Vec<&&crate::act_ir::Stmt> = all.iter().filter(|s| matches!(s.kind, NodeKind::Loop { .. })).collect();
     let loops_unc: Vec<String> = loops
         .iter()
-        .filter(|n| !(cov.loop_zero.contains(&n.id) && cov.loop_some.contains(&n.id)))
-        .map(|n| format!("{} ({}{})", n.stmt.name, if cov.loop_zero.contains(&n.id) { "" } else { "never skipped" }, if cov.loop_some.contains(&n.id) { "" } else if cov.loop_zero.contains(&n.id) { "never ran its body" } else { ", never ran its body" }))
+        .filter(|n| !(cov.loop_zero.contains(&n.uid) && cov.loop_some.contains(&n.uid)))
+        .map(|n| format!("{} ({}{})", n.name, if cov.loop_zero.contains(&n.uid) { "" } else { "never skipped or run once" }, if cov.loop_some.contains(&n.uid) { "" } else if cov.loop_zero.contains(&n.uid) { "never repeated" } else { ", never repeated" }))
         .collect();
 
     let mut exprs = Vec::new();
@@ -90,9 +108,9 @@ pub fn report(prog: &ActionProgram, cov: &ActCoverage, scenarios: usize, configu
             items.push((e.id, 0, g));
         }
     }
-    for n in &d.nodes {
-        match &n.stmt.kind {
-            NodeKind::If { cond, .. } | NodeKind::Loop { cond, .. } => items.push((n.id, 1, cond)),
+    for s in &all {
+        match &s.kind {
+            NodeKind::If { cond, .. } | NodeKind::Loop { cond, .. } => items.push((s.uid, 1, cond)),
             _ => {}
         }
     }

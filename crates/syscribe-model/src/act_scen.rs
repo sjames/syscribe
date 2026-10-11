@@ -16,7 +16,7 @@ pub enum ACmd {
     Elapse(String),
     Expect(String),
     Ran(String, bool),
-    /// `completed`, `waiting` or `terminated`.
+    /// `completed`, `waiting`, `terminated` or `deadlocked`.
     Is(&'static str),
 }
 
@@ -68,6 +68,8 @@ pub fn parse_action_step(kw: Kw, text: &str) -> Result<ACmd, String> {
             ("the action waits", "waiting"),
             ("the action terminated", "terminated"),
             ("the action is terminated", "terminated"),
+            ("the action is deadlocked", "deadlocked"),
+            ("the action deadlocked", "deadlocked"),
         ] {
             if lower == phrase {
                 return Ok(ACmd::Is(what));
@@ -75,13 +77,13 @@ pub fn parse_action_step(kw: Kw, text: &str) -> Result<ACmd, String> {
         }
         if let Some(n) = lower.strip_suffix(" did not run").or_else(|| lower.strip_suffix(" did not execute")) {
             let n = t[..n.len()].trim();
-            if !n.is_empty() && !n.contains(char::is_whitespace) {
+            if !n.is_empty() && !n.contains(char::is_whitespace) && !matches!(n.to_ascii_lowercase().as_str(), "not" | "and" | "or") {
                 return Ok(ACmd::Ran(n.to_string(), false));
             }
         }
         if let Some(n) = lower.strip_suffix(" ran").or_else(|| lower.strip_suffix(" was run")) {
             let n = t[..n.len()].trim();
-            if !n.is_empty() && !n.contains(char::is_whitespace) {
+            if !n.is_empty() && !n.contains(char::is_whitespace) && !matches!(n.to_ascii_lowercase().as_str(), "not" | "and" | "or") {
                 return Ok(ACmd::Ran(n.to_string(), true));
             }
         }
@@ -177,6 +179,7 @@ pub fn run_action_scenario(prog: &ActionProgram, sc: &Scenario, opts: &ActOption
         let why = if sc.title.ends_with("[no examples]") { "the Scenario Outline has no Examples rows" } else { "the scenario has no steps" };
         return done(&run, Status::Error, Some(why.to_string()));
     }
+    let names = prog.stmt_names();
     let mut cov = crate::act_run::ActCoverage::default();
     let finish = |run: &ActRun, status, msg, cov: &mut crate::act_run::ActCoverage| {
         cov.merge(&run.coverage());
@@ -213,14 +216,16 @@ pub fn run_action_scenario(prog: &ActionProgram, sc: &Scenario, opts: &ActOption
                 Err(e) => Err(e),
             },
             ACmd::Ran(n, expect) => {
-                if run.ran(n) == *expect {
+                if !names.contains(n) {
+                    Err(format!("the action has no node or statement named '{n}'"))
+                } else if run.ran(n) == *expect {
                     Ok(())
                 } else {
                     return finish(&run, Status::Fail, Some(format!("{label}: expected '{n}' {}, it {}", if *expect { "to have run" } else { "not to have run" }, if *expect { "did not" } else { "did" })), &mut cov);
                 }
             }
             ACmd::Is(what) => {
-                let ok = matches!((what, run.status()), (&"completed", RunStatus::Completed) | (&"waiting", RunStatus::Waiting) | (&"terminated", RunStatus::Terminated));
+                let ok = matches!((what, run.status()), (&"completed", RunStatus::Completed) | (&"waiting", RunStatus::Waiting) | (&"terminated", RunStatus::Terminated) | (&"deadlocked", RunStatus::Deadlocked));
                 if ok {
                     Ok(())
                 } else {

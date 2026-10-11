@@ -73,6 +73,8 @@ pub enum NodeKind {
 /// A named piece of behaviour: a graph node, or a statement nested in an `IfAction`/`LoopAction` block.
 #[derive(Debug, Clone, Serialize)]
 pub struct Stmt {
+    /// Unique within the program: the key of this statement's coverage.
+    pub uid: usize,
     pub name: String,
     pub origin: Origin,
     #[serde(flatten)]
@@ -128,6 +130,28 @@ pub struct ActionProgram {
 }
 
 impl ActionProgram {
+    /// Names of every node and nested statement of the root definition.
+    pub fn stmt_names(&self) -> std::collections::HashSet<String> {
+        fn walk(stmts: &[Stmt], out: &mut std::collections::HashSet<String>) {
+            for s in stmts {
+                out.insert(s.name.clone());
+                match &s.kind {
+                    NodeKind::If { then, els, .. } => {
+                        walk(then, out);
+                        walk(els, out);
+                    }
+                    NodeKind::Loop { body, .. } => walk(body, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = std::collections::HashSet::new();
+        for n in &self.defs[0].nodes {
+            walk(std::slice::from_ref(&n.stmt), &mut out);
+        }
+        out
+    }
+
     pub fn canonical_json(&self) -> String {
         let mut p = self.clone();
         p.hash = String::new();
@@ -145,6 +169,7 @@ struct Cx<'a> {
     index: HashMap<String, usize>,
     stack: Vec<String>,
     diags: Vec<Diag>,
+    next_uid: usize,
 }
 
 struct Scope<'a> {
@@ -286,7 +311,9 @@ impl<'a> Cx<'a> {
             _ => NodeKind::Action,
         };
         self.diags.append(&mut diags);
-        Some(Stmt { name, origin, kind })
+        let uid = self.next_uid;
+        self.next_uid += 1;
+        Some(Stmt { uid, name, origin, kind })
     }
 
     fn block(&mut self, m: &Mapping, key: &str, path: &str, qname: &str, sc: &Scope) -> Vec<Stmt> {
@@ -434,29 +461,57 @@ impl<'a> Cx<'a> {
             let (n, p) = s.split_once('.')?;
             ids.get(n).map(|id| (*id, p.to_string()))
         };
+        // The direction of a pin of a performed action, from the callee's parameter.
+        let pin_dir = |this: &Self, node: usize, pn: &str| -> Option<&'static str> {
+            match &nodes[node].stmt.kind {
+                NodeKind::Perform { callee, .. } => this.defs.get(*callee)?.as_ref()?.slots.iter().find(|s| s.name == pn).map(|s| s.kind),
+                _ => None,
+            }
+        };
+        let name_expr = |slot: usize| {
+            let nm = slots[slot].name.clone();
+            IrExpr { src: nm.clone(), refs: vec![NameRef { name: nm.clone(), kind: "var", slot: Some(slot) }], ast: crate::expr::Expr::Name(nm) }
+        };
+        // (target node, pin, slot) inputs fed from a slot: become arguments of the performed action.
+        let mut feeds: Vec<(usize, String, usize)> = Vec::new();
+        let mut connect = |this: &mut Self, a: &str, b: &str, path: String, directed: bool, flows: &mut Vec<DataFlow>| {
+            let origin = Origin { qname: q.clone(), path: path.clone() };
+            let slot_of = |x: &str| slots.iter().position(|s| s.name == x);
+            match (pin(a), pin(b), slot_of(a), slot_of(b)) {
+                (Some((fa, pa)), Some((fb, pb)), _, _) => flows.push(DataFlow { from_node: fa, from_pin: pa, to_node: Some(fb), to_pin: Some(pb), to_slot: None, origin }),
+                (Some((n, pn)), None, _, Some(sl)) | (None, Some((n, pn)), Some(sl), _) if !directed || pin(a).is_some() => {
+                    // pin → slot (completion copy) or slot → pin (an argument), by the callee's parameter direction
+                    let pin_is_a = pin(a).is_some();
+                    let dir = pin_dir(this, n, &pn);
+                    match (dir, directed, pin_is_a) {
+                        (Some("out"), _, _) | (None, true, true) | (Some("inout"), _, true) => flows.push(DataFlow { from_node: n, from_pin: pn, to_node: None, to_pin: None, to_slot: Some(sl), origin }),
+                        (Some("in"), _, _) | (None, true, false) | (Some("inout"), _, false) => feeds.push((n, pn, sl)),
+                        _ => this.diags.push(("E887", format!("{q}: {path}: cannot tell the direction of '{a}' ↔ '{b}'; the performed action has no parameter '{pn}'"))),
+                    }
+                }
+                (None, Some((n, pn)), Some(sl), None) => feeds.push((n, pn, sl)),
+                _ => this.diags.push(("E887", format!("{q}: {path}: '{a}' and '{b}' must be `<sub-action>.<pin>` or a parameter/variable of the action"))),
+            }
+        };
         for (i, f) in fm.flow_connections.iter().flatten().enumerate() {
             let Some(m) = f.as_mapping() else { continue };
             let (Some(a), Some(b)) = (field(m, "from").and_then(|v| v.as_str()), field(m, "to").and_then(|v| v.as_str())) else { continue };
-            let origin = Origin { qname: q.clone(), path: format!("flowConnections[{i}]") };
-            match (pin(a), pin(b)) {
-                (Some((fa, pa)), Some((fb, pb))) => flows.push(DataFlow { from_node: fa, from_pin: pa, to_node: Some(fb), to_pin: Some(pb), to_slot: None, origin }),
-                (Some((fa, pa)), None) => match slots.iter().position(|s| s.name == b) {
-                    Some(slot) => flows.push(DataFlow { from_node: fa, from_pin: pa, to_node: None, to_pin: None, to_slot: Some(slot), origin }),
-                    None => self.diags.push(("E887", format!("{q}: flowConnections[{i}] targets '{b}', which is not a pin or a slot"))),
-                },
-                _ => self.diags.push(("E887", format!("{q}: flowConnections[{i}]: '{a}' is not a `<sub-action>.<pin>`"))),
-            }
+            connect(self, a, b, format!("flowConnections[{i}]"), true, &mut flows);
         }
         for (i, b) in fm.binding_connections.iter().flatten().enumerate() {
             let Some(m) = b.as_mapping() else { continue };
             let (Some(l), Some(r)) = (field(m, "left").and_then(|v| v.as_str()), field(m, "right").and_then(|v| v.as_str())) else { continue };
-            let origin = Origin { qname: q.clone(), path: format!("bindingConnections[{i}]") };
-            // `<sub>.<pin>` ↔ slot: an output pin of a performed action feeds the slot when it completes.
-            for (p, sl) in [(l, r), (r, l)] {
-                if let (Some((n, pn)), Some(slot)) = (pin(p), slots.iter().position(|s| s.name == sl)) {
-                    flows.push(DataFlow { from_node: n, from_pin: pn, to_node: None, to_pin: None, to_slot: Some(slot), origin: origin.clone() });
-                    break;
+            connect(self, l, r, format!("bindingConnections[{i}]"), false, &mut flows);
+        }
+        for (n, pn, sl) in feeds {
+            let expr = name_expr(sl);
+            match &mut nodes[n].stmt.kind {
+                NodeKind::Perform { args, .. } => {
+                    if !args.iter().any(|a| a.name == pn) {
+                        args.push(ArgIr { name: pn, expr });
+                    }
                 }
+                _ => self.diags.push(("E887", format!("{q}: '{}.{pn}' is fed from '{}' but '{}' is not a performed action", nodes[n].stmt.name, slots[sl].name, nodes[n].stmt.name))),
             }
         }
 
@@ -476,14 +531,17 @@ pub fn lower_action(elements: &[RawElement], target: &str) -> Result<ActionProgr
         return Err(vec![("E001", format!("'{}' is not an ActionDef", el.qualified_name))]);
     }
     let fm = &el.frontmatter;
-    let mut cx = Cx { elements, resolver: &resolver, defs: Vec::new(), index: HashMap::new(), stack: Vec::new(), diags: Vec::new() };
+    let mut cx = Cx { elements, resolver: &resolver, defs: Vec::new(), index: HashMap::new(), stack: Vec::new(), diags: Vec::new(), next_uid: 0 };
     // The schema checks first: lowering refuses what validation rejects.
-    let mut diags: Vec<Diag> = crate::act_exec::check(
+    let mut diags: Vec<Diag> = crate::act_exec::check_with(
+        false,
         fm.parameters.as_deref().unwrap_or(&[]),
         fm.variables.as_deref(),
         fm.sub_actions.as_deref().unwrap_or(&[]),
         fm.control_nodes.as_deref().unwrap_or(&[]),
         fm.succession_connections.as_deref().unwrap_or(&[]),
+        fm.flow_connections.as_deref().unwrap_or(&[]),
+        fm.binding_connections.as_deref().unwrap_or(&[]),
     )
     .into_iter()
     .filter(|(c, _)| c.starts_with('E'))

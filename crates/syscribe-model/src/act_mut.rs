@@ -26,7 +26,8 @@ struct Mutant {
 fn recompute_start(p: &mut ActionProgram) {
     let d = &mut p.defs[0];
     let incoming: std::collections::HashSet<usize> = d.edges.iter().map(|e| e.to).collect();
-    d.start = d.nodes.iter().map(|n| n.id).filter(|n| !incoming.contains(n)).collect();
+    let keep: std::collections::HashSet<usize> = d.start.iter().copied().collect(); // `after: start` stays
+    d.start = d.nodes.iter().map(|n| n.id).filter(|n| !incoming.contains(n) || keep.contains(n)).collect();
 }
 
 fn generate(p: &ActionProgram) -> Vec<Mutant> {
@@ -74,6 +75,9 @@ fn generate(p: &ActionProgram) -> Vec<Mutant> {
         let outs: Vec<&Edge> = d.edges.iter().filter(|e| e.from == n.id).collect();
         for (i, a) in outs.iter().enumerate() {
             for b in &outs[i + 1..] {
+                if a.to == b.to {
+                    continue; // swapping equal targets changes nothing
+                }
                 let mut m = p.clone();
                 m.defs[0].edges[a.id].to = b.to;
                 m.defs[0].edges[b.id].to = a.to;
@@ -148,7 +152,7 @@ pub fn analyse(p: &ActionProgram, scenarios: &[Scenario], opts: &ActOptions) -> 
     let mut cov = ActCoverage::default();
     base.iter().for_each(|v| cov.merge(&v.act_coverage));
     let covered = |e: Elem| match e {
-        Elem::Node(n) => cov.nodes.contains(&n) || cov.conds.contains_key(&(n, 1)),
+        Elem::Node(n) => cov.nodes.contains(&n) || cov.conds.contains_key(&(p.defs[0].nodes[n].stmt.uid, 1)),
         Elem::Edge(e) => cov.edges.contains(&e) || cov.conds.contains_key(&(e, 0)),
     };
     let (mut killed, mut survived, mut equiv) = (0, 0, 0);

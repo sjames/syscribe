@@ -40,8 +40,15 @@ fn chain_root(s: &str) -> &str {
 }
 
 pub fn check(params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], successions: &[Y]) -> Vec<Finding> {
+    check_with(false, params, variables, subs, controls, successions, &[], &[])
+}
+
+/// `check`, optionally treating the action as executable regardless of what it declares (a performed callee
+/// is executed, so its expressions must be valid), and also checking its flow and binding ends.
+#[allow(clippy::too_many_arguments)]
+pub fn check_with(force: bool, params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], successions: &[Y], flows: &[Y], bindings: &[Y]) -> Vec<Finding> {
     let mut out: Vec<Finding> = Vec::new();
-    if !is_executable(variables, subs) {
+    if !force && !is_executable(variables, subs) {
         return out;
     }
     let (vf, declared) = check_variables(variables);
@@ -54,8 +61,7 @@ pub fn check(params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], 
     }
     let mut all = Vec::new();
     walk(subs, &mut all);
-    let sub_names: HashSet<&str> = all.iter().filter_map(|m| field(m, "name").and_then(|n| n.as_str())).collect();
-    let bound: HashSet<&str> = all.iter().filter_map(|m| field(m, "as").and_then(|n| n.as_str())).collect();
+    let top_names: HashSet<&str> = subs.iter().chain(controls.iter()).filter_map(|v| v.as_mapping()).filter_map(|m| field(m, "name").and_then(|n| n.as_str())).collect();
 
     let names_ok = |src: &str, what: &str, out: &mut Vec<Finding>| {
         let Ok(e) = expr::parse(src) else { return };
@@ -63,7 +69,7 @@ pub fn check(params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], 
             if n.contains('.') || n.contains("::") {
                 continue;
             }
-            if !known.contains(&n) && !sub_names.contains(n.as_str()) && !bound.contains(n.as_str()) {
+            if !known.contains(&n) {
                 out.push(("W935", format!("{what}: `{src}` uses '{n}', which is not a parameter or a declared variable")));
             }
         }
@@ -94,6 +100,9 @@ pub fn check(params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], 
                 names_ok(&c, &format!("sub-action '{name}' condition"), &mut out);
             }
         }
+        if kind == "IfAction" && field(m, "condition").and_then(text).is_none() {
+            out.push(("E887", format!("sub-action '{name}': an IfAction needs a `condition:`")));
+        }
         if kind == "LoopAction" {
             let lk = field(m, "loopKind").and_then(|k| k.as_str()).unwrap_or("while");
             if lk == "for" {
@@ -109,6 +118,40 @@ pub fn check(params: &[Y], variables: Option<&[Y]>, subs: &[Y], controls: &[Y], 
                     Ok(Value::Num(q)) if Some(q.dim) == want && q.v >= 0.0 => {}
                     Ok(_) => out.push(("E887", format!("sub-action '{name}': `after: {a}` is not a non-negative duration"))),
                     Err(e) => out.push(("E887", format!("sub-action '{name}': `after: {a}` does not evaluate: {e}"))),
+                }
+            }
+        }
+    }
+
+    // succession, flow and binding ends must name something
+    for (i, sc) in successions.iter().filter_map(|x| x.as_mapping()).enumerate() {
+        for key in ["after", "before"] {
+            if let Some(v) = field(sc, key).and_then(|v| v.as_str()) {
+                let root = chain_root(v);
+                if root != "start" && root != "done" && !top_names.contains(root) {
+                    out.push(("E887", format!("succession {i} names '{root}', which is not a sub-action or control node")));
+                }
+            }
+        }
+    }
+    let end_ok = |x: &str| {
+        let root = chain_root(x);
+        top_names.contains(root) || known.contains(root)
+    };
+    for (i, f) in flows.iter().filter_map(|x| x.as_mapping()).enumerate() {
+        for key in ["from", "to"] {
+            if let Some(v) = field(f, key).and_then(|v| v.as_str()) {
+                if !end_ok(v) {
+                    out.push(("E887", format!("flowConnections[{i}] `{key}: {v}` is not a sub-action pin or a parameter/variable")));
+                }
+            }
+        }
+    }
+    for (i, b) in bindings.iter().filter_map(|x| x.as_mapping()).enumerate() {
+        for key in ["left", "right"] {
+            if let Some(v) = field(b, key).and_then(|v| v.as_str()) {
+                if !end_ok(v) {
+                    out.push(("E887", format!("bindingConnections[{i}] `{key}: {v}` is not a sub-action pin or a parameter/variable")));
                 }
             }
         }
