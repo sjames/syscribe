@@ -289,6 +289,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         });
         if i % 3 == 0 {
             g.nodes.push(Node {
@@ -308,6 +309,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
                 banners: vec![],
                 feature: None,
                 mark: None,
+                flow: None,
             });
         }
     }
@@ -339,6 +341,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
             kind,
             label,
             waypoints: None,
+            flow: None,
         });
     }
     g

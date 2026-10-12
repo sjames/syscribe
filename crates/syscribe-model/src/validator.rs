@@ -1113,6 +1113,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(warning("W640", &cfg_file, msg));
     }
 
+    // W419: malformed `[diagram]` config and unknown `flowKind:`/`side:` values (GH #335). Each is ignored, so the
+    // diagram draws as if it were absent.
+    if let Some(root) = config.model_root.as_ref() {
+        let cfg_file = root.join(".syscribe.toml").display().to_string();
+        for msg in crate::vis::flow::DiagramConfig::load(root).problems {
+            findings.push(warning("W419", &cfg_file, &msg));
+        }
+    }
+    for (file, msg) in crate::vis::flow::element_problems(elements) {
+        findings.push(warning("W419", &file, &msg));
+    }
+
     // E630–E636/W631: `links:` instances against their declarations
     // (REQ-TRS-LINKTYPE-002..005). Always computed on the authored elements.
     findings.extend(link_type_findings(elements, config));

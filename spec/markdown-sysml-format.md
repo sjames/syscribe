@@ -3658,6 +3658,7 @@ A conformant parser must:
 9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
 10. **Manifest well-formedness** (`REQ-TRS-VIS-002`) — a `shapes:`, `edges:` or `layout:` value that is present but malformed is error `E405` naming the entry: the value is not a map, an entry is neither a map nor a qualified-name string, a shape has no `ref` or an edge no `source`/`target`, a `kind:` is outside the §8.16.8 vocabulary, a `parent:` names no shape of the diagram (or forms a cycle), or a `layout:` entry has no numeric `x`/`y`. The offending entry is skipped and the rest of the diagram still builds — a malformed manifest never renders the diagram empty. A `layout:` key that names no shape or edge of the diagram is warning `W416` (a stale pin). The check applies only to diagram kinds that build an IR; `Mermaid` and `PlantUML` bodies have no manifest to check.
 11. **Derived-diagram filters and subject** (`REQ-TRS-VIS-003`) — on a derived diagram (a `subject:` and no `shapes:`, §8.16.1), every `include:`/`exclude:` entry must name a member of the subject, by qualified name or by name relative to the subject; an entry that names nothing is warning `W417` (the entry is ignored, the rest of the filter still applies). `include:`/`exclude:` on a manifest diagram is one `W417` and the fields are ignored — the manifest is drawn as listed. A derived diagram's `subject:` must be of a type the kind's generator accepts (the *Valid `subject:` types* of §8.16.8); otherwise it is warning `W418` and the diagram is drawn empty. An unresolved subject stays `W401` (rule 5) and produces no `W418`.
+12. **Flow kinds** (`REQ-TRS-VIS-028`) — a `flowKind:` (§8.16.9) on an element, a `features:` entry or a `connections:` entry must name a flow kind, and a port feature's `side:` must name a side; a `[diagram]` table in `.syscribe.toml` must be well formed. Anything else is warning `W419` and the value or entry is ignored, so the edge or port draws as if it were absent.
 
 ---
 
@@ -4382,6 +4383,49 @@ subject: Security::Zones
 ```
 
 The web detail panel of a hazardous event, safety goal (and a requirement that traces to one), zone, conduit, threat, damage scenario, asset, cybersecurity goal or security control embeds the same diagram, each node linking to its element; `GET /api/diagrams/model/<qname>[?kind=…]` serves it to the editor without a `Diagram` element. `syscribe zones --format`, `cyber-risk --format dot|mermaid|plantuml|svg` and `hara trace` draw the whole-model graphs without one.
+
+
+#### 8.16.9 Flow Kinds and Port Sides
+
+An engineer reads an architecture picture by what the lines carry: power, control commands, measurements. A connection, a port or a port definition may say so with **`flowKind:`**, one of `power`, `signal`, `command`, `data`, `protection` or `mechanical` (`REQ-TRS-VIS-028`).
+
+| Where | Field | Meaning |
+|---|---|---|
+| `PortDef` | `flowKind:` | What every port typed by it carries |
+| port feature (`features:` entry) | `flowKind:` | What this port carries; wins over its `PortDef` |
+| port feature | `side:` | `north`, `east`, `south` or `west`; places this port and wins over every rule |
+| `connections:` entry | `flowKind:` | What this connection carries; wins over either port |
+
+<!-- syscribe-example: skip reason="fragment of a PortDef and a PartDef" -->
+```yaml
+type: PortDef
+name: DcPort
+flowKind: power
+---
+type: PartDef
+name: Inverter
+connections:
+  - from: ctl.gateOut
+    to: bridge.gate
+    flowKind: command
+```
+
+An edge's kind is the entry's own `flowKind:`, else the source port's, else the target port's. `signal` is drawn as every edge is today; the others have built-in styles (power a heavy orange line, command dashed blue, data dotted green, protection red, mechanical heavy grey). Every writer carries the kind: SVG and sprotty as the class `flow-<kind>` and the stroke, DOT as `class` and `penwidth`, Mermaid as a `%% flow: <kind>` comment and a `linkStyle`, PlantUML as a coloured arrow and a `<<kind>>` stereotype. A model that names no flow kind draws byte-for-byte as before.
+
+A project may restyle a kind and place ports by kind in a `[diagram]` table of `.syscribe.toml`:
+
+```toml
+[diagram.styles.power]   # stroke (or color), width, dash; "" is a solid line
+stroke = "#b35900"
+width = 3
+
+[diagram.portSides]      # optional; a port's own side: wins
+power = "direction"      # in west, out east: the default rule
+signal = "south"
+command = "north"
+```
+
+A port takes its kind from its own `flowKind:` or its `PortDef`, else from the first edge joining it. Without a `[diagram.portSides]` rule every port is placed by its direction, as before. A malformed entry, an unknown kind or side is `W419` (§8.16.7 rule 12) and is ignored.
 
 ### 8.17 Architecture Decision Records (ADR)
 
@@ -6070,7 +6114,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
-| `E400`–`E405`, `W400`–`W418` | Diagram elements | §8.16.2, §8.16.7 |
+| `E400`–`E405`, `W400`–`W419` | Diagram elements | §8.16.2, §8.16.7, §8.16.9 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
 | `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |

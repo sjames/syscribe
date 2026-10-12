@@ -126,6 +126,7 @@ fn emit(graph: &mut DiagramGraph, mut selected: Vec<&FeatureNode>, filters: &Fil
                 parameters: f.parameter_decls.clone(),
             }),
             mark: None,
+            flow: None,
         });
     }
 
@@ -134,7 +135,7 @@ fn emit(graph: &mut DiagramGraph, mut selected: Vec<&FeatureNode>, filters: &Fil
         let (s, t) = (derived_shape_id(src), derived_shape_id(tgt));
         let id = format!("e-{}-{s}-{t}", kind.as_str());
         if seen.insert(id.clone()) {
-            graph.edges.push(Edge { id, element_ref: Some(src.to_string()), source: s, target: t, kind, label: None, waypoints: None });
+            graph.edges.push(Edge { id, element_ref: Some(src.to_string()), source: s, target: t, kind, label: None, waypoints: None, flow: None });
         }
     };
     for f in &selected {

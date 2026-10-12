@@ -17,7 +17,7 @@
 //! links.
 
 use super::ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind, Tone};
-use super::style::{edge_style, tone_colors};
+use super::style::{edge_style, edge_style_in, tone_colors};
 
 /// A Mermaid-safe node id: the IR id with every character outside
 /// `[A-Za-z0-9_]` replaced by `_`.
@@ -268,6 +268,9 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
     for e in &graph.edges {
         let s = mermaid_id(&e.source);
         let t = mermaid_id(&e.target);
+        if let Some(f) = e.flow {
+            out.push_str(&format!("  %% flow: {}\n", f.as_str()));
+        }
         let connector = match e.kind {
             EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::GateInput => "---",
             EdgeKind::CriticalPath | EdgeKind::WeakConduit => "===",
@@ -291,6 +294,17 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
             out.push_str(&format!("|{}|", text(&l).replace('|', "/")));
         }
         out.push_str(&format!(" {t}\n"));
+    }
+    // the flow kind's stroke (GH #335): Mermaid styles a link by its index
+    for (i, e) in graph.edges.iter().enumerate() {
+        if e.flow.is_some() {
+            let st = edge_style_in(e, graph);
+            let mut css = format!("stroke:{},stroke-width:{}px", st.stroke, st.width);
+            if let Some(d) = &st.dash {
+                css.push_str(&format!(",stroke-dasharray:{}", d.replace(',', " ")));
+            }
+            out.push_str(&format!("  linkStyle {i} {css}\n"));
+        }
     }
     let nodes: Vec<&Node> = drawn.iter().filter_map(|id| graph.node(id)).collect();
     tone_classes(&mut out, &nodes);
@@ -423,6 +437,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         }
     }
 
@@ -435,6 +450,7 @@ mod tests {
             kind,
             label: label.map(str::to_string),
             waypoints: Some(vec![Point { x: 0.0, y: 0.0 }]),
+            flow: None,
         }
     }
 

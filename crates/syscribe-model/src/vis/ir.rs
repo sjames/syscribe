@@ -487,6 +487,18 @@ pub enum Side {
     West,
 }
 
+impl Side {
+    pub fn parse(s: &str) -> Option<Side> {
+        match s {
+            "north" => Some(Side::North),
+            "east" => Some(Side::East),
+            "south" => Some(Side::South),
+            "west" => Some(Side::West),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: f64,
@@ -557,6 +569,9 @@ pub struct Node {
     /// carries none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mark: Option<NodeMark>,
+    /// What a port carries (GH #335), for a `[diagram.portSides]` rule; `None` elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow: Option<FlowKind>,
 }
 
 /// The tone of a [`NodeMark`]: how the node is coloured (`style::node_style`).
@@ -658,6 +673,54 @@ pub struct Edge {
     /// Pinned routing, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub waypoints: Option<Vec<Point>>,
+    /// What the edge carries (GH #335); `None` when the model does not say, drawn as today.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow: Option<FlowKind>,
+}
+
+/// What a connection carries (GH #335): it picks the stroke from the style table and, under a `[diagram.portSides]`
+/// rule, the side of the ports it joins. Declared as `flowKind:` on a connection entry, a port feature or a `PortDef`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FlowKind {
+    Power,
+    Signal,
+    Command,
+    Data,
+    Protection,
+    Mechanical,
+}
+
+impl FlowKind {
+    pub const ALL: [FlowKind; 6] = [FlowKind::Power, FlowKind::Signal, FlowKind::Command, FlowKind::Data, FlowKind::Protection, FlowKind::Mechanical];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FlowKind::Power => "power",
+            FlowKind::Signal => "signal",
+            FlowKind::Command => "command",
+            FlowKind::Data => "data",
+            FlowKind::Protection => "protection",
+            FlowKind::Mechanical => "mechanical",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<FlowKind> {
+        FlowKind::ALL.into_iter().find(|k| k.as_str() == s)
+    }
+}
+
+/// A `[diagram.styles.<flow kind>]` entry: each value given replaces the built-in one.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FlowStyle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+    /// SVG `stroke-dasharray`; `""` makes the line solid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dash: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -850,6 +913,9 @@ pub struct DiagramGraph {
     /// something an editor can add to or delete from; only pins persist.
     #[serde(default)]
     pub derived: bool,
+    /// The project's `[diagram.styles]` (GH #335), layered over the built-in flow-kind styles by the writers.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub flow_styles: std::collections::BTreeMap<FlowKind, FlowStyle>,
 }
 
 impl DiagramGraph {
@@ -863,6 +929,7 @@ impl DiagramGraph {
             edges: Vec::new(),
             layout_hints: LayoutHints::for_kind(kind),
             derived: false,
+            flow_styles: Default::default(),
         }
     }
 
@@ -1027,6 +1094,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         };
         g.nodes.push(mk("a", None, Some(Rect { x: 0.0, y: 0.0, w: None, h: None })));
         g.nodes.push(mk("b", Some("a"), None));
@@ -1048,6 +1116,7 @@ mod tests {
             kind: EdgeKind::Inheritance,
             label: None,
             waypoints: Some(vec![Point { x: 1.0, y: 2.0 }]),
+            flow: None,
         });
         let json = serde_json::to_string(&g).unwrap();
         let back: DiagramGraph = serde_json::from_str(&json).unwrap();

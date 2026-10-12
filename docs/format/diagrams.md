@@ -248,12 +248,53 @@ layout:
   s-uav-power-powersystem-pdu: {x: 320, y: 80}
 ```
 
+### Flow kinds and port sides
+
+An architecture picture reads faster when the lines say what they carry. Put `flowKind:` on a
+`PortDef`, on a port feature, or on a `connections:` entry. The kinds are `power`, `signal`,
+`command`, `data`, `protection` and `mechanical`. An edge takes the entry's own kind, else the
+source port's, else the target port's.
+
+```yaml
+# Inverter/DcPort.md
+type: PortDef
+name: DcPort
+flowKind: power
+```
+
+```yaml
+connections:
+  - from: ctl.gateOut
+    to: bridge.gate
+    flowKind: command
+```
+
+`signal` draws as every edge did before. Power is a heavy orange line, command dashed blue,
+data dotted green, protection red and mechanical heavy grey. SVG, sprotty, DOT, Mermaid
+(`linkStyle` plus a `%% flow:` comment) and PlantUML (a coloured arrow and a `<<kind>>`
+stereotype) all carry the kind. A model with no `flowKind:` draws exactly as before.
+
+A `[diagram]` table in `.syscribe.toml` restyles a kind and can place ports by kind. A port's
+own `side:` (`north`, `east`, `south`, `west`) always wins.
+
+```toml
+[diagram.styles.power]   # stroke (or color), width, dash ("" is solid)
+width = 3
+
+[diagram.portSides]
+power = "direction"      # in west, out east: the default
+signal = "south"
+```
+
+An unknown kind or side, or a malformed `[diagram]` entry, is W419 and is ignored.
+
 ### Codes
 
 | Code | Condition |
 |---|---|
 | W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject |
 | W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`; StateMachine: `StateDef`/`State`/`ExhibitState`; Action: `ActionDef`/`Action`; Requirement: `Package`/`RequirementDef`/`Requirement`; Allocation: `Package`/`AllocationDef`/`Allocation`; Sequence: `ActionDef`/`Action`/`UseCaseDef`/`UseCase`); the diagram is drawn empty |
+| W419 | A `flowKind:` or `side:` names no flow kind or side, or a `[diagram]` entry is malformed; the value is ignored |
 
 An unresolved `subject:` is still W401, and a derived diagram never raises W402/W403 for the
 shapes it generates.

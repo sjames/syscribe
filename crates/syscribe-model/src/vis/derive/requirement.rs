@@ -113,6 +113,7 @@ fn requirement_nodes(e: &RawElement, elements: &[RawElement], resolver: &Resolve
             banners: Vec::new(),
             feature: None,
             mark: None,
+            flow: None,
         });
     }
     out
@@ -184,7 +185,7 @@ pub fn generate(
     let mut push = |edges: &mut Vec<Edge>, kind: EdgeKind, src: String, tgt: String, element_ref: &str| {
         let id = format!("e-{}-{src}-{tgt}", kind.as_str());
         if seen.insert(id.clone()) {
-            edges.push(Edge { id, element_ref: Some(element_ref.to_string()), source: src, target: tgt, kind, label: None, waypoints: None });
+            edges.push(Edge { id, element_ref: Some(element_ref.to_string()), source: src, target: tgt, kind, label: None, waypoints: None, flow: None });
         }
     };
     for e in &reqs {

@@ -79,6 +79,7 @@ pub(crate) fn node_for(e: &RawElement, kind: NodeKind, mark: Option<NodeMark>) -
         banners: Vec::new(),
         feature: None,
         mark,
+        flow: None,
     }
 }
 
@@ -101,6 +102,7 @@ pub(crate) fn unresolved_node(text: &str, kind: NodeKind) -> Node {
         banners: Vec::new(),
         feature: None,
         mark: Some(NodeMark { detail: None, status: Some("unresolved".to_string()), value: None, tone: Tone::Bad, badges: Vec::new(), emphasis: false }),
+        flow: None,
     }
 }
 
@@ -117,7 +119,7 @@ pub(crate) fn add_node(graph: &mut DiagramGraph, node: Node) -> String {
 pub(crate) fn add_edge(graph: &mut DiagramGraph, kind: EdgeKind, source: &str, target: &str, element_ref: Option<String>, label: Option<String>) {
     let id = format!("e-{}-{source}-{target}", kind.as_str());
     if !graph.edges.iter().any(|e| e.id == id) {
-        graph.edges.push(Edge { id, element_ref, source: source.to_string(), target: target.to_string(), kind, label, waypoints: None });
+        graph.edges.push(Edge { id, element_ref, source: source.to_string(), target: target.to_string(), kind, label, waypoints: None, flow: None });
     }
 }
 

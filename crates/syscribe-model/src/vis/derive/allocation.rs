@@ -128,6 +128,7 @@ impl End<'_> {
                 banners: Vec::new(),
                 feature: None,
                 mark: None,
+                flow: None,
             },
         }
     }
@@ -151,6 +152,7 @@ fn lane(id: String, label: &str, subject: &RawElement) -> Node {
         banners: Vec::new(),
         feature: None,
         mark: None,
+        flow: None,
     }
 }
 
@@ -251,6 +253,7 @@ pub fn generate(
             kind: EdgeKind::Allocation,
             label: p.name.clone(),
             waypoints: None,
+            flow: None,
         });
     }
 }

@@ -68,8 +68,7 @@ pub async fn get_diagram_model(
     // `build_graph` is `None` for a non-`Diagram` and for the IR-less
     // `Mermaid`/`PlantUML` kinds alike. Manifest issues (`E405`/`W416`) are
     // the validator's to report; the client draws whatever survived them.
-    let cyber = syscribe_model::cyber_config::CyberConfig::load(&store.model_root);
-    if let Some((graph, _issues)) = syscribe_model::vis::build_graph_with(element, &store.elements, &store.resolver, &cyber) {
+    if let Some((graph, _issues)) = syscribe_model::vis::build_graph_in(element, &store.elements, &store.resolver, &store.model_root) {
         return Ok(Json(to_sgraph(&graph)));
     }
     // Not a `Diagram`: a safety element is drawn from the model (GH #223).
@@ -79,6 +78,6 @@ pub async fn get_diagram_model(
         None => kinds.first().copied(),
     }
     .ok_or(StatusCode::NOT_FOUND)?;
-    let (graph, _issues) = syscribe_model::vis::build_subject_graph_with(element, kind, &store.elements, &store.resolver, &cyber);
+    let (graph, _issues) = syscribe_model::vis::build_subject_graph_in(element, kind, &store.elements, &store.resolver, &store.model_root);
     Ok(Json(to_sgraph(&graph)))
 }

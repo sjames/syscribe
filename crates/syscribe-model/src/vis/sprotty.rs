@@ -97,7 +97,7 @@ use super::ir::{
     PortConstraints, PortDirection, Rect, Side,
 };
 use super::size::{carried_size, size_graph_default, LabelBox, Sizes};
-use super::style::{edge_style, node_style, port_style, EdgeStyle, NodeStyle, PortStyle};
+use super::style::{edge_style_in, node_style, port_style, EdgeStyle, NodeStyle, PortStyle};
 
 /// The root element id. One editor instance hosts one graph at a time, so a
 /// constant id lets the client address the root without reading the JSON.
@@ -323,6 +323,9 @@ pub struct SEdge {
     pub overlay: bool,
     /// The kind's notation (`REQ-TRS-VIS-012`).
     pub style: EdgeStyle,
+    /// The flow kind (GH #335), when the model declares one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flow: Option<&'static str>,
     /// The `«keyword»` and label as sized `label:edge` children; omitted
     /// when the edge has neither.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -441,7 +444,7 @@ fn build_node(graph: &DiagramGraph, sizes: &Sizes, node: &Node, depth: usize) ->
     }
 }
 
-fn build_edge(edge: &Edge, sizes: &Sizes, overlay_kinds: &[EdgeKind]) -> SEdge {
+fn build_edge(graph: &DiagramGraph, edge: &Edge, sizes: &Sizes, overlay_kinds: &[EdgeKind]) -> SEdge {
     SEdge {
         // An overlay edge is not laid out, so nothing would place its labels.
         children: if overlay_kinds.contains(&edge.kind) {
@@ -461,7 +464,8 @@ fn build_edge(edge: &Edge, sizes: &Sizes, overlay_kinds: &[EdgeKind]) -> SEdge {
             .as_ref()
             .map(|pts| pts.iter().map(|Point { x, y }| Position { x: *x, y: *y }).collect()),
         overlay: overlay_kinds.contains(&edge.kind),
-        style: edge_style(edge.kind),
+        style: edge_style_in(edge, graph),
+        flow: edge.flow.map(|f| f.as_str()),
     }
 }
 
@@ -481,7 +485,7 @@ pub fn to_sgraph_with(graph: &DiagramGraph, sizes: &Sizes) -> SGraph {
         .filter(|n| is_root(graph, n))
         .map(|n| SChild::Node(build_node(graph, sizes, n, 0)))
         .collect();
-    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(e, sizes, &graph.layout_hints.overlay_kinds))));
+    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(graph, e, sizes, &graph.layout_hints.overlay_kinds))));
     SGraph {
         id: ROOT_ID,
         element_type_: "graph",
@@ -524,6 +528,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         }
     }
 
@@ -552,6 +557,7 @@ mod tests {
             kind: EdgeKind::Flow,
             label: Some("power".into()),
             waypoints: Some(vec![Point { x: 1.0, y: 2.0 }]),
+            flow: None,
         });
         g
     }
@@ -797,6 +803,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         });
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }
@@ -846,6 +853,7 @@ mod tests {
                 kind: EdgeKind::Inheritance,
                 label: None,
                 waypoints: None,
+                flow: None,
             });
         }
         let a = serde_json::to_string(&to_sgraph(&g)).unwrap();

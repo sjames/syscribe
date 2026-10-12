@@ -23,6 +23,7 @@ pub mod metrics;
 pub mod shape;
 pub mod size;
 pub mod sprotty;
+pub mod flow;
 pub mod style;
 pub mod svg;
 
@@ -145,6 +146,14 @@ pub fn build_graph_with(
     }
 }
 
+/// [`build_graph`] under the project's `.syscribe.toml` at `model_root`: its `[cyber]` table (risk tones) and its
+/// `[diagram]` table (flow-kind styles and port sides, GH #335).
+pub fn build_graph_in(elem: &RawElement, elements: &[RawElement], resolver: &Resolver, model_root: &std::path::Path) -> Option<(DiagramGraph, Vec<Issue>)> {
+    let (mut graph, issues) = build_graph_with(elem, elements, resolver, &crate::cyber_config::CyberConfig::load(model_root))?;
+    flow::apply(&mut graph, &flow::DiagramConfig::load(model_root));
+    Some((graph, issues))
+}
+
 /// The safety diagrams (GH #223) a model element can be viewed as without a
 /// `Diagram` element behind it, the first being the element's primary view: a
 /// `FaultTree` its fault tree, an `AttackTree` its attack tree, a `SafetyGoal`
@@ -201,6 +210,13 @@ pub fn build_subject_graph_with(
     let mut issues = Vec::new();
     let filters = derive::Filters { cyber: cyber.clone(), ..Default::default() };
     derive::generate_into(&mut graph, subject, kind, elements, resolver, &filters, &mut issues);
+    (graph, issues)
+}
+
+/// [`build_subject_graph`] under the project's `.syscribe.toml` at `model_root` (see [`build_graph_in`]).
+pub fn build_subject_graph_in(subject: &RawElement, kind: DiagramKind, elements: &[RawElement], resolver: &Resolver, model_root: &std::path::Path) -> (DiagramGraph, Vec<Issue>) {
+    let (mut graph, issues) = build_subject_graph_with(subject, kind, elements, resolver, &crate::cyber_config::CyberConfig::load(model_root));
+    flow::apply(&mut graph, &flow::DiagramConfig::load(model_root));
     (graph, issues)
 }
 

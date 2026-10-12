@@ -202,6 +202,7 @@ pub fn generate(
                 banners: Vec::new(),
                 feature: None,
                 mark: None,
+                flow: None,
             });
         }
     }
@@ -227,6 +228,7 @@ pub fn generate(
                     kind: EdgeKind::Inheritance,
                     label: None,
                     waypoints: None,
+                    flow: None,
                 });
             }
         }
@@ -247,6 +249,7 @@ pub fn generate(
                     kind: EdgeKind::Composition,
                     label: Some(label),
                     waypoints: None,
+                    flow: None,
                 });
             }
         }
@@ -272,6 +275,7 @@ pub fn generate(
                     kind: EdgeKind::Association,
                     label: Some(display_name(e)),
                     waypoints: None,
+                    flow: None,
                 });
             }
         }

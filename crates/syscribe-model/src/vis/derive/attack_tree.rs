@@ -214,6 +214,7 @@ pub fn generate(
                 banners: Vec::new(),
                 feature: None,
                 mark: Some(mark),
+                flow: None,
             });
             for r in e.frontmatter.inputs.iter().flatten() {
                 let Some(t) = resolver.resolve_ref(elements, r).filter(|t| known.contains_key(&t.qualified_name)) else { continue };
@@ -231,6 +232,7 @@ pub fn generate(
                     kind: if hot { EdgeKind::CriticalPath } else { EdgeKind::GateInput },
                     label: None,
                     waypoints: None,
+                    flow: None,
                 });
             }
         }

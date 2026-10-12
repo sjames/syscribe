@@ -1512,6 +1512,10 @@ pub struct ColdFrontmatter3 {
     /// `PartDef`/`Part.fidelity` — prose on what the model covers.
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub fidelity: Option<String>,
+    /// `PortDef.flowKind` — what a port of this type carries (GH #335): `power`, `signal`, `command`, `data`,
+    /// `protection` or `mechanical`; drives diagram strokes and port sides.
+    #[serde(default, rename = "flowKind", deserialize_with = "lenient_string::deserialize")]
+    pub flow_kind: Option<String>,
     /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
     /// port has no architecture counterpart on purpose).
     pub port_map: Option<serde_yaml::Mapping>,
@@ -2110,6 +2114,10 @@ struct ColdWire {
     /// `PartDef`/`Part.fidelity` — prose on what the model covers.
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub fidelity: Option<String>,
+    /// `PortDef.flowKind` — what a port of this type carries (GH #335): `power`, `signal`, `command`, `data`,
+    /// `protection` or `mechanical`; drives diagram strokes and port sides.
+    #[serde(default, rename = "flowKind", deserialize_with = "lenient_string::deserialize")]
+    pub flow_kind: Option<String>,
     /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
     /// port has no architecture counterpart on purpose).
     pub port_map: Option<serde_yaml::Mapping>,
@@ -2376,6 +2384,7 @@ impl ColdWire {
                     models: w.models,
                     abstracts: w.abstracts,
                     fidelity: w.fidelity,
+                    flow_kind: w.flow_kind,
                     port_map: w.port_map,
                 }),
             }),

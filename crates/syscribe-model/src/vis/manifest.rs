@@ -41,6 +41,8 @@ pub const KEY_KIND: &str = "kind";
 pub const KEY_PARENT: &str = "parent";
 /// Key, within one `shapes:`/`edges:` entry, overriding the display label.
 pub const KEY_LABEL: &str = "label";
+/// An edge's flow kind (GH #335).
+pub const KEY_FLOW_KIND: &str = "flowKind";
 pub const KEY_SOURCE: &str = "source";
 pub const KEY_TARGET: &str = "target";
 /// Key, within one `layout:` entry keyed by an edge id, listing pinned waypoints.
@@ -211,6 +213,7 @@ fn parse_edge(id: &str, v: &Value, issues: &mut Vec<Issue>) -> Option<Edge> {
         kind,
         label: str_of(m, KEY_LABEL).map(str::to_string),
         waypoints: None,
+        flow: str_of(m, KEY_FLOW_KIND).and_then(super::ir::FlowKind::parse),
     })
 }
 
@@ -380,6 +383,7 @@ pub fn build(
             banners: resolved.map(|e| super::banners_of(e, elements, resolver)).unwrap_or_default(),
             feature: None,
             mark: None,
+            flow: None,
         });
     }
 

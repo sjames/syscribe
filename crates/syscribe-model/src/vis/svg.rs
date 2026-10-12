@@ -28,7 +28,7 @@ use super::layout::{self, Bounds, EdgeRoute, Layout, LayoutError};
 use super::metrics::DIAGRAM_FAMILIES;
 use super::shape;
 use super::size::{carried_size, size_graph_default, LabelRole, Sizes};
-use super::style::{edge_style, node_style, port_style, tone_colors, ArrowHead, NodeStyle, EDGE_STROKE};
+use super::style::{edge_style_in, node_style, port_style, tone_colors, ArrowHead, NodeStyle, EDGE_STROKE};
 
 /// Margin around the drawing, in user units.
 const MARGIN: f64 = 20.0;
@@ -704,10 +704,10 @@ impl Drawer<'_> {
         }
     }
 
-    fn draw_edge(&self, edge: &Edge, used: &mut Vec<&'static str>, out: &mut String) {
+    fn draw_edge(&self, graph: &DiagramGraph, edge: &Edge, used: &mut Vec<&'static str>, out: &mut String) {
         let Some(route) = self.layout.edges.get(&edge.id) else { return };
         let (Some(s), Some(t)) = (self.rect(&edge.source), self.rect(&edge.target)) else { return };
-        let style = edge_style(edge.kind);
+        let style = edge_style_in(edge, graph);
         let shifted: Vec<Point> = route.points.iter().map(|p| Point { x: p.x + self.shift.0, y: p.y + self.shift.1 }).collect();
         let pts = if route.routed { shifted } else { clipped(&shifted, &s, &t) };
         if pts.len() < 2 {
@@ -740,9 +740,10 @@ impl Drawer<'_> {
             }
         }
         out.push_str(&format!(
-            "  <path id=\"{}\" class=\"edge {}\"{attrs} d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"/>\n",
+            "  <path id=\"{}\" class=\"edge {}{}\"{attrs} d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"/>\n",
             escape(&edge.id),
             edge.kind.as_str(),
+            edge.flow.map(|f| format!(" flow-{}", f.as_str())).unwrap_or_default(),
             style.stroke,
             num(style.width)
         ));
@@ -895,7 +896,7 @@ pub fn draw(graph: &DiagramGraph, sizes: &Sizes, laid: &Layout, links: &dyn Fn(&
     }
     let mut used: Vec<&'static str> = Vec::new();
     for e in &graph.edges {
-        d.draw_edge(e, &mut used, &mut body);
+        d.draw_edge(graph, e, &mut used, &mut body);
     }
     d.draw_feature_marks(graph, &mut body);
     // A safety diagram explains its colours under the drawing.
@@ -952,6 +953,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         }
     }
 
@@ -994,6 +996,7 @@ mod tests {
             kind: EdgeKind::Flow,
             label: Some("power".into()),
             waypoints: None,
+            flow: None,
         });
         g
     }

@@ -957,7 +957,7 @@ fn main() {
             "plantuml" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let puml_cfg = syscribe_model::config::load_plantuml_config(model_root);
-                plantuml::cmd_plantuml(&elems, rest, &puml_cfg);
+                plantuml::cmd_plantuml(&elems, rest, &puml_cfg, model_root);
             }
             "diagram" => {
                 // `diagram export <qname> --format plantuml|mermaid|svg [--out <file>]`

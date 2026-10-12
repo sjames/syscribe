@@ -18,7 +18,7 @@ use crate::element::{ElementType, RawElement};
 use crate::members::direct_members;
 use crate::resolver::Resolver;
 
-use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, NodeKind};
+use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, FlowKind, NodeKind};
 use super::super::manifest::Issue;
 use super::{block_node, display_name, features_of, map_str, port_node, short_name, w418, yaml_strings, Feature, FeatureRole, Filters};
 
@@ -198,6 +198,13 @@ pub fn generate(
             let n = counters.entry(base.clone()).or_insert(0);
             *n += 1;
             let id = if *n == 1 { base } else { format!("{base}-{n}") };
+            // what it carries (GH #335): the entry's own `flowKind:`, else either port's
+            let flow = entry
+                .as_mapping()
+                .and_then(|m| map_str(m, "flowKind"))
+                .and_then(FlowKind::parse)
+                .or_else(|| graph.node(&src).and_then(|n| n.flow))
+                .or_else(|| graph.node(&tgt).and_then(|n| n.flow));
             edges.push(Edge {
                 id,
                 element_ref: Some(sq.to_string()),
@@ -206,6 +213,7 @@ pub fn generate(
                 kind,
                 label: name,
                 waypoints: None,
+                flow,
             });
         }
     }

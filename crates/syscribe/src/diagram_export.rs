@@ -73,11 +73,11 @@ pub fn export_diagram(
     match format {
         "plantuml" => {
             let cfg = load_plantuml_config(model_root);
-            syscribe_model::plantuml::render_plantuml_with(elem, elements, Some(&cfg), &syscribe_model::cyber_config::CyberConfig::load(model_root))
+            syscribe_model::plantuml::render_plantuml_in(elem, elements, Some(&cfg), model_root)
                 .ok_or_else(|| format!("'{qname}' has a diagramKind with no PlantUML mapping — export mermaid instead"))
         }
         "mermaid" | "svg" | "dot" => {
-            let Some((graph, _issues)) = vis::build_graph_with(elem, elements, resolver, &syscribe_model::cyber_config::CyberConfig::load(model_root)) else {
+            let Some((graph, _issues)) = vis::build_graph_in(elem, elements, resolver, model_root) else {
                 return Err(format!(
                     "'{qname}' is a hand-authored {} diagram — its body is the source; use `render`",
                     elem.frontmatter.diagram_kind.as_deref().unwrap_or("Custom")

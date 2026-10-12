@@ -11,7 +11,7 @@
 //! IR order.
 
 use super::ir::{DiagramGraph, Edge, EdgeKind, LayoutDirection, Node, NodeKind};
-use super::style::{edge_style, node_style, ArrowHead};
+use super::style::{edge_style_in, node_style, ArrowHead};
 
 /// A DOT-safe identifier: every character outside `[A-Za-z0-9_]` becomes `_`.
 fn dot_id(id: &str) -> String {
@@ -139,13 +139,13 @@ fn arrow(a: ArrowHead) -> &'static str {
     }
 }
 
-fn edge_line(edge: &Edge) -> String {
-    format!("  {} -> {} [{}];\n", dot_id(&edge.source), dot_id(&edge.target), edge_attrs(edge))
+fn edge_line(graph: &DiagramGraph, edge: &Edge) -> String {
+    format!("  {} -> {} [{}];\n", dot_id(&edge.source), dot_id(&edge.target), edge_attrs(graph, edge))
 }
 
 /// The attribute list of an edge.
-fn edge_attrs(edge: &Edge) -> String {
-    let s = edge_style(edge.kind);
+fn edge_attrs(graph: &DiagramGraph, edge: &Edge) -> String {
+    let s = edge_style_in(edge, graph);
     let mut attrs = vec![format!("color=\"{}\"", color(&s.stroke)), format!("arrowhead={}", arrow(s.arrow_target))];
     if s.arrow_source != ArrowHead::None {
         attrs.push(format!("arrowtail={}", arrow(s.arrow_source)));
@@ -154,8 +154,11 @@ fn edge_attrs(edge: &Edge) -> String {
     if s.dash.is_some() {
         attrs.push("style=dashed".to_string());
     }
-    if matches!(edge.kind, EdgeKind::CriticalPath | EdgeKind::WeakConduit) {
+    if matches!(edge.kind, EdgeKind::CriticalPath | EdgeKind::WeakConduit) || edge.flow.is_some_and(|_| s.width != super::style::EDGE_WIDTH) {
         attrs.push(format!("penwidth={}", s.width));
+    }
+    if let Some(f) = edge.flow {
+        attrs.push(format!("class=\"flow-{}\"", f.as_str()));
     }
     if let Some(l) = edge.label.clone().or(s.keyword) {
         attrs.push(format!("label=\"{}\"", quote(&l)));
@@ -223,7 +226,7 @@ pub fn render_dot(graph: &DiagramGraph) -> String {
         emit_node(graph, n, 0, &mut out);
     }
     for e in &graph.edges {
-        let mut line = edge_line(e);
+        let mut line = edge_line(graph, e);
         if clusters {
             let (Some(s), Some(t)) = (graph.node(&e.source), graph.node(&e.target)) else {
                 out.push_str(&line);
@@ -237,7 +240,7 @@ pub fn render_dot(graph: &DiagramGraph) -> String {
             if is_cluster(graph, t) {
                 extra.push_str(&format!(", lhead=\"cluster_{}\"", dot_id(&t.id)));
             }
-            line = format!("  {} -> {} [{}{extra}];\n", dot_id(&rs.id), dot_id(&rt.id), edge_attrs(e));
+            line = format!("  {} -> {} [{}{extra}];\n", dot_id(&rs.id), dot_id(&rt.id), edge_attrs(graph, e));
         }
         out.push_str(&line);
     }
@@ -268,6 +271,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark,
+            flow: None,
         }
     }
 
@@ -276,7 +280,7 @@ mod tests {
         let mut g = DiagramGraph::empty(DiagramKind::FaultTree, "M::FT", "FT", None);
         g.nodes.push(node("top", NodeKind::GateOr, Some(NodeMark { detail: None, status: Some("top event".into()), value: Some("P 1.0e-6".into()), tone: Tone::Warn, badges: vec!["2 MCS".into()], emphasis: true })));
         g.nodes.push(node("a-1", NodeKind::EventBasic, None));
-        g.edges.push(Edge { id: "e".into(), element_ref: None, source: "top".into(), target: "a-1".into(), kind: EdgeKind::GateInput, label: None, waypoints: None });
+        g.edges.push(Edge { id: "e".into(), element_ref: None, flow: None, source: "top".into(), target: "a-1".into(), kind: EdgeKind::GateInput, label: None, waypoints: None });
         let dot = render_dot(&g);
         assert!(dot.starts_with("digraph \"FT\" {"), "{dot}");
         assert!(dot.contains("top [label=\"OR\\nTOP\\ntop event\\nP 1.0e-6\\n[2 MCS]\", shape=invhouse"), "{dot}");

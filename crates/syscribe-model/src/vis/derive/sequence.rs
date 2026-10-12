@@ -238,6 +238,7 @@ pub fn generate(
             banners: Vec::new(),
             feature: None,
             mark: None,
+            flow: None,
         });
     }
     let tallest = kept.iter().map(header_h).fold(0.0, f64::max);
@@ -320,6 +321,7 @@ pub fn generate(
                             kind: EdgeKind::Message,
                             label: Some(label.clone()),
                             waypoints: Some(waypoints),
+                            flow: None,
                         });
                     }
                     Step::Fragment { name, operator, condition, children } => {
@@ -346,6 +348,7 @@ pub fn generate(
                                 banners: Vec::new(),
                                 feature: None,
                                 mark: None,
+                                flow: None,
                             },
                             Rect { x: 0.0, y: top, w: None, h: None },
                         ));
@@ -399,6 +402,7 @@ pub fn generate(
             banners: Vec::new(),
             feature: None,
             mark: None,
+            flow: None,
         });
     }
 

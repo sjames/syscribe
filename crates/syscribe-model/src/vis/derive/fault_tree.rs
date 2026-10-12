@@ -236,6 +236,7 @@ pub fn generate(
                 banners: Vec::new(),
                 feature: None,
                 mark,
+                flow: None,
             });
             for &t in &n.inputs {
                 edges.push(Edge {
@@ -246,6 +247,7 @@ pub fn generate(
                     kind: EdgeKind::GateInput,
                     label: None,
                     waypoints: None,
+                    flow: None,
                 });
             }
         }

@@ -1,3 +1,7 @@
 [plantuml]
 base_url = "https://github.com/sjames/syscribe/blob/main/model_gti"
 style_file = "../.plantuml/sysml.iuml"
+
+[diagram.portSides]
+power = "direction"
+signal = "south"

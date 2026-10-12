@@ -546,6 +546,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         }
     }
 
@@ -671,6 +672,7 @@ mod tests {
                 kind,
                 label: label.map(str::to_string),
                 waypoints: None,
+                flow: None,
             });
         }
         let s = size_graph(&g, &m);

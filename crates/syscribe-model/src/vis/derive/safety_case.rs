@@ -154,6 +154,7 @@ impl Emitter<'_> {
             banners: Vec::new(),
             feature: None,
             mark,
+            flow: None,
         });
         // A node that is its own ancestor was not expanded (the cycle is
         // flagged on it): its edge back to the ancestor is drawn by the parent.
@@ -162,7 +163,7 @@ impl Emitter<'_> {
             let kind = if c.kind.is_context() { EdgeKind::InContextOf } else { EdgeKind::SupportedBy };
             let eid = format!("e-{}-{id}-{cid}", kind.as_str());
             if !self.graph.edges.iter().any(|e| e.id == eid) {
-                self.graph.edges.push(Edge { id: eid, element_ref: Some(node_ref(n)), source: id.clone(), target: cid, kind, label: None, waypoints: None });
+                self.graph.edges.push(Edge { id: eid, element_ref: Some(node_ref(n)), source: id.clone(), target: cid, kind, label: None, waypoints: None, flow: None });
             }
         }
         Some(id)

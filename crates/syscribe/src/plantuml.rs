@@ -10,7 +10,7 @@ use syscribe_model::element::RawElement;
 ///
 /// Single (qname given): generates the `.puml` for that one element regardless of
 /// whether `pumlMode` is set (REQ-TRS-PUML-011).
-pub fn cmd_plantuml(elements: &[RawElement], args: &[String], cfg: &PlantumlConfig) {
+pub fn cmd_plantuml(elements: &[RawElement], args: &[String], cfg: &PlantumlConfig, model_root: &Path) {
     // `render` is a sub-subcommand — hand off before any other parsing.
     if args.first().map(|s| s.as_str()) == Some("render") {
         cmd_render(elements, &args[1..], cfg);
@@ -62,14 +62,14 @@ pub fn cmd_plantuml(elements: &[RawElement], args: &[String], cfg: &PlantumlConf
     }
 
     match qname {
-        Some(q) => cmd_single(elements, q, output, dry_run, cfg),
-        None => cmd_batch(elements, dry_run, cfg),
+        Some(q) => cmd_single(elements, q, output, dry_run, cfg, model_root),
+        None => cmd_batch(elements, dry_run, cfg, model_root),
     }
 }
 
 // ── Single element ────────────────────────────────────────────────────────────
 
-fn cmd_single(elements: &[RawElement], qname: &str, output: Option<&str>, dry_run: bool, cfg: &PlantumlConfig) {
+fn cmd_single(elements: &[RawElement], qname: &str, output: Option<&str>, dry_run: bool, cfg: &PlantumlConfig, model_root: &Path) {
     let elem = match elements.iter().find(|e| e.qualified_name == qname) {
         Some(e) => e,
         None => {
@@ -78,7 +78,7 @@ fn cmd_single(elements: &[RawElement], qname: &str, output: Option<&str>, dry_ru
         }
     };
 
-    let puml = match syscribe_model::plantuml::render_plantuml(elem, elements, Some(cfg)) {
+    let puml = match syscribe_model::plantuml::render_plantuml_in(elem, elements, Some(cfg), model_root) {
         Some(s) => s,
         None => {
             let kind = elem.frontmatter.diagram_kind.as_deref().unwrap_or("(none)");
@@ -103,7 +103,7 @@ fn cmd_single(elements: &[RawElement], qname: &str, output: Option<&str>, dry_ru
 
 // ── Batch ─────────────────────────────────────────────────────────────────────
 
-fn cmd_batch(elements: &[RawElement], dry_run: bool, cfg: &PlantumlConfig) {
+fn cmd_batch(elements: &[RawElement], dry_run: bool, cfg: &PlantumlConfig, model_root: &Path) {
     let companions: Vec<&RawElement> = elements
         .iter()
         .filter(|e| e.frontmatter.puml_mode.as_deref() == Some("companion"))
@@ -119,7 +119,7 @@ fn cmd_batch(elements: &[RawElement], dry_run: bool, cfg: &PlantumlConfig) {
 
     for elem in companions {
         let q = &elem.qualified_name;
-        match syscribe_model::plantuml::render_plantuml(elem, elements, Some(cfg)) {
+        match syscribe_model::plantuml::render_plantuml_in(elem, elements, Some(cfg), model_root) {
             None => {
                 let kind = elem.frontmatter.diagram_kind.as_deref().unwrap_or("(none)");
                 eprintln!(

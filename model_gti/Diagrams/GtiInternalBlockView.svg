@@ -1,230 +1,200 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1060" width="1900" height="1060" font-family="Helvetica,Arial,sans-serif">
-<title>IBD Grid-Tie Inverter</title><defs>
-<marker id="a-pw" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/></marker>
-<marker id="a-sg" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
-<marker id="a-ct" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#15803d"/></marker>
-<marker id="a-sf" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b42318"/></marker>
-<marker id="a-ex" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
-<marker id="a-op" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
-<marker id="dia" viewBox="0 0 14 10" refX="1" refY="5" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="10" orient="auto"><path d="M0,5 L7,0 L14,5 L7,10 z" fill="#374151"/></marker>
-<marker id="tri" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fff" stroke="#374151"/></marker>
-</defs>
-<rect width="1900" height="1060" fill="#ffffff"/>
-<text x="20" y="24" font-size="16" font-weight="bold" fill="#111827" text-anchor="start">ibd  [System] Grid-Tie Inverter — power, sensing, control and protection</text>
-<rect x="20" y="380" width="160" height="120" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="100.0" y="396" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
-<text x="100.0" y="411" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">PV Array</text>
-<text x="100.0" y="427" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">up to 3 trackers × 2 strings</text>
-<text x="100.0" y="441" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Voc ≤ 1000 V DC</text>
-<text x="100.0" y="455" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">MPPT window 200–850 V</text>
-<rect x="1720" y="380" width="160" height="120" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="1800.0" y="396" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
-<text x="1800.0" y="411" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Utility grid</text>
-<text x="1800.0" y="427" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">3-phase 4-wire</text>
-<text x="1800.0" y="441" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">US 208 V / 60 Hz</text>
-<text x="1800.0" y="455" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IN 415 V / 50 Hz</text>
-<rect x="1720" y="170" width="160" height="70" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="1800.0" y="186" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
-<text x="1800.0" y="201" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Owner / utility head-end</text>
-<text x="1800.0" y="217" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">SunSpec Modbus · IEEE 2030.5</text>
-<rect x="1720" y="260" width="160" height="56" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="1800.0" y="276" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
-<text x="1800.0" y="291" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Installer service tool</text>
-<text x="1800.0" y="307" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">commissioning · profile lock</text>
-<rect x="1720" y="70" width="160" height="64" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="1800.0" y="86" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«external»</text>
-<text x="1800.0" y="101" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">RSD initiator</text>
-<text x="1800.0" y="117" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">US only · NEC 690.12</text>
-<rect x="200" y="40" width="1500" height="1000" rx="10" fill="#fbfdff" stroke="#2c5a8c" stroke-width="1.8"/>
-<text x="214" y="60" font-size="13" font-weight="bold" fill="#2c5a8c" text-anchor="start">«system»  Grid-Tie Inverter  (System::GridTieInverter)</text>
-<rect x="520" y="70" width="1000" height="200" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="1020.0" y="86" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="1020.0" y="101" font-size="14" font-weight="bold" fill="#111827" text-anchor="middle">Control Board</text>
-<rect x="545" y="112" width="335" height="120" rx="6" fill="#eaf6ec" stroke="#2f7a3d" stroke-width="1.5"/>
-<text x="712.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="712.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">STM32G474RE  (Stm32G474)</text>
-<text x="712.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Cortex-M4F · HRTIM · 5 ADC · 7 comparators</text>
-<text x="712.5" y="173" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">runs: Firmware (12 components)</text>
-<text x="712.5" y="187" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">self-test, window + independent watchdog</text>
-<rect x="900" y="112" width="345" height="120" rx="6" fill="#fdeceb" stroke="#b42318" stroke-width="1.5"/>
-<text x="1072.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«safety, independent of software»</text>
-<text x="1072.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Hardware trip</text>
-<text x="1072.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator window on chain B voltage</text>
-<text x="1072.5" y="173" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">latch → gate disable + relay B open</text>
-<text x="1072.5" y="187" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">re-arms when voltage returns</text>
-<rect x="1265" y="112" width="235" height="60" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="1382.5" y="128" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="1382.5" y="143" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Comms HW</text>
-<text x="1382.5" y="159" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">RS-485 · Ethernet PHY · status LED</text>
-<rect x="260" y="400" width="260" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="390.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="390.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">DC Input</text>
-<text x="390.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">string fuses 1000 V gPV, reverse diodes</text>
-<text x="390.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">load-break DC switch · type-II SPD</text>
-<text x="390.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">per-string current sensing</text>
-<text x="390.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">1100 V-rated parts</text>
-<rect x="640" y="400" width="320" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="800.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="800.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Power Stage</text>
-<text x="800.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">interleaved boost per tracker (SiC 1200 V)</text>
-<text x="800.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">DC link ≈ 800 V</text>
-<text x="800.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">3-level T-type bridge · 16–48 kHz HRTIM</text>
-<text x="800.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">comparator overcurrent trip ≤ 10 µs</text>
-<rect x="1040" y="400" width="320" height="190" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="1200.0" y="416" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="1200.0" y="431" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">AC Output</text>
-<text x="1200.0" y="447" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">LCL filter</text>
-<text x="1200.0" y="461" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">Relay A + Relay B in series (independent drivers)</text>
-<text x="1200.0" y="475" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">weld detection by aux contacts</text>
-<text x="1200.0" y="489" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">type-II AC SPD · RCMU sensor</text>
-<rect x="1400" y="330" width="230" height="52" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
-<text x="1515.0" y="346" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="1515.0" y="361" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Arc-Fault Front End</text>
-<text x="1515.0" y="377" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">10 kHz–1 MHz current pickups</text>
-<rect x="1586" y="335" width="38" height="14" rx="7" fill="#b45309"/>
-<text x="1605.0" y="345.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">Afci</text>
-<rect x="1400" y="430" width="230" height="60" rx="6" fill="#fff4e0" stroke="#b45309" stroke-width="1.5"/>
-<text x="1515.0" y="446" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="1515.0" y="461" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Rapid Shutdown Driver</text>
-<text x="1515.0" y="477" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">power-line keep-alive / shutdown</text>
-<rect x="1593" y="435" width="31" height="14" rx="7" fill="#b45309"/>
-<text x="1608.5" y="445.5" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">RSD</text>
-<rect x="300" y="690" width="1060" height="100" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="830.0" y="706" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="830.0" y="721" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Sensing</text>
-<text x="830.0" y="737" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">grid voltage ×2 independent isolated chains (A → STM32 ADC, B → hardware trip) · AC current (perturbation check) · DC voltage · per-string current</text>
-<text x="830.0" y="751" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">residual-current (RCMU) · insulation-measurement network · temperatures</text>
-<rect x="300" y="880" width="330" height="64" rx="6" fill="#eaf2fb" stroke="#2c5a8c" stroke-width="1.5"/>
-<text x="465.0" y="896" font-size="10" font-weight="normal" fill="#4b5563" text-anchor="middle">«part»</text>
-<text x="465.0" y="911" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Enclosure</text>
-<text x="465.0" y="927" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">IP65 (NEMA 4X US) · passive heatsink</text>
-<text x="465.0" y="941" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">−25…+60 °C, derate above 45 °C</text>
-<rect x="680" y="880" width="360" height="64" rx="6" fill="#f7f7f8" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="860.0" y="896" font-size="13" font-weight="bold" fill="#111827" text-anchor="middle">Design notes</text>
-<text x="860.0" y="912" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">blue = power · grey = measurement · green = control</text>
-<text x="860.0" y="926" font-size="10.5" font-weight="normal" fill="#4b5563" text-anchor="middle">red = protection path independent of the firmware</text>
-<rect x="565.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="576" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">adcIn</text>
-<rect x="995.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1006" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwVin</text>
-<rect x="855.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="866" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pwmOut</text>
-<rect x="925.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="936" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwTripGate</text>
-<rect x="1125.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1136" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayCmd</text>
-<rect x="1195.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1206" y="285" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwTripRelay</text>
-<rect x="1275.5" y="265.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1286" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">auxIn</text>
-<rect x="1475.5" y="265.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1486" y="285" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">rsdCmd</text>
-<rect x="1515.5" y="145.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<path d="M1515.5,154.5 L1524.5,145.5 L1524.5,154.5 z" fill="#1f2937"/>
-<text x="1512" y="153.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">comms</text>
-<rect x="1515.5" y="100.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1512" y="108.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">initIn</text>
-<rect x="1515.5" y="210.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1512" y="218.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">arcIn</text>
-<rect x="255.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="268" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pvIn</text>
-<rect x="515.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="512" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">dcOut</text>
-<rect x="385.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="396" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">strSense</text>
-<rect x="635.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="648" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">dcIn</text>
-<rect x="955.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="952" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">acOut</text>
-<rect x="855.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="866" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">gate</text>
-<rect x="925.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="936" y="394" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwDisable</text>
-<rect x="695.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="706" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">tempOut</text>
-<rect x="1035.5" y="490.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1048" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acIn</text>
-<rect x="1355.5" y="490.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1352" y="498.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">gridOut</text>
-<rect x="1125.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1136" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayDrive</text>
-<rect x="1195.5" y="395.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1206" y="394" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">relayTrip</text>
-<rect x="1275.5" y="395.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1286" y="394" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">relayAux</text>
-<rect x="1315.5" y="585.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1326" y="605" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acSense</text>
-<rect x="1395.5" y="351.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1408" y="359.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">pvTap</text>
-<rect x="1625.5" y="351.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1622" y="359.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">sig</text>
-<rect x="1510.5" y="425.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1521" y="424" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">cmd</text>
-<rect x="1625.5" y="455.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1622" y="463.5" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="end">dcLine</text>
-<rect x="385.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="396" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">dcSig</text>
-<rect x="695.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="706" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">tempSig</text>
-<rect x="1315.5" y="685.5" width="9" height="9" fill="#ffffff" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1326" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">acSig</text>
-<rect x="565.5" y="685.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="576" y="684" font-size="9.5" font-weight="normal" fill="#374151" text-anchor="start">adcOut</text>
-<rect x="995.5" y="685.5" width="9" height="9" fill="#1f2937" stroke="#1f2937" stroke-width="1.2"/>
-<text x="1006" y="684" font-size="9.5" font-weight="normal" fill="#b42318" text-anchor="start">hwVoltage</text>
-<path d="M180,495 L260,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
-<text x="220" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">strings</text>
-<path d="M520,495 L640,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
-<text x="580" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">DC 200–850 V</text>
-<path d="M960,495 L1040,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
-<text x="1000" y="486" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">3φ PWM</text>
-<path d="M1360,495 L1720,495" fill="none" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)" stroke-linejoin="round"/>
-<text x="1540" y="519" font-size="10" fill="#1d4ed8" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">3φ AC to grid</text>
-<path d="M390,590 L390,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
-<text x="392" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">string I, Vdc</text>
-<path d="M700,590 L700,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
-<text x="702" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">temps</text>
-<path d="M1320,590 L1320,690" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
-<text x="1322" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">grid V/I, RCMU</text>
-<path d="M570,690 L570,270" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
-<text x="564" y="640" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">chain A: grid V, I, DC</text>
-<path d="M1000,690 L1000,270" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
-<text x="1006" y="640" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">chain B: grid voltage (independent)</text>
-<path d="M860,270 L860,400" fill="none" stroke="#15803d" stroke-width="1.5" marker-end="url(#a-ct)" stroke-linejoin="round"/>
-<text x="866" y="335" font-size="10" fill="#15803d" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">PWM</text>
-<path d="M930,270 L930,400" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
-<text x="936" y="335" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">gate disable</text>
-<path d="M1130,270 L1130,400" fill="none" stroke="#15803d" stroke-width="1.5" marker-end="url(#a-ct)" stroke-linejoin="round"/>
-<text x="1124" y="335" font-size="10" fill="#15803d" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">relay A/B drive</text>
-<path d="M1200,270 L1200,400" fill="none" stroke="#b42318" stroke-width="1.5" marker-end="url(#a-sf)" stroke-linejoin="round"/>
-<text x="1206" y="335" font-size="10" fill="#b42318" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">trip → relay B</text>
-<path d="M1280,400 L1280,270" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#a-sg)" stroke-linejoin="round"/>
-<text x="1286" y="335" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">aux contacts</text>
-<path d="M1630,356 L1650,356 L1650,215 L1520,215" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
-<text x="1652" y="290" font-size="10" fill="#b45309" font-weight="bold" text-anchor="start" paint-order="stroke" stroke="#fff" stroke-width="3">arc signature</text>
-<path d="M1400,356 L1384,356" fill="none" stroke="#b45309" stroke-width="1.5" stroke-linejoin="round"/>
-<path d="M1480,270 L1480,300 L1515,300 L1515,430" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
-<text x="1475" y="300" font-size="10" fill="#b45309" font-weight="bold" text-anchor="end" paint-order="stroke" stroke="#fff" stroke-width="3">shutdown cmd</text>
-<path d="M1630,460 L1670,460 L1670,1015 L100,1015 L100,500" fill="none" stroke="#b45309" stroke-width="1.5" marker-end="url(#a-op)" stroke-linejoin="round"/>
-<text x="900" y="1010" font-size="10" fill="#b45309" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">DC line keep-alive / shutdown signal to module devices</text>
-<path d="M1720,102 L1560,102 L1560,105 L1520,105" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-ex)" stroke-linejoin="round"/>
-<text x="1640" y="96" font-size="10" fill="#6b7280" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">initiator signal</text>
-<path d="M1720,205 L1700,205 L1700,150 L1520,150" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-ex)" stroke-linejoin="round"/>
-<path d="M1720,288 L1700,288 L1700,150" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4" stroke-linejoin="round"/>
-<text x="1590" y="168" font-size="10" font-weight="normal" fill="#6b7280" text-anchor="middle">RS-485 / Ethernet</text>
-<path d="M100,380 L100,340 L1385,340 L1385,356 L1400,356" fill="none" stroke="#b45309" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a-op)" stroke-linejoin="round"/>
-<text x="700" y="334" font-size="10" fill="#b45309" font-weight="bold" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="3">PV HF current tap</text>
-<rect x="1180" y="880" width="256.0" height="126" rx="6" fill="#fff" stroke="#d1d5db"/>
-<line x1="1190" y1="896" x2="1226" y2="896" stroke="#1d4ed8" stroke-width="3.2" marker-end="url(#a-pw)"/>
-<text x="1234" y="900" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">power flow</text>
-<line x1="1190" y1="915" x2="1226" y2="915" stroke="#6b7280" stroke-width="1.8" marker-end="url(#a-sg)"/>
-<text x="1234" y="919" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">measurement</text>
-<line x1="1190" y1="934" x2="1226" y2="934" stroke="#15803d" stroke-width="1.8" marker-end="url(#a-ct)"/>
-<text x="1234" y="938" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">control command</text>
-<line x1="1190" y1="953" x2="1226" y2="953" stroke="#b42318" stroke-width="1.8" marker-end="url(#a-sf)"/>
-<text x="1234" y="957" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">protection path (hardware)</text>
-<line x1="1190" y1="972" x2="1226" y2="972" stroke="#b45309" stroke-width="1.8" marker-end="url(#a-op)"/>
-<text x="1234" y="976" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">optional feature (appliesWhen)</text>
-<line x1="1190" y1="991" x2="1226" y2="991" stroke="#6b7280" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#a-ex)"/>
-<text x="1234" y="995" font-size="10.5" font-weight="normal" fill="#111827" text-anchor="start">external interface</text>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1539 564" width="1539" height="564" class="syscribe-diagram IBD" sysml:ref="Diagrams::GtiIbd">
+  <title>GtiIbd</title>
+  <g id="s-system-gridtieinverter" class="boundary PartDef" sysml:ref="System::GridTieInverter">
+    <rect x="20" y="20" width="1499" height="524" rx="8" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="46" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="71.5" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Grid-Tie Inverter</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage" class="block Part" sysml:ref="System::GridTieInverter::powerStage">
+    <rect x="774" y="178" width="164" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="856" y="191" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="856" y="206" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">powerStage : Power Stage</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-dcin" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::dcIn">
+    <rect x="768" y="199.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="757.5" y="221.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-acout" class="port Port out" sysml:ref="System::GridTieInverter::powerStage::acOut">
+    <rect x="932" y="233" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="958" y="255" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-gate" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::gate">
+    <rect x="768" y="266.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="757.5" y="288.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gate</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-hwdisable" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::hwDisable">
+    <rect x="768" y="233" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="745.5" y="255" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwDisable</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-tempout" class="port Port out" sysml:ref="System::GridTieInverter::powerStage::tempOut">
+    <rect x="850" y="300" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="881" y="322" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">tempOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput" class="block Part" sysml:ref="System::GridTieInverter::dcInput">
+    <rect x="488" y="172.5" width="120" height="72" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="548" y="185.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="548" y="200.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">dcInput : DC Input</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-pvin" class="port Port in" sysml:ref="System::GridTieInverter::dcInput::pvIn">
+    <rect x="482" y="199.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="471.5" y="221.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pvIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-dcout" class="port Port out" sysml:ref="System::GridTieInverter::dcInput::dcOut">
+    <rect x="602" y="199.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="628" y="221.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-strsense" class="port Port out" sysml:ref="System::GridTieInverter::dcInput::strSense">
+    <rect x="542" y="238.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="573.5" y="260.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">strSense</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput" class="block Part" sysml:ref="System::GridTieInverter::acOutput">
+    <rect x="1131" y="211.5" width="138" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="1200" y="224.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="1200" y="239.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">acOutput : AC Output</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-acin" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::acIn">
+    <rect x="1125" y="233" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1114.5" y="255" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-gridout" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::gridOut">
+    <rect x="1263" y="266.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1291.5" y="288.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relaydrive" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::relayDrive">
+    <rect x="1125" y="300" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1103" y="322" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayDrive</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relaytrip" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::relayTrip">
+    <rect x="1125" y="266.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1106" y="288.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayTrip</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relayaux" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::relayAux">
+    <rect x="1171" y="333.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1152" y="355.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayAux</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-acsense" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::acSense">
+    <rect x="1217" y="333.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1248" y="355.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acSense</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing" class="block Part" sysml:ref="System::GridTieInverter::sensing">
+    <rect x="1327" y="75" width="156" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="1405" y="88" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="1405" y="103" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">sensing : Sensing</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-dcsig" class="port Port in" sysml:ref="System::GridTieInverter::sensing::dcSig">
+    <rect x="1371" y="109" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1396" y="144" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-acsig" class="port Port in" sysml:ref="System::GridTieInverter::sensing::acSig">
+    <rect x="1399" y="109" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1424" y="131" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-tempsig" class="port Port in" sysml:ref="System::GridTieInverter::sensing::tempSig">
+    <rect x="1343" y="109" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1373" y="131" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">tempSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-adcout" class="port Port out" sysml:ref="System::GridTieInverter::sensing::adcOut">
+    <rect x="1455" y="109" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1483.5" y="144" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">adcOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-hwvoltage" class="port Port out" sysml:ref="System::GridTieInverter::sensing::hwVoltage">
+    <rect x="1427" y="109" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1461.5" y="131" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwVoltage</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard" class="block Part" sysml:ref="System::GridTieInverter::controlBoard">
+    <rect x="428" y="306" width="180" height="156" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="515" y="319" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="515" y="334" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">controlBoard : Control Board</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-adcin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::adcIn">
+    <rect x="478" y="456" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="503" y="478" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">adcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwvin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::hwVin">
+    <rect x="509" y="456" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="535" y="478" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwVin</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-arcin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::arcIn">
+    <rect x="447" y="456" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="471" y="478" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">arcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-auxin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::auxIn">
+    <rect x="540" y="456" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="565" y="478" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">auxIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-pwmout" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::pwmOut">
+    <rect x="602" y="348" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="632.5" y="370" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pwmOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-relaycmd" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::relayCmd">
+    <rect x="602" y="429" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="635" y="451" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayCmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwtripgate" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::hwTripGate">
+    <rect x="602" y="321" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="638.5" y="343" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwTripGate</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwtriprelay" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::hwTripRelay">
+    <rect x="602" y="402" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="640.5" y="424" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwTripRelay</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-rsdcmd" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::rsdCmd">
+    <rect x="602" y="375" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="631.5" y="397" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">rsdCmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-comms" class="port Port inout" sysml:ref="System::GridTieInverter::controlBoard::comms">
+    <rect x="571" y="456" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <path d="M 571,468 L 583,456 L 583,468 z" fill="#1f497d"/>
+    <text x="599.5" y="478" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">comms</text>
+  </g>
+  <g id="s-system-gridtieinverter-enclosure" class="block Part" sysml:ref="System::GridTieInverter::enclosure">
+    <rect x="204" y="348" width="140" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="274" y="361" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="274" y="376" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">enclosure : Enclosure</text>
+  </g>
+  <g id="s-system-gridtieinverter-firmware" class="block Part" sysml:ref="System::GridTieInverter::firmware">
+    <rect x="209.5" y="288" width="129" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="274" y="301" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="274" y="316" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">firmware : Firmware</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend" class="block Part" sysml:ref="System::GridTieInverter::arcFaultFrontEnd">
+    <rect x="174" y="408" width="234" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="294" y="421" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="294" y="436" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">arcFaultFrontEnd : Arc-Fault Front End</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend-pvtap" class="port Port in" sysml:ref="System::GridTieInverter::arcFaultFrontEnd::pvTap">
+    <rect x="168" y="421" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="153.5" y="443" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pvTap</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend-sig" class="port Port out" sysml:ref="System::GridTieInverter::arcFaultFrontEnd::sig">
+    <rect x="288" y="446" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="308" y="468" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">sig</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver" class="block Part" sysml:ref="System::GridTieInverter::rapidShutdownDriver">
+    <rect x="732" y="345" width="275" height="72" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="869.5" y="358" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="869.5" y="373" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">rapidShutdownDriver : Rapid Shutdown Driver</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver-cmd" class="port Port in" sysml:ref="System::GridTieInverter::rapidShutdownDriver::cmd">
+    <rect x="726" y="375" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="715.5" y="397" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">cmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver-dcline" class="port Port out" sysml:ref="System::GridTieInverter::rapidShutdownDriver::dcLine">
+    <rect x="1001" y="375" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1028" y="397" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcLine</text>
+  </g>
+  <path id="e-connection-s-system-gridtieinverter-dcinput-dcout-s-system-gridtieinverter-powerstage-dcin" class="edge connection flow-power" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-dcinput-dcout" sysml:target="s-system-gridtieinverter-powerstage-dcin" d="M 614,205.5 L 768,205.5" fill="none" stroke="#b35900" stroke-width="2.6"/>
+  <path id="e-connection-s-system-gridtieinverter-powerstage-acout-s-system-gridtieinverter-acoutput-acin" class="edge connection flow-power" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-powerstage-acout" sysml:target="s-system-gridtieinverter-acoutput-acin" d="M 944,239 L 1125,239" fill="none" stroke="#b35900" stroke-width="2.6"/>
+  <path id="e-connection-s-system-gridtieinverter-dcinput-strsense-s-system-gridtieinverter-sensing-dcsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-dcinput-strsense" sysml:target="s-system-gridtieinverter-sensing-dcsig" d="M 548,250.5 L 548,273.5 L 676,273.5 L 676,167 L 1377,167 L 1377,121" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-acoutput-acsense-s-system-gridtieinverter-sensing-acsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-acoutput-acsense" sysml:target="s-system-gridtieinverter-sensing-acsig" d="M 1223,345.5 L 1223,368.5 L 1405,368.5 L 1405,121" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-powerstage-tempout-s-system-gridtieinverter-sensing-tempsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-powerstage-tempout" sysml:target="s-system-gridtieinverter-sensing-tempsig" d="M 856,312 L 856,335 L 1052,335 L 1052,178 L 1317,178 L 1317,157 L 1349,157 L 1349,121" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-sensing-adcout-s-system-gridtieinverter-controlboard-adcin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-sensing-adcout" sysml:target="s-system-gridtieinverter-controlboard-adcin" d="M 1461,121 L 1461,523 L 484,523 L 484,468" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-sensing-hwvoltage-s-system-gridtieinverter-controlboard-hwvin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-sensing-hwvoltage" sysml:target="s-system-gridtieinverter-controlboard-hwvin" d="M 1433,121 L 1433,512 L 515,512 L 515,468" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-arcfaultfrontend-sig-s-system-gridtieinverter-controlboard-arcin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-arcfaultfrontend-sig" sysml:target="s-system-gridtieinverter-controlboard-arcin" d="M 294,458 L 294,491 L 453,491 L 453,468" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-acoutput-relayaux-s-system-gridtieinverter-controlboard-auxin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-acoutput-relayaux" sysml:target="s-system-gridtieinverter-controlboard-auxin" d="M 1177,345.5 L 1177,501 L 546,501 L 546,468" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-pwmout-s-system-gridtieinverter-powerstage-gate" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-pwmout" sysml:target="s-system-gridtieinverter-powerstage-gate" stroke-dasharray="6,3" d="M 614,354 L 696,354 L 696,272.5 L 768,272.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-relaycmd-s-system-gridtieinverter-acoutput-relaydrive" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-relaycmd" sysml:target="s-system-gridtieinverter-acoutput-relaydrive" stroke-dasharray="6,3" d="M 614,435 L 676,435 L 676,438 L 1072,438 L 1072,306 L 1125,306" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-hwtripgate-s-system-gridtieinverter-powerstage-hwdisable" class="edge connection flow-protection" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-hwtripgate" sysml:target="s-system-gridtieinverter-powerstage-hwdisable" d="M 614,327 L 686,327 L 686,239 L 768,239" fill="none" stroke="#b3261e" stroke-width="2"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-hwtriprelay-s-system-gridtieinverter-acoutput-relaytrip" class="edge connection flow-protection" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-hwtriprelay" sysml:target="s-system-gridtieinverter-acoutput-relaytrip" d="M 614,408 L 676,408 L 676,427 L 1062,427 L 1062,272.5 L 1125,272.5" fill="none" stroke="#b3261e" stroke-width="2"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-rsdcmd-s-system-gridtieinverter-rapidshutdowndriver-cmd" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-rsdcmd" sysml:target="s-system-gridtieinverter-rapidshutdowndriver-cmd" stroke-dasharray="6,3" d="M 614,381 L 726,381" fill="none" stroke="#1f497d" stroke-width="1.4"/>
 </svg>

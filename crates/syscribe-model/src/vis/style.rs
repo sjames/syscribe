@@ -13,7 +13,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::ir::{EdgeKind, Node, NodeKind, PortDirection, Tone};
+use super::ir::{DiagramGraph, Edge, EdgeKind, FlowKind, FlowStyle, Node, NodeKind, PortDirection, Tone};
 
 /// Text colour shared by every node.
 pub const TEXT: &str = "#222";
@@ -257,6 +257,45 @@ pub fn edge_style(kind: EdgeKind) -> EdgeStyle {
     }
 }
 
+/// The built-in look of a flow kind (GH #335), layered over the edge kind's: `signal` keeps the edge kind's look, so a
+/// model that declares no flow kind draws as before.
+pub fn flow_default(kind: FlowKind) -> FlowStyle {
+    let (stroke, width, dash): (Option<&str>, Option<f64>, Option<&str>) = match kind {
+        FlowKind::Signal => (None, None, None),
+        FlowKind::Power => (Some("#b35900"), Some(2.6), None),
+        FlowKind::Command => (Some("#1f497d"), None, Some("6,3")),
+        FlowKind::Data => (Some("#2e7d32"), None, Some("2,3")),
+        FlowKind::Protection => (Some("#b3261e"), Some(2.0), None),
+        FlowKind::Mechanical => (Some("#555"), Some(3.0), None),
+    };
+    FlowStyle { stroke: stroke.map(String::from), width, dash: dash.map(String::from) }
+}
+
+fn layer(style: &mut EdgeStyle, f: &FlowStyle) {
+    if let Some(s) = &f.stroke {
+        style.stroke = s.clone();
+    }
+    if let Some(w) = f.width {
+        style.width = w;
+    }
+    if let Some(d) = &f.dash {
+        style.dash = (!d.is_empty()).then(|| d.clone());
+    }
+}
+
+/// The style of one edge of `graph`: its kind's, then its flow kind's built-in look, then the project's
+/// `[diagram.styles]` entry for that flow kind (GH #335).
+pub fn edge_style_in(edge: &Edge, graph: &DiagramGraph) -> EdgeStyle {
+    let mut style = edge_style(edge.kind);
+    if let Some(f) = edge.flow {
+        layer(&mut style, &flow_default(f));
+        if let Some(over) = graph.flow_styles.get(&f) {
+            layer(&mut style, over);
+        }
+    }
+    style
+}
+
 /// The style of a port square by direction: white for `in`, dark for `out`,
 /// half-filled (`inout` glyph, drawn by the client) for `inout`, grey for an
 /// undirected port.
@@ -293,6 +332,7 @@ mod tests {
             banners: vec![],
             feature: None,
             mark: None,
+            flow: None,
         }
     }
 

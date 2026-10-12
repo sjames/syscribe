@@ -159,6 +159,7 @@ fn state_node(id: String, qname: &str, label: String, parent: Option<String>) ->
         banners: Vec::new(),
         feature: None,
         mark: None,
+        flow: None,
     }
 }
 
@@ -180,6 +181,7 @@ fn pseudo_node(id: String, qname: &str, kind: NodeKind, parent: Option<String>) 
         banners: Vec::new(),
         feature: None,
         mark: None,
+        flow: None,
     }
 }
 
@@ -245,6 +247,7 @@ fn emit_region(
                 banners: Vec::new(),
                 feature: None,
                 mark: None,
+                flow: None,
             });
         }
         if bool_of(m, "isInitial") {
@@ -256,6 +259,7 @@ fn emit_region(
                 kind: EdgeKind::Transition,
                 label: None,
                 waypoints: None,
+                flow: None,
             });
         }
         if bool_of(m, "isFinal") {
@@ -267,6 +271,7 @@ fn emit_region(
                 kind: EdgeKind::Transition,
                 label: None,
                 waypoints: None,
+                flow: None,
             });
         }
         // A substate typed by a machine of its own becomes a container, one level deep.
@@ -385,7 +390,7 @@ pub fn generate(
                 Some(name) => format!("{}::{name}", region.path),
                 None => format!("{}::{src_name}", region.path),
             };
-            edges.push(Edge { id, element_ref: Some(element_ref), source: src, target: tgt, kind: EdgeKind::Transition, label: t.label(), waypoints: None });
+            edges.push(Edge { id, element_ref: Some(element_ref), source: src, target: tgt, kind: EdgeKind::Transition, label: t.label(), waypoints: None, flow: None });
         }
     }
     graph.edges.extend(edges);

@@ -583,9 +583,8 @@ fn safety_views(
             .map(|e| format!("/ui/detail/{}", e.qualified_name))
     };
     let mut out = String::new();
-    let cyber = syscribe_model::cyber_config::CyberConfig::load(&store.model_root);
     for &kind in kinds {
-        let (graph, issues) = vis::build_subject_graph_with(element, kind, &store.elements, &store.resolver, &cyber);
+        let (graph, issues) = vis::build_subject_graph_in(element, kind, &store.elements, &store.resolver, &store.model_root);
         let title = safety_kind_title(kind);
         out.push_str(&format!(r#"<div class="safety-diagram" data-diagram-kind="{}"><div class="detail-section-label">{title}</div>"#, kind.as_str()));
         match vis::render_svg(&graph, &links) {
