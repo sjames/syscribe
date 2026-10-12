@@ -199,7 +199,7 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 **FeatureDef ID pattern** — `^FEAT(-[A-Z0-9]{2,12})+$`
 - Prefix `FEAT`, **mandatory** on every `FeatureDef` (a feature with no `id` is `E201`). Unlike other stable ids, a feature id **need not** end in a number — `FEAT-ABS` and `FEAT-ABS-001` are both valid. The feature stays name-identified (label/qname = `name`); the id is a stable reference usable in `appliesWhen:` and `Configuration` `features:` keys interchangeably with the qname.
 
-`Configuration` (`CONF-*`) is id-identified: its identity is its `id`, files are `<id>.md`, and its label is a free-prose `name`.
+`Configuration` (`CONF-*`, pattern `^CONF(-[A-Z0-9]{2,12})+$`) is id-identified: its identity is its `id`, files are `<id>.md`, and its label is a free-prose `name`. Like `FEAT-*`/`BL-*`, a `CONF-*` id need not end in a number (`CONF-GTI-US-M3`; REQ-TRS-ID-008).
 - Examples: `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-DATALINK-LORA`, `FEAT-CAM-4K`, `FEAT-ABS-001`
 
 **Baseline ID pattern** — `^BL(-[A-Z0-9]{2,12})+$`

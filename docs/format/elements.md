@@ -87,7 +87,7 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `PlanningItem` | `PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `id`, `name`, `status` |
 | `Zone` | `ZN(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `targetSL` |
 | `Conduit` | `CD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `fromZone`, `toZone` |
-| `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
+| `Configuration` | `CONF(-[A-Z0-9]{2,12})+` (no numeric suffix needed: `CONF-GTI-US-M3`) | `id`, `name`, `status`, `featureModel` |
 | `FeatureDef` | `FEAT(-[A-Z0-9]{2,12})+` (no numeric suffix needed) | `id` (name-identified: `name` is also its qname segment) |
 | `Baseline` | `BL(-[A-Z0-9]{2,12})+` (no numeric suffix needed) | `id`, `name`, `status`; `seal:` written by `baseline create` |
 | `FeatureModel` | *(name-identified, no id)* | `featureTree` — a flat list exploded into `FeatureDef` elements (§9.6a) |

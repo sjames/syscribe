@@ -199,7 +199,7 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | Cross-reference resolution (§11.5–11.6, §11.10) | REQ-TRS-XREF-001–005 | TC-TRS-XREF-001–005 |
 | Unresolved structural/satisfies references E110–E114 (§11.5 step 4) | REQ-TRS-XREF-007 | TC-TRS-XREF-007 |
 | Element type handling (§2, §11.4) | REQ-TRS-ELEM-001–003 | TC-TRS-ELEM-001–003 |
-| ID scheme validation | REQ-TRS-ID-001–004 | TC-TRS-ID-001–004 |
+| ID scheme validation | REQ-TRS-ID-001–008 | TC-TRS-ID-001–008 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |
 | Model-time errors E101–E106, E310–E315 (§11.12) | REQ-TRS-VAL-002 | TC-TRS-VAL-002 |
 | Warnings W001–W007, W300–W305 (§11.12) | REQ-TRS-VAL-003 | TC-TRS-VAL-003 |

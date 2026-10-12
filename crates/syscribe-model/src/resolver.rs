@@ -65,7 +65,10 @@ fn tp_re() -> &'static regex::Regex {
 }
 
 fn conf_re() -> &'static regex::Regex {
-    CONF_RE.get_or_init(|| regex::Regex::new(r"^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // Like FEAT-*/BL-*, a Configuration id names a product variant and need not end
+    // in a number (`CONF-GTI-US-M3`); the numeric form `CONF-GTI-US-001` still
+    // matches, since a 3+ digit segment is a valid segment (GH #327, REQ-TRS-ID-008).
+    CONF_RE.get_or_init(|| regex::Regex::new(r"^CONF(-[A-Z0-9]{2,12})+$").unwrap())
 }
 
 fn adr_re() -> &'static regex::Regex {
@@ -175,14 +178,14 @@ pub fn is_pi_id(s: &str) -> bool {
 
 /// The id-identified element types, each paired with its built-in stable-ID prefix and
 /// whether its ids require a trailing numeric suffix (every type except `FeatureDef`,
-/// REQ-TRS-ID-006). Single source of truth: the type name is the `[ids.prefixes]` key,
+/// REQ-TRS-ID-006, `Baseline` and `Configuration`, REQ-TRS-ID-008). Single source of truth: the type name is the `[ids.prefixes]` key,
 /// the built-in prefix keys the runtime registry, and the suffix flag selects the
 /// grammar used to compile an additional prefix.
 pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
     ("Requirement", "REQ", true),
     ("TestCase", "TC", true),
     ("TestPlan", "TP", true),
-    ("Configuration", "CONF", true),
+    ("Configuration", "CONF", false),
     ("ADR", "ADR", true),
     ("ReviewRecord", "RR", true),
     ("TradeStudy", "TRD", true),
@@ -991,5 +994,26 @@ mod resolve_scoped_ref_tests {
         // resolve_ref delegates to at the end finds it.
         let found = resolver.resolve_scoped_ref(&elements, "A::C::Usage", "HwBase");
         assert_eq!(found.map(|e| e.qualified_name.as_str()), Some("A::B::HwBase"));
+    }
+
+    #[test]
+    fn configuration_ids_need_no_numeric_suffix() {
+        // GH #327 / REQ-TRS-ID-008: like FEAT-*/BL-*, a variant id may be descriptive.
+        for ok in ["CONF-GTI-US-M3", "CONF-GTI-IN-M2", "CONF-GTI-US-001", "CONF-UAV-DELIVERY-001", "CONF-AB", "CONF-001"] {
+            assert!(is_conf_id(ok), "{ok}");
+        }
+        for bad in ["CONF", "CONF-", "CONF-gti-US", "CONF-G", "CONF-GTI-ABCDEFGHIJKLM", "CONF_GTI", "XCONF-GTI"] {
+            assert!(!is_conf_id(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_extra_configuration_prefix_needs_no_numeric_suffix_either() {
+        let mut by_type = HashMap::new();
+        by_type.insert("Configuration".to_string(), vec!["VAR".to_string()]);
+        set_extra_id_prefixes_by_type(&by_type);
+        let (named, numeric) = (is_conf_id("VAR-GTI-US-M3"), is_conf_id("VAR-GTI-001"));
+        set_extra_id_prefixes_by_type(&HashMap::new());
+        assert!(named && numeric);
     }
 }
