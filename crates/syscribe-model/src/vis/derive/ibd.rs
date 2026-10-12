@@ -11,18 +11,18 @@
 //! graph builder does. The generator never invents a port: a chain whose
 //! endpoint is not a node of the diagram produces no edge.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::connections::parse_entry;
 use crate::element::{ElementType, RawElement};
 use crate::members::direct_members;
 use crate::resolver::Resolver;
 
-use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, FlowKind, NodeKind};
+use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, FlowKind, Node, NodeKind, NodeMark, Tone};
 use super::super::manifest::Issue;
-use super::{block_node, display_name, features_of, map_str, port_node, short_name, w418, yaml_strings, Feature, FeatureRole, Filters};
+use super::{applies_when_text, block_node, display_name, features_of, map_str, port_node, short_name, w418, w420, yaml_strings, Feature, FeatureRole, Filters};
 
-/// One owned part usage of the subject.
+/// One owned part usage of the subject (or, nested, of a usage's definition).
 struct Usage<'a> {
     name: String,
     /// The usage element when it is a child `Part` file; `None` for an inline feature.
@@ -33,6 +33,177 @@ struct Usage<'a> {
     /// `Part` element).
     own_ports: Vec<Feature>,
     multiplicity: Option<String>,
+    /// The inline feature's own `appliesWhen:` (GH #336).
+    applies_when: Option<String>,
+}
+
+/// The part usages `owner` declares: its inline part features, then (when `with_children`) its child
+/// `Part`/`Item` files.
+fn usages_of<'a>(owner: &'a RawElement, with_children: bool, elements: &'a [RawElement], resolver: &Resolver) -> Vec<Usage<'a>> {
+    let mut usages: Vec<Usage> = features_of(owner, elements, resolver)
+        .into_iter()
+        .filter(|f| f.role == FeatureRole::Part)
+        .map(|f| Usage {
+            definition: f.typed_by.as_deref().and_then(|t| resolver.resolve_ref(elements, t)),
+            name: f.name,
+            element: None,
+            own_ports: Vec::new(),
+            multiplicity: f.multiplicity,
+            applies_when: f.applies_when,
+        })
+        .collect();
+    if !with_children {
+        return usages;
+    }
+    for child in direct_members(elements, &owner.qualified_name) {
+        if !matches!(child.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::Item)) {
+            continue;
+        }
+        let name = short_name(&child.qualified_name).to_string();
+        if usages.iter().any(|u| u.name == name) {
+            continue;
+        }
+        usages.push(Usage {
+            name,
+            element: Some(child),
+            definition: yaml_strings(child.frontmatter.typed_by.as_ref()).first().and_then(|t| resolver.resolve_ref(elements, t)),
+            own_ports: features_of(child, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).collect(),
+            multiplicity: child.frontmatter.multiplicity.clone(),
+            applies_when: None,
+        });
+    }
+    usages
+}
+
+/// What the generator learnt about each usage node it drew, for containment and grouping.
+struct Drawn {
+    id: String,
+    /// The usage's definition, else the usage element.
+    definition: Option<String>,
+    element_ref: String,
+    domain: Option<String>,
+}
+
+struct Ctx<'a, 'b> {
+    elements: &'a [RawElement],
+    resolver: &'b Resolver,
+    depth: usize,
+    drawn: Vec<Drawn>,
+}
+
+/// The safety level an element declares, as a badge (`SIL 2`, `ASIL B`), or `safety` for a `safety` banner.
+fn safety_badge(e: &RawElement, banners: &[String]) -> Option<String> {
+    let fm = &e.frontmatter;
+    if let Some(a) = fm.asil_level.as_deref().filter(|a| a.trim().to_ascii_uppercase().starts_with(['A', 'B', 'C', 'D'])) {
+        return Some(format!("ASIL {}", a.trim().to_ascii_uppercase()));
+    }
+    if let Some(l) = fm.sil_level.filter(|l| *l >= 1) {
+        return Some(format!("SIL {l}"));
+    }
+    banners.iter().any(|b| b.eq_ignore_ascii_case("safety")).then(|| "safety".to_string())
+}
+
+/// The mark of a usage node (GH #336): a safety level outlines it, an `appliesWhen:` badges it optional.
+/// `None` when neither applies, so the node keeps the colours of its kind.
+fn usage_mark(u: &Usage, banners: &[String]) -> Option<NodeMark> {
+    let srcs: Vec<&RawElement> = u.element.into_iter().chain(u.definition).collect();
+    let safety = srcs.iter().find_map(|e| safety_badge(e, banners));
+    let applies = u
+        .applies_when
+        .clone()
+        .or_else(|| srcs.iter().find_map(|e| e.frontmatter.applies_when.as_ref().map(applies_when_text)));
+    if safety.is_none() && applies.is_none() {
+        return None;
+    }
+    let mut badges = Vec::new();
+    badges.extend(safety.clone());
+    if applies.is_some() {
+        badges.push("optional".to_string());
+    }
+    Some(NodeMark {
+        detail: None,
+        status: None,
+        value: applies.map(|a| format!("when {}", a.rsplit("::").next().filter(|_| !a.contains(' ')).unwrap_or(&a))),
+        tone: if safety.is_some() { Tone::Warn } else { Tone::Neutral },
+        badges,
+        emphasis: safety.is_some(),
+    })
+}
+
+impl Ctx<'_, '_> {
+    /// Draw usage `u` of `owner_qn` inside `parent`, its ports, and — `level` below the depth — its own
+    /// usages and connections.
+    fn draw(&mut self, graph: &mut DiagramGraph, u: &Usage, owner_qn: &str, owner: &RawElement, parent: &str, level: usize) {
+        let (elements, resolver) = (self.elements, self.resolver);
+        let qn = format!("{owner_qn}::{}", u.name);
+        let id = derived_shape_id(&qn);
+        if graph.node(&id).is_some() {
+            return;
+        }
+        let type_label = u.definition.map(display_name);
+        let mut label = match &type_label {
+            Some(t) => format!("{} : {t}", u.name),
+            None => u.name.clone(),
+        };
+        if let Some(m) = u.multiplicity.as_deref() {
+            if m != "1" {
+                label.push_str(&format!(" [{m}]"));
+            }
+        }
+        let mut node = match u.element {
+            Some(e) => block_node(id.clone(), e, NodeKind::Block, Some(parent.to_string()), label, elements, resolver),
+            None => {
+                let mut n = block_node(id.clone(), owner, NodeKind::Block, Some(parent.to_string()), label, elements, resolver);
+                n.element_ref = qn.clone();
+                n.is_abstract = false;
+                // An inline `features:` usage has no `metadata:` of its own.
+                n.banners = Vec::new();
+                n
+            }
+        };
+        node.element_type = Some("Part".to_string());
+        node.stereotype = Some("part".to_string());
+        let def_banners = u.definition.map(|d| super::super::banners_of(d, elements, resolver)).unwrap_or_default();
+        node.mark = usage_mark(u, &node.banners.iter().chain(def_banners.iter()).cloned().collect::<Vec<_>>());
+        graph.nodes.push(node);
+        self.drawn.push(Drawn {
+            id: id.clone(),
+            definition: u.definition.map(|d| d.qualified_name.clone()),
+            element_ref: qn.clone(),
+            domain: u.element.and_then(|e| e.frontmatter.domain.clone()).or_else(|| u.definition.and_then(|d| d.frontmatter.domain.clone())),
+        });
+
+        // Ports: the usage's own, then its definition's (own wins on a name clash).
+        let def_ports: Vec<Feature> = u
+            .definition
+            .map(|d| features_of(d, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).collect())
+            .unwrap_or_default();
+        for f in u.own_ports.iter().chain(def_ports.iter()) {
+            let pq = format!("{qn}::{}", f.name);
+            let pid = derived_shape_id(&pq);
+            if graph.node(&pid).is_none() {
+                graph.nodes.push(port_node(pid, &qn, f, &id));
+            }
+        }
+
+        // Nested usages (GH #336): the definition's (and a child `Part` file's own) part usages.
+        if level < self.depth {
+            let mut inner: Vec<(Usage, &RawElement)> = u.element.map(|e| usages_of(e, false, elements, resolver).into_iter().map(|v| (v, e)).collect()).unwrap_or_default();
+            if let Some(d) = u.definition {
+                for v in usages_of(d, false, elements, resolver) {
+                    if !inner.iter().any(|(w, _)| w.name == v.name) {
+                        inner.push((v, d));
+                    }
+                }
+            }
+            for (v, o) in &inner {
+                self.draw(graph, v, &qn, o, &id, level + 1);
+            }
+            for owner in u.definition.into_iter().chain(u.element) {
+                connect(graph, owner, &qn);
+            }
+        }
+    }
 }
 
 pub fn generate(
@@ -53,6 +224,14 @@ pub fn generate(
         return;
     }
     let sq = subject.qualified_name.as_str();
+    let group_by_domain = match filters.group_by.as_deref() {
+        None => false,
+        Some("domain") => true,
+        Some(other) => {
+            issues.push(w420(format!("`groupBy` '{other}' is not a grouping (the only one is: domain) — ignored")));
+            false
+        }
+    };
 
     // ── the boundary and its ports ──────────────────────────────────────
     let boundary_id = derived_shape_id(sq);
@@ -77,94 +256,45 @@ pub fn generate(
     }
 
     // ── owned part usages ───────────────────────────────────────────────
-    let mut usages: Vec<Usage> = subject_features
-        .iter()
-        .filter(|f| f.role == FeatureRole::Part)
-        .map(|f| Usage {
-            name: f.name.clone(),
-            element: None,
-            definition: f.typed_by.as_deref().and_then(|t| resolver.resolve_ref(elements, t)),
-            own_ports: Vec::new(),
-            multiplicity: f.multiplicity.clone(),
-        })
-        .collect();
-    for child in direct_members(elements, sq) {
-        if !matches!(child.frontmatter.element_type, Some(ElementType::Part) | Some(ElementType::Item)) {
-            continue;
-        }
-        let name = short_name(&child.qualified_name).to_string();
-        if usages.iter().any(|u| u.name == name) {
-            continue;
-        }
-        usages.push(Usage {
-            name,
-            element: Some(child),
-            definition: yaml_strings(child.frontmatter.typed_by.as_ref()).first().and_then(|t| resolver.resolve_ref(elements, t)),
-            own_ports: features_of(child, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).collect(),
-            multiplicity: child.frontmatter.multiplicity.clone(),
-        });
-    }
+    let mut usages = usages_of(subject, true, elements, resolver);
     let candidates: Vec<(String, String)> = usages.iter().map(|u| (format!("{sq}::{}", u.name), u.name.clone())).collect();
     filters.unmatched_issues(&candidates, issues);
     usages.retain(|u| filters.keeps(&format!("{sq}::{}", u.name), &u.name));
 
+    let mut ctx = Ctx { elements, resolver, depth: filters.depth.unwrap_or(1).max(1), drawn: Vec::new() };
     for u in &usages {
-        let qn = format!("{sq}::{}", u.name);
-        let id = derived_shape_id(&qn);
-        let type_label = u.definition.map(display_name);
-        let mut label = match &type_label {
-            Some(t) => format!("{} : {t}", u.name),
-            None => u.name.clone(),
-        };
-        if let Some(m) = u.multiplicity.as_deref() {
-            if m != "1" {
-                label.push_str(&format!(" [{m}]"));
-            }
-        }
-        let mut node = match u.element {
-            Some(e) => block_node(id.clone(), e, NodeKind::Block, Some(boundary_id.clone()), label, elements, resolver),
-            None => {
-                let mut n = block_node(id.clone(), subject, NodeKind::Block, Some(boundary_id.clone()), label, elements, resolver);
-                n.element_ref = qn.clone();
-                n.is_abstract = false;
-                // An inline `features:` usage has no `metadata:` of its own.
-                n.banners = Vec::new();
-                n
-            }
-        };
-        node.element_type = Some("Part".to_string());
-        node.stereotype = Some("part".to_string());
-        graph.nodes.push(node);
-
-        // Ports: the usage's own, then its definition's (own wins on a name clash).
-        let def_ports: Vec<Feature> = u
-            .definition
-            .map(|d| features_of(d, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).collect())
-            .unwrap_or_default();
-        for f in u.own_ports.iter().chain(def_ports.iter()) {
-            let pq = format!("{qn}::{}", f.name);
-            let pid = derived_shape_id(&pq);
-            if graph.node(&pid).is_none() {
-                graph.nodes.push(port_node(pid, &qn, f, &id));
-            }
-        }
+        ctx.draw(graph, u, sq, subject, &boundary_id, 1);
     }
 
     // ── edges from the subject's connection lists ───────────────────────
-    // A chain `a.b` names port `b` of usage `a`; a single segment names a
-    // usage or a boundary port. Resolution is by the deterministic ids.
-    let chain_to_id = |chain: &str| -> Option<String> {
-        let qn = format!("{sq}::{}", chain.trim().replace('.', "::"));
+    connect(graph, subject, sq);
+
+    // ── deployment containment (GH #336) ────────────────────────────────
+    let deployed = deploy(graph, &ctx.drawn, elements, resolver);
+
+    // ── domain frames (GH #336) ─────────────────────────────────────────
+    if group_by_domain {
+        frame_by_domain(graph, &ctx.drawn, &deployed, &boundary_id, sq);
+    }
+    parents_first(graph);
+}
+
+/// Edges from `owner`'s connection lists, its chains read relative to the usage `prefix` (the subject
+/// itself at the top). A chain `a.b` names port `b` of usage `a`; a single segment names a usage or a
+/// boundary port. Resolution is by the deterministic ids; a chain to a node not drawn makes no edge.
+fn connect(graph: &mut DiagramGraph, owner: &RawElement, prefix: &str) {
+    let chain_to_id = |graph: &DiagramGraph, chain: &str| -> Option<String> {
+        let qn = format!("{prefix}::{}", chain.trim().replace('.', "::"));
         let id = derived_shape_id(&qn);
         graph.node(&id).map(|_| id)
     };
-    let mut counters: HashMap<String, usize> = HashMap::new();
+    let mut taken: HashSet<String> = graph.edges.iter().map(|e| e.id.clone()).collect();
     let mut edges = Vec::new();
     let lists: [(Option<&Vec<serde_yaml::Value>>, EdgeKind); 4] = [
-        (subject.frontmatter.connections.as_ref(), EdgeKind::Connection),
-        (subject.frontmatter.flow_connections.as_ref(), EdgeKind::Flow),
-        (subject.frontmatter.binding_connections.as_ref(), EdgeKind::Binding),
-        (subject.frontmatter.succession_connections.as_ref(), EdgeKind::Succession),
+        (owner.frontmatter.connections.as_ref(), EdgeKind::Connection),
+        (owner.frontmatter.flow_connections.as_ref(), EdgeKind::Flow),
+        (owner.frontmatter.binding_connections.as_ref(), EdgeKind::Binding),
+        (owner.frontmatter.succession_connections.as_ref(), EdgeKind::Succession),
     ];
     for (list, kind) in lists {
         let Some(list) = list else { continue };
@@ -193,11 +323,10 @@ pub fn generate(
             if ends.len() < 2 {
                 continue;
             }
-            let (Some(src), Some(tgt)) = (chain_to_id(&ends[0]), chain_to_id(&ends[1])) else { continue };
+            let (Some(src), Some(tgt)) = (chain_to_id(graph, &ends[0]), chain_to_id(graph, &ends[1])) else { continue };
             let base = format!("e-{}-{src}-{tgt}", kind.as_str());
-            let n = counters.entry(base.clone()).or_insert(0);
-            *n += 1;
-            let id = if *n == 1 { base } else { format!("{base}-{n}") };
+            let id = (1..).map(|n| if n == 1 { base.clone() } else { format!("{base}-{n}") }).find(|id| !taken.contains(id)).unwrap();
+            taken.insert(id.clone());
             // what it carries (GH #335): the entry's own `flowKind:`, else either port's
             let flow = entry
                 .as_mapping()
@@ -207,7 +336,7 @@ pub fn generate(
                 .or_else(|| graph.node(&tgt).and_then(|n| n.flow));
             edges.push(Edge {
                 id,
-                element_ref: Some(sq.to_string()),
+                element_ref: Some(owner.qualified_name.clone()),
                 source: src,
                 target: tgt,
                 kind,
@@ -218,6 +347,157 @@ pub fn generate(
         }
     }
     graph.edges.extend(edges);
+}
+
+/// Whether node `a` is `b` or inside it.
+fn within(graph: &DiagramGraph, a: &str, b: &str) -> bool {
+    let mut cur = Some(a.to_string());
+    while let Some(c) = cur {
+        if c == b {
+            return true;
+        }
+        cur = graph.node(&c).and_then(|n| n.parent.clone());
+    }
+    false
+}
+
+/// Move each drawn deployment package (`isDeploymentPackage: true`) inside the node it is allocated to
+/// (any §12.9 form): a usage of the target definition, else the innermost drawn usage whose definition
+/// contains one. Returns the ids moved.
+fn deploy(graph: &mut DiagramGraph, drawn: &[Drawn], elements: &[RawElement], resolver: &Resolver) -> Vec<String> {
+    let edges = crate::validator::allocation_edges(elements, resolver);
+    if edges.is_empty() {
+        return Vec::new();
+    }
+    let is_package = |q: &str| elements.iter().any(|e| e.qualified_name == q && e.frontmatter.is_deployment_package == Some(true));
+    // Definitions that contain (through part usages, any depth) a usage typed by `target`.
+    let contains = |def: &str, target: &str| -> bool {
+        let mut seen: Vec<String> = Vec::new();
+        let mut todo = vec![def.to_string()];
+        while let Some(d) = todo.pop() {
+            if seen.contains(&d) {
+                continue;
+            }
+            seen.push(d.clone());
+            let Some(e) = elements.iter().find(|e| e.qualified_name == d) else { continue };
+            for f in features_of(e, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Part) {
+                if let Some(t) = f.typed_by.as_deref().and_then(|t| resolver.resolve_ref(elements, t)) {
+                    if t.qualified_name == target {
+                        return true;
+                    }
+                    todo.push(t.qualified_name.clone());
+                }
+            }
+        }
+        false
+    };
+    let mut moved = Vec::new();
+    for (from, to) in &edges {
+        let sources: Vec<&Drawn> =
+            drawn.iter().filter(|d| (d.definition.as_deref() == Some(from.as_str()) || d.element_ref == *from) && (is_package(from) || d.definition.as_deref().is_some_and(is_package))).collect();
+        for src in sources {
+            if moved.contains(&src.id) {
+                continue;
+            }
+            let usable = |d: &&Drawn| d.id != src.id && !within(graph, &d.id, &src.id);
+            let host = drawn
+                .iter()
+                .filter(usable)
+                .find(|d| d.definition.as_deref() == Some(to.as_str()) || d.element_ref == *to)
+                .or_else(|| {
+                    // the innermost drawn usage whose definition contains the target
+                    drawn
+                        .iter()
+                        .filter(usable)
+                        .filter(|d| d.definition.as_deref().is_some_and(|def| contains(def, to)))
+                        .max_by_key(|d| graph.nodes.iter().filter(|n| within(graph, &d.id, &n.id)).count())
+                });
+            if let Some(host) = host {
+                if let Some(n) = graph.nodes.iter_mut().find(|n| n.id == src.id) {
+                    n.parent = Some(host.id.clone());
+                    moved.push(src.id.clone());
+                }
+            }
+        }
+    }
+    moved
+}
+
+/// Frame the subject's direct parts by domain (GH #336): one `Swimlane` per domain in the order system,
+/// hardware, software, then any other value; a part with no domain stays in the boundary. A deployment
+/// package moved inside its hardware stays there, and carries its own domain as a banner.
+fn frame_by_domain(graph: &mut DiagramGraph, drawn: &[Drawn], deployed: &[String], boundary_id: &str, sq: &str) {
+    let mut domains: Vec<String> = Vec::new();
+    for d in drawn {
+        let top = graph.node(&d.id).and_then(|n| n.parent.as_deref()) == Some(boundary_id);
+        if let (true, Some(dom)) = (top, d.domain.as_ref()) {
+            if !domains.contains(dom) {
+                domains.push(dom.clone());
+            }
+        }
+    }
+    let rank = |d: &str| ["system", "hardware", "software"].iter().position(|x| *x == d).unwrap_or(3);
+    domains.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.cmp(b)));
+    for dom in &domains {
+        let id = derived_shape_id(&format!("{sq}::domain::{dom}"));
+        graph.nodes.push(Node {
+            id: id.clone(),
+            element_ref: sq.to_string(),
+            resolved: true,
+            element_type: None,
+            kind: NodeKind::Swimlane,
+            label: dom.clone(),
+            stereotype: Some("domain".to_string()),
+            parent: Some(boundary_id.to_string()),
+            direction: None,
+            side: None,
+            lines: Vec::new(),
+            is_abstract: false,
+            pin: None,
+            banners: Vec::new(),
+            feature: None,
+            mark: None,
+            flow: None,
+        });
+        for d in drawn.iter().filter(|d| d.domain.as_deref() == Some(dom.as_str())) {
+            if let Some(n) = graph.nodes.iter_mut().find(|n| n.id == d.id && n.parent.as_deref() == Some(boundary_id)) {
+                n.parent = Some(id.clone());
+            }
+        }
+    }
+    for d in drawn.iter().filter(|d| deployed.contains(&d.id)) {
+        let Some(dom) = d.domain.clone() else { continue };
+        if let Some(n) = graph.nodes.iter_mut().find(|n| n.id == d.id) {
+            if !n.banners.contains(&dom) {
+                n.banners.push(dom);
+            }
+        }
+    }
+}
+
+/// Reorder the nodes so every parent precedes its children, keeping the order otherwise.
+fn parents_first(graph: &mut DiagramGraph) {
+    let mut placed: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(graph.nodes.len());
+    let mut rest = std::mem::take(&mut graph.nodes);
+    while !rest.is_empty() {
+        let before = rest.len();
+        let mut keep = Vec::new();
+        for n in rest {
+            if n.parent.as_ref().map_or(true, |p| placed.contains(p)) {
+                placed.insert(n.id.clone());
+                out.push(n);
+            } else {
+                keep.push(n);
+            }
+        }
+        if keep.len() == before {
+            out.extend(keep);
+            break;
+        }
+        rest = keep;
+    }
+    graph.nodes = out;
 }
 
 #[cfg(test)]

@@ -43,14 +43,20 @@ pub(crate) fn w418(message: String) -> Issue {
     Issue { code: "W418", message }
 }
 
+pub(crate) fn w420(message: String) -> Issue {
+    Issue { code: "W420", message }
+}
+
 /// The `include:`/`exclude:` member filters of a derived diagram.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Filters {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
-    /// `depth:` of a BDD — composition levels followed beyond the subject's own blocks
-    /// (default 1; GH #243).
+    /// `depth:` of a BDD or an IBD — composition levels followed beyond the subject's own blocks
+    /// (default 1; GH #243, GH #336).
     pub depth: Option<usize>,
+    /// `groupBy:` of an IBD (GH #336): `domain` frames the parts by their `domain:`.
+    pub group_by: Option<String>,
     /// The project's `[cyber]` risk configuration, for the `ThreatGraph` tones
     /// (GH #223); the `simple` default when the caller has none.
     pub cyber: crate::cyber_config::CyberConfig,
@@ -62,6 +68,7 @@ impl Filters {
             include: elem.frontmatter.include.clone().unwrap_or_default(),
             exclude: elem.frontmatter.exclude.clone().unwrap_or_default(),
             depth: elem.frontmatter.depth,
+            group_by: elem.frontmatter.group_by.clone(),
             cyber: Default::default(),
         }
     }
@@ -115,6 +122,9 @@ pub fn derive_with(
     let mut issues = Vec::new();
     let mut filters = Filters::of(elem);
     filters.cyber = cyber.clone();
+    if filters.group_by.is_some() && kind != DiagramKind::Ibd {
+        issues.push(w420(format!("`groupBy` is read only by an IBD; this is a {} diagram — ignored", kind.as_str())));
+    }
 
     let subject = fm.subject.as_deref().and_then(|s| resolver.resolve_ref(elements, s));
     // An unresolved subject is `W401` (validator); nothing to derive from.
@@ -178,6 +188,14 @@ pub(crate) fn short_name(qname: &str) -> &str {
     qname.rsplit("::").next().unwrap_or(qname)
 }
 
+/// An `appliesWhen:` value as one line of text: a string as written, anything else as compact YAML.
+pub(crate) fn applies_when_text(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::String(s) => s.clone(),
+        other => serde_yaml::to_string(other).unwrap_or_default().trim().replace('\n', " "),
+    }
+}
+
 pub(crate) fn display_name(e: &RawElement) -> String {
     e.frontmatter.name.clone().unwrap_or_else(|| short_name(&e.qualified_name).to_string())
 }
@@ -196,6 +214,8 @@ pub(crate) struct Feature {
     pub flow: Option<FlowKind>,
     /// A port's `side:` override (GH #335).
     pub side: Option<Side>,
+    /// The entry's own `appliesWhen:`, as written (GH #336).
+    pub applies_when: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,6 +263,7 @@ pub(crate) fn features_of(e: &RawElement, elements: &[RawElement], resolver: &Re
             unit: map_str(m, "unit").map(str::to_string),
             flow,
             side: map_str(m, "side").and_then(Side::parse),
+            applies_when: m.get(serde_yaml::Value::String("appliesWhen".into())).map(applies_when_text),
         });
     }
     out

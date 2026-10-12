@@ -3599,7 +3599,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     // whose type is not valid for the diagram kind.
                     match issue.code {
                         "E405" => findings.push(error("E405", &file, &issue.message)),
-                        "W416" | "W417" | "W418" => findings.push(warning(issue.code, &file, &issue.message)),
+                        "W416" | "W417" | "W418" | "W420" => findings.push(warning(issue.code, &file, &issue.message)),
                         _ => {}
                     }
                 }

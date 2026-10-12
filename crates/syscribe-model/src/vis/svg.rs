@@ -813,7 +813,12 @@ fn legend_rows(kind: DiagramKind) -> Option<(&'static [(Tone, &'static str)], &'
         (Tone::Ok, "low risk, an implemented goal or a control"),
         (Tone::Neutral, "asset"),
     ];
+    const IBD: &[(Tone, &str)] = &[
+        (Tone::Warn, "safety-rated: SIL, ASIL or a safety stereotype"),
+        (Tone::Neutral, "optional: present only where its appliesWhen holds"),
+    ];
     match kind {
+        DiagramKind::Ibd => Some((IBD, "Badges name the safety level; a heavy outline is safety-rated.")),
         DiagramKind::Traceability => Some((TRACEABILITY, "Links point upstream: test to requirement, requirement to goal, goal to hazard. Badges name the validator finding.")),
         DiagramKind::ZoneConduit => Some((ZONE_CONDUIT, "A red dashed conduit has an achieved level below the highest target of the zones it joins.")),
         DiagramKind::ThreatGraph => Some((THREAT_GRAPH, "Threat, damage, asset, goal, control, left to right. A heavy outline is critical risk.")),
@@ -834,6 +839,10 @@ fn legend(graph: &DiagramGraph, x: f64, y: f64) -> Option<(String, f64, f64)> {
         .filter(|(t, _)| graph.nodes.iter().any(|n| n.mark.as_ref().is_some_and(|m| !m.is_detail_only() && m.tone == *t)))
         .copied()
         .collect();
+    // An IBD carries a legend only when it marks a part (GH #336).
+    if used.is_empty() && graph.kind == DiagramKind::Ibd {
+        return None;
+    }
     let metrics = super::metrics::diagram_metrics();
     let mut out = String::from("  <g class=\"legend\">\n");
     let mut width: f64 = 0.0;
