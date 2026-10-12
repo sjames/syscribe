@@ -20,4 +20,8 @@ Feature: W012 respects mandatory membership
     And every Configuration selects it
     When the tool runs `feature-check`
     Then W012 is reported and suggests mandatory: true
+  Scenario: grid-tie acceptance model
+    Given the bundled model_gti/ product line
+    When the tool runs `feature-check`
+    Then no W012 is reported and the feature model has no findings
 ```

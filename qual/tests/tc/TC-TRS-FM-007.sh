@@ -9,4 +9,10 @@ tc_TRS_FM_007() {
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$F/TC-TRS-FM-007/opt" feature-check 2>/dev/null || true)
     assert_has_code "W012"
     assert_output_contains "consider mandatory: true"
+
+    SCENARIO_NAME="grid-tie model spells its mandatory groups mandatory: true and has no feature-check findings"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    local gti; gti="$(cd "$F/../.." && pwd)/model_gti"
+    SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$gti" feature-check 2>/dev/null || true)
+    assert_no_code "W012"
+    assert_output_contains "Feature model OK — 0 findings."
 }

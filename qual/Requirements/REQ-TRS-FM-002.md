@@ -15,7 +15,7 @@ The `feature-check` command ([[REQ-TRS-FM-001]]) **shall** enforce the following
 | `E219` | In some `Configuration`, a **selected** feature's `requires:` target is **not** selected (cross-tree implication violated) |
 | `E220` | In some `Configuration`, a **selected** feature's `excludes:` target **is** also selected (mutual exclusion violated) |
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in **zero** `Configuration` files (possible dead feature) |
-| `W012` | A `FeatureDef` with `groupKind: optional` is selected in **every** `Configuration` (should likely be `mandatory`) |
+| `W012` | A `FeatureDef` with `groupKind: optional` and no `mandatory: true` is selected in **every** `Configuration` (should likely be `mandatory: true`; see [[REQ-TRS-FM-007]]) |
 
 Selection state for a feature is read from each `Configuration.features:` map (a feature absent from the map is treated as not selected). `E219`/`E220` are reported against the offending `Configuration`; `E212` against the declaring `FeatureDef`; `W011`/`W012` against the `FeatureDef`.
 
