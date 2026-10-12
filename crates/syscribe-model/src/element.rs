@@ -290,8 +290,8 @@ pub enum ElementType {
     Argument,         // ARG-* — a GSN node (claim/strategy/solution)
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     DependentFailureAnalysis, // DFA-* — ISO 26262-9 clause 7 independence argument
-    ResidualRisk,     // RISK-* — a recorded decision on a defeated fault set of an `inject` campaign (GH #341)
     TestEnvironment,  // TE-* — a rig a test runs on (HIL, bench, chamber, vehicle)
+    ResidualRisk,     // RISK-* — a recorded decision on a defeated fault set of an `inject` campaign (GH #341)
     SafetyMechanism,  // SM-* — a diagnostic/safety mechanism with coverage and reaction time
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
