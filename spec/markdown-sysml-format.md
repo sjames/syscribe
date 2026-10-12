@@ -1147,6 +1147,7 @@ Defines a class of physical or logical system components.
 | `bindingConnections` | list | absent | Binding connector specifications |
 | `performs` | list of strings or maps | absent | Actions this part performs; string shorthand or full map form (see below) |
 | `exhibitsStates` | list of strings | absent | Shorthand: qualified names of StateDefs this part exhibits (no bindings, multiplicity `"1"`). For named exhibit-state usages with bindings or redefinition, use `type: ExhibitState` in `features:` or as a separate file; see §8.8.4 |
+| `models` | string or list | absent | Architecture element(s) this executable part is a behavioural model of; with `portMap`, `abstracts`, `fidelity`. See §12.11 |
 
 **`performs:` field — string shorthand and full map form:**
 
@@ -6053,6 +6054,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`, `W931`, `W932` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
 | `E980`–`E984`, `W980`–`W984`, `W987` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
 | `E960`–`E967`, `W960`–`W979` | Security-analysis completeness: TARA rows, risk inputs, attack-tree shape, zones/conduits, `VulnerabilityReport` | §13.6 |
+| `E990`–`E991`, `W990`–`W992` | Behavioural model trace (`models:`) | §12.11 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6603,6 +6605,11 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272) |
 | `E936` | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306) |
 | `E937` | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
+| `E990` | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
+| `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction (GH #330, §12.11) |
+| `W990` | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
+| `W991` | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
+| `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
@@ -7192,6 +7199,53 @@ Because the vocabulary is per-project, the generic authoring prompt cannot enume
 - The authoring prompt (`--agent-instructions`) documents `links:`, instructs the agent to discover the project's types with `link-types` (or the MCP `link_types` tool) **before** authoring any link, and forbids inventing undeclared types.
 - `syscribe -m <root> --agent-instructions` appends a **"Project link types"** section listing each declared type (name, description, direction/inverse, source → target types, cardinality, extends/relax) when the model declares any; nothing is appended when it declares none.
 - `E630` names the declared types, so a wrong guess self-corrects on the next validation pass.
+
+---
+
+### 12.11 Behavioural Model Trace (`models:`)
+
+**Rule R-011:** An executable part (a `PartDef` or `Part` with no `domain:`, typically one that `exhibitsStates:` a machine, or a composite of such parts) may declare `models:`, the architecture element(s) it is a behavioural model of (GH #330). Like `satisfies:` the link points upstream (§12.1): the behavioural element holds it. The executable model and the architecture stay two sets of elements, because their granularity differs (two machines inside one component, two instances of one part for two chains), because a scenario needs environment parts that are not part of the product, and because a model leaves things out. `models:` lets both differ and still be checked.
+
+| Field | On | YAML type | Description |
+|---|---|---|---|
+| `models` | `PartDef`/`Part`, or a part usage in a composite's `features:` | string or list | Architecture element(s) this part models: a `PartDef`/`Part` with a `domain:` on itself or its definition chain. Many-to-one (two machines model one element) and one-to-many (two usages of one part model two chains) are both allowed. A usage-level value replaces the definition's |
+| `portMap` | same | mapping | Executable port → architecture port. A value is a port name, a list (one executable port stands for several architecture ports, such as a trip line that fans out), or `null` (no counterpart, on purpose). Unmapped ports correspond by name. A usage-level map replaces the definition's, which is how two instances model two chains |
+| `abstracts` | same | list of strings | What the model leaves out. An entry naming a port of a modelled element exempts that port from `W990`; an entry that resolves to a `Requirement` says the model cannot be evidence for it (`W992`); any other entry is a free name recorded for the reader |
+| `fidelity` | same | string | Prose: what the model covers |
+
+`models:`/`portMap:`/`abstracts:` are inherited along `supertype:`/`typedBy:` (the nearest `models:` and `portMap:` win; `abstracts:` accumulate).
+
+**Validation.** All of it is dormant until some part declares `models:` (or a usage carries `models:`/`portMap:`).
+
+| Code | Condition |
+|---|---|
+| `E990` | A `models:` target does not resolve, or is not an architecture element |
+| `E991` | A `portMap:` key is not a port of the executable part; an executable port corresponds (by name or `portMap:`) to no port of any element it models; or the counterpart's direction is incompatible (`in` against `out`; `inout` matches either). A wrong-direction counterpart still counts as covered for `W990` |
+| `W990` | A port of a modelled element has no counterpart in any part that models it, checked on the union of those parts, and none of them names it in `abstracts:` |
+| `W991` | In an executable composite with at least two modelling parts: a connection whose ends model two different elements has no architecture connection between the corresponding ports; or an architecture connection between two elements the composite models, whose ports are both covered and not abstracted, has no executable connection. A connection between a `software` and a `hardware` element is skipped, since §12.6 joins those through allocation, never a connection |
+| `W992` | A `TestCase` whose `subject:` is a part `verifies:` a requirement satisfied by architecture elements, and no part reachable from the subject models one of them without naming the requirement in `abstracts:`: its scenarios cannot be evidence for it |
+
+The link is a trace link like the others: `links`, `refs`, `follow <elem> models` / `follow <elem> modeledBy`, `impact` (`modeledBy` downstream), `trace` (a *Behavioural models of the satisfiers* table), `why` (an executable part answers with the requirements its modelled elements satisfy), and suspect-link detection (`traceBaselines:`, `W090`), so a change to the architecture element marks the behaviour for re-review.
+
+**Example** (the grid-tie inverter, `model_gti/Behavior/Parts/`):
+
+<!-- syscribe-example: skip reason="an excerpt of model_gti; the architecture element and machine it names live there" -->
+```yaml
+---
+type: PartDef
+name: GridMonitorPart
+exhibitsStates: [Behavior::Machines::GridMonitor]
+models: [System::Software::ProtectionManager]
+fidelity: "fast-stage voltage/frequency window only"
+abstracts: [arcTrip, profile, relayCmd]
+portMap:
+  samples: gridSamples
+  out: trip
+features:
+  - {name: samples, type: Port, direction: in}
+  - {name: out, type: Port, direction: out}
+---
+```
 
 ---
 

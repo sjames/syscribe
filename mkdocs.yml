@@ -62,6 +62,7 @@ nav:
       - State Machines: model-guide/state-machines.md
       - Action Flows: model-guide/action-flows.md
       - System Composition: model-guide/system-composition.md
+      - Behavioural Models (models:): model-guide/behaviour-models.md
       - FMU Plants (FMI): model-guide/fmi-plants.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md

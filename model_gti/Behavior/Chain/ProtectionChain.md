@@ -4,7 +4,7 @@ name: ProtectionChain
 features:
   - {name: grid, typedBy: Behavior::Parts::GridSourcePart}
   - {name: sensorSw, typedBy: Behavior::Parts::SensorPart}
-  - {name: sensorHw, typedBy: Behavior::Parts::SensorPart}
+  - {name: sensorHw, typedBy: Behavior::Parts::SensorPart, portMap: {inp: acSig, out: hwVoltage}}
   - {name: monitor, typedBy: Behavior::Parts::GridMonitorPart}
   - {name: hwTrip, typedBy: Behavior::Parts::HwTripPart}
   - {name: supervisor, typedBy: Behavior::Parts::SupervisorPart}
