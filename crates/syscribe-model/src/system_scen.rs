@@ -265,27 +265,41 @@ enum MKind {
     Never,
 }
 
+fn eval_bool(sys: &System, src: &str, what: &str) -> Result<bool, String> {
+    match sys.eval_qualified(src)? {
+        Value::Bool(b) => Ok(b),
+        v => Err(format!("{what} is a {}, not a boolean", v.kind())),
+    }
+}
+
 /// Evaluate a property now: whether it holds, and what was checked (the clause in force for a named property). A
-/// degraded clause in force is added to `used`.
-fn eval_prop(sys: &System, sc: &Scenario, prop: &PropRef, used: &mut BTreeSet<String>) -> Result<(bool, String), String> {
-    let (src, what) = match prop {
-        PropRef::Expr(e) => (e.as_str(), format!("`{e}`")),
+/// degraded clause is added to `used` only when it carried the verdict: it holds while the full property does not.
+/// `degradable` is false for `never`, where a weaker property would make the check stricter: the full property
+/// judges it.
+fn eval_prop(sys: &System, sc: &Scenario, prop: &PropRef, degradable: bool, used: &mut BTreeSet<String>) -> Result<(bool, String), String> {
+    match prop {
+        PropRef::Expr(e) => {
+            let what = format!("`{e}`");
+            Ok((eval_bool(sys, e, &what)?, what))
+        }
         PropRef::Named(n) => {
             let Some(p) = sc.props.iter().find(|p| p.name.eq_ignore_ascii_case(n)) else {
                 return Err(format!("no property '{n}' (`Where {n} is <expression>`)"));
             };
-            match p.clause(&sys.active_faults())? {
-                Clause::Full(e) => (e, format!("'{}' (`{e}`)", p.name)),
-                Clause::Degraded(x) => {
-                    used.insert(format!("'{}': {}", p.name, x.label()));
-                    (x.expr.as_str(), format!("'{}' as degraded by `{}` (`{}`)", p.name, x.label(), x.expr))
+            let full_what = format!("'{}' (`{}`)", p.name, p.expr);
+            let clause = if degradable { Some(p.clause(&sys.active_faults())?) } else { None };
+            match clause {
+                Some(Clause::Degraded(x)) => {
+                    let what = format!("'{}' as degraded by `{}` (`{}`)", p.name, x.label(), x.expr);
+                    let holds = eval_bool(sys, &x.expr, &what)?;
+                    if holds && !eval_bool(sys, &p.expr, &full_what)? {
+                        used.insert(format!("'{}': {}", p.name, x.label()));
+                    }
+                    Ok((holds, what))
                 }
+                _ => Ok((eval_bool(sys, &p.expr, &full_what)?, full_what)),
             }
         }
-    };
-    match sys.eval_qualified(src)? {
-        Value::Bool(b) => Ok((b, what)),
-        v => Err(format!("{what} is a {}, not a boolean", v.kind())),
     }
 }
 
@@ -297,7 +311,7 @@ fn secs(t: f64) -> String {
 fn check(sys: &System, sc: &Scenario, monitors: &mut [Monitor], used: &mut BTreeSet<String>) -> Result<(), (Status, String)> {
     let now = sys.time();
     for m in monitors.iter_mut() {
-        let (holds, what) = eval_prop(sys, sc, &m.prop, used).map_err(|e| (Status::Error, e))?;
+        let (holds, what) = eval_prop(sys, sc, &m.prop, !matches!(m.kind, MKind::Never), used).map_err(|e| (Status::Error, e))?;
         let fail = |msg: String| Err((Status::Fail, msg));
         match &mut m.kind {
             MKind::Within { deadline, dur, reached } => match (*reached, holds) {
@@ -410,7 +424,7 @@ pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Op
                 Err(x) => Err(x),
             },
             SCmd::Fault { id, inject } => if *inject { sys.inject(id) } else { sys.clear_fault(id) },
-            SCmd::Holds { when: Temporal::Now, prop } => match eval_prop(&sys, sc, prop, &mut used) {
+            SCmd::Holds { when: Temporal::Now, prop } => match eval_prop(&sys, sc, prop, true, &mut used) {
                 Ok((true, _)) => Ok(()),
                 Ok((false, what)) => return done(&sys, &used, Status::Fail, Some(format!("{label}: {what} does not hold"))),
                 Err(e) => return done(&sys, &used, Status::Error, Some(format!("{label}: {e}"))),

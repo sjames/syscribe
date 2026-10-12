@@ -883,8 +883,11 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             if let Some(m) = &o.v.message {
                 println!("       {m}");
             }
-            for d in &o.v.degraded {
-                println!("       held in a degraded clause: {d}");
+            // a failed or erroring scenario held nothing: its degraded clauses are not a claim
+            if o.v.status == Status::Pass {
+                for d in &o.v.degraded {
+                    println!("       held in a degraded clause: {d}");
+                }
             }
             if flag("--trace") {
                 for t in &o.v.trace {

@@ -300,3 +300,157 @@ fn the_grid_tie_campaigns_judge_the_precise_safe_state() {
         assert_eq!(sets.iter().filter(|s| s["status"] == "defeated").count(), 11, "{key}");
     }
 }
+
+/// A degraded clause is reported only when it was needed: the full property failed and the clause held. `never`
+/// always judges the full property, since a weaker one would make it stricter.
+#[test]
+fn a_clause_is_degraded_only_when_the_full_property_fails() {
+    let root = model(
+        "Feature: f
+  Where the safe state is m.a == 0 and m.b == 0
+  Except under FM-SYS-003: m.a == 0
+  Except under FM-SYS-001: m.b == 0
+
+  Scenario: the alarm fault leaves the full safe state
+    Given fault FM-SYS-003 is injected
+    When m receives Trip
+    Then within 1 s the safe state holds
+
+  Scenario: never uses the full property
+    Given fault FM-SYS-001 is injected
+    Then never the safe state holds
+    When m receives Trip
+    And 2 s elapses
+",
+    );
+    let v = verdicts(&root);
+    let x = verdict(&v, "the alarm fault leaves the full safe state");
+    assert!(x.1 == "pass" && x.3 == "null", "{x:?}");
+    let x = verdict(&v, "never uses the full property");
+    assert!(x.1 == "pass" && x.3 == "null", "{x:?}");
+    let (_, text) = run(&root, &["simulate", "TC-SYS-001"]);
+    assert!(!text.contains("degraded clause"), "{text}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A Scenario Outline property is checked once each row fills in its placeholders.
+#[test]
+fn outline_properties_are_checked_after_expansion() {
+    let root = model(
+        "Feature: outline
+
+  Scenario Outline: trip to <v>
+    Where the alarm state is m.c == <v>
+    When m receives Trip
+    Then within 1 s the alarm state holds
+
+    Examples:
+      | v |
+      | 1 |
+      | = |
+",
+    );
+    let v = verdicts(&root);
+    assert_eq!(verdict(&v, "trip to <v> [row 1]").1, "pass", "{v:?}");
+    let (_, t) = run(&root, &["validate"]);
+    assert!(t.contains("E886") && t.contains("row 2: `m.c == =` is not an expression"), "{t}");
+    assert!(!t.contains("`m.c == <v>` is not an expression"), "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A property after `Rule:` belongs to that rule, never to the scenario before it or to a later rule; a scenario's
+/// own `Except under` stays in that scenario.
+#[test]
+fn properties_are_scoped_to_their_feature_rule_or_scenario() {
+    let root = model(
+        "Feature: rules
+  Where the safe state is m.a == 0 and m.b == 0
+
+  Scenario: before any rule
+    When m receives Trip
+    Then within 1 s the safe state holds
+
+  Scenario: a welded a with its own clause
+    Given fault FM-SYS-001 is injected
+    When m receives Trip
+    Then within 1 s the safe state holds
+    Except under FM-SYS-001: m.b == 0
+
+  Scenario: a welded a without one
+    Given fault FM-SYS-001 is injected
+    When m receives Trip
+    Then within 1 s the safe state holds
+
+  Rule: first
+    Where the isolated state is m.a == 0
+
+    Scenario: in the first rule
+      When m receives Trip
+      Then within 1 s the isolated state holds
+
+  Rule: second
+
+    Scenario: in the second rule
+      When m receives Trip
+      Then within 1 s the isolated state holds
+",
+    );
+    let v = verdicts(&root);
+    assert_eq!(verdict(&v, "before any rule").1, "pass", "{v:?}");
+    assert_eq!(verdict(&v, "in the first rule").1, "pass", "{v:?}");
+    let x = verdict(&v, "a welded a with its own clause");
+    assert!(x.1 == "pass" && x.3.contains("Except under FM-SYS-001"), "{x:?}");
+    assert_eq!(verdict(&v, "a welded a without one").1, "fail", "{v:?}");
+    let (_, t) = run(&root, &["validate"]);
+    assert!(t.contains("scenario 'in the second rule'") && t.contains("there is no `Where the isolated state is <expression>`"), "{t}");
+    assert!(!t.contains("scenario 'in the first rule'"), "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Declaring a property twice in one scope is E886; a scenario may still replace a feature's property.
+#[test]
+fn a_property_named_twice_in_one_scope_is_e886() {
+    let root = model(
+        "Feature: dup
+  Where the safe state is m.a == 0
+  Where the safe state is m.b == 0
+
+  Scenario: replaces the feature's property
+    Where the safe state is m.c == 1
+    When m receives Trip
+    Then within 1 s the safe state holds
+",
+    );
+    let (_, t) = run(&root, &["validate"]);
+    assert!(t.contains("E886") && t.contains("property 'the safe state' is already declared at line"), "{t}");
+    assert_eq!(t.matches("is already declared").count(), 1, "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Properties are judged only in composite scenarios: on a state machine they are E886, not silently ignored.
+#[test]
+fn properties_on_a_machine_test_case_are_e886() {
+    let root = model("Feature: m\n  Where p is a == 0\n\n  Scenario: s\n    Given the machine is in Idle\n    When Trip is injected\n");
+    let tc = std::fs::read_to_string(root.join("TC-SYS-001.md")).unwrap().replace("subject: Sys", "subject: M");
+    std::fs::write(root.join("TC-SYS-001.md"), tc).unwrap();
+    let (_, t) = run(&root, &["validate"]);
+    assert!(t.contains("E886") && t.contains("properties are for composite scenarios"), "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A scenario-level `Except under` is part of what a recorded campaign judged: changing it changes the invariants.
+#[test]
+fn a_scenario_clause_changes_the_recorded_invariants() {
+    let scenario = "{SAFE}  @invariant\n  Scenario: trip\n    When m receives Trip\n    Then within 1 s the safe state holds\n";
+    let root = model(&scenario.replace("{SAFE}", SAFE));
+    let (c, t) = run(&root, &["inject", "TC-SYS-001", "--record", "--run", "a", "--report-only"]);
+    assert_eq!(c, 0, "{t}");
+    let tc = root.join("TC-SYS-001.md");
+    let body = std::fs::read_to_string(&tc).unwrap().replace("holds\n```", "holds\n    Except under FM-SYS-001 and FM-SYS-002: m.c == 1\n```");
+    std::fs::write(&tc, body).unwrap();
+    let (c, t) = run(&root, &["inject", "TC-SYS-001", "--record", "--run", "b", "--report-only"]);
+    assert_eq!(c, 0, "{t}");
+    let (_, t) = run(&root, &["results", "campaigns", "diff", "TC-SYS-001"]);
+    assert!(t.contains("the invariants changed"), "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}

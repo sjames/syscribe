@@ -110,7 +110,7 @@ fn parse_where(rest: &str) -> Result<(String, String), String> {
     if name.is_empty() || e.is_empty() {
         return Err("`Where <name> is <expression>`".into());
     }
-    crate::expr::parse(e).map_err(|x| format!("`{e}` is not an expression: {x}"))?;
+    check_prop_expr(e)?;
     Ok((name.to_string(), e.to_string()))
 }
 
@@ -130,17 +130,41 @@ fn parse_except(rest: &str) -> Result<(Vec<String>, String), String> {
     if faults.is_empty() || e.is_empty() {
         return Err("`Except under <fault> [and <fault>…]: <expression>`".into());
     }
-    crate::expr::parse(e).map_err(|x| format!("`{e}` is not an expression: {x}"))?;
+    check_prop_expr(e)?;
     faults.sort();
     Ok((faults, e.to_string()))
 }
 
-/// Add a `Where`/`Except` line to the properties of one scope.
-fn add_prop_line(props: &mut Vec<Prop>, errors: &mut Vec<(usize, String)>, t: &str, line: usize) {
+/// Whether `e` holds a Scenario Outline `<placeholder>`: such an expression is checked once a row fills it in.
+fn has_placeholder(e: &str) -> bool {
+    let b = e.as_bytes();
+    (0..b.len()).any(|i| {
+        b[i] == b'<' && b.get(i + 1).is_some_and(|c| c.is_ascii_alphabetic() || *c == b'_') && {
+            let rest = &e[i + 1..];
+            rest.find('>').is_some_and(|j| rest[..j].bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b' '))
+        }
+    })
+}
+
+/// The syntax check of a property expression; an outline expression is checked after expansion instead.
+fn check_prop_expr(e: &str) -> Result<(), String> {
+    if has_placeholder(e) {
+        return Ok(());
+    }
+    crate::expr::parse(e).map(|_| ()).map_err(|x| format!("`{e}` is not an expression: {x}"))
+}
+
+/// Add a `Where`/`Except` line to the properties of one scope. A `Where` may replace a property of an enclosing
+/// scope (one declared before `scope_start`), but naming a property twice in the same scope is an error.
+fn add_prop_line(props: &mut Vec<Prop>, errors: &mut Vec<(usize, String)>, t: &str, line: usize, scope_start: usize) {
     let lower = t.to_ascii_lowercase();
     if lower.starts_with("where ") {
         match parse_where(&t["where ".len()..]) {
             Ok((name, expr)) => {
+                if let Some(p) = props.iter().find(|p| p.name.eq_ignore_ascii_case(&name) && p.line >= scope_start) {
+                    errors.push((line, format!("property '{name}' is already declared at line {} in the same scope", p.line)));
+                    return;
+                }
                 props.retain(|p| !p.name.eq_ignore_ascii_case(&name));
                 props.push(Prop { name, expr, line, excepts: vec![] });
             }
@@ -159,6 +183,19 @@ fn add_prop_line(props: &mut Vec<Prop>, errors: &mut Vec<(usize, String)>, t: &s
             }
         }
     }
+}
+
+/// `E886` for `Where`/`Except` lines in a scenario whose subject is not a composite: properties are only checked
+/// there, so on a state machine or an action they would be silently ignored.
+pub(crate) fn stray_prop_findings(sc: &Scenario, seen: &mut std::collections::HashSet<(usize, String)>) -> Vec<(usize, String)> {
+    let lines = sc.props.iter().flat_map(|p| std::iter::once(p.line).chain(p.excepts.iter().map(|e| e.line))).chain(sc.prop_errors.iter().map(|(l, _)| *l));
+    let mut out = Vec::new();
+    for line in lines {
+        if seen.insert((line, "<prop>".into())) {
+            out.push((line, "`Where`/`Except under` properties are for composite scenarios (a TestCase whose subject is a system); this subject ignores them".into()));
+        }
+    }
+    out
 }
 
 fn is_prop_line(lower: &str) -> bool {
@@ -305,6 +342,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         examples_verifies: Vec<String>,
         props: Vec<Prop>,
         prop_errors: Vec<(usize, String)>,
+        /// The line of the scenario's own header: its properties are those declared from here.
+        start: usize,
     }
     let mut raws: Vec<Raw> = Vec::new();
     let mut background: Vec<GStep> = Vec::new();
@@ -321,6 +360,11 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     // the properties of the block's feature and Background, which every scenario after them sees
     let mut feature_props: Vec<Prop> = Vec::new();
     let mut feature_prop_errors: Vec<(usize, String)> = Vec::new();
+    // where the feature-level scope starts, and the feature's own properties that each `Rule:` starts from
+    let mut scope_start = 0usize;
+    let mut rule_base: Option<(Vec<Prop>, Vec<(usize, String)>)> = None;
+    // whether a `Where`/`Except` line belongs to the latest scenario rather than to the feature or rule
+    let mut in_scenario = false;
     for (i, line) in doc.lines().enumerate() {
         if let Some(open) = is_fence(line) {
             // tags belong to the block they are in: none carry over from one block to the next
@@ -331,6 +375,9 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             step_comment = None;
             feature_props.clear();
             feature_prop_errors.clear();
+            scope_start = 0;
+            rule_base = None;
+            in_scenario = false;
             in_block = open;
             in_examples = false;
             in_background = false;
@@ -367,16 +414,18 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         }
         if lower.starts_with("scenario outline:") || lower.starts_with("scenario template:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone() });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone(), start: i + 1 });
             in_examples = false;
             in_background = false;
+            in_scenario = true;
             continue;
         }
         if lower.starts_with("scenario:") || lower.starts_with("example:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone() });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone(), start: i + 1 });
             in_examples = false;
             in_background = false;
+            in_scenario = true;
             continue;
         }
         if lower.starts_with("examples:") || lower.starts_with("scenarios:") {
@@ -398,25 +447,37 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             step_comment = None;
             in_background = true;
             in_examples = false;
+            in_scenario = false;
             continue;
         }
         if lower.starts_with("feature:") || lower.starts_with("rule:") {
             if lower.starts_with("feature:") {
                 feature_tags = std::mem::take(&mut pending_tags);
                 feature_verifies = std::mem::take(&mut pending_verifies);
+                rule_base = None;
             } else {
+                // each rule sees the feature's properties plus its own, never an earlier rule's
+                match &rule_base {
+                    None => rule_base = Some((feature_props.clone(), feature_prop_errors.clone())),
+                    Some((p, e)) => {
+                        feature_props = p.clone();
+                        feature_prop_errors = e.clone();
+                    }
+                }
                 // tags on a Rule are not supported: they must not leak to the next scenario
                 pending_tags.clear();
                 pending_verifies.clear();
             }
             in_examples = false;
             in_background = false;
+            in_scenario = false;
+            scope_start = i + 1;
             continue;
         }
         if is_prop_line(&lower) {
             match raws.last_mut() {
-                Some(cur) if !in_background => add_prop_line(&mut cur.props, &mut cur.prop_errors, t, i + 1),
-                _ => add_prop_line(&mut feature_props, &mut feature_prop_errors, t, i + 1),
+                Some(cur) if in_scenario && !in_background => add_prop_line(&mut cur.props, &mut cur.prop_errors, t, i + 1, cur.start),
+                _ => add_prop_line(&mut feature_props, &mut feature_prop_errors, t, i + 1, scope_start),
             }
             continue;
         }
@@ -477,6 +538,14 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
                 }
                 s
             };
+            let props: Vec<Prop> = r.props.iter().map(|p| Prop { expr: sub(&p.expr), excepts: p.excepts.iter().map(|e| Except { expr: sub(&e.expr), ..e.clone() }).collect(), ..p.clone() }).collect();
+            // an outline property is checked once the row has filled in its placeholders
+            let mut prop_errors = r.prop_errors.clone();
+            for (line, e) in props.iter().flat_map(|p| std::iter::once((p.line, &p.expr)).chain(p.excepts.iter().map(|x| (x.line, &x.expr)))) {
+                if let Err(x) = crate::expr::parse(e) {
+                    prop_errors.push((line, format!("row {}: `{e}` is not an expression: {x}", n + 1)));
+                }
+            }
             out.push(Scenario {
                 title: format!("{} [row {}]", r.title, n + 1),
                 outline: Some(r.title.clone()),
@@ -484,8 +553,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
                 tags: r.tags.clone(),
                 verifies: r.verifies.iter().chain(r.row_verifies.get(n).into_iter().flatten()).cloned().collect(),
                 step_verifies: r.step_verifies.clone(),
-                props: r.props.iter().map(|p| Prop { expr: sub(&p.expr), excepts: p.excepts.iter().map(|e| Except { expr: sub(&e.expr), ..e.clone() }).collect(), ..p.clone() }).collect(),
-                prop_errors: r.prop_errors.clone(),
+                props,
+                prop_errors,
             });
         }
     }
@@ -633,6 +702,7 @@ pub fn vocabulary_findings(doc: &str) -> Vec<(usize, String)> {
                 out.push((st.line, format!("scenario '{}': step `{}` is outside the executable vocabulary: {e}", sc.title, st.text)));
             }
         }
+        out.extend(stray_prop_findings(&sc, &mut seen));
     }
     out
 }

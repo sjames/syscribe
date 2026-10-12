@@ -135,6 +135,7 @@ pub fn vocabulary_findings(doc: &str) -> Vec<(usize, String)> {
                 out.push((st.line, format!("scenario '{}': step `{}` is outside the executable action vocabulary: {e}", sc.title, st.text)));
             }
         }
+        out.extend(crate::sm_scen::stray_prop_findings(&sc, &mut seen));
     }
     out
 }

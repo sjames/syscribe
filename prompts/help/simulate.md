@@ -56,11 +56,20 @@ part; `--coverage` reports each part as `<composite>.<part>` plus an aggregate (
     Then  always <property>                (also `from now on`; at every settled instant to the end)
     Then  never <property>
 
-A composite scenario may name a property under `Feature:`/`Background:` (every scenario) or in a scenario:
-`Where <name> is <expression>`, followed by `Except under <fault> [and <fault>...]: <expression>` clauses that
-replace it while every listed fault is injected (a campaign set or a `fault ... is injected` step). Of several
-applicable clauses the one covering the others is used; if none does, the scenario is an error ("no applicable
-degraded clause"). A scenario that passed only in a degraded clause says so ("held in a degraded clause").
+`within` runs the clock forward to its deadline, so later steps start from there. `always` and `never` are
+checked from the step to the end of the scenario.
+
+A composite scenario may name a property under `Feature:`/`Background:` (every scenario), under `Rule:` (the
+scenarios of that rule) or in a scenario: `Where <name> is <expression>`, followed by `Except under <fault>
+[and <fault>...]: <expression>` clauses that replace it while every listed fault is injected (a campaign set or a
+`fault ... is injected` step). An `Except under` belongs to the nearest `Where` before it. A scenario's `Where`
+replaces a feature's or rule's property of the same name; naming one twice in the same scope is E886, and so are
+properties in a state-machine or action TestCase, where nothing would judge them. Of several applicable clauses
+the one covering the others is used; if none does, the scenario is an error ("no applicable degraded clause").
+A clause counts only when the full property fails and the clause holds: a passing scenario that needed one says
+so ("held in a degraded clause"). `never` always judges the full property, since a weaker one would make it
+stricter. In a Scenario Outline a property may use `<column>` placeholders; it is checked once each row fills
+them in. A Gherkin description line that begins with `Where` is read as a property.
 
 `And`/`But` continue the previous keyword. `Scenario Outline` with `Examples:` expands to one
 scenario per row, named `<title> [row N]`. A scenario is `pass`, `fail` (a Then did not hold,
