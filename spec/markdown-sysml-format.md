@@ -4671,7 +4671,7 @@ Used in Hazard Analysis and Risk Assessment (HARA) per ISO 26262-3 or IEC 61508.
 | Element type | ID pattern | Description |
 |---|---|---|
 | `HazardousEvent` | `HE-*` | A combination of a hazard and an operational situation; carries ISO 26262 risk parameters (`severity`, `exposure`, `controllability`) or IEC 61508 risk graph parameters (`consequence`, `freqExposure`, `avoidance`, `demandRate`). |
-| `SafetyGoal` | `SG-*` | A top-level safety requirement derived from the HARA; carries `asilLevel:` (ISO 26262), `silLevel:` (IEC 61508), or `plLevel:` (ISO 13849-1), and `hazardousEvents:` referencing the events it addresses. |
+| `SafetyGoal` | `SG-*` | A top-level safety requirement derived from the HARA; carries `asilLevel:` (ISO 26262), `silLevel:` (IEC 61508), or `plLevel:` (ISO 13849-1), and `hazardousEvents:` referencing the events it addresses; optional `target:` (`mode`, `value`, `unit`, `proofTestInterval`; E985) overrides the quantitative target of its integrity level (§ Safety targets). |
 
 **Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any element derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry an integrity level — `asilLevel:` or `silLevel:` — when the goal carries one (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
 
@@ -4706,7 +4706,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 |---|---|---|
 | `FaultTree` | `FT-*` | Root of a fault tree; references a `SafetyGoal` via `topEvent:`. |
 | `FaultTreeGate` | `FTG-*` | Logic gate; `gateType:` is one of `AND`, `OR`, `XOR`, `NOT`, `inhibit`; `inputs:` lists child gate/event IDs. |
-| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above); optional `ref:` — a single qualified name or stable id of the model element (typically a `Part`/`PartDef`) whose failure the event represents, resolved by the standard resolver (dangling → E927) and surfaced by `show`, `links` and `fault-tree render`; optional `probability:` (0–1), `ccfGroup:` (common-cause group name) and `ccfBeta:` (beta factor 0–1) used by `fault-tree analyze`. |
+| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above); optional `ref:` — a single qualified name or stable id of the model element (typically a `Part`/`PartDef`) whose failure the event represents, resolved by the standard resolver (dangling → E927) and surfaced by `show`, `links` and `fault-tree render`; optional `probability:` (0–1), `ccfGroup:` (common-cause group name) and `ccfBeta:` (beta factor 0–1) used by `fault-tree analyze`; optional `rateSource:` (text) and `rateStatus:` (`verified`, `secondary`, `unverified`; E986) for the provenance of `failureRate` (§ Safety targets). |
 
 **Nesting rule (W900):** `FaultTreeGate` and `FaultTreeEvent` elements must be placed in a subdirectory named after the `FaultTree` file so their qualified names are prefixed by the tree's qualified name:
 
@@ -6253,6 +6253,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.7 |
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`, `W931`, `W932` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
 | `E980`–`E984`, `W980`–`W984`, `W987` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
+| `E985`–`E986`, `W988`–`W989` | Safety targets: `SafetyGoal.target:`, rate provenance, plausibility, `[reliability]` | § Quantitative HW safety metrics, Safety targets |
 | `E960`–`E967`, `W960`–`W979` | Security-analysis completeness: TARA rows, risk inputs, attack-tree shape, zones/conduits, `VulnerabilityReport` | §13.6 |
 | `E990`–`E992`, `W990`–`W993` | Behavioural model trace (`models:`, `role:`) | §12.11 |
 | `W994`–`W995` | Executable evidence: scenario `@verifies` claims | §12.12 |
@@ -6670,11 +6671,57 @@ ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` f
 | Code | Severity | Condition |
 |---|---|---|
 | `E846` | Error | `diagnosticCoverage:` or `latentDiagnosticCoverage:` is outside `0.0`–`1.0` |
-| `W033` | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF that misses its ASIL/SIL target. Gateable with `--deny W033`; promotable via `[profiles]` |
+| `W033` | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF that misses its ASIL/SIL target, or a goal that declares its own `target:` has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (§ Safety targets below). Gateable with `--deny W033`; promotable via `[profiles]` |
 | `W985` | Warning | A fault-tree event contributing to the goal's metrics declares no `diagnosticCoverage` (or, once any event declares it, no `latentDiagnosticCoverage`); treated as 0 |
 | `W986` | Warning | The goal's fault tree has dual-point cut sets but no `missionTime`; a default exposure of 10000 h is used |
+| `E985` | Error | A `SafetyGoal.target:` is malformed: not a mapping, an unknown key, `mode` not `continuous`/`demand`, `value` not a positive number (at most 1 in demand mode), a `unit` that does not fit the mode (`/h` continuous, `probability` demand), or a demand-mode target without a positive `proofTestInterval` duration (GH #343) |
+| `E986` | Error | `rateStatus:` on a `FaultTreeEvent` or FMEA row is not one of `verified`, `secondary`, `unverified` (GH #343) |
+| `W988` | Warning | A `failureRate` claimed as `rateStatus: verified` or `secondary` fails with a probability above the plausibility bound over the tree's `missionTime` (default 0.1; `[reliability] plausibleProbability`); an unverified rate is labelled in the verdict instead (GH #343) |
+| `W989` | Warning | A malformed `[reliability]` entry in `.syscribe.toml` (a key, an unknown ASIL/SIL level or limit, a value out of range); the entry is ignored (GH #343) |
 
 Since GH #211/#213 the roll-up is driven by the **minimal cut sets** of the goal's fault tree (§ Fault-tree analysis below): only reachable, non-`house` events in a cut set contribute; an event in an order-1 cut set is single-point (`λ_RF = Σ λ·(1−DC)`), an event only in higher-order sets adds no residual rate, `λ_MPFL` counts `λ·DC·(1−DCl)` for single-point and `λ·(1−DCl)` for multi-point events, and `PMHF = λ_RF + λ_DPF` with `λ_DPF = Σ_{order-2 {a,b}} Σ_{(x,y)} λ_x(1−DCl_x)·λ_y(1−DC_y)·T` over the tree's `missionTime` `T`. SIL 1 is gated (PFH < 1e-5/h). `metrics` exits `2` when any goal's verdict is `fail`.
+
+##### Safety targets (GH #343)
+
+A goal is judged on one **figure** in its **mode**:
+
+| Goal | Figure | Basis |
+|---|---|---|
+| continuous mode, a contributing event declares `diagnosticCoverage` | PMHF (ASIL) / PFH (SIL) = `λ_RF + λ_DPF` | first-order, as above; unchanged |
+| continuous mode, no coverage data | PFH = `P_top(T) / T` | rate only: the exact (BDD) top-event probability over the tree's `missionTime` `T`, divided by it |
+| `target.mode: demand` | PFDavg = `Σ_{MCS} Π_i λ_DU,i · TI^k / (k+1) · Π_j p_j` | cut sets: `λ_DU = λ·(1−DC)`, `TI` the `proofTestInterval`, `k` the events of the cut set with a rate, `p_j` the probability of those with none |
+
+A goal may carry its own `target:`:
+
+```yaml
+target:
+  mode: demand            # continuous (default) | demand
+  value: 1.0e-3           # overrides the table's PMHF/PFH (/h) or PFDavg limit
+  unit: probability       # optional: /h (continuous) or probability (demand)
+  proofTestInterval: 1 year   # required in demand mode
+```
+
+The limit is the goal's `target.value`, else `[reliability.targets]` in `.syscribe.toml`, else the built-in ISO 26262 / IEC 61508 table (SIL PFDavg: 1e-1, 1e-2, 1e-3, 1e-4), and every report names which (`goal target`, `.syscribe.toml`, `built-in default`): the values are the user's compliance decision.
+
+```toml
+[reliability]
+plausibleProbability = 0.1     # the largest credible probability of one event over the mission time
+
+[reliability.targets.sil.2]
+pfh = 1.0e-6                   # also pmhf; spfm, lfm ≤ 1; pfd ≤ 1
+
+[reliability.targets.asil.D]
+spfm = 0.99
+pmhf = 1.0e-8
+```
+
+A rate-only or demand figure is **not credible** when a contributing event, or the top event, fails with a probability above `plausibleProbability` over the mission time: λ·T is then no longer small, the figure is no longer a rate, and the target cannot judge it. The verdicts are `pass`, `fail`, `not credible`, `no target` and `n/a`.
+
+`failureRate` on a `FaultTreeEvent` or an FMEA row may carry `rateSource:` (free text: a handbook, a data sheet, field data) and `rateStatus: verified | secondary | unverified` (E986 otherwise). A verdict that rests on a contributing rate that is not `verified` or `secondary` (including one with no status) is labelled "unverified rates"; `list FaultTreeEvent --rate-status unverified` finds them (`none` for a rate with no status). A claimed (`verified`/`secondary`) rate above the plausibility bound is W988.
+
+`metrics` reports the figure, the limit and its source, the basis, the verdict, the exact top-event probability and the event with the largest Birnbaum importance; `--sensitivity` adds, per goal, every contributing event's figure and verdict with its λ divided and multiplied by 10, marking the events that move the verdict. `audit` shows the same figure and verdict; `safety-case` adds a solution node "quantitative target: …" under the goal (supported on pass, failing on fail, undeveloped otherwise; the goal verdict is not changed). The first-order figure gates W033 as before; a rate-only or demand figure gates W033 only when the goal declares its own `target:` and the figure is credible. `metrics` exits 2 on any `fail` verdict.
+
+**Tree versus campaign.** `inject <subject> --ft <FT> --consistency [--consistency-order N] [--max-runs M]` runs the tree's minimal cut sets and the single faults, then combinations of the composite's faults up to order `N` (default 2), skipping a combination that already contains a defeating set or a minimal cut set (mapped through an FMEA row's `ftaRef`), at most `M` runs (default 500). It reports one table: every minimal cut set with its tree probability and executable verdict (`confirmed` when defeated, `conservative or a model gap` when the model survives it, `not injectable`), and every defeating set that contains no minimal cut set as `missing from the tree`. A combination the invariants cannot judge (for example one with no applicable `Except under` clause, §8.12.8) is an error and counted. With `--record` the combinations join the record, so a defeat missing from the tree needs a `ResidualRisk` decision like any other (W940), and the record's invocation keeps `--consistency-order`/`--max-runs`.
 
 #### Fault-tree analysis and structure (E980–E984, W980–W984, W987)
 

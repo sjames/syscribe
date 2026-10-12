@@ -209,8 +209,9 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | Diagram views: `include:` selectors that fade the context, named styles, `layout:` hints, the variant view, W421 (§8.16.10) | REQ-TRS-VIS-031 | TC-TRS-VIS-031 |
 | Deterministic diagram exports: bundled text metrics, `diagram export --all` and `--check` over committed renders | REQ-TRS-VIS-032 | TC-TRS-VIS-032 |
 | In-process plants: `PlantDef`, library plants, plant faults, E938, E939 (§8.8.6) | REQ-TRS-PLANT-001 | TC-TRS-PLANT-001 |
-| Campaign evidence and residual risk: `inject --record`/`--report`, `results campaigns`, `ResidualRisk`, E942–E944, W940–W944 (§12.14) | REQ-TRS-RISK-001 | TC-TRS-RISK-001 |
+| Campaign evidence and residual risk: `inject --record`/`--report`, `results campaigns`, `ResidualRisk`, E942–E944, W940–W946 (§12.14) | REQ-TRS-RISK-001 | TC-TRS-RISK-001 |
 | Invariant properties: `Where`, `Except under` degraded clauses, `within`, `always`, `never`, survived (degraded) (§8.12.8) | REQ-TRS-INV-001 | TC-TRS-INV-001 |
+| Quantitative goal verdicts and tree-versus-campaign: rate-only PFH, demand-mode PFDavg, `target:`, `[reliability]`, rate provenance, plausibility, `inject --consistency`, E985, E986, W988, W989 | REQ-TRS-GOALV-001 | TC-TRS-GOALV-001 |
 | Typed ports: events and payloads against `PortDef` items, E932/E935 (§8.8.5) | REQ-TRS-PORTTYPE-001 | TC-TRS-PORTTYPE-001 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |
 | Model-time errors E101–E106, E310–E315 (§11.12) | REQ-TRS-VAL-002 | TC-TRS-VAL-002 |

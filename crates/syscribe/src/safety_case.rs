@@ -60,6 +60,9 @@ pub fn cmd_safety_case(
     // The recorded fault-injection campaigns (GH #341): a solution node under each goal a decision names.
     let campaigns = model_root.map(|r| syscribe_model::residual_risk::summary(elements, resolver, r, config)).unwrap_or_default();
     attach_campaigns(&mut case, &campaigns, elements, resolver);
+    // The quantitative target of each goal (GH #343): the figure from its fault tree, with the verdict.
+    let reliability = model_root.map(|r| syscribe_model::metrics::ReliabilityConfig::load(r).0).unwrap_or_default();
+    attach_targets(&mut case, &syscribe_model::metrics::report_all_with(elements, resolver, &reliability));
 
     if case.goals.is_empty() {
         if goal_filter.is_empty() {
@@ -237,6 +240,50 @@ fn attach_campaigns(case: &mut SafetyCase, campaigns: &Summary, elements: &[RawE
                 children,
             });
         }
+    }
+}
+
+fn attach_targets(case: &mut SafetyCase, reports: &[syscribe_model::metrics::GoalReport]) {
+    use syscribe_model::metrics::Verdict as MV;
+    for g in &mut case.goals {
+        let Some(r) = reports.iter().find(|r| r.id == g.root.id) else { continue };
+        let Some(f) = r.figure else { continue };
+        let v = r.verdict();
+        let unit = if f.metric == "PFDavg" { "" } else { " /h" };
+        let target = match (r.limit(), r.target_source) {
+            (Some(t), Some(s)) => format!(" vs target {t:.0e}{unit} ({})", s.label()),
+            _ => " (no target)".into(),
+        };
+        let why = if v == MV::NotCredible {
+            format!(": {}", r.implausible.iter().take(3).map(|(e, p)| format!("{e} fails with probability {p:.2} over the mission")).collect::<Vec<_>>().join(", "))
+        } else {
+            String::new()
+        };
+        let settled = matches!(v, MV::Pass | MV::Fail);
+        g.root.children.push(SafetyCaseNode {
+            kind: NodeKind::Solution,
+            id: format!("target:{}", r.id),
+            qualified_name: None,
+            title: format!(
+                "quantitative target: {} {:.3e}{unit}{target}, {}{} — {}{why}",
+                f.metric,
+                f.value,
+                f.basis.label(),
+                if r.unverified_rates.is_empty() { "" } else { ", unverified rates" },
+                v.label()
+            ),
+            status: match v {
+                MV::Pass => NodeStatus::Supported,
+                MV::Fail => NodeStatus::Failing,
+                _ => NodeStatus::Undeveloped,
+            },
+            undeveloped: !settled,
+            verdict: None,
+            decomposition_kind: None,
+            implicit: false,
+            cycle: false,
+            children: Vec::new(),
+        });
     }
 }
 

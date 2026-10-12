@@ -1481,6 +1481,19 @@ fn main() {
                 let has_wcet = rest.iter().any(|a| a == "--has-wcet");
                 let json = rest.iter().any(|a| a == "--json");
                 let wheres = parse_where_options(rest);
+                // `--rate-status <s>` (GH #343): fault-tree events and FMEA rows whose `rateStatus` is s
+                let rate_status = rest.windows(2).find(|w| w[0] == "--rate-status").map(|w| w[1].clone());
+                let elems: Vec<syscribe_model::element::RawElement> = match &rate_status {
+                    None => elems.clone(),
+                    Some(rs) => elems
+                        .iter()
+                        .filter(|e| {
+                            !matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::FaultTreeEvent) | Some(syscribe_model::element::ElementType::FMEAEntry))
+                                || e.frontmatter.rate_status.as_deref().unwrap_or("none") == rs
+                        })
+                        .cloned()
+                        .collect(),
+                };
                 // scope = first positional argument that is not a flag or flag
                 // value. Two-arg flags consume their value so it is not mistaken
                 // for the positional scope.
@@ -1490,7 +1503,7 @@ fn main() {
                     if matches!(
                         rest[i].as_str(),
                         "--tag" | "--config" | "--feature" | "--metadata" | "--status" | "--sil"
-                            | "--where"
+                            | "--where" | "--rate-status"
                     ) {
                         i += 2;
                         continue;
@@ -1636,7 +1649,7 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let view = projected_elements(&elems, config);
-                let code = metrics_cmd::cmd_metrics(&view, json);
+                let code = metrics_cmd::cmd_metrics(&view, json, rest.iter().any(|a| a == "--sensitivity"), std::path::Path::new(&model_root));
                 if code != 0 {
                     std::process::exit(code);
                 }

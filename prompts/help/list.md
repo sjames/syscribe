@@ -3,7 +3,7 @@
 ## SYNOPSIS
     syscribe -m <root> list <Type> [scope]
         [--tag <t>] [--feature <F>] [--metadata <D>] [--config <C>]
-        [--status <s>] [--sil <v>] [--has-wcet]
+        [--status <s>] [--sil <v>] [--has-wcet] [--rate-status <s>]
         [--where custom.<key>[<op><value>]]... [--json]
 
 ## DESCRIPTION
@@ -25,6 +25,8 @@ unknown type prints the full list).
     --status <s>     Keep only elements whose status: equals s.
     --sil <v>        Keep only elements whose silLevel stringifies to v OR asilLevel == v.
     --has-wcet       Keep only elements that declare a non-empty wcet:.
+    --rate-status <s> Keep only the fault-tree events and FMEA rows whose rateStatus: is s
+                     (verified, secondary, unverified; `none` for a rate with no status).
     --where custom.<key>[<op><value>]   Filter by custom_fields:. <op> is `=` (exact; any
                      list element), `=~` (regex, substring fallback) or `~=` (list
                      membership); a bare custom.<key> tests presence. Any other operator

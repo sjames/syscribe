@@ -85,6 +85,38 @@ pub struct Campaign {
     /// The fault tree has minimal cut sets above `cut_set_order`; they were left out of the campaign.
     pub cut_sets_truncated: bool,
     pub fmea: FmeaCoverage,
+    /// The tree-versus-campaign comparison (`inject --ft … --consistency`, GH #343).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub consistency: Option<Consistency>,
+}
+
+/// The fault tree and the executable model compared (GH #343): every minimal cut set with its executable verdict,
+/// and every defeating set of the search that contains no minimal cut set.
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Consistency {
+    pub tree: String,
+    /// The largest order of fault combinations searched beyond the tree's cut sets.
+    pub order: usize,
+    pub max_runs: usize,
+    /// Combinations run by the search (beyond the tree's cut sets and the single faults).
+    pub runs: usize,
+    /// The search stopped at `max_runs`: some combinations were not run.
+    pub truncated: bool,
+    pub rows: Vec<ConsistencyRow>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsistencyRow {
+    pub faults: Vec<String>,
+    pub order: usize,
+    /// The cut set's probability from the tree; `None` for a set the tree does not have.
+    pub tree_probability: Option<f64>,
+    /// `defeated`, `survived`, `survived (degraded)`, `error` or `not run`.
+    pub verdict: String,
+    /// `confirmed`, `conservative or a model gap`, `missing from the tree`, `not injectable` or `could not be run`.
+    pub finding: &'static str,
 }
 
 /// What the campaign exercised of the analyses.
@@ -134,7 +166,7 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
         results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, role, status, defeats, errors, degraded });
     }
     let environment = model.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.clone()).collect();
-    Ok(Campaign { composite: model.spec.composite.clone(), environment, hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })
+    Ok(Campaign { composite: model.spec.composite.clone(), environment, hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default(), consistency: None })
 }
 
 /// The FMEA rows and fault-tree events whose `ref` is, or specialises into, a definition of a part of the composite:

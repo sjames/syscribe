@@ -2,6 +2,7 @@
 
 ## SYNOPSIS
     syscribe inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--config <C>] [--record [--run <id>]] [--report <file.json|file.md>] [--json]
+        [--consistency [--consistency-order <N>] [--max-runs <N>]]
 
 ## DESCRIPTION
 The campaign of fault injection (see `syscribe help simulate` for the scenario steps). The scenarios of the
@@ -38,6 +39,11 @@ every fault set rebuilds the system (and re-instantiates plants), so a large ord
     --report <file>       write the campaign with the decisions on each defeat and the failure rates of its faults,
                           as JSON, or Markdown for a `.md` file
     --json                machine-readable report
+    --consistency         compare the fault tree (--ft) with the campaign: also run combinations of the composite's
+                          faults beyond the tree's cut sets, and report every cut set with its executable verdict and
+                          every defeating set the tree does not have (GH #343)
+    --consistency-order <N>  largest combination searched (default 2)
+    --max-runs <N>        most combinations the search runs (default 500)
 
 ## RECORDED CAMPAIGNS (GH #341)
 A recorded campaign is evidence: everything in it but the timestamp is a function of the model, so a second run on the
@@ -46,8 +52,16 @@ compares two records. `validate` checks the `ResidualRisk` decisions against the
 W940 a defeat no decision names, W941 a decision the campaign contradicts, W942 a decision taken on another composite
 hash, W943 an expired decision, W944 a record of an older composite, W945 an unreadable record file (`--record`
 then refuses to overwrite it), W946 a decision whose set the latest record did not run. Each record keeps its
-invocation (`--ft`, `--max-order`, `--fmea`); re-recording with fewer sets warns and prints the earlier command.
+invocation (`--ft`, `--max-order`, `--fmea`, `--consistency-order`, `--max-runs`); re-recording with fewer sets warns and prints the earlier command.
 `--run` without `--record` or `--report` is ignored with a warning. See spec §12.14.
+
+## TREE VERSUS CAMPAIGN (GH #343)
+With `--consistency` the campaign also runs, per order 2..N, every combination of the composite's faults that does not
+already contain a defeating set or a minimal cut set of the tree (an FMEA row counts as the event its `ftaRef` names),
+up to `--max-runs`. The report is one table: each minimal cut set with its tree probability and executable verdict —
+`confirmed` (defeated), `conservative or a model gap` (the model survives what the tree says defeats), `not injectable`
+— and each defeating set that contains no minimal cut set, `missing from the tree`. A combination the invariants cannot
+judge (no applicable `Except under` clause) is an error and counted. With `--record` the combinations join the record.
 
 ## EXIT STATUS
 0 every set survived (or `--report-only`) · 1 usage: no composite, no `@invariant` scenario, an unknown fault tree or

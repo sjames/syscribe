@@ -79,6 +79,11 @@ pub struct Invocation {
     pub max_order: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fmea: Option<String>,
+    /// `--consistency-order` of a tree-versus-campaign search (GH #343).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consistency: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_runs: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -185,6 +190,12 @@ impl CampaignRecord {
         }
         if let Some(f) = &self.invocation.fmea {
             c += &format!(" --fmea {f}");
+        }
+        if let Some(n) = self.invocation.consistency {
+            c += &format!(" --consistency --consistency-order {n}");
+        }
+        if let Some(n) = self.invocation.max_runs {
+            c += &format!(" --max-runs {n}");
         }
         if let Some(cf) = &self.config {
             c += &format!(" --config {cf}");

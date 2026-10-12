@@ -604,7 +604,7 @@ pub fn cmd_audit(
     dangling_tcs.sort();
 
     // ---- Sections 5/6: safety & security (GH #216) -------------------------
-    let mut safety = safety_section(view, &resolver, &findings, &in_scope);
+    let mut safety = safety_section(view, &resolver, &findings, &in_scope, model_root);
     if sel.is_none() {
         // the campaigns recorded on a Configuration are judged only by `validate/audit --config`: name their
         // undecided defeats here so a product-line model's base audit does not read as clean (GH #341)
@@ -864,6 +864,7 @@ fn safety_section(
     resolver: &Resolver,
     findings: &[validator::Finding],
     in_scope: &dyn Fn(&RawElement) -> bool,
+    model_root: &std::path::Path,
 ) -> serde_json::Value {
     let of = |t: ElementType| view.iter().filter(|e| is_type(e, t.clone()) && in_scope(e)).count();
     let goals: Vec<&RawElement> =
@@ -878,7 +879,8 @@ fn safety_section(
 
     let mut metrics = Vec::new();
     let mut failing = 0u32;
-    for r in syscribe_model::metrics::report_all(view, resolver) {
+    let reliability = syscribe_model::metrics::ReliabilityConfig::load(model_root).0;
+    for r in syscribe_model::metrics::report_all_with(view, resolver, &reliability) {
         if !goals.iter().any(|g| g.file_path == r.file_path) {
             continue;
         }
@@ -888,11 +890,12 @@ fn safety_section(
             .map(|a| format!("ASIL {}", asil_letter(a)))
             .or_else(|| r.sil.map(|s| format!("SIL {s}")))
             .unwrap_or_else(|| "none".into());
-        let result = match (&r.metrics, &r.gate) {
-            (Some(_), Some(g)) if g.passed() => "pass",
-            (Some(_), Some(_)) => "fail",
-            (Some(_), None) => "no-target",
-            _ => "n/a",
+        let result = match r.verdict() {
+            syscribe_model::metrics::Verdict::Pass => "pass",
+            syscribe_model::metrics::Verdict::Fail => "fail",
+            syscribe_model::metrics::Verdict::NotCredible => "not-credible",
+            syscribe_model::metrics::Verdict::NoTarget => "no-target",
+            syscribe_model::metrics::Verdict::NotComputed => "n/a",
         };
         if result == "fail" {
             failing += 1;
@@ -903,6 +906,12 @@ fn safety_section(
             "spfm": r.metrics.as_ref().and_then(|m| m.spfm),
             "lfm": r.metrics.as_ref().and_then(|m| m.lfm),
             "pmhf": r.metrics.as_ref().map(|m| m.pmhf),
+            "mode": r.mode.label(),
+            "figure": r.figure.map(|f| json!({"metric": f.metric, "value": f.value, "basis": f.basis.label()})),
+            "target": r.limit(),
+            "targetSource": r.target_source.map(|s| s.label()),
+            "unverifiedRates": r.unverified_rates.len(),
+            "notCredible": r.implausible.iter().map(|(e, _)| e.clone()).collect::<Vec<_>>(),
             "result": result,
         }));
     }
@@ -1032,15 +1041,20 @@ fn print_safety(s: &serde_json::Value) {
         }
     };
     for m in &rows {
-        println!(
-            "  {} ({}): SPFM {}  LFM {}  PMHF {}  -> {}",
-            m["goal"].as_str().unwrap_or("?"),
-            m["integrity"].as_str().unwrap_or("?"),
-            fmt(&m["spfm"], false),
-            fmt(&m["lfm"], false),
-            fmt(&m["pmhf"], true),
-            m["result"].as_str().unwrap_or("?")
-        );
+        // a goal judged on a rate-only or demand figure (GH #343) shows that figure instead of the first-order one
+        let f = &m["figure"];
+        let figure = match f["basis"].as_str() {
+            Some(b) if !b.starts_with("first-order") => format!(
+                "{} {} ({b}{}; target {}, {})",
+                f["metric"].as_str().unwrap_or("?"),
+                fmt(&f["value"], true),
+                if m["unverifiedRates"].as_u64().unwrap_or(0) > 0 { ", unverified rates" } else { "" },
+                fmt(&m["target"], true),
+                m["targetSource"].as_str().unwrap_or("no target")
+            ),
+            _ => format!("SPFM {}  LFM {}  PMHF {}", fmt(&m["spfm"], false), fmt(&m["lfm"], false), fmt(&m["pmhf"], true)),
+        };
+        println!("  {} ({}): {figure}  -> {}", m["goal"].as_str().unwrap_or("?"), m["integrity"].as_str().unwrap_or("?"), m["result"].as_str().unwrap_or("?"));
     }
     println!("Freedom-from-interference gaps (W034): {}", s["ffiGaps"]);
     println!();

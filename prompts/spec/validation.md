@@ -214,14 +214,18 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
 | `W807` | `Requirement` with `derivedFromCybersecurityGoal` has no `verificationMethod` |
 
-## Quantitative HW safety metrics (E846, W033)
+## Quantitative HW safety metrics and safety targets (E846, W033, E985, E986, W988, W989)
 
 | Code | Condition |
 |---|---|
 | `E846` | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
-| `W033` | A `SafetyGoal` with diagnostic-coverage data has a computed SPFM/LFM/PMHF below/above its ASIL/SIL target. Opt-in; gate with `--deny W033` |
+| `W033` | A `SafetyGoal` with diagnostic-coverage data has a computed SPFM/LFM/PMHF below/above its ASIL/SIL target, or a goal that declares its own `target:` has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Opt-in; gate with `--deny W033` |
 | `W985` | A fault-tree event contributing to a `SafetyGoal`'s metrics declares no `diagnosticCoverage` (or, once any event of the goal declares it, no `latentDiagnosticCoverage`) — treated as 0 (conservative); one finding per event and field (GH #213) |
 | `W986` | A `SafetyGoal`'s fault tree has dual-point (order-2) cut sets but declares no `missionTime` — PMHF uses a default exposure of 10000 h (GH #213) |
+| `E985` | A `SafetyGoal.target:` is malformed: not a mapping, an unknown key, `mode` not `continuous`/`demand`, `value` not a positive number (at most 1 in demand mode), a `unit` that does not fit the mode (`/h` continuous, `probability` demand), or a demand-mode target without a positive `proofTestInterval` duration (GH #343) |
+| `E986` | `rateStatus:` on a `FaultTreeEvent` or FMEA row is not one of `verified`, `secondary`, `unverified` (GH #343) |
+| `W988` | A `failureRate` claimed as `rateStatus: verified` or `secondary` fails with a probability above the plausibility bound over the tree's `missionTime` (default 0.1; `[reliability] plausibleProbability`); an unverified rate is labelled in the verdict instead (GH #343) |
+| `W989` | A malformed `[reliability]` entry in `.syscribe.toml` (a key, an unknown ASIL/SIL level or limit, a value out of range); the entry is ignored (GH #343) |
 
 ## Safety↔security co-engineering & cyber-risk (W028, W030, W031, W032)
 

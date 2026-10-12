@@ -1,39 +1,46 @@
-# metrics — quantitative HW safety metrics (SPFM/LFM/PMHF)
+# metrics — quantitative safety targets per goal (SPFM/LFM/PMHF, PFH, PFDavg)
 
 ## SYNOPSIS
-    syscribe -m <root> metrics [--config <C>] [--json]
+    syscribe -m <root> metrics [--config <C>] [--sensitivity] [--json]
 
 ## DESCRIPTION
-Computes ISO 26262-5 hardware architectural metrics per SafetyGoal over the
-FaultTreeEvents of the FaultTree whose topEvent is that goal: SPFM, LFM (when
-latentDiagnosticCoverage is given), and PMHF, compared against the goal's
-ASIL/SIL target. Opt-in: a goal with no diagnosticCoverage data shows n/a.
-First-order FMEDA approximation — verify independently before use in a safety case.
+Judges every SafetyGoal on one figure from the FaultTree whose topEvent is that goal:
+
+  - continuous mode, a contributing event declares diagnosticCoverage: the ISO 26262-5
+    first-order roll-up (SPFM, LFM when latentDiagnosticCoverage is given, PMHF/PFH =
+    lambda_RF + lambda_DPF), unchanged;
+  - continuous mode, no coverage data: a rate-only PFH, the exact (BDD) top-event
+    probability over the tree's missionTime divided by it;
+  - `target: {mode: demand, proofTestInterval: ...}` on the goal: PFDavg = sum over the
+    minimal cut sets of prod lambda*(1-DC)*TI^k/(k+1).
 
 The roll-up is driven by the tree's minimal cut sets (see `fault-tree analyze`): gate
-logic matters (AND vs OR differ), only reachable non-house events with a
-non-negative failureRate in a cut set contribute, an order-1 event is single-point
-(residual lambda*(1-DC)), and PMHF = lambda_RF + lambda_DPF where lambda_DPF is the
-dual-point rate of order-2 cut sets over the tree's missionTime. Missing
-diagnosticCoverage / latentDiagnosticCoverage count as 0 and raise W985.
+logic matters, only reachable non-house events with a non-negative failureRate in a cut
+set contribute. Missing diagnosticCoverage / latentDiagnosticCoverage count as 0 (W985).
 
-Verdicts: pass, fail, `no target` (computed but no recognised ASIL/SIL), n/a (not
-computed). SIL 1..4 gate PFH (1e-5..1e-8 /h). Exit status 2 when any goal fails.
+The limit is the goal's own `target.value`, else `[reliability.targets.asil.<A-D>]` /
+`[reliability.targets.sil.<1-4>]` in .syscribe.toml (spfm, lfm, pmhf or pfh, pfd), else
+the built-in ISO 26262 / IEC 61508 table, and the report names which. SIL 1..4: PFH
+1e-5..1e-8 /h, PFDavg 1e-1..1e-4.
+
+Verdicts: pass, fail, `not credible` (a contributing event, or the top event, fails with
+a probability above `[reliability] plausibleProbability`, default 0.1, over the mission
+time: the figure is no longer a rate), `no target`, n/a. A verdict that rests on rates
+whose `rateStatus` is not verified or secondary says "(unverified rates)". The report
+also gives the exact top-event probability and the event with the largest Birnbaum
+importance. Exit status 2 when any goal fails.
 
 ## OPTIONS
-    --config <C>   Project onto a Configuration (id/qname or 'Features::A,…') —
-                   metrics are computed only over goals active in that variant.
-    --json         Emit {id, asil, sil, spfm, lfm, pmhf, lambdaDpf, pass, verdict} array.
+    --config <C>     Project onto a Configuration (id/qname or 'Features::A,…') —
+                     metrics are computed only over goals active in that variant.
+    --sensitivity    Per goal, every contributing event's figure and verdict with its
+                     lambda divided and multiplied by 10; marks the events that move the verdict.
+    --json           Emit an array of {id, asil, sil, spfm, lfm, pmhf, lambdaDpf, pass, verdict,
+                     mode, figure{metric,value,basis}, target{value,source}, rateOnly,
+                     topEventProbability, missionHours, unverifiedRates, notCredible,
+                     dominantEvent[, sensitivity]}.
 
 ## EXAMPLES
     syscribe -m model_auto/ metrics
+    syscribe -m model_gti/ metrics --sensitivity
     syscribe -m model_sil/ metrics --json
-    syscribe -m <root> metrics --config <CONF-id>   # variant-scoped (needs a product line)
-
-## NOTES
-Inputs: FaultTreeEvent.failureRate (λ/h), diagnosticCoverage, latentDiagnostic-
-Coverage. A goal below target also raises W033 in `validate`; `metrics` itself exits 2
-when any goal fails (usage errors exit 1).
-
-## SEE ALSO
-    validate (W033, W985, W986), fault-tree analyze, audit, spec safety

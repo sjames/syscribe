@@ -1572,6 +1572,14 @@ pub struct ColdFrontmatter3 {
     /// `ResidualRisk.campaignHash` — the composite hash of the campaign the decision was taken on (W942).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub campaign_hash: Option<String>,
+    /// `SafetyGoal.target` — `{mode, value, unit, proofTestInterval}`, overriding the ASIL/SIL table (GH #343, E985).
+    pub target: Option<serde_yaml::Value>,
+    /// `FaultTreeEvent`/`FMEAEntry.rateSource` — where the `failureRate` comes from (GH #343).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub rate_source: Option<String>,
+    /// `FaultTreeEvent`/`FMEAEntry.rateStatus` — `verified | secondary | unverified` (GH #343, E986).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub rate_status: Option<String>,
 }
 
 /// `include:`: a list (the members of a derived diagram's subject, or an annotated package's globs), or, on a
@@ -2273,6 +2281,14 @@ struct ColdWire {
     /// `ResidualRisk.campaignHash` — the composite hash of the campaign the decision was taken on (W942).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub campaign_hash: Option<String>,
+    /// `SafetyGoal.target` — `{mode, value, unit, proofTestInterval}`, overriding the ASIL/SIL table (GH #343, E985).
+    pub target: Option<serde_yaml::Value>,
+    /// `FaultTreeEvent`/`FMEAEntry.rateSource` — where the `failureRate` comes from (GH #343).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub rate_source: Option<String>,
+    /// `FaultTreeEvent`/`FMEAEntry.rateStatus` — `verified | secondary | unverified` (GH #343, E986).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub rate_status: Option<String>,
 }
 
 impl ColdWire {
@@ -2561,6 +2577,9 @@ impl ColdWire {
                     approved_by: w.approved_by,
                     expires: w.expires,
                     campaign_hash: w.campaign_hash,
+                    target: w.target,
+                    rate_source: w.rate_source,
+                    rate_status: w.rate_status,
                 }),
             }),
         }

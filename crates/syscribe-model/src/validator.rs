@@ -7171,7 +7171,79 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // data produce no metrics and no finding, keeping unannotated models silent.
     // Warning (not error) by codebase convention; gateable via `--deny W033` and
     // profile-promotable. Shares the formula module with the `metrics` command.
-    for report in crate::metrics::report_all(elements, &resolver) {
+    // GH #343: `[reliability]` targets over the built-ins; a defective entry is W989 and ignored.
+    let (reliability, reliability_defects) = match config.model_root.as_deref() {
+        Some(root) => crate::metrics::ReliabilityConfig::load(root),
+        None => (crate::metrics::ReliabilityConfig::default(), Vec::new()),
+    };
+    if !reliability_defects.is_empty() {
+        let cfg_file = config.model_root.as_ref().map(|r| r.join(".syscribe.toml").display().to_string()).unwrap_or_else(|| ".syscribe.toml".to_string());
+        for d in &reliability_defects {
+            findings.push(warning("W989", &cfg_file, &format!("{d} — entry ignored")));
+        }
+    }
+    for elem in elements {
+        match elem.frontmatter.element_type {
+            // E985: a malformed `SafetyGoal.target:`
+            Some(ElementType::SafetyGoal) => {
+                if let Some(Err(errs)) = elem.frontmatter.target.as_ref().map(crate::metrics::parse_goal_target) {
+                    let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                    for e in errs {
+                        findings.push(error("E985", &elem.file_path, &format!("SafetyGoal '{id}': {e}")));
+                    }
+                }
+            }
+            // E986: `rateStatus` outside the vocabulary
+            Some(ElementType::FaultTreeEvent) | Some(ElementType::FMEAEntry) => {
+                if let Some(st) = elem.frontmatter.rate_status.as_deref().filter(|s| !matches!(*s, "verified" | "secondary" | "unverified")) {
+                    let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                    findings.push(error("E986", &elem.file_path, &format!("'{id}' rateStatus '{st}' must be one of verified, secondary, unverified")));
+                }
+            }
+            _ => {}
+        }
+    }
+    // W988: a rate claimed as verified or secondary that fails with a probability above the plausibility bound over
+    // the tree's mission time. An unverified rate is labelled as such in every verdict instead.
+    {
+        let mut seen = std::collections::HashSet::new();
+        for tree in crate::fta::fault_trees(elements) {
+            let Some(t) = tree.frontmatter.mission_time.as_deref().and_then(crate::fta::parse_mission_time) else { continue };
+            let st = crate::fta::FtStructure::build(elements, &resolver, tree);
+            for node in st.nodes.iter().filter(|n| !n.is_gate() && n.in_tree) {
+                let Some(ev) = elements.iter().find(|e| e.qualified_name == node.qname) else { continue };
+                let status = crate::metrics::rate_status_of(elements, &resolver, &node.id);
+                if !crate::metrics::is_claimed(status) || !seen.insert(node.qname.clone()) {
+                    continue;
+                }
+                let lam = ev.frontmatter.failure_rate.or_else(|| {
+                    elements
+                        .iter()
+                        .filter(|r| matches!(r.frontmatter.element_type, Some(ElementType::FMEAEntry)))
+                        .find(|r| r.frontmatter.fta_ref.as_deref().and_then(|x| resolver.resolve_ref(elements, x)).is_some_and(|x| x.qualified_name == ev.qualified_name))
+                        .and_then(|r| r.frontmatter.failure_rate)
+                });
+                if let Some(p) = crate::fta::event_probability(None, lam, Some(t)).filter(|p| *p > reliability.plausible_probability) {
+                    findings.push(warning(
+                        "W988",
+                        &ev.file_path,
+                        &format!(
+                            "'{}' failureRate {:.3e} /h ({}) fails with probability {:.2} over the {:.0} h mission time of {}, above the plausibility bound {}{} — check the rate and its source",
+                            node.id,
+                            lam.unwrap_or_default(),
+                            status.unwrap_or_default(),
+                            p,
+                            t,
+                            tree.frontmatter.id.as_deref().unwrap_or(&tree.qualified_name),
+                            reliability.plausible_probability,
+                            if reliability.plausibility_configured { "" } else { " (the built-in default; set `[reliability] plausibleProbability`)" }
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    for report in crate::metrics::report_all_with(elements, &resolver, &reliability) {
         // W985 (GH #213): a contributing event with no diagnosticCoverage /
         // latentDiagnosticCoverage is treated as coverage 0 — say so.
         for m in &report.missing {
@@ -7196,19 +7268,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 ),
             ));
         }
-        let (Some(_metrics), Some(gate)) = (report.metrics.as_ref(), report.gate.as_ref())
-        else {
-            continue;
-        };
-        if gate.passed() {
+        // the first-order roll-up gates as before; a rate-only or demand figure only when the goal declares its own
+        // `target:` (GH #343), and never when it is not credible
+        let Some(gate) = report.gate.as_ref() else { continue };
+        let first_order = report.figure.is_some_and(|f| f.basis == crate::metrics::Basis::FirstOrder);
+        if gate.passed() || !(first_order || report.declares_target) || report.verdict() == crate::metrics::Verdict::NotCredible {
             continue;
         }
         let detail = gate
             .misses
             .iter()
             .map(|m| {
-                if m.metric == "PMHF" {
+                if matches!(m.metric, "PMHF" | "PFH") {
                     format!("{} {:.3e} ≥ target {:.0e} /h", m.metric, m.actual, m.target)
+                } else if m.metric == "PFDavg" {
+                    format!("{} {:.3e} ≥ target {:.0e}", m.metric, m.actual, m.target)
                 } else {
                     format!("{} {:.4} < target {:.2}", m.metric, m.actual, m.target)
                 }

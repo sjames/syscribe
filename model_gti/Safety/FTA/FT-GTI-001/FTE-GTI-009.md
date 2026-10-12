@@ -5,6 +5,8 @@ eventKind: basic
 name: "Common cause: both voltage-sensing chains read nominal"
 ref: Behavior::Parts::SensorPart
 failureRate: 1.0e-8
+rateSource: "illustrative proposal for architecture comparison (FT-GTI-001)"
+rateStatus: unverified
 injection: [{kind: corrupt, port: out, field: v, value: "1.0", part: sensorSw}, {kind: corrupt, port: out, field: v, value: "1.0", part: sensorHw}]
 ---
 

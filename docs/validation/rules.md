@@ -880,7 +880,7 @@ ISO/SAE 21434 §15.8 / §15.9 risk determination and treatment. Per `ThreatScena
 | W031 | Warning | A `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment` and is not addressed by any `CybersecurityGoal` (no `CybersecurityGoal.threatScenarios` lists it). Gate with `--deny W031`; promotable via `[profiles]` |
 | W032 | Warning | A `CybersecurityGoal`'s `calLevel` rank is below the expected minimum CAL for the max risk over its listed threats (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Fires only when at least one linked threat has a computable risk. Gate with `--deny W032` |
 
-## Quantitative HW safety metrics (E846, W033)
+## Quantitative HW safety metrics and safety targets (E846, W033, E985, E986, W988, W989)
 
 ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` from its
 contributing `FaultTreeEvent`s — the events under the `FaultTree`(s) whose `topEvent`
@@ -905,12 +905,26 @@ SIL-only goals gate PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM ar
 but not gated for SIL. This is a **first-order FMEDA approximation** — verify independently.
 See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
 
+**Safety targets (GH #343).** A goal without coverage data still gets a figure from its fault tree, labelled as
+rate only: the exact top-event probability over `missionTime`, divided by it (PFH). A goal's `target:`
+(`{mode: continuous|demand, value, unit, proofTestInterval}`) overrides the table; in demand mode the figure is
+PFDavg = Σ over the minimal cut sets of Π λ·(1−DC)·TI^k/(k+1). `[reliability.targets.asil.<A-D>]` /
+`[reliability.targets.sil.<1-4>]` (`spfm`, `lfm`, `pmhf`/`pfh`, `pfd`) in `.syscribe.toml` override the built-in
+defaults, and `[reliability] plausibleProbability` sets the plausibility bound. A figure whose events fail with a
+probability above the bound over the mission time is "not credible". `rateSource:`/`rateStatus:` record where a rate
+comes from; a verdict resting on rates that are not `verified`/`secondary` says so. A rate-only figure gates W033 only
+when the goal declares its own `target:`.
+
 | Code | Severity | Condition |
 |---|---|---|
 | E846 | Error | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
-| W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target). Gate with `--deny W033`; promotable via `[profiles]` |
+| W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target), or a goal that declares its own `target:` has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Gate with `--deny W033`; promotable via `[profiles]` |
 | W985 | Warning | A fault-tree event contributing to the goal's metrics declares no `diagnosticCoverage` (or, once any event declares it, no `latentDiagnosticCoverage`); treated as 0 — the conservative choice. One finding per event and field (GH #213) |
 | W986 | Warning | The goal's fault tree has dual-point (order-2) cut sets but no `missionTime`; PMHF uses a default exposure of 10000 h (GH #213) |
+| E985 | Error | A `SafetyGoal.target:` is malformed: not a mapping, an unknown key, `mode` not `continuous`/`demand`, `value` not a positive number (at most 1 in demand mode), a `unit` that does not fit the mode (`/h` continuous, `probability` demand), or a demand-mode target without a positive `proofTestInterval` duration (GH #343) |
+| E986 | Error | `rateStatus:` on a `FaultTreeEvent` or FMEA row is not one of `verified`, `secondary`, `unverified` (GH #343) |
+| W988 | Warning | A `failureRate` claimed as `rateStatus: verified` or `secondary` fails with a probability above the plausibility bound over the tree's `missionTime` (default 0.1; `[reliability] plausibleProbability`); an unverified rate is labelled in the verdict instead (GH #343) |
+| W989 | Warning | A malformed `[reliability]` entry in `.syscribe.toml` (a key, an unknown ASIL/SIL level or limit, a value out of range); the entry is ignored (GH #343) |
 
 ## Freedom From Interference / dependent-failure analysis (W034)
 

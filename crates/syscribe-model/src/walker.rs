@@ -685,7 +685,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 "fmeaSeverity", "severity", "occurrence", "detection", "rpn",
                 "recommendedAction", "satisfies", "ftaRef",
                 "failureRate", "diagnosticCoverage", "latentDiagnosticCoverage",
-                "injection", "appliesWhen",
+                "injection", "appliesWhen", "rateSource", "rateStatus",
             ];
             let unknown_fmea_keys: Vec<String> = map
                 .keys()
@@ -717,6 +717,8 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 fm.failure_rate = f64_val("failureRate");
                 fm.diagnostic_coverage = f64_val("diagnosticCoverage");
                 fm.latent_diagnostic_coverage = f64_val("latentDiagnosticCoverage");
+                fm.rate_source = str_val("rateSource");
+                fm.rate_status = str_val("rateStatus");
                 fm.injection = map.get(serde_yaml::Value::String("injection".into())).cloned();
                 // a row may be gated by its own `appliesWhen:` (GH #313); else it follows the sheet
                 fm.applies_when = map.get(serde_yaml::Value::String("appliesWhen".into())).cloned();

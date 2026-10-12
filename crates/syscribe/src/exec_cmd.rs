@@ -1755,11 +1755,31 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
     use syscribe_model::sm_scen::{extract_scenarios, subject_of};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| matches!(a.as_str(), "--ft" | "--max-order" | "--fmea" | "--run" | "--report")).map(|(i, _)| i + 1).collect();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| matches!(a.as_str(), "--ft" | "--max-order" | "--fmea" | "--run" | "--report" | "--consistency-order" | "--max-runs")).map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
-        eprintln!("Usage: syscribe --model <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--config <C>] [--record [--run <id>]] [--report <file.json|file.md>] [--report-only] [--json]");
+        eprintln!("Usage: syscribe --model <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--config <C>] [--record [--run <id>]] [--report <file.json|file.md>] [--report-only] [--json] [--consistency [--consistency-order <N>] [--max-runs <N>]]");
         return 1;
     };
+    let positive = |f: &str, default: usize| -> Result<usize, i32> {
+        match value(f).map(|v| v.parse::<usize>()) {
+            None => Ok(default),
+            Some(Ok(n)) if n >= 1 => Ok(n),
+            _ => {
+                eprintln!("error: {f} needs a positive integer");
+                Err(1)
+            }
+        }
+    };
+    // the tree-versus-campaign search (GH #343): combinations beyond the tree's cut sets, bounded by order and runs
+    let consistency = flag("--consistency") || value("--consistency-order").is_some() || value("--max-runs").is_some();
+    let (consistency_order, max_runs) = match (positive("--consistency-order", 2), positive("--max-runs", 500)) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => return 1,
+    };
+    if consistency && value("--ft").is_none() {
+        eprintln!("error: --consistency compares the campaign with a fault tree; name it with --ft");
+        return 1;
+    }
     let max_order = match value("--max-order").map(|v| v.parse::<usize>()) {
         None => 2,
         Some(Ok(n)) if n >= 1 => n,
@@ -1844,6 +1864,8 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
     let mut not_injectable: Vec<NotInjectable> = Vec::new();
     let mut cut_set_order: Option<usize> = None;
     let mut cut_sets_truncated = false;
+    let mut tree_cut_sets: Vec<(Vec<String>, usize, Option<f64>)> = Vec::new();
+    let mut tree_name: Option<String> = None;
     if let Some(ft_id) = value("--ft") {
         let Some(tree) = syscribe_model::fta::find_fault_tree(elems, &ft_id) else {
             eprintln!("error: no fault tree '{ft_id}'");
@@ -1858,6 +1880,8 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             }
         };
         let tree_label = tree.frontmatter.id.clone().unwrap_or_else(|| tree.qualified_name.clone());
+        tree_cut_sets = analysis.cut_sets.iter().map(|c| (c.events.clone(), c.order, c.probability)).collect();
+        tree_name = Some(tree_label.clone());
         cut_set_order = Some(max_order);
         cut_sets_truncated = analysis.truncated;
         for cs in analysis.cut_sets.iter().filter(|c| c.order <= max_order) {
@@ -1897,6 +1921,15 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             return 2;
         }
     };
+    if consistency {
+        match consistency_search(elems, &resolver, &model, &invariants, &opts, &mut campaign, &tree_cut_sets, tree_name.clone().unwrap_or_default(), consistency_order, max_runs) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("error: {e}");
+                return 2;
+            }
+        }
+    }
     campaign.not_injectable = not_injectable;
     campaign.cut_set_order = cut_set_order;
     campaign.cut_sets_truncated = cut_sets_truncated;
@@ -1949,6 +1982,17 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         if !campaign.fmea.without_model.is_empty() {
             println!("  no usable fault model: {}", campaign.fmea.without_model.join(", "));
         }
+        if let Some(c) = &campaign.consistency {
+            println!("tree {} versus the campaign (combinations up to order {} beyond the tree's cut sets: {} run{}):", c.tree, c.order, c.runs, if c.truncated { format!(", stopped at --max-runs {}", c.max_runs) } else { String::new() });
+            println!("  {:<44} {:>5}  {:>10}  {:<20} finding", "cut set", "order", "tree p", "executable");
+            for r in &c.rows {
+                println!("  {:<44} {:>5}  {:>10}  {:<20} {}", r.faults.join(" + "), r.order, r.tree_probability.map(|p| format!("{p:.3e}")).unwrap_or_else(|| "—".into()), r.verdict, r.finding);
+            }
+            let missing = c.rows.iter().filter(|r| r.finding == "missing from the tree").count();
+            let conservative = c.rows.iter().filter(|r| r.finding == "conservative or a model gap").count();
+            let unjudged = campaign.sets.iter().filter(|s| s.status == "error" && s.origin.starts_with("consistency search")).count();
+            println!("  {missing} set(s) missing from the tree, {conservative} cut set(s) the model survives (conservative or a model gap){}", if unjudged > 0 { format!(", {unjudged} combination(s) the invariants could not judge (see the errors above, e.g. no applicable degraded clause)") } else { String::new() });
+        }
         let degraded = campaign.sets.iter().filter(|s| s.status == "survived" && !s.degraded.is_empty()).count();
         println!("summary: {survived} survived{}, {defeated} defeated, {errored} could not be run", if degraded > 0 { format!(" ({degraded} only in a degraded safe state)") } else { String::new() });
     }
@@ -1972,6 +2016,8 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             ft: value("--ft"),
             max_order: value("--ft").map(|_| max_order),
             fmea: value("--fmea"),
+            consistency: consistency.then_some(consistency_order),
+            max_runs: if consistency { value("--max-runs").map(|_| max_runs) } else { None },
         };
         let rec = syscribe_model::residual_risk::CampaignRecord::from_campaign(&subject, value("--run").as_deref(), config_id.as_deref(), invocation, &campaign, &invariants, now_unix());
         if flag("--record") {
@@ -2012,6 +2058,114 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
 }
 
 /// The decisions (`ResidualRisk`) that name a fault set, as `(id, status, file)`.
+/// The tree-versus-campaign search (GH #343): the faults of the composite are combined up to `order` beyond the
+/// tree's cut sets, each order skipping the supersets of a set that already defeats or that contains a minimal cut set
+/// (the tree implies it), at most `max_runs` combinations; then every minimal cut set gets its executable verdict and
+/// every defeating set that contains no minimal cut set is a cut set missing from the tree.
+#[allow(clippy::too_many_arguments)]
+fn consistency_search(
+    elems: &[RawElement],
+    resolver: &syscribe_model::resolver::Resolver,
+    model: &syscribe_model::system_run::SystemModel,
+    invariants: &[syscribe_model::sm_scen::Scenario],
+    opts: &syscribe_model::sm_run::Options,
+    campaign: &mut syscribe_model::fault_campaign::Campaign,
+    cut_sets: &[(Vec<String>, usize, Option<f64>)],
+    tree: String,
+    order: usize,
+    max_runs: usize,
+) -> Result<(), String> {
+    use std::collections::BTreeSet;
+    use syscribe_model::element::ElementType;
+    use syscribe_model::fault_campaign::{Consistency, ConsistencyRow, FaultSet};
+    // the tree events a fault stands for: itself when it is an event, the event an FMEA row's `ftaRef` names
+    let event_of = |id: &str| -> Option<String> {
+        let e = resolver.get_by_id(elems, id)?;
+        match e.frontmatter.element_type {
+            Some(ElementType::FaultTreeEvent) => Some(id.to_string()),
+            Some(ElementType::FMEAEntry) => e.frontmatter.fta_ref.as_deref().and_then(|r| resolver.resolve_ref(elems, r)).and_then(|t| t.frontmatter.id.clone()),
+            _ => None,
+        }
+    };
+    // a cut set by member events; a common-cause pseudo-event stands for every member of its group
+    let expand = |e: &str| -> Vec<String> {
+        match e.strip_prefix("CCF:") {
+            Some(group) => elems.iter().filter(|x| matches!(x.frontmatter.element_type, Some(ElementType::FaultTreeEvent)) && x.frontmatter.ccf_group.as_deref() == Some(group)).filter_map(|x| x.frontmatter.id.clone()).collect(),
+            None => vec![e.to_string()],
+        }
+    };
+    let mcs: Vec<BTreeSet<String>> = cut_sets.iter().map(|(ev, _, _)| ev.iter().flat_map(|e| expand(e)).collect()).collect();
+    let implied = |faults: &[String]| -> bool {
+        let events: BTreeSet<String> = faults.iter().filter_map(|f| event_of(f)).collect();
+        mcs.iter().any(|m| m.is_subset(&events))
+    };
+    let faults: Vec<String> = model.faults.iter().map(|f| f.id.clone()).collect();
+    let defeated = |c: &syscribe_model::fault_campaign::Campaign| -> Vec<BTreeSet<String>> { c.sets.iter().filter(|s| s.status == "defeated").map(|s| s.faults.iter().cloned().collect()).collect() };
+    let (mut runs, mut truncated) = (0usize, false);
+    for k in 2..=order {
+        let known_defeats = defeated(campaign);
+        let ran: Vec<BTreeSet<String>> = campaign.sets.iter().map(|s| s.faults.iter().cloned().collect()).collect();
+        let mut sets: Vec<FaultSet> = Vec::new();
+        let mut idx: Vec<usize> = (0..k).collect();
+        'combos: loop {
+            if idx.len() == k && idx.iter().all(|&i| i < faults.len()) {
+                let combo: Vec<String> = idx.iter().map(|&i| faults[i].clone()).collect();
+                let set: BTreeSet<String> = combo.iter().cloned().collect();
+                if !ran.contains(&set) && !known_defeats.iter().any(|d| d.is_subset(&set)) && !implied(&combo) {
+                    if runs == max_runs {
+                        truncated = true;
+                        break 'combos;
+                    }
+                    runs += 1;
+                    sets.push(FaultSet { ids: combo, origin: format!("consistency search, order {k}") });
+                }
+            }
+            // next combination in lexicographic order
+            let mut i = k;
+            loop {
+                if i == 0 {
+                    break 'combos;
+                }
+                i -= 1;
+                if idx[i] < faults.len() - (k - i) {
+                    idx[i] += 1;
+                    for j in i + 1..k {
+                        idx[j] = idx[j - 1] + 1;
+                    }
+                    break;
+                }
+            }
+        }
+        if !sets.is_empty() {
+            let more = syscribe_model::fault_campaign::run(model, invariants, opts, &sets)?;
+            campaign.sets.extend(more.sets);
+        }
+        if truncated || faults.len() < k {
+            break;
+        }
+    }
+    let mut rows = Vec::new();
+    for ((events, ord, p), members) in cut_sets.iter().zip(&mcs) {
+        let set: BTreeSet<String> = members.iter().cloned().collect();
+        // the campaign ran the cut set by its member faults
+        let hit = campaign.sets.iter().find(|s| s.faults.iter().cloned().collect::<BTreeSet<String>>() == set);
+        let (verdict, finding) = match hit {
+            Some(s) if s.status == "defeated" => (s.verdict(), "confirmed"),
+            Some(s) if s.status == "error" => (s.verdict(), "could not be run"),
+            Some(s) => (s.verdict(), "conservative or a model gap"),
+            None => ("not run".to_string(), "not injectable"),
+        };
+        rows.push(ConsistencyRow { faults: events.clone(), order: *ord, tree_probability: *p, verdict, finding });
+    }
+    for s in campaign.sets.iter().filter(|s| s.status == "defeated" && !s.environment) {
+        if !implied(&s.faults) {
+            rows.push(ConsistencyRow { faults: s.faults.clone(), order: s.faults.len(), tree_probability: None, verdict: s.verdict(), finding: "missing from the tree" });
+        }
+    }
+    campaign.consistency = Some(Consistency { tree, order, max_runs, runs, truncated, rows });
+    Ok(())
+}
+
 fn decisions_for(elems: &[RawElement], resolver: &syscribe_model::resolver::Resolver, faults: &[String]) -> Vec<(String, String)> {
     let mut set = faults.to_vec();
     set.sort();
