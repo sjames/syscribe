@@ -904,9 +904,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     }
     let mut findings: Vec<Finding> = Vec::new();
     // machines that use feature-parameter placeholders are checked at the parameters' default values (GH #311)
-    let at_defaults = crate::placeholders::machines_at_defaults(elements);
-    let machine_view: &[RawElement] = at_defaults.as_deref().unwrap_or(elements);
-    let machine_fm = |q: &str| at_defaults.as_ref().and_then(|v| v.iter().find(|e| e.qualified_name == q)).map(|e| &e.frontmatter);
+    let machine_cfg = config
+        .machine_config
+        .as_deref()
+        .and_then(|q| elements.iter().find(|e| e.frontmatter.element_type == Some(ElementType::Configuration) && e.qualified_name == q));
+    let at_defaults = crate::placeholders::machines_at_defaults(elements, machine_cfg);
+    let machine_view: &[RawElement] = at_defaults.as_ref().map(|m| m.elements.as_slice()).unwrap_or(elements);
+    let machine_fm = |q: &str| at_defaults.as_ref().and_then(|m| m.elements.iter().find(|e| e.qualified_name == q)).map(|e| &e.frontmatter);
+    // W248 (GH #328): a parameter a machine uses has no default, so its expressions
+    // were checked with a stand-in value; a bound value needs `--config`.
+    for nd in at_defaults.iter().flat_map(|m| &m.without_default) {
+        findings.push(warning("W248", &nd.file, &format!(
+            "parameter '{}.{}' has no value or default, so the expressions that use it in {} are checked with a stand-in value; run `validate --config <CONF>` to check them with a bound value",
+            nd.feature, nd.param, nd.machines.join(", "))));
+    }
 
     // Collect findings stashed on `RawElement.derive_findings` by more than one
     // walker post-processing pass: the derive pass (E504-E506) and native

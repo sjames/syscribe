@@ -502,17 +502,92 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
 
 /// The model with every placeholder in a state machine replaced by its parameter's fixed or default value, so the
 /// symbolic base model can be checked like any other (GH #311). `None` when no machine uses a placeholder.
-pub fn machines_at_defaults(elements: &[RawElement]) -> Option<Vec<RawElement>> {
+pub fn machines_at_defaults(elements: &[RawElement], cfg: Option<&RawElement>) -> Option<MachinesAtDefaults> {
     if !elements.iter().any(machine_has_placeholder) {
         return None;
     }
     let resolver = Resolver::new(elements);
-    let f = |ph: &Placeholder| value_for(elements, &resolver, None, ph);
+    // A parameter with no `value:`/`default:` (the usual `isRequired: true`
+    // profile value) has nothing to check the base model at. Its placeholder
+    // becomes a neutral literal of the parameter's type, so the rest of the
+    // expression is still checked and no parse error points at the `{`; the
+    // parameter is reported once instead (W248, GH #328).
+    let no_default: std::cell::RefCell<std::collections::BTreeMap<(String, String), (String, std::collections::BTreeSet<String>)>> =
+        Default::default();
+    let current: std::cell::RefCell<String> = Default::default();
+    let f = |ph: &Placeholder| {
+        value_for(elements, &resolver, cfg, ph).or_else(|| {
+            let d = decl(elements, &resolver, &ph.feature, &ph.param).ok()?;
+            // W248 is the base model's finding: in the `--config` lens an unbound required parameter is already W017;
+            // a runtime parameter cannot be bound (W027), and a derived/`bindTo:` one takes its value elsewhere.
+            let runtime = d.entry.get("bindingTime").and_then(|v| v.as_str()) == Some("runtime");
+            if cfg.is_none() && !runtime && !is_derived(elements, &resolver, &d.feature_qname, &ph.param) {
+                let file = resolver.resolve_ref(elements, &d.feature_qname).map(|e| e.file_path.clone()).unwrap_or_default();
+                no_default
+                    .borrow_mut()
+                    .entry((d.feature_qname.clone(), ph.param.clone()))
+                    .or_insert_with(|| (file, Default::default()))
+                    .1
+                    .insert(current.borrow().clone());
+            }
+            let v = stand_in(&d);
+            Some(match (ph.unit, unit_of(&d)) {
+                (true, Some(u)) => format!("{v} {u}"),
+                _ => v,
+            })
+        })
+    };
     let mut out = elements.to_vec();
     for e in out.iter_mut().filter(|e| machine_has_placeholder(e)) {
+        *current.borrow_mut() = e.qualified_name.clone();
         substitute_machine(&mut e.frontmatter, &f);
     }
-    Some(out)
+    let without_default = no_default
+        .into_inner()
+        .into_iter()
+        .map(|((feature, param), (file, machines))| NoDefault { feature, param, file, machines: machines.into_iter().collect() })
+        .collect();
+    Some(MachinesAtDefaults { elements: out, without_default })
+}
+
+/// The base-model view [`machines_at_defaults`] checks machines against.
+pub struct MachinesAtDefaults {
+    pub elements: Vec<RawElement>,
+    /// Parameters a machine uses that have no value to check the base model at.
+    pub without_default: Vec<NoDefault>,
+}
+
+/// A parameter used in a machine expression with no `value:` or `default:`.
+pub struct NoDefault {
+    pub feature: String,
+    pub param: String,
+    /// The declaring FeatureDef's file.
+    pub file: String,
+    /// Qualified names of the machines that use it.
+    pub machines: Vec<String>,
+}
+
+/// A value of the parameter's type that stands in for a missing default, substituted the way a bound value is (raw,
+/// so a string or enum placeholder is quoted by the author, as for a binding): the first `enumValues` entry, `false`
+/// for a Boolean, the empty string for a String, else the lower bound of `range:` or `0`.
+fn stand_in(d: &Decl) -> String {
+    if let Some(serde_yaml::Value::Sequence(vs)) = d.entry.get("enumValues") {
+        if let Some(v) = vs.first().and_then(scalar) {
+            return v;
+        }
+    }
+    let ty = d.entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    match ty.rsplit("::").next().unwrap_or(ty) {
+        "Boolean" => "false".into(),
+        "String" => String::new(),
+        _ => d
+            .entry
+            .get("range")
+            .and_then(scalar)
+            .and_then(|r| r.split_once("..").map(|(lo, _)| lo.trim().to_string()))
+            .filter(|lo| lo.parse::<f64>().is_ok())
+            .unwrap_or_else(|| "0".into()),
+    }
 }
 
 /// `(is_error, code, file, message)` for every placeholder problem in the base model.

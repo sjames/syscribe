@@ -30,6 +30,10 @@ pub enum SourceLocation {
 /// Configuration threaded into [`crate::validator::validate_with_config`].
 #[derive(Debug, Clone, Default)]
 pub struct ValidateConfig {
+    /// The stored Configuration (qualified name) whose bindings state-machine placeholders take when the machines are
+    /// checked (GH #328). Set by the `--config` lens; `None` checks the base model at fixed values and defaults.
+    pub machine_config: Option<String>,
+
     /// Model root directory (the `-m` path). Bare relative `sourceFile:` values
     /// and `model:`-prefixed values resolve against it.
     pub model_root: Option<PathBuf>,
@@ -703,6 +707,7 @@ impl ValidateConfig {
         let audit = AuditConfig::load(&root);
         let root_for_cyber = root.clone();
         Self {
+            machine_config: None,
             model_root: Some(root),
             repo_root,
             matchers,

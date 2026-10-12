@@ -155,6 +155,7 @@ The variability dimension is **opt-in**: it is dormant — and these checks do n
 | W017 | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion.) **Suppressed** for a parameter whose `bindingTime: runtime` — the running system supplies its value. |
 | W245 | As `E243`, for a draft or review element |
 | W246 | A placeholder references a `bindingTime: runtime` parameter (no value at projection time) |
+| W248 | A feature parameter used in a state-machine expression has no `value:` or `default:`, so `validate` checks those expressions in the base model with a stand-in of the parameter's type; one finding per parameter, on its FeatureDef, naming the machines (not for a `runtime` or derived/`bindTo:` parameter, nor in the `--config` lens, where `W017` covers it). `validate --config` checks them at the bound value |
 | W027 | A `Configuration` binds a parameter whose `bindingTime: runtime` (resolved by the running system, not at configuration time). Gate with `--deny W027`. |
 
 A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. The same relationship powers `syscribe matrix`.
