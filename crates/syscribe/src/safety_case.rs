@@ -255,7 +255,7 @@ fn attach_targets(case: &mut SafetyCase, reports: &[syscribe_model::metrics::Goa
             _ => " (no target)".into(),
         };
         let why = if v == MV::NotCredible {
-            format!(": {}", r.implausible.iter().take(3).map(|(e, p)| format!("{e} fails with probability {p:.2} over the mission")).collect::<Vec<_>>().join(", "))
+            format!(": {}", r.implausible.iter().take(3).map(|(e, p)| format!("{e} at {p:.2}, above the plausibility bound")).collect::<Vec<_>>().join(", "))
         } else {
             String::new()
         };

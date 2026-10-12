@@ -1489,7 +1489,11 @@ fn main() {
                         .iter()
                         .filter(|e| {
                             !matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::FaultTreeEvent) | Some(syscribe_model::element::ElementType::FMEAEntry))
-                                || e.frontmatter.rate_status.as_deref().unwrap_or("none") == rs
+                                || match e.frontmatter.rate_status.as_deref() {
+                                    Some(s) => s == rs,
+                                    // `none`: a rate with no status, not an event with no rate at all
+                                    None => rs == "none" && e.frontmatter.failure_rate.is_some(),
+                                }
                         })
                         .cloned()
                         .collect(),

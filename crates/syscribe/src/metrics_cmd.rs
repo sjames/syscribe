@@ -51,7 +51,11 @@ pub fn cmd_metrics(elements: &[RawElement], json_out: bool, with_sensitivity: bo
     } else {
         emit_text(&reports, &sens, &cfg);
     }
-    let failing: Vec<&str> = reports.iter().filter(|r| r.verdict() == Verdict::Fail).map(|r| r.id.as_str()).collect();
+    let failing: Vec<&str> = reports.iter().filter(|r| r.verdict() == Verdict::Fail && r.gates()).map(|r| r.id.as_str()).collect();
+    let advisory: Vec<&str> = reports.iter().filter(|r| r.verdict() == Verdict::Fail && !r.gates()).map(|r| r.id.as_str()).collect();
+    if !advisory.is_empty() {
+        eprintln!("metrics: {} goal(s) miss the default limit on a figure without coverage data (advisory until the goal declares `target:` or `.syscribe.toml` sets the limit): {}", advisory.len(), advisory.join(", "));
+    }
     if failing.is_empty() {
         0
     } else {
@@ -87,7 +91,10 @@ fn emit_json(reports: &[GoalReport], sens: &[(String, Vec<syscribe_model::metric
                 "missionHours": r.mission_hours,
                 "unverifiedRates": r.unverified_rates,
                 "notCredible": r.implausible.iter().map(|(e, p)| json!({"event": e, "probability": p})).collect::<Vec<_>>(),
-                "dominantEvent": r.dominant.as_ref().map(|(e, b)| json!({"event": e, "birnbaum": b})),
+                "gates": r.gates(),
+                "targetIgnored": r.target_ignored,
+                "largestContributor": r.largest_contributor.as_ref().map(|(e, fv)| json!({"event": e, "fussellVesely": fv})),
+                "highestBirnbaum": r.dominant.as_ref().map(|(e, b)| json!({"event": e, "birnbaum": b})),
             });
             if let Some((_, s)) = sens.iter().find(|(id, _)| id == &r.id) {
                 o["sensitivity"] = json!(s
@@ -143,13 +150,26 @@ fn emit_text(reports: &[GoalReport], sens: &[(String, Vec<syscribe_model::metric
         if let (Some(p), Some(t)) = (r.top_probability, r.mission_hours) {
             notes.push(format!("top-event probability {p:.3e} over {t:.0} h"));
         }
-        if let Some((e, b)) = &r.dominant {
-            notes.push(format!("dominant event {e} (Birnbaum {b:.3e})"));
+        if let Some((e, fv)) = &r.largest_contributor {
+            notes.push(format!("largest contributor {e} (Fussell-Vesely {fv:.3})"));
+        }
+        if let Some((e, b)) = r.dominant.as_ref().filter(|(e, _)| r.largest_contributor.as_ref().is_none_or(|(c, _)| c != e)) {
+            notes.push(format!("highest Birnbaum importance {e} ({b:.3e})"));
+        }
+        if r.target_ignored {
+            notes.push("its `target:` is malformed (E985) and was ignored: judged against the defaults".into());
+        }
+        if r.mode == syscribe_model::metrics::Mode::Demand && r.limit().is_none() {
+            notes.push("no PFDavg limit for its level: set `target.value` or `[reliability.targets.<scheme>.<level>] pfd`".into());
+        }
+        if r.verdict() == Verdict::Fail && !r.gates() {
+            notes.push("advisory: a figure without coverage data gates only once the goal declares `target:` or `.syscribe.toml` sets the limit".into());
         }
         if r.verdict() == Verdict::NotCredible {
             let list: Vec<String> = r.implausible.iter().take(6).map(|(e, p)| format!("{e} {p:.2}")).collect();
             notes.push(format!(
-                "not credible: probability over the mission time above the plausibility bound {}{}: {}{}",
+                "not credible: {} above the plausibility bound {}{}: {}{}",
+                if r.mode == syscribe_model::metrics::Mode::Demand { "λ_DU · proof-test interval (or PFDavg)" } else { "probability over the mission time" },
                 cfg.plausible_probability,
                 if cfg.plausibility_configured { "" } else { " (built-in default)" },
                 list.join(", "),
@@ -200,5 +220,5 @@ fn emit_text(reports: &[GoalReport], sens: &[(String, Vec<syscribe_model::metric
             println!("\n> {}: fault-tree analysis failed — {e}", r.id);
         }
     }
-    println!("\n_Exit status is 2 when any goal's verdict is `fail`._");
+    println!("\n_Exit status is 2 when a goal fails on a gating figure: the first-order roll-up always gates; a rate-only or PFDavg figure only once the goal declares `target:` or `.syscribe.toml` sets the limit._");
 }

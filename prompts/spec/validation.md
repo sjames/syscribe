@@ -219,7 +219,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | Code | Condition |
 |---|---|
 | `E846` | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
-| `W033` | A `SafetyGoal` with diagnostic-coverage data has a computed SPFM/LFM/PMHF below/above its ASIL/SIL target, or a goal that declares its own `target:` has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Opt-in; gate with `--deny W033` |
+| `W033` | A `SafetyGoal` with diagnostic-coverage data has a computed SPFM/LFM/PMHF below/above its ASIL/SIL target, or a goal whose project opted in (its own `target:` or a `.syscribe.toml` limit) has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Opt-in; gate with `--deny W033` |
 | `W985` | A fault-tree event contributing to a `SafetyGoal`'s metrics declares no `diagnosticCoverage` (or, once any event of the goal declares it, no `latentDiagnosticCoverage`) — treated as 0 (conservative); one finding per event and field (GH #213) |
 | `W986` | A `SafetyGoal`'s fault tree has dual-point (order-2) cut sets but declares no `missionTime` — PMHF uses a default exposure of 10000 h (GH #213) |
 | `E985` | A `SafetyGoal.target:` is malformed: not a mapping, an unknown key, `mode` not `continuous`/`demand`, `value` not a positive number (at most 1 in demand mode), a `unit` that does not fit the mode (`/h` continuous, `probability` demand), or a demand-mode target without a positive `proofTestInterval` duration (GH #343) |

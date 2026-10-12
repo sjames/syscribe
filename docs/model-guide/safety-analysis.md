@@ -396,14 +396,14 @@ Cut sets of order ≥ 3 do not enter `λ_DPF`. Without a `missionTime`, `T` defa
 
 **Targets** by ASIL: SPFM ≥ {B 0.90, C 0.97, D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated). SIL-only goals gate PMHF/PFH < {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported but not gated.
 
-**Opt-in.** The SPFM/LFM/PMHF roll-up is computed only if at least one contributing event declares `diagnosticCoverage`, and a goal whose roll-up misses its target raises **W033** (warning; gate with `--deny W033`, promote via `[profiles]`). A goal without coverage data is judged on a rate-only figure instead (below), which raises W033 only when the goal declares its own `target:`.
+**Opt-in.** The SPFM/LFM/PMHF roll-up is computed only if at least one contributing event declares `diagnosticCoverage`, and a goal whose roll-up misses its target raises **W033** (warning; gate with `--deny W033`, promote via `[profiles]`). A goal without coverage data is judged on a rate-only figure instead (below), which raises W033 only when the goal declares its own `target:` or `.syscribe.toml` sets the limit.
 
 ```bash
 syscribe -m model/ metrics            # table: per-goal SPFM / LFM / PMHF + pass/fail
 syscribe -m model/ metrics --json     # [{id, asil, sil, spfm, lfm, pmhf, lambdaDpf, pass, verdict}]
 ```
 
-The verdict is `pass`, `fail`, `not credible`, `no target` (a figure but no recognised `asilLevel`/`silLevel` and no `target:`) or `n/a` (not computed). **`metrics` exits 2 when any goal's verdict is `fail`** (usage errors exit 1), so it can be used as a CI gate without `validate --deny W033`.
+The verdict is `pass`, `fail`, `not credible`, `no target` (a figure but no recognised `asilLevel`/`silLevel` and no `target:`) or `n/a` (not computed). **`metrics` exits 2 when a goal fails on a gating figure** (usage errors exit 1), so it can be used as a CI gate without `validate --deny W033`. The first-order roll-up always gates; a rate-only or PFDavg figure gates once the goal declares `target:` or `.syscribe.toml` sets the limit, and is advisory before that.
 
 ### Safety targets: rate-only and demand-mode verdicts (GH #343)
 
@@ -434,9 +434,9 @@ plausibleProbability = 0.1        # default: no event should fail with p > 0.1 o
 pfh = 1.0e-6                      # pmhf/pfh (/h), pfd, spfm, lfm
 ```
 
-A figure is **not credible** when an event (or the top event) fails with a probability above the plausibility bound over the mission time: λ·T is no longer small, so the figure is no longer a rate. Record where a rate comes from with `rateSource:` and `rateStatus: verified | secondary | unverified` on the event or FMEA row (E986 otherwise); a verdict that rests on rates that are not verified or secondary says *unverified rates*, `list FaultTreeEvent --rate-status unverified` finds them, and a claimed rate above the bound is **W988**. `metrics --sensitivity` shows each event's figure and verdict with its λ ÷10 and ×10, marking those that move the verdict. `audit` shows the figure; `safety-case` adds a "quantitative target" solution node under the goal. A malformed `target:` is **E985**, a malformed `[reliability]` entry **W989**.
+A figure is **not credible** when an event (or the top event) fails with a probability above the plausibility bound over the mission time: λ·T is no longer small, so the figure is no longer a rate. In demand mode the test is each event's λ·(1−DC)·TI and the PFDavg itself, and a level with no PFDavg limit (the ASIL table) is `no target` until you give one. `metrics` names the largest contributor (Fussell-Vesely), the rate to check first. Record where a rate comes from with `rateSource:` and `rateStatus: verified | secondary | unverified` on the event or FMEA row (E986 otherwise); a verdict that rests on rates that are not verified or secondary says *unverified rates*, `list FaultTreeEvent --rate-status unverified` finds them, and a claimed rate above the bound is **W988**. `metrics --sensitivity` shows each event's figure and verdict with its λ ÷10 and ×10, marking those that move the verdict. `audit` shows the figure; `safety-case` adds a "quantitative target" solution node under the goal. A malformed `target:` is **E985**, a malformed `[reliability]` entry **W989**.
 
-**Tree versus campaign.** `inject <TestCase> --ft <FT> --consistency` compares the tree with the executable model: every minimal cut set gets its executable verdict (`confirmed`, or `conservative or a model gap` when the model survives it), and the search over combinations of the composite's faults (order 2 by default, `--consistency-order`, at most `--max-runs` 500) reports every defeating set that contains no minimal cut set as **missing from the tree**. An FMEA row counts as the event its `ftaRef` names; a row without `ftaRef` is not in the tree. See `syscribe help inject`.
+**Tree versus campaign.** `inject <TestCase> --ft <FT> --consistency` compares the tree with the executable model: every minimal cut set gets its executable verdict (`confirmed`, or `conservative or a model gap` when the model survives it), and the search over combinations of the composite's faults (order 2 by default, `--consistency-order`, at most `--max-runs` 500) reports every defeating set that contains no minimal cut set as **missing from the tree**. An FMEA row counts as the event its `ftaRef` names; a row without `ftaRef` is not in the tree. The comparison uses every minimal cut set, whatever `--max-order` is. Combinations the invariants cannot judge (no applicable `Except under` clause) are counted, make `inject` exit 2, and can hide a missing set. See `syscribe help inject`.
 
 ### Generating templates
 

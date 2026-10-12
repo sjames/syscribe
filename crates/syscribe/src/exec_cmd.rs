@@ -1881,6 +1881,18 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         };
         let tree_label = tree.frontmatter.id.clone().unwrap_or_else(|| tree.qualified_name.clone());
         tree_cut_sets = analysis.cut_sets.iter().map(|c| (c.events.clone(), c.order, c.probability)).collect();
+        if consistency && analysis.truncated {
+            // the comparison needs every minimal cut set, not only those up to the campaign's `--max-order`: a
+            // defeat that is a cut set of a higher order is not missing from the tree
+            let all = syscribe_model::fta::AnalysisOptions { max_order: None, ..Default::default() };
+            match syscribe_model::fta::analyze_fault_tree(elems, &resolver, tree, &all) {
+                Ok(a) => tree_cut_sets = a.cut_sets.iter().map(|c| (c.events.clone(), c.order, c.probability)).collect(),
+                Err(e) => {
+                    eprintln!("error: fault tree {ft_id}: {e:?}");
+                    return 2;
+                }
+            }
+        }
         tree_name = Some(tree_label.clone());
         cut_set_order = Some(max_order);
         cut_sets_truncated = analysis.truncated;
@@ -2103,6 +2115,9 @@ fn consistency_search(
     let defeated = |c: &syscribe_model::fault_campaign::Campaign| -> Vec<BTreeSet<String>> { c.sets.iter().filter(|s| s.status == "defeated").map(|s| s.faults.iter().cloned().collect()).collect() };
     let (mut runs, mut truncated) = (0usize, false);
     for k in 2..=order {
+        if faults.len() < k {
+            break;
+        }
         let known_defeats = defeated(campaign);
         let ran: Vec<BTreeSet<String>> = campaign.sets.iter().map(|s| s.faults.iter().cloned().collect()).collect();
         let mut sets: Vec<FaultSet> = Vec::new();
@@ -2140,19 +2155,22 @@ fn consistency_search(
             let more = syscribe_model::fault_campaign::run(model, invariants, opts, &sets)?;
             campaign.sets.extend(more.sets);
         }
-        if truncated || faults.len() < k {
+        if truncated {
             break;
         }
     }
+    // the events some fault of the composite can inject (an FMEA row standing for its `ftaRef` event)
+    let injectable: BTreeSet<String> = faults.iter().filter_map(|f| event_of(f)).collect();
     let mut rows = Vec::new();
     for ((events, ord, p), members) in cut_sets.iter().zip(&mcs) {
-        let set: BTreeSet<String> = members.iter().cloned().collect();
-        // the campaign ran the cut set by its member faults
-        let hit = campaign.sets.iter().find(|s| s.faults.iter().cloned().collect::<BTreeSet<String>>() == set);
+        // the campaign ran the cut set by faults standing for exactly its member events; a defeat among them wins
+        let ran: Vec<&syscribe_model::fault_campaign::SetResult> = campaign.sets.iter().filter(|s| s.faults.iter().filter_map(|f| event_of(f)).collect::<BTreeSet<String>>() == *members).collect();
+        let hit = ran.iter().find(|s| s.status == "defeated").or_else(|| ran.iter().find(|s| s.status != "error")).or_else(|| ran.first());
         let (verdict, finding) = match hit {
             Some(s) if s.status == "defeated" => (s.verdict(), "confirmed"),
             Some(s) if s.status == "error" => (s.verdict(), "could not be run"),
             Some(s) => (s.verdict(), "conservative or a model gap"),
+            None if members.is_subset(&injectable) => ("not run".to_string(), "not run (above the campaign's order)"),
             None => ("not run".to_string(), "not injectable"),
         };
         rows.push(ConsistencyRow { faults: events.clone(), order: *ord, tree_probability: *p, verdict, finding });

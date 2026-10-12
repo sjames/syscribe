@@ -1248,6 +1248,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.deciders.is_some() && !matches!(fm.element_type, Some(ElementType::ADR)) {
             unknown_keys.push("deciders");
         }
+        // `target:` is a schema field only on a SafetyGoal, `rateSource:`/`rateStatus:` only on a FaultTreeEvent or an
+        // FMEA row (GH #343).
+        if fm.target.is_some() && !matches!(fm.element_type, Some(ElementType::SafetyGoal)) {
+            unknown_keys.push("target");
+        }
+        if !matches!(fm.element_type, Some(ElementType::FaultTreeEvent | ElementType::FMEAEntry)) {
+            if fm.rate_source.is_some() {
+                unknown_keys.push("rateSource");
+            }
+            if fm.rate_status.is_some() {
+                unknown_keys.push("rateStatus");
+            }
+        }
         unknown_keys.sort_unstable();
         for key in unknown_keys {
             findings.push(warning(
@@ -7219,7 +7232,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let lam = ev.frontmatter.failure_rate.or_else(|| {
                     elements
                         .iter()
-                        .filter(|r| matches!(r.frontmatter.element_type, Some(ElementType::FMEAEntry)))
+                        // the row that supplies the rate, as `rate_status_of` picks it
+                        .filter(|r| matches!(r.frontmatter.element_type, Some(ElementType::FMEAEntry)) && r.frontmatter.failure_rate.is_some())
                         .find(|r| r.frontmatter.fta_ref.as_deref().and_then(|x| resolver.resolve_ref(elements, x)).is_some_and(|x| x.qualified_name == ev.qualified_name))
                         .and_then(|r| r.frontmatter.failure_rate)
                 });
@@ -7268,11 +7282,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 ),
             ));
         }
-        // the first-order roll-up gates as before; a rate-only or demand figure only when the goal declares its own
-        // `target:` (GH #343), and never when it is not credible
+        // the first-order roll-up gates as before; a rate-only or demand figure only when the project opted in (the
+        // goal's `target:` or a `.syscribe.toml` limit, GH #343), and never when it is not credible
         let Some(gate) = report.gate.as_ref() else { continue };
-        let first_order = report.figure.is_some_and(|f| f.basis == crate::metrics::Basis::FirstOrder);
-        if gate.passed() || !(first_order || report.declares_target) || report.verdict() == crate::metrics::Verdict::NotCredible {
+        if gate.passed() || !report.gates() || report.verdict() == crate::metrics::Verdict::NotCredible {
             continue;
         }
         let detail = gate
@@ -7299,8 +7312,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             "W033",
             &report.file_path,
             &format!(
-                "SafetyGoal '{}' ({}) misses its hardware safety target: {} (ISO 26262-5 §8-9)",
-                report.id, level, detail
+                "SafetyGoal '{}' ({}) misses its {}: {} ({})",
+                report.id,
+                level,
+                if report.asil.is_some() { "hardware safety target" } else { "safety integrity target" },
+                detail,
+                if report.asil.is_some() { "ISO 26262-5 §8-9" } else { "IEC 61508" }
             ),
         ));
     }

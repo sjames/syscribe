@@ -59,9 +59,12 @@ invocation (`--ft`, `--max-order`, `--fmea`, `--consistency-order`, `--max-runs`
 With `--consistency` the campaign also runs, per order 2..N, every combination of the composite's faults that does not
 already contain a defeating set or a minimal cut set of the tree (an FMEA row counts as the event its `ftaRef` names),
 up to `--max-runs`. The report is one table: each minimal cut set with its tree probability and executable verdict —
-`confirmed` (defeated), `conservative or a model gap` (the model survives what the tree says defeats), `not injectable`
-— and each defeating set that contains no minimal cut set, `missing from the tree`. A combination the invariants cannot
-judge (no applicable `Except under` clause) is an error and counted. With `--record` the combinations join the record.
+`confirmed` (defeated), `conservative or a model gap` (the model survives what the tree says defeats), `not run (above
+the campaign's order)`, `not injectable` — and each defeating set that contains no minimal cut set, `missing from the
+tree`. The comparison uses every minimal cut set of the tree, whatever `--max-order` bounds the campaign's own sets, and
+matches a cut set through the same `ftaRef` mapping. A combination the invariants cannot judge (no applicable `Except
+under` clause) is an error and counted: it makes the exit status 2 and can hide a missing set. With `--record` the
+combinations join the record.
 
 ## EXIT STATUS
 0 every set survived (or `--report-only`) · 1 usage: no composite, no `@invariant` scenario, an unknown fault tree or

@@ -912,13 +912,13 @@ PFDavg = Σ over the minimal cut sets of Π λ·(1−DC)·TI^k/(k+1). `[reliabil
 `[reliability.targets.sil.<1-4>]` (`spfm`, `lfm`, `pmhf`/`pfh`, `pfd`) in `.syscribe.toml` override the built-in
 defaults, and `[reliability] plausibleProbability` sets the plausibility bound. A figure whose events fail with a
 probability above the bound over the mission time is "not credible". `rateSource:`/`rateStatus:` record where a rate
-comes from; a verdict resting on rates that are not `verified`/`secondary` says so. A rate-only figure gates W033 only
-when the goal declares its own `target:`.
+comes from; a verdict resting on rates that are not `verified`/`secondary` says so. A rate-only or PFDavg figure gates W033 only
+when the goal declares its own `target:` or `.syscribe.toml` sets the limit.
 
 | Code | Severity | Condition |
 |---|---|---|
 | E846 | Error | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
-| W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target), or a goal that declares its own `target:` has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Gate with `--deny W033`; promotable via `[profiles]` |
+| W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target), or a goal whose project opted in (its own `target:` or a `.syscribe.toml` limit) has a credible rate-only or demand-mode figure (PFH, PFDavg) at or above it (GH #343). Gate with `--deny W033`; promotable via `[profiles]` |
 | W985 | Warning | A fault-tree event contributing to the goal's metrics declares no `diagnosticCoverage` (or, once any event declares it, no `latentDiagnosticCoverage`); treated as 0 — the conservative choice. One finding per event and field (GH #213) |
 | W986 | Warning | The goal's fault tree has dual-point (order-2) cut sets but no `missionTime`; PMHF uses a default exposure of 10000 h (GH #213) |
 | E985 | Error | A `SafetyGoal.target:` is malformed: not a mapping, an unknown key, `mode` not `continuous`/`demand`, `value` not a positive number (at most 1 in demand mode), a `unit` that does not fit the mode (`/h` continuous, `probability` demand), or a demand-mode target without a positive `proofTestInterval` duration (GH #343) |

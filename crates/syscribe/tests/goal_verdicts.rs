@@ -236,10 +236,10 @@ fn the_campaign_finds_a_cut_set_missing_from_the_tree_and_a_conservative_one() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// The worked example: the goal's 1.4e-1 figure over 15 years is flagged as not credible, with FTE-GTI-009 as the
-/// dominant event.
+/// The worked example: the goal's 1.4e-1 figure over 15 years is flagged as not credible, naming its largest
+/// contributor.
 #[test]
-fn the_grid_tie_figure_is_not_credible_and_names_the_dominant_event() {
+fn the_grid_tie_figure_is_not_credible_and_names_its_largest_contributor() {
     let gti = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model_gti");
     let (c, t) = run(&gti, &["metrics"]);
     assert_eq!(c, 0, "{t}");
@@ -247,9 +247,180 @@ fn the_grid_tie_figure_is_not_credible_and_names_the_dominant_event() {
     let g = j.as_array().unwrap().iter().find(|g| g["id"] == "SG-GTI-001").unwrap();
     assert_eq!(g["verdict"], "not credible", "{g}");
     assert!(g["topEventProbability"].as_f64().unwrap() > 0.1, "{g}");
-    assert_eq!(g["dominantEvent"]["event"], "FTE-GTI-009");
+    // FTE-GTI-005 carries most of the top event; FTE-GTI-009 moves it most but contributes little
+    assert_eq!(g["largestContributor"]["event"], "FTE-GTI-005", "{g}");
+    assert_eq!(g["highestBirnbaum"]["event"], "FTE-GTI-009", "{g}");
     assert!(g["notCredible"].as_array().unwrap().iter().any(|n| n["event"] == "FTE-GTI-005"), "{g}");
     assert_eq!(g["unverifiedRates"].as_array().unwrap().len(), 10, "every GTI rate is an unverified proposal: {g}");
     let (_, t) = run(&gti, &["validate"]);
     assert!(!t.contains("W988"), "the GTI rates are unverified, so they are labelled rather than warned about: {t}");
+}
+
+/// Three faults on the transmitter, each harmless alone: `a` and `b` together corrupt the command, `c` never does.
+/// `tree` is the gate over FTE-SYS-001/-003 (or the gate and its inputs given).
+fn pair_model(gate: &str, inputs: &str) -> PathBuf {
+    let root = dir("p");
+    let files: Vec<(&str, String)> = vec![
+        ("TxM.md", "---\ntype: StateDef\nname: TxM\nvariables:\n  - {name: level, value: \"7\"}\n  - {name: a, value: \"0\"}\n  - {name: b, value: \"0\"}\n  - {name: c, value: \"0\"}\nsubStates:\n  - name: Idle\n    isInitial: true\n    transitions:\n      - {target: Idle, accept: Tick, effect: {send: Cmd, via: out, payload: {n: \"level + a * b\"}}}\n---\n".into()),
+        ("RxM.md", "---\ntype: StateDef\nname: RxM\nvariables:\n  - {name: got, value: \"0\"}\nsubStates:\n  - name: Waiting\n    isInitial: true\n    transitions:\n      - {target: Done, accept: {payload: Cmd, via: inp, as: m}, assign: \"got := m.n\"}\n  - {name: Done, isFinal: true}\n---\n".into()),
+        ("TxP.md", "---\ntype: PartDef\nname: TxP\nexhibitsStates: [TxM]\nfeatures:\n  - {name: out, type: Port, direction: out}\n---\nTransmitter.\n".into()),
+        ("RxP.md", "---\ntype: PartDef\nname: RxP\nexhibitsStates: [RxM]\nfeatures:\n  - {name: inp, type: Port, direction: in}\n---\nReceiver.\n".into()),
+        ("Sys.md", "---\ntype: PartDef\nname: Sys\nfeatures:\n  - {name: tx, typedBy: TxP}\n  - {name: rx, typedBy: RxP}\nconnections:\n  - {from: tx.out, to: rx.inp}\n---\nThe system.\n".into()),
+        ("REQ-SYS-001.md", "---\ntype: Requirement\nid: REQ-SYS-001\nname: delivery\nstatus: approved\nreqDomain: software\n---\n\nThe receiver shall get the command.\n".into()),
+        ("SG-SYS-001.md", "---\ntype: SafetyGoal\nid: SG-SYS-001\nname: No wrong command is acted on\nstatus: draft\nasilLevel: B\n---\nGoal.\n".into()),
+        ("FT-SYS-001.md", "---\ntype: FaultTree\nid: FT-SYS-001\nname: Wrong command\ntopEvent: SG-SYS-001\nstatus: draft\nmissionTime: \"10000 h\"\n---\nTree.\n".into()),
+        ("FT-SYS-001/FTG-SYS-001.md", format!("---\ntype: FaultTreeGate\nid: FTG-SYS-001\nname: Wrong command\ngateType: {gate}\ninputs: [{inputs}]\n---\nGate.\n")),
+        ("TC-SYS-001.md", "---\ntype: TestCase\nid: TC-SYS-001\nname: link invariants\nstatus: active\ntestLevel: L3\nsubject: Sys\nverifies: [REQ-SYS-001]\n---\n\n```gherkin\nFeature: link\n\n  @invariant\n  Scenario: the receiver never accepts a wrong value\n    When tx receives Tick\n    Then rx.got == 0 or rx.got == 7\n```\n".into()),
+    ];
+    for (n, c) in &files {
+        write(&root, n, c);
+    }
+    for (i, v) in ["a", "b", "c"].iter().enumerate() {
+        write(&root, &format!("FT-SYS-001/FTE-SYS-00{}.md", i + 1), &format!("---\ntype: FaultTreeEvent\nid: FTE-SYS-00{}\nname: {v} stuck\neventKind: basic\nref: TxP\nfailureRate: 1.0e-7\ninjection: [{{kind: stuck, variable: {v}, value: \"1\"}}]\n---\n{v}.\n", i + 1));
+    }
+    root
+}
+
+fn consistency(root: &Path, extra: &[&str]) -> (i32, serde_json::Value) {
+    let mut args = vec!["inject", "TC-SYS-001", "--ft", "FT-SYS-001", "--json"];
+    args.extend_from_slice(extra);
+    let (c, t) = run(root, &args);
+    (c, serde_json::from_str(&t).unwrap_or_else(|e| panic!("{e}: {t}")))
+}
+
+/// The search itself: it runs the pairs no cut set or defeat implies, finds the pair the tree lacks, and stops at the
+/// run cap.
+#[test]
+fn the_search_runs_the_pairs_the_tree_does_not_imply() {
+    // the tree says a and c together; the model is defeated by a and b together
+    let root = pair_model("AND", "FTE-SYS-001, FTE-SYS-003");
+    let (_, j) = consistency(&root, &["--consistency"]);
+    let c = &j["consistency"];
+    assert_eq!(c["runs"], 2, "a+b and b+c run, a+c is the cut set: {c}");
+    assert_eq!(c["truncated"], false);
+    let rows = c["rows"].as_array().unwrap();
+    let row = |f: &[&str]| rows.iter().find(|r| r["faults"] == serde_json::json!(f)).unwrap_or_else(|| panic!("{f:?}: {rows:?}"));
+    assert_eq!(row(&["FTE-SYS-001", "FTE-SYS-002"])["finding"], "missing from the tree");
+    assert_eq!(row(&["FTE-SYS-001", "FTE-SYS-003"])["finding"], "conservative or a model gap");
+    // the run cap stops the search and says so
+    let (_, j) = consistency(&root, &["--consistency", "--max-runs", "1"]);
+    assert_eq!(j["consistency"]["runs"], 1);
+    assert_eq!(j["consistency"]["truncated"], true);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A cut set above the campaign's `--max-order` is still a cut set of the tree: never "missing from the tree".
+#[test]
+fn a_cut_set_above_the_campaign_order_is_not_missing_from_the_tree() {
+    let root = pair_model("AND", "FTE-SYS-001, FTE-SYS-002");
+    let (_, j) = consistency(&root, &["--consistency"]);
+    let rows = j["consistency"]["rows"].as_array().unwrap();
+    assert!(rows.iter().any(|r| r["faults"] == serde_json::json!(["FTE-SYS-001", "FTE-SYS-002"]) && r["finding"] == "confirmed"), "{rows:?}");
+    let (_, j) = consistency(&root, &["--consistency", "--max-order", "1"]);
+    let rows = j["consistency"]["rows"].as_array().unwrap();
+    assert!(!rows.iter().any(|r| r["finding"] == "missing from the tree"), "{rows:?}");
+    assert!(rows.iter().any(|r| r["faults"] == serde_json::json!(["FTE-SYS-001", "FTE-SYS-002"]) && r["finding"] == "not run (above the campaign's order)"), "{rows:?}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A search order above the number of faults ends cleanly instead of overflowing.
+#[test]
+fn a_search_order_above_the_number_of_faults_ends_cleanly() {
+    let root = pair_model("OR", "FTE-SYS-001, FTE-SYS-002");
+    for n in ["FTE-SYS-002", "FTE-SYS-003"] {
+        let p = root.join(format!("FT-SYS-001/{n}.md"));
+        let t = std::fs::read_to_string(&p).unwrap();
+        let t: String = t.lines().filter(|l| !l.starts_with("injection:")).map(|l| format!("{l}\n")).collect();
+        std::fs::write(&p, t).unwrap();
+    }
+    let (c, j) = consistency(&root, &["--consistency"]);
+    assert!(c == 0 || c == 2, "{j}");
+    assert_eq!(j["consistency"]["runs"], 0, "{j}");
+    let root2 = pair_model("OR", "FTE-SYS-001, FTE-SYS-002");
+    let (c, j) = consistency(&root2, &["--consistency", "--consistency-order", "5"]);
+    assert!(c == 0 || c == 2, "{j}");
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_dir_all(&root2);
+}
+
+/// A cut set whose event is injected only through an FMEA row (its `ftaRef`) gets that row's verdict.
+#[test]
+fn a_cut_set_run_through_its_fmea_row_is_confirmed() {
+    let root = campaign_model();
+    let p = root.join("FT-SYS-001/FTE-SYS-001.md");
+    let t: String = std::fs::read_to_string(&p).unwrap().lines().filter(|l| !l.starts_with("injection:")).map(|l| format!("{l}\n")).collect();
+    std::fs::write(&p, t).unwrap();
+    let (_, j) = consistency(&root, &["--consistency"]);
+    let rows = j["consistency"]["rows"].as_array().unwrap();
+    let r = rows.iter().find(|r| r["faults"] == serde_json::json!(["FTE-SYS-001"])).unwrap();
+    assert_eq!(r["finding"], "confirmed", "{r}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Demand mode: an ASIL goal has no PFDavg limit, so it is `no target` (never a pass on coverage alone), and the
+/// credibility test is λ·TI, not λ·T.
+#[test]
+fn demand_mode_needs_a_pfd_limit_and_judges_credibility_over_the_proof_test_interval() {
+    let demand = "target: {mode: demand, proofTestInterval: \"8760 h\"}\n";
+    let root = model("OR", demand, "");
+    let p = root.join("SG-SYS-001.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("silLevel: 2", "asilLevel: D")).unwrap();
+    let g = goal(&root);
+    assert_eq!(g["verdict"], "no target", "{g}");
+    let (_, t) = run(&root, &["metrics"]);
+    assert!(t.contains("no PFDavg limit"), "{t}");
+    let root = model("OR", demand, "diagnosticCoverage: 0.99\n");
+    let p = root.join("SG-SYS-001.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("silLevel: 2", "asilLevel: D")).unwrap();
+    assert_eq!(goal(&root)["verdict"], "no target");
+    // λ 1e-6 over a 131 400 h mission is 0.88, but over the 8760 h proof-test interval 0.0088: credible
+    let root = model("OR", demand, "");
+    for (n, from) in [("FT-SYS-001.md", "\"10000 h\""), ("FT-SYS-001/FTE-SYS-001.md", "1.0e-7")] {
+        let p = root.join(n);
+        let to = if n == "FT-SYS-001.md" { "\"131400 h\"" } else { "1.0e-6" };
+        std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace(from, to)).unwrap();
+    }
+    let g = goal(&root);
+    assert_eq!(g["verdict"], "pass", "{g}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A rate-only `fail` is advisory until the project opts in; a `.syscribe.toml` limit is an opt-in like `target:`.
+#[test]
+fn a_rate_only_failure_gates_only_once_the_project_opts_in() {
+    let root = model("OR", "", "");
+    let p = root.join("FT-SYS-001/FTE-SYS-001.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("1.0e-7", "2.0e-6")).unwrap();
+    let g = goal(&root);
+    assert!(g["verdict"] == "fail" && g["gates"] == false, "{g}");
+    let (c, t) = run(&root, &["metrics"]);
+    assert!(c == 0 && t.contains("advisory"), "{t}");
+    assert!(codes(&root, "W033").is_empty());
+    write(&root, ".syscribe.toml", "[reliability.targets.sil.2]\npfh = 1.0e-6\n");
+    let g = goal(&root);
+    assert!(g["gates"] == true && g["target"]["source"] == ".syscribe.toml", "{g}");
+    assert_eq!(run(&root, &["metrics"]).0, 2);
+    assert_eq!(codes(&root, "W033").len(), 1);
+    // a `pfd` limit alone leaves the continuous limit with the built-in table
+    write(&root, ".syscribe.toml", "[reliability.targets.sil.2]\npfd = 1.0e-3\n");
+    assert_eq!(goal(&root)["target"]["source"], "built-in default");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The new fields stay W047 on types that do not use them, and a malformed target is shown as ignored.
+#[test]
+fn misplaced_fields_are_w047_and_a_malformed_target_is_shown_as_ignored() {
+    let root = model("OR", "target: {mode: demand, proofTestInterval: soon}\n", "");
+    write(&root, "P.md", "---\ntype: PartDef\nname: P\ntarget: {value: 1}\nrateStatus: verified\n---\nP.\n");
+    let w = codes(&root, "W047");
+    assert!(w.iter().any(|l| l.contains("'target'")) && w.iter().any(|l| l.contains("'rateStatus'")), "{w:?}");
+    assert_eq!(goal(&root)["targetIgnored"], true);
+    let (_, t) = run(&root, &["metrics"]);
+    assert!(t.contains("malformed (E985) and was ignored"), "{t}");
+    // `--rate-status none` lists a rate with no status, not an element with no rate
+    let (_, t) = run(&root, &["list", "FaultTreeEvent", "--rate-status", "none"]);
+    assert!(t.contains("FTE-SYS-001"), "{t}");
+    let (_, t) = run(&root, &["list", "FaultTreeGate", "--rate-status", "none"]);
+    assert!(t.contains("FTG-SYS-001"), "a gate is not a rate holder, so the filter leaves it: {t}");
+    let _ = std::fs::remove_dir_all(&root);
 }

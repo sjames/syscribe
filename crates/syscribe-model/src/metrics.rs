@@ -391,10 +391,10 @@ pub const DEFAULT_PLAUSIBLE_PROBABILITY: f64 = 0.1;
 /// The target table (`[reliability.targets]` over the built-ins) and the plausibility bound (GH #343).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReliabilityConfig {
-    /// ASIL letter → targets, and whether `.syscribe.toml` set them.
-    pub asil: std::collections::BTreeMap<String, (Targets, bool)>,
-    /// SIL → targets, and whether `.syscribe.toml` set them.
-    pub sil: std::collections::BTreeMap<u8, (Targets, bool)>,
+    /// ASIL letter → targets, and the limits `.syscribe.toml` set (`spfm`, `lfm`, `pmhf`, `pfd`).
+    pub asil: std::collections::BTreeMap<String, (Targets, Vec<&'static str>)>,
+    /// SIL → targets, and the limits `.syscribe.toml` set.
+    pub sil: std::collections::BTreeMap<u8, (Targets, Vec<&'static str>)>,
     /// The largest credible probability of one event over the mission time.
     pub plausible_probability: f64,
     pub plausibility_configured: bool,
@@ -403,8 +403,8 @@ pub struct ReliabilityConfig {
 impl Default for ReliabilityConfig {
     fn default() -> Self {
         ReliabilityConfig {
-            asil: ["A", "B", "C", "D"].iter().map(|a| (a.to_string(), (asil_targets(a).expect("built-in"), false))).collect(),
-            sil: (1..=4).map(|s| (s, (sil_targets(s).expect("built-in"), false))).collect(),
+            asil: ["A", "B", "C", "D"].iter().map(|a| (a.to_string(), (asil_targets(a).expect("built-in"), Vec::new()))).collect(),
+            sil: (1..=4).map(|s| (s, (sil_targets(s).expect("built-in"), Vec::new()))).collect(),
             plausible_probability: DEFAULT_PLAUSIBLE_PROBABILITY,
             plausibility_configured: false,
         }
@@ -447,6 +447,7 @@ impl ReliabilityConfig {
                             } else {
                                 level.parse::<u8>().ok().and_then(|l| cfg.sil.get(&l)).map(|x| x.0)
                             };
+                            let mut set: Vec<&'static str> = Vec::new();
                             let (Some(mut tg), Some(vals)) = (base, vals.as_table()) else {
                                 errs.push(format!("`reliability.targets.{scheme}.{level}`: not a level of {} with a table of limits", if scheme == "asil" { "ASIL A–D" } else { "SIL 1–4" }));
                                 continue;
@@ -459,10 +460,22 @@ impl ReliabilityConfig {
                                     continue;
                                 };
                                 match m.as_str() {
-                                    "spfm" if x <= 1.0 => tg.spfm_min = Some(x),
-                                    "lfm" if x <= 1.0 => tg.lfm_min = Some(x),
-                                    "pmhf" | "pfh" => tg.pmhf_max = Some(x),
-                                    "pfd" if x <= 1.0 => tg.pfd_max = Some(x),
+                                    "spfm" if x <= 1.0 => {
+                                        tg.spfm_min = Some(x);
+                                        set.push("spfm");
+                                    }
+                                    "lfm" if x <= 1.0 => {
+                                        tg.lfm_min = Some(x);
+                                        set.push("lfm");
+                                    }
+                                    "pmhf" | "pfh" => {
+                                        tg.pmhf_max = Some(x);
+                                        set.push("pmhf");
+                                    }
+                                    "pfd" if x <= 1.0 => {
+                                        tg.pfd_max = Some(x);
+                                        set.push("pfd");
+                                    }
                                     _ => {
                                         errs.push(format!("`reliability.targets.{scheme}.{level}.{m}`: not a limit (spfm, lfm ≤ 1; pmhf or pfh in /h; pfd ≤ 1)"));
                                         bad = true;
@@ -471,9 +484,9 @@ impl ReliabilityConfig {
                             }
                             if !bad {
                                 if scheme == "asil" {
-                                    cfg.asil.insert(level.to_ascii_uppercase(), (tg, true));
+                                    cfg.asil.insert(level.to_ascii_uppercase(), (tg, set));
                                 } else if let Ok(l) = level.parse::<u8>() {
-                                    cfg.sil.insert(l, (tg, true));
+                                    cfg.sil.insert(l, (tg, set));
                                 }
                             }
                         }
@@ -486,7 +499,8 @@ impl ReliabilityConfig {
     }
 
     /// The targets of a goal's integrity level, and where they come from.
-    pub fn targets_for(&self, asil: Option<&str>, sil: Option<u8>) -> Option<(Targets, TargetSource)> {
+    /// `mode` picks the limit the source is about: `pmhf` (continuous) or `pfd` (demand).
+    pub fn targets_for(&self, asil: Option<&str>, sil: Option<u8>, mode: Mode) -> Option<(Targets, TargetSource)> {
         let hit = match (asil, sil) {
             (Some(a), _) => {
                 let l = a.trim().trim_start_matches("ASIL").trim_start_matches("asil").trim().to_ascii_uppercase();
@@ -495,7 +509,11 @@ impl ReliabilityConfig {
             (None, Some(s)) => self.sil.get(&s),
             _ => None,
         }?;
-        Some((hit.0, if hit.1 { TargetSource::Config } else { TargetSource::Default }))
+        let key = match mode {
+            Mode::Continuous => "pmhf",
+            Mode::Demand => "pfd",
+        };
+        Some((hit.0, if hit.1.contains(&key) { TargetSource::Config } else { TargetSource::Default }))
     }
 }
 
@@ -575,8 +593,14 @@ pub struct GoalReport {
     /// Why the figure is not credible: events (or the top event) whose probability over the mission time is above
     /// the plausibility bound, with that probability.
     pub implausible: Vec<(String, f64)>,
-    /// The contributing event with the largest Birnbaum importance, and that importance.
+    /// The contributing event with the largest Birnbaum importance (how much the top event moves with it), and that
+    /// importance.
     pub dominant: Option<(String, f64)>,
+    /// The contributing event with the largest Fussell-Vesely importance (the share of the top event that involves
+    /// it), and that importance: the rate most worth checking first.
+    pub largest_contributor: Option<(String, f64)>,
+    /// The goal's `target:` is malformed (`E985`), so it was ignored and the defaults judge the goal.
+    pub target_ignored: bool,
 }
 
 impl GoalReport {
@@ -590,6 +614,13 @@ impl GoalReport {
             (true, None) => Verdict::NoTarget,
             _ => Verdict::NotComputed,
         }
+    }
+
+    /// Whether a `fail` gates (`W033`, `metrics` exit 2): a first-order figure always does; a rate-only or PFDavg
+    /// figure only when the project opted in, by the goal's own `target:` or a `.syscribe.toml` limit, so existing
+    /// models without coverage data do not start failing.
+    pub fn gates(&self) -> bool {
+        self.figure.is_some_and(|f| f.basis == Basis::FirstOrder) || self.declares_target || self.target_source == Some(TargetSource::Config)
     }
 
     /// The figure is rate-only (no diagnostic coverage), so the verdict says so.
@@ -783,11 +814,12 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
     let asil = goal.frontmatter.asil_level.clone();
     let sil = goal.frontmatter.sil_level;
     let goal_target = goal.frontmatter.target.as_ref().and_then(|v| parse_goal_target(v).ok());
+    let target_ignored = goal.frontmatter.target.is_some() && goal_target.is_none();
     let declares_target = goal_target.is_some();
     let goal_target = goal_target.unwrap_or_default();
     let mode = goal_target.mode;
 
-    let (mut targets, mut target_source) = match cfg.targets_for(asil.as_deref(), sil) {
+    let (mut targets, mut target_source) = match cfg.targets_for(asil.as_deref(), sil, mode) {
         Some((t, s)) => (Some(t), Some(s)),
         None => (None, None),
     };
@@ -823,6 +855,8 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
         unverified_rates: Vec::new(),
         implausible: Vec::new(),
         dominant: None,
+        largest_contributor: None,
+        target_ignored,
     };
     // A figure that is per Configuration cannot be judged in the base model (GH #268).
     if gc.pending_placeholders {
@@ -843,7 +877,12 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
             if matches!(ev.origin, EventOrigin::Model) && !is_claimed(rate_status_of(elements, resolver, &ev.id)) && !r.unverified_rates.contains(&ev.id) {
                 r.unverified_rates.push(ev.id.clone());
             }
-            if let Some(p) = ev.probability.filter(|p| *p > cfg.plausible_probability) {
+            // on demand the figure needs λ_DU·TI small, not λ·T: judge each event over the proof-test interval
+            let p = match (mode, goal_target.proof_test_hours) {
+                (Mode::Demand, Some(ti)) => ev.effective_failure_rate.map(|l| l * (1.0 - clamp01(ev.diagnostic_coverage.unwrap_or(0.0))) * ti),
+                _ => ev.probability,
+            };
+            if let Some(p) = p.filter(|p| *p > cfg.plausible_probability) {
                 if !r.implausible.iter().any(|(x, _)| x == &ev.id) {
                     r.implausible.push((ev.id.clone(), p));
                 }
@@ -853,9 +892,17 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
                     r.dominant = Some((ev.id.clone(), b));
                 }
             }
+            if let Some(fv) = ev.fussell_vesely {
+                if r.largest_contributor.as_ref().is_none_or(|(_, d)| fv > *d) {
+                    r.largest_contributor = Some((ev.id.clone(), fv));
+                }
+            }
         }
-        if let Some(p) = a.top_probability.filter(|p| *p > cfg.plausible_probability) {
-            r.implausible.push((format!("top event of {}", a.tree_id), p));
+        // the mission-time top event bounds a continuous figure only; on demand the PFDavg is checked below
+        if mode == Mode::Continuous {
+            if let Some(p) = a.top_probability.filter(|p| *p > cfg.plausible_probability) {
+                r.implausible.push((format!("top event of {}", a.tree_id), p));
+            }
         }
     }
     r.implausible.sort_by(|a, b| b.1.total_cmp(&a.1));
@@ -888,6 +935,9 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
             let pfd = goal_target.proof_test_hours.and_then(|ti| gc.analyses.iter().map(|a| pfd_avg(a, ti)).sum::<Option<f64>>());
             if let Some(pfd) = pfd.filter(|_| !gc.analyses.is_empty()) {
                 r.figure = Some(Figure { metric: "PFDavg", value: pfd, basis: Basis::CutSetPfd });
+                if pfd > cfg.plausible_probability {
+                    r.implausible.push(("PFDavg".into(), pfd));
+                }
                 let mut g = miss("PFDavg", pfd, r.limit()).unwrap_or_default();
                 if has_dc {
                     // SPFM/LFM still judge the diagnostic coverage; the frequency limit does not apply on demand
@@ -898,7 +948,9 @@ pub fn report_for_goal_with(goal: &RawElement, elements: &[RawElement], resolver
                     r.metrics = Some(metrics);
                     r.missing = gc.missing;
                 }
-                r.gate = r.targets.map(|_| g);
+                // with no PFDavg limit (an ASIL table has none) the goal has no target on demand: never a `pass` on
+                // the coverage metrics alone
+                r.gate = r.limit().map(|_| g);
             }
         }
     }
