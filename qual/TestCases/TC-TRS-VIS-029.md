@@ -21,7 +21,9 @@ tags:
 
 Hosted in `crates/syscribe-model/tests/vis_grouping.rs`
 (`cargo test -p syscribe-model --test vis_grouping`), on an inverter with a board holding an MCU,
-firmware allocated to the MCU, a SIL 2 stage and an optional arc-fault part.
+firmware allocated to the MCU, a SIL 2 stage and an optional arc-fault part. The grid-tie
+acceptance case is `crates/syscribe/tests/ibd_grouping_gti.rs` (`GtiIbd` with and without
+`--config CONF-GTI-IN-M2-001`).
 
 ```gherkin
 Feature: IBD grouping and containment (TC-TRS-VIS-029)
