@@ -1,0 +1,802 @@
+{
+  "TC-GTI-PROT-IN-001@CONF-GTI-IN-M3-001": [
+    {
+      "subject": "TC-GTI-PROT-IN-001",
+      "composite": "Behavior::Chain::ProtectionChain",
+      "config": "CONF-GTI-IN-M3-001",
+      "compositeHash": "ccca0c48a1e02f15ea737744912ef7a2730d1b3493fdaf1be411bbe20f2ff8c9",
+      "invariants": [
+        {
+          "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+          "hash": "c252bd9d1393e6b63f5729eacc206b45e8a0e3f9c5c15130872cfb86094bb1fd"
+        },
+        {
+          "scenario": "a dead grid at power-up is never energised",
+          "hash": "cfacadf8001314e09e33532a4c5f21d372af3e396c0d42be49361c665af55984"
+        },
+        {
+          "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+          "hash": "2a601355b7d375579b882f0f3f912b61fe88460e4bdf3996d9330aa6ca67e39b"
+        }
+      ],
+      "sets": [
+        {
+          "label": "FTE-GTI-001",
+          "origin": "single fault FTE-GTI-001",
+          "faults": [
+            "FTE-GTI-001"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-002",
+          "origin": "single fault FTE-GTI-002",
+          "faults": [
+            "FTE-GTI-002"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-003",
+          "origin": "single fault FTE-GTI-003",
+          "faults": [
+            "FTE-GTI-003"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-004",
+          "origin": "single fault FTE-GTI-004",
+          "faults": [
+            "FTE-GTI-004"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-005",
+          "origin": "single fault FTE-GTI-005",
+          "faults": [
+            "FTE-GTI-005"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-006",
+          "origin": "single fault FTE-GTI-006",
+          "faults": [
+            "FTE-GTI-006"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-007",
+          "origin": "single fault FTE-GTI-007",
+          "faults": [
+            "FTE-GTI-007"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-008",
+          "origin": "single fault FTE-GTI-008",
+          "faults": [
+            "FTE-GTI-008"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-009",
+          "origin": "single fault FTE-GTI-009",
+          "faults": [
+            "FTE-GTI-009"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-010",
+          "origin": "single fault FTE-GTI-010",
+          "faults": [
+            "FTE-GTI-010"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-001",
+          "origin": "single fault FM-GTI-001",
+          "faults": [
+            "FM-GTI-001"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-002",
+          "origin": "single fault FM-GTI-002",
+          "faults": [
+            "FM-GTI-002"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-003",
+          "origin": "single fault FM-GTI-003",
+          "faults": [
+            "FM-GTI-003"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-004",
+          "origin": "single fault FM-GTI-004",
+          "faults": [
+            "FM-GTI-004"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-005",
+          "origin": "single fault FM-GTI-005",
+          "faults": [
+            "FM-GTI-005"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-006",
+          "origin": "single fault FM-GTI-006",
+          "faults": [
+            "FM-GTI-006"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-007",
+          "origin": "single fault FM-GTI-007",
+          "faults": [
+            "FM-GTI-007"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-008",
+          "origin": "single fault FM-GTI-008",
+          "faults": [
+            "FM-GTI-008"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-009",
+          "origin": "single fault FM-GTI-009",
+          "faults": [
+            "FM-GTI-009"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-011",
+          "origin": "single fault FM-GTI-011",
+          "faults": [
+            "FM-GTI-011"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-006",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-006"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-008",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-008"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-009",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-009"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-009 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-009",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-004 + FTE-GTI-006 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-004",
+            "FTE-GTI-006",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-004 + FTE-GTI-008 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-004",
+            "FTE-GTI-008",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-006 + FTE-GTI-007 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-006",
+            "FTE-GTI-007",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-007 + FTE-GTI-008 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-007",
+            "FTE-GTI-008",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-001 + FTE-GTI-003 + FTE-GTI-005",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-001",
+            "FTE-GTI-003",
+            "FTE-GTI-005"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-001 + FTE-GTI-002 + FTE-GTI-003",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-001",
+            "FTE-GTI-002",
+            "FTE-GTI-003"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        }
+      ],
+      "cutSetOrder": 3,
+      "cutSetsTruncated": true,
+      "engine": "0.53.0",
+      "recordedAtUnix": 1791803330
+    }
+  ],
+  "TC-GTI-PROT-US-001@CONF-GTI-US-M3-001": [
+    {
+      "subject": "TC-GTI-PROT-US-001",
+      "composite": "Behavior::Chain::ProtectionChain",
+      "config": "CONF-GTI-US-M3-001",
+      "compositeHash": "1b08e8329d702f53f0a1d4c22d977a1fc0321f6116c7e3548e76d02ba90666e4",
+      "invariants": [
+        {
+          "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+          "hash": "4aa3f1267720e183798c937d8fb0e61012b316a70f44fef59c238f5d17fccbef"
+        },
+        {
+          "scenario": "a dead grid at power-up is never energised",
+          "hash": "65bb7595a9cee3ceaece0d461ef0030a087e050c1a2f91ee7547f9a5211e1f2a"
+        },
+        {
+          "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+          "hash": "ea1cddd7531cbadba8787c702d0ff931c0ce5dad7f23a1589b54bba3d728dac1"
+        }
+      ],
+      "sets": [
+        {
+          "label": "FTE-GTI-001",
+          "origin": "single fault FTE-GTI-001",
+          "faults": [
+            "FTE-GTI-001"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-002",
+          "origin": "single fault FTE-GTI-002",
+          "faults": [
+            "FTE-GTI-002"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-003",
+          "origin": "single fault FTE-GTI-003",
+          "faults": [
+            "FTE-GTI-003"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-004",
+          "origin": "single fault FTE-GTI-004",
+          "faults": [
+            "FTE-GTI-004"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-005",
+          "origin": "single fault FTE-GTI-005",
+          "faults": [
+            "FTE-GTI-005"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-006",
+          "origin": "single fault FTE-GTI-006",
+          "faults": [
+            "FTE-GTI-006"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-007",
+          "origin": "single fault FTE-GTI-007",
+          "faults": [
+            "FTE-GTI-007"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-008",
+          "origin": "single fault FTE-GTI-008",
+          "faults": [
+            "FTE-GTI-008"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-009",
+          "origin": "single fault FTE-GTI-009",
+          "faults": [
+            "FTE-GTI-009"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-010",
+          "origin": "single fault FTE-GTI-010",
+          "faults": [
+            "FTE-GTI-010"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-001",
+          "origin": "single fault FM-GTI-001",
+          "faults": [
+            "FM-GTI-001"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-002",
+          "origin": "single fault FM-GTI-002",
+          "faults": [
+            "FM-GTI-002"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-003",
+          "origin": "single fault FM-GTI-003",
+          "faults": [
+            "FM-GTI-003"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-004",
+          "origin": "single fault FM-GTI-004",
+          "faults": [
+            "FM-GTI-004"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-005",
+          "origin": "single fault FM-GTI-005",
+          "faults": [
+            "FM-GTI-005"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-006",
+          "origin": "single fault FM-GTI-006",
+          "faults": [
+            "FM-GTI-006"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-007",
+          "origin": "single fault FM-GTI-007",
+          "faults": [
+            "FM-GTI-007"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-008",
+          "origin": "single fault FM-GTI-008",
+          "faults": [
+            "FM-GTI-008"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-009",
+          "origin": "single fault FM-GTI-009",
+          "faults": [
+            "FM-GTI-009"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FM-GTI-011",
+          "origin": "single fault FM-GTI-011",
+          "faults": [
+            "FM-GTI-011"
+          ],
+          "status": "survived"
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-006",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-006"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-008",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-008"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-005 + FTE-GTI-009",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-005",
+            "FTE-GTI-009"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-009 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 2",
+          "faults": [
+            "FTE-GTI-009",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-004 + FTE-GTI-006 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-004",
+            "FTE-GTI-006",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-004 + FTE-GTI-008 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-004",
+            "FTE-GTI-008",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-006 + FTE-GTI-007 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-006",
+            "FTE-GTI-007",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-007 + FTE-GTI-008 + FTE-GTI-010",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-007",
+            "FTE-GTI-008",
+            "FTE-GTI-010"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-001 + FTE-GTI-003 + FTE-GTI-005",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-001",
+            "FTE-GTI-003",
+            "FTE-GTI-005"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        },
+        {
+          "label": "FTE-GTI-001 + FTE-GTI-002 + FTE-GTI-003",
+          "origin": "cut set of FT-GTI-001, order 3",
+          "faults": [
+            "FTE-GTI-001",
+            "FTE-GTI-002",
+            "FTE-GTI-003"
+          ],
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
+              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "a dead grid at power-up is never energised",
+              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            },
+            {
+              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
+              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+            }
+          ]
+        }
+      ],
+      "cutSetOrder": 3,
+      "cutSetsTruncated": true,
+      "engine": "0.53.0",
+      "recordedAtUnix": 1791803327
+    }
+  ]
+}

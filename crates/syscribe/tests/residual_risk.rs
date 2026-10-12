@@ -248,3 +248,17 @@ fn the_safety_case_and_audit_show_the_campaign() {
     assert!(t.contains("1 unexplained defeat(s) (W940)") && t.contains("FM-TX-004"), "{t}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// The worked example: the grid-tie inverter's recorded campaigns are current, and every defeated set has a decision.
+#[test]
+fn the_grid_tie_campaigns_are_current_and_every_defeat_is_decided() {
+    let gti = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model_gti");
+    let j = records(&gti);
+    for key in ["TC-GTI-PROT-US-001@CONF-GTI-US-M3-001", "TC-GTI-PROT-IN-001@CONF-GTI-IN-M3-001"] {
+        assert!(j.to_string().contains(key), "no recorded campaign {key}");
+    }
+    for conf in ["CONF-GTI-US-M3-001", "CONF-GTI-IN-M3-001"] {
+        let (c, t) = run(&gti, &["validate", "--config", conf, "--deny", "W940", "--deny", "W941", "--deny", "W944"]);
+        assert!(c == 0 && !t.contains("W94"), "{conf}: {t}");
+    }
+}

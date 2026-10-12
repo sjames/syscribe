@@ -9,6 +9,7 @@ syscribe -m model_gti/ validate --all-configs
 syscribe -m model_gti/ simulate TC-GTI-PROT-US-001 --coverage
 syscribe -m model_gti/ mutate TC-GTI-PROT-IN-001
 syscribe -m model_gti/ inject TC-GTI-PROT-US-001 --ft FT-GTI-001 --max-order 3 --report-only --config CONF-GTI-US-M3-001
+syscribe -m model_gti/ validate --config CONF-GTI-US-M3-001 --deny W940   # every defeated set has a decision
 syscribe -m model_gti/ matrix
 ```
 
@@ -21,7 +22,7 @@ syscribe -m model_gti/ matrix
 | `Requirements/` | 8 stakeholder needs, system requirements with regional variants, hardware and software leaves, each traced to a satisfying element and a test |
 | `System/`, `Allocations/` | Hardware (power stage, DC input, AC output, sensing, STM32G474 control board) and firmware components; firmware allocated to the STM32 |
 | `Decisions/` | Requirement-breakdown ADR, the STM32G474 selection ADR, four recorded assumptions (open until confirmed), and the fault-campaign-driven sensing ADR |
-| `Safety/`, `Security/` | HARA (4 goals), architecture FMEA, an FMEA and fault tree with injectable faults, a TARA |
+| `Safety/`, `Security/` | HARA (4 goals), architecture FMEA, an FMEA and fault tree with injectable faults, residual-risk decisions on the defeated fault sets, a TARA |
 | `Behavior/` | Executable state machines: grid monitor, perturbation-response check, supervisor, hardware trip, relays, power stage, MPPT tracker; the grid impedance plant (`Plants/`); the protection chain as a composite with a US and an India variant |
 | `Verification/`, `TestPlans/` | Gherkin test cases (executable and descriptive) and one verification plan per product |
 
@@ -62,6 +63,7 @@ Building this model exposed twelve tool problems. Seven became issues (#310–#3
 | Every diagram showed the whole inverter: a reviewer of the power path or of the protection chain had to find it among the sensing and command lines, and the US and India products could only be compared side by side | #338 | `GtiPowerView` (`include: {kinds: [power]}`, laid out left to right with the power parts in the first band), `GtiProtectionView` (`kinds: [protection]`, style `safety` widening the trip lines) and `GtiSoftwareView` (`domains: [software]`, style `isolate` leaving the hardware out) fade or hide what they are not about. `diagram export Diagrams::GtiIbd --config CONF-GTI-US-M3-001 --config CONF-GTI-IN-M2-001` draws both products in one diagram, marking the arc-fault and rapid-shutdown parts as only the US one's |
 | A diagram exported from the model was committed once and then drifted: nothing noticed when an edit changed what it should draw, and two machines with different fonts exported different sizes | #339 | `generated/Diagrams/` holds the SVG render of every derived diagram, written by `syscribe -m model_gti diagram export --all`; CI runs it with `--check`, which fails naming the file. Text is measured with metrics compiled into syscribe, so the files are the same on every machine. `GtiInternalBlockView` points at `generated/Diagrams/GtiIbd.svg` instead of keeping its own copy |
 | A state machine could not model how the grid answers a perturbation, so the anti-islanding check was only text and the sensing common cause FTE-GTI-009 stayed a single cut set; the invariants never saw an island whose voltage stays in the window | #340 | `Behavior::Plants::GridImpedance` is an in-process `PlantDef` (the line voltage's first-order answer to an injected current, connected, weak or islanded) and `perturb` runs the check of `REQ-GTI-SW-008` against it through the software sensing chain. FTE-GTI-009 now survives alone; with the check's failure (FTE-GTI-010) it is a cut set of order 2, and every minimal cut set up to order 3 is defeated in both regions. `TC-GTI-SAF-009` runs: a balanced island, both chains blind, a weak grid, and the monitor and hardware trip both dead |
+| A campaign's result lived only in the terminal: nothing recorded which fault sets defeated an invariant, nothing said what was decided about them, and a new defeat looked like an old one | #341 | `model_gti/.syscribe/campaigns.json` holds the US and India campaigns (`inject … --record --config CONF-GTI-US-M3-001`, and `CONF-GTI-IN-M3-001`); `Safety/ResidualRisk/` holds one **proposed** `ResidualRisk` per defeated set (`RISK-GTI-001` … `RISK-GTI-010`: four of order 2, six of order 3, every one a multiple-point fault beyond SG-GTI-001's single-fault tolerance), each naming the requirements that address it. `validate --config CONF-GTI-US-M3-001` is clean; remove a decision and it is `W940`. `safety-case --config …` hangs the campaign and its decisions under SG-GTI-001. A change to the protection chain makes the records stale (`W944`): re-run the two `--record` commands |
 
 Not changed in the tool:
 
@@ -70,5 +72,6 @@ Not changed in the tool:
 
 ## Open decisions
 
+* **Residual risk.** The ten decisions in `Safety/ResidualRisk/` are proposed, not accepted: accepting one needs `approvedBy:` from the compliance engineer, who weighs it with the fault tree's failure rates (illustrative and unverified).
 * **Sensing common cause.** The perturbation-response check (`REQ-GTI-SW-008`, run against the grid impedance plant since #340) turns FTE-GTI-009 into a cut set of order 2 with the check's own failure (FTE-GTI-010). Its thresholds (0.1 Ω and 5 Ω around a nominal 0.4 Ω, a 0.2 A injection) and the plant's values are illustrative and unverified; the choice of measure is for the safety engineer to confirm. The current sensing it needs (`REQ-GTI-HW-010`) is not modelled and is verified on the bench (`TC-GTI-SAF-010`).
 * **DC arc hazard in India.** With arc-fault protection optional there, safety goal `SG-GTI-002` has no requirement in an Indian product without it (`W805`). The model gates the goal with the feature; the safety engineer must decide how such a product covers the hazard (installation rules, conductor and connector selection).

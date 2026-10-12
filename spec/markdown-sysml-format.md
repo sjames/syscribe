@@ -7558,16 +7558,16 @@ The validator ties decisions to the latest record of each campaign: `validate` j
 ```yaml
 ---
 type: ResidualRisk
-id: RISK-GTI-002
-name: Software monitor and perturbation check lost together
+id: RISK-GTI-004
+name: Both sensing chains blinded and the perturbation check silent
 status: accepted
-faultSet: [FTE-GTI-005, FTE-GTI-010]
+faultSet: [FTE-GTI-009, FTE-GTI-010]
 goal: SG-GTI-001
-mitigatedBy: [REQ-GTI-HW-008]
-approvedBy: sojan
+mitigatedBy: [REQ-GTI-SYS-045, REQ-GTI-SW-008]
+approvedBy: jdoe
 reviewDate: 2026-10-12
 expires: 2027-10-12
-campaignHash: 0123456789ab
+campaignHash: 1b08e8329d70
 ---
 ```
 
