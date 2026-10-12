@@ -51,10 +51,10 @@ Building this model exposed twelve tool problems. Seven became issues (#310–#3
 | Test plans leaked into other products' projections, and `selection:` swept in inactive test cases | #314, #324 | A plan follows its bound configurations; the hand-written plan `appliesWhen:` is gone |
 | Mutation reported equivalent mutants (swapping transitions with disjoint guards) as survivors | #315 (a) | Not generated; case (b), literal shifts on a stepped variable, stays open |
 | `inject --max-order` printed "too many cut sets" when it only pruned by order | #316 | Says higher-order cut sets were left out |
+| `Configuration` ids had to end in a number (`CONF-GTI-US-M3` was `E200`) | #327 | `CONF-*` needs no numeric suffix, like `FEAT-*` |
 
 Not changed in the tool:
 
-* `Configuration` ids must end in a 3+ digit number (`CONF-GTI-US-M3` is `E200`), unlike `FEAT-` ids.
 * Behaviour parts and architecture parts are separate elements with no declared link (`Behavior::Parts::GridMonitorPart` models `System::Software::ProtectionManager`); today the connection is prose.
 * A state machine cannot express continuous behaviour. Anti-islanding perturbation and waveforms are not modelled; grid loss is a sample with zero voltage, so the `@invariant` never exercises real islanding with the voltage still in window.
 * An `@invariant` cannot express the full safe state ("pwm off and both relays open"): a welded relay makes it impossible by definition. The invariants check that the grid is not energised.

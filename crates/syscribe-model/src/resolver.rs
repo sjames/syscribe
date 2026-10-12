@@ -999,7 +999,7 @@ mod resolve_scoped_ref_tests {
     #[test]
     fn configuration_ids_need_no_numeric_suffix() {
         // GH #327 / REQ-TRS-ID-008: like FEAT-*/BL-*, a variant id may be descriptive.
-        for ok in ["CONF-GTI-US-M3", "CONF-GTI-IN-M2", "CONF-GTI-US-001", "CONF-UAV-DELIVERY-001", "CONF-AB"] {
+        for ok in ["CONF-GTI-US-M3", "CONF-GTI-IN-M2", "CONF-GTI-US-001", "CONF-UAV-DELIVERY-001", "CONF-AB", "CONF-001"] {
             assert!(is_conf_id(ok), "{ok}");
         }
         for bad in ["CONF", "CONF-", "CONF-gti-US", "CONF-G", "CONF-GTI-ABCDEFGHIJKLM", "CONF_GTI", "XCONF-GTI"] {
