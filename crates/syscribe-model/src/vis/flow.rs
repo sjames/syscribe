@@ -17,7 +17,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use super::derive::{features_of, FeatureRole};
 use super::ir::{DiagramGraph, FlowKind, FlowStyle, NodeKind, Side};
+use crate::element::{ElementType, RawElement};
+use crate::resolver::Resolver;
 
 /// Where a rule puts the ports of a flow kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +37,19 @@ pub struct DiagramConfig {
     pub port_sides: BTreeMap<FlowKind, PortSideRule>,
     /// The `W419` messages.
     pub problems: Vec<String>,
+}
+
+/// `#rgb`, `#rrggbb` or a colour name: what every writer (SVG, DOT, Mermaid, PlantUML) accepts unescaped.
+fn is_color(s: &str) -> bool {
+    match s.strip_prefix('#') {
+        Some(hex) => matches!(hex.len(), 3 | 6) && hex.chars().all(|c| c.is_ascii_hexdigit()),
+        None => !s.is_empty() && s.chars().all(|c| c.is_ascii_alphabetic()),
+    }
+}
+
+/// A `stroke-dasharray`: non-negative numbers separated by commas or spaces, or `""` (solid).
+fn is_dash(s: &str) -> bool {
+    s.split([',', ' ']).filter(|t| !t.is_empty()).all(|t| t.parse::<f64>().is_ok_and(|v| v >= 0.0))
 }
 
 fn kinds() -> String {
@@ -83,7 +99,13 @@ impl DiagramConfig {
             let mut st = FlowStyle::default();
             for (key, val) in e {
                 match (key.as_str(), val) {
-                    ("stroke" | "color", toml::Value::String(s)) => st.stroke = Some(s.clone()),
+                    ("stroke" | "color", toml::Value::String(s)) if is_color(s) => st.stroke = Some(s.clone()),
+                    ("stroke" | "color", toml::Value::String(s)) => {
+                        self.problems.push(format!("[diagram.styles.{k}] {key} '{s}' is not a colour (#rgb, #rrggbb or a colour name) — ignored"))
+                    }
+                    ("dash", toml::Value::String(s)) if !is_dash(s) => {
+                        self.problems.push(format!("[diagram.styles.{k}] dash '{s}' is not a dash pattern (numbers such as \"6,3\", or \"\" for solid) — ignored"))
+                    }
                     ("width", toml::Value::Integer(i)) if *i > 0 => st.width = Some(*i as f64),
                     ("width", toml::Value::Float(f)) if *f > 0.0 => st.width = Some(*f),
                     ("dash", toml::Value::String(s)) => st.dash = Some(s.clone()),
@@ -149,40 +171,85 @@ pub fn apply(graph: &mut DiagramGraph, cfg: &DiagramConfig) {
     }
 }
 
-/// `W419` findings on the elements (GH #335): a `flowKind:` or `side:` that names no flow kind or side, on an
-/// element, a `features:` entry or a `connections:` entry. The value is ignored, so the edge or port draws as if
-/// it were absent. Returns `(file, message)` pairs.
-pub fn element_problems(elements: &[crate::element::RawElement]) -> Vec<(String, String)> {
+/// `W419` findings on the elements (GH #335): a `flowKind:` or `side:` that names no flow kind or side, or that
+/// sits where nothing reads it. Read are: `flowKind:` on a `PortDef` or `Port`, on a port feature, on a
+/// `connections:`/`flowConnections:` entry and on a Diagram `edges:` entry; `side:` on a port feature. Every value
+/// flagged is ignored, so the edge or port draws as if it were absent. Returns `(file, message)` pairs.
+pub fn element_problems(elements: &[RawElement], resolver: &Resolver) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let sides = "north, south, east, west";
+    let bad_kind = |k: &str| format!("flowKind '{k}' is not a flow kind (the kinds are: {}) — ignored", kinds());
     for e in elements {
         let fm = &e.frontmatter;
         let who = fm.name.clone().unwrap_or_else(|| e.qualified_name.clone());
+        let mut push = |msg: String| out.push((e.file_path.clone(), format!("'{who}': {msg}")));
         if let Some(k) = fm.flow_kind.as_deref() {
             if FlowKind::parse(k).is_none() {
-                out.push((e.file_path.clone(), format!("'{who}': flowKind '{k}' is not a flow kind (the kinds are: {}) — ignored", kinds())));
+                push(bad_kind(k));
+            } else if !matches!(fm.element_type, Some(ElementType::PortDef) | Some(ElementType::Port)) {
+                push(format!("flowKind is read only on a PortDef, a Port, a port feature or a connection — ignored on a {}", fm.element_type.as_ref().map(|t| t.name()).unwrap_or("element")));
             }
         }
-        let entries = |list: &Option<Vec<serde_yaml::Value>>| list.clone().unwrap_or_default();
-        for (field, list) in [("features", entries(&fm.features)), ("connections", entries(&fm.connections))] {
-            for v in &list {
+        let get = |m: &serde_yaml::Mapping, k: &str| m.get(serde_yaml::Value::String(k.into())).and_then(|v| v.as_str()).map(str::to_string);
+
+        // features: only a port reads `flowKind:`/`side:`
+        let ports: Vec<String> = features_of(e, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).map(|f| f.name).collect();
+        for v in fm.features.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = v else { continue };
+            let name = get(m, "name").unwrap_or_default();
+            let at = format!("features entry '{name}'");
+            let is_port = ports.contains(&name);
+            if let Some(k) = get(m, "flowKind") {
+                if FlowKind::parse(&k).is_none() {
+                    push(format!("{at}: {}", bad_kind(&k)));
+                } else if !is_port {
+                    push(format!("{at}: flowKind is read only on a port — ignored"));
+                }
+            }
+            if let Some(sd) = get(m, "side") {
+                if Side::parse(&sd).is_none() {
+                    push(format!("{at}: side '{sd}' is not a side ({sides}) — ignored"));
+                } else if !is_port {
+                    push(format!("{at}: side is read only on a port — ignored"));
+                }
+            }
+        }
+
+        // connection lists: a connection or flow carries a kind; a binding or succession carries nothing
+        for (field, list, carries) in [
+            ("connections", &fm.connections, true),
+            ("flowConnections", &fm.flow_connections, true),
+            ("bindingConnections", &fm.binding_connections, false),
+            ("successionConnections", &fm.succession_connections, false),
+        ] {
+            for v in list.iter().flatten() {
                 let serde_yaml::Value::Mapping(m) = v else { continue };
-                let get = |k: &str| m.get(serde_yaml::Value::String(k.into())).and_then(|v| v.as_str()).map(str::to_string);
-                let label = get("name").or_else(|| match (get("from"), get("to")) {
-                    (Some(f), Some(t)) => Some(format!("{f} → {t}")),
-                    _ => None,
-                });
-                let at = label.map(|l| format!("{field} entry '{l}'")).unwrap_or_else(|| format!("a {field} entry"));
-                if let Some(k) = get("flowKind") {
+                let ends = ["from", "to", "left", "right", "after", "before"].iter().filter_map(|k| get(m, k)).collect::<Vec<_>>();
+                let at = match get(m, "name") {
+                    Some(n) => format!("{field} entry '{n}'"),
+                    None if ends.len() >= 2 => format!("{field} entry '{} → {}'", ends[0], ends[1]),
+                    None => format!("a {field} entry"),
+                };
+                if let Some(k) = get(m, "flowKind") {
                     if FlowKind::parse(&k).is_none() {
-                        out.push((e.file_path.clone(), format!("'{who}': {at}: flowKind '{k}' is not a flow kind (the kinds are: {}) — ignored", kinds())));
+                        push(format!("{at}: {}", bad_kind(&k)));
+                    } else if !carries {
+                        push(format!("{at}: flowKind is read only on connections and flowConnections — ignored"));
                     }
                 }
-                if field == "features" {
-                    if let Some(s) = get("side") {
-                        if Side::parse(&s).is_none() {
-                            out.push((e.file_path.clone(), format!("'{who}': {at}: side '{s}' is not a side ({sides}) — ignored")));
-                        }
+                if get(m, "side").is_some() {
+                    push(format!("{at}: side is read only on a port feature — ignored"));
+                }
+            }
+        }
+
+        // a manifest diagram's `edges:` map
+        if let Some(serde_yaml::Value::Mapping(edges)) = fm.edges.as_ref() {
+            for (id, v) in edges {
+                let serde_yaml::Value::Mapping(m) = v else { continue };
+                if let Some(k) = get(m, "flowKind") {
+                    if FlowKind::parse(&k).is_none() {
+                        push(format!("edges entry '{}': {}", id.as_str().unwrap_or("?"), bad_kind(&k)));
                     }
                 }
             }

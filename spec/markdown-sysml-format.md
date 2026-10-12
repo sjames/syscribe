@@ -3658,7 +3658,7 @@ A conformant parser must:
 9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
 10. **Manifest well-formedness** (`REQ-TRS-VIS-002`) — a `shapes:`, `edges:` or `layout:` value that is present but malformed is error `E405` naming the entry: the value is not a map, an entry is neither a map nor a qualified-name string, a shape has no `ref` or an edge no `source`/`target`, a `kind:` is outside the §8.16.8 vocabulary, a `parent:` names no shape of the diagram (or forms a cycle), or a `layout:` entry has no numeric `x`/`y`. The offending entry is skipped and the rest of the diagram still builds — a malformed manifest never renders the diagram empty. A `layout:` key that names no shape or edge of the diagram is warning `W416` (a stale pin). The check applies only to diagram kinds that build an IR; `Mermaid` and `PlantUML` bodies have no manifest to check.
 11. **Derived-diagram filters and subject** (`REQ-TRS-VIS-003`) — on a derived diagram (a `subject:` and no `shapes:`, §8.16.1), every `include:`/`exclude:` entry must name a member of the subject, by qualified name or by name relative to the subject; an entry that names nothing is warning `W417` (the entry is ignored, the rest of the filter still applies). `include:`/`exclude:` on a manifest diagram is one `W417` and the fields are ignored — the manifest is drawn as listed. A derived diagram's `subject:` must be of a type the kind's generator accepts (the *Valid `subject:` types* of §8.16.8); otherwise it is warning `W418` and the diagram is drawn empty. An unresolved subject stays `W401` (rule 5) and produces no `W418`.
-12. **Flow kinds** (`REQ-TRS-VIS-028`) — a `flowKind:` (§8.16.9) on an element, a `features:` entry or a `connections:` entry must name a flow kind, and a port feature's `side:` must name a side; a `[diagram]` table in `.syscribe.toml` must be well formed. Anything else is warning `W419` and the value or entry is ignored, so the edge or port draws as if it were absent.
+12. **Flow kinds** (`REQ-TRS-VIS-028`) — a `flowKind:` (§8.16.9) on a `PortDef` or `Port`, a port feature, a `connections:`/`flowConnections:` entry or a manifest `edges:` entry must name a flow kind, a port feature's `side:` must name a side, and neither may appear where nothing reads it; a `[diagram]` table in `.syscribe.toml` must be well formed. Anything else is warning `W419` and the value or entry is ignored, so the edge or port draws as if it were absent.
 13. **IBD grouping** (`REQ-TRS-VIS-029`) — `groupBy:` on a derived IBD must be `domain`; any other value, or `groupBy:` on another diagram kind, is warning `W420` and the field is ignored (§8.16.8.2).
 
 ---
@@ -4402,10 +4402,12 @@ An engineer reads an architecture picture by what the lines carry: power, contro
 
 | Where | Field | Meaning |
 |---|---|---|
-| `PortDef` | `flowKind:` | What every port typed by it carries |
+| `PortDef` | `flowKind:` | What every port typed by it carries; a `PortDef` without one takes the nearest along its `supertype:` chain |
+| `Port` file | `flowKind:` | What this port carries; wins over its `PortDef` (read by manifest diagrams) |
 | port feature (`features:` entry) | `flowKind:` | What this port carries; wins over its `PortDef` |
 | port feature | `side:` | `north`, `east`, `south` or `west`; places this port and wins over every rule |
-| `connections:` entry | `flowKind:` | What this connection carries; wins over either port |
+| `connections:` or `flowConnections:` entry | `flowKind:` | What this connection carries; wins over either port |
+| manifest `edges:` entry | `flowKind:` | What this edge carries; wins over either port shape |
 
 <!-- syscribe-example: skip reason="fragment of a PortDef and a PartDef" -->
 ```yaml
@@ -4421,7 +4423,7 @@ connections:
     flowKind: command
 ```
 
-An edge's kind is the entry's own `flowKind:`, else the source port's, else the target port's. `signal` is drawn as every edge is today; the others have built-in styles (power a heavy orange line, command dashed blue, data dotted green, protection red, mechanical heavy grey). Every writer carries the kind: SVG and sprotty as the class `flow-<kind>` and the stroke, DOT as `class` and `penwidth`, Mermaid as a `%% flow: <kind>` comment and a `linkStyle`, PlantUML as a coloured arrow and a `<<kind>>` stereotype. A model that names no flow kind draws byte-for-byte as before.
+A connection or flow edge takes the entry's own `flowKind:`, else the source port's, else the target port's; in a manifest diagram a port shape takes its `Port`'s or `PortDef`'s kind. A binding or succession carries nothing and keeps its own look. `signal` is drawn as every edge is today; the others have built-in styles (power a heavy orange line, command dashed blue, data dotted green, protection red, mechanical heavy grey). Every writer carries the kind: SVG and sprotty as the class `flow-<kind>` and the stroke, DOT as `class`, `penwidth` and `style=dashed`/`dotted`, Mermaid as a `%% flow: <kind>` comment and a `linkStyle`, PlantUML as a coloured arrow with an integer thickness and a `<<kind>>` stereotype. Mermaid and PlantUML style an edge only when its kind changes its look, so a `signal` edge keeps the theme's. A model that names no flow kind draws byte-for-byte as before.
 
 A project may restyle a kind and place ports by kind in a `[diagram]` table of `.syscribe.toml`:
 
@@ -4436,7 +4438,7 @@ signal = "south"
 command = "north"
 ```
 
-A port takes its kind from its own `flowKind:` or its `PortDef`, else from the first edge joining it. Without a `[diagram.portSides]` rule every port is placed by its direction, as before. A malformed entry, an unknown kind or side is `W419` (§8.16.7 rule 12) and is ignored.
+A port takes its kind from its own `flowKind:` or its `PortDef`, else from the first edge joining it. Without a `[diagram.portSides]` rule every port is placed by its direction, as before. `stroke` must be `#rgb`, `#rrggbb` or a colour name and `dash` a list of numbers, because every writer copies them as they are. A malformed entry, an unknown kind or side, or a `flowKind:`/`side:` where nothing reads it (on another element type, a non-port feature, a binding or succession, or `side:` on a connection) is `W419` (§8.16.7 rule 12) and is ignored. Two ports of different kinds joined by one connection are not checked; the edge takes the source's.
 
 ### 8.17 Architecture Decision Records (ADR)
 

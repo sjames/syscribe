@@ -1121,7 +1121,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             findings.push(warning("W419", &cfg_file, &msg));
         }
     }
-    for (file, msg) in crate::vis::flow::element_problems(elements) {
+    for (file, msg) in crate::vis::flow::element_problems(elements, &Resolver::new(elements)) {
         findings.push(warning("W419", &file, &msg));
     }
 

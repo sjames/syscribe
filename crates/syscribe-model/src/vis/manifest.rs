@@ -383,7 +383,8 @@ pub fn build(
             banners: resolved.map(|e| super::banners_of(e, elements, resolver)).unwrap_or_default(),
             feature: None,
             mark: None,
-            flow: None,
+            // a port shape carries its port's flow kind (GH #335)
+            flow: if s.kind == NodeKind::Port { resolved.and_then(|e| super::derive::port_element_flow(e, elements, resolver)) } else { None },
         });
     }
 
@@ -396,6 +397,11 @@ pub fn build(
                         // An endpoint naming no shape is `W403` in the validator;
                         // the edge cannot be drawn, so it is not part of the graph.
                         if graph.node(&e.source).is_some() && graph.node(&e.target).is_some() {
+                            let mut e = e;
+                            // a connection or flow with no `flowKind:` of its own takes either port's (GH #335)
+                            if e.flow.is_none() && matches!(e.kind, EdgeKind::Connection | EdgeKind::Flow) {
+                                e.flow = graph.node(&e.source).and_then(|n| n.flow).or_else(|| graph.node(&e.target).and_then(|n| n.flow));
+                            }
                             graph.edges.push(e);
                         }
                     }

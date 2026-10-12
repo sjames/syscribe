@@ -17,7 +17,7 @@
 //! links.
 
 use super::ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind, Tone};
-use super::style::{edge_style, edge_style_in, tone_colors};
+use super::style::{edge_style, tone_colors};
 
 /// A Mermaid-safe node id: the IR id with every character outside
 /// `[A-Za-z0-9_]` replaced by `_`.
@@ -297,8 +297,7 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
     }
     // the flow kind's stroke (GH #335): Mermaid styles a link by its index
     for (i, e) in graph.edges.iter().enumerate() {
-        if e.flow.is_some() {
-            let st = edge_style_in(e, graph);
+        if let Some(st) = super::style::flow_override(e, graph) {
             let mut css = format!("stroke:{},stroke-width:{}px", st.stroke, st.width);
             if let Some(d) = &st.dash {
                 css.push_str(&format!(",stroke-dasharray:{}", d.replace(',', " ")));

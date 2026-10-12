@@ -276,9 +276,10 @@ depth: 2
 ### Flow kinds and port sides
 
 An architecture picture reads faster when the lines say what they carry. Put `flowKind:` on a
-`PortDef`, on a port feature, or on a `connections:` entry. The kinds are `power`, `signal`,
-`command`, `data`, `protection` and `mechanical`. An edge takes the entry's own kind, else the
-source port's, else the target port's.
+`PortDef` (a sub-`PortDef` inherits it through `supertype:`), on a `Port`, on a port feature, or on
+a `connections:`/`flowConnections:` entry or a manifest `edges:` entry. The kinds are `power`,
+`signal`, `command`, `data`, `protection` and `mechanical`. An edge takes the entry's own kind, else
+the source port's, else the target port's. Bindings and successions carry nothing and keep their look.
 
 ```yaml
 # Inverter/DcPort.md
@@ -311,7 +312,9 @@ power = "direction"      # in west, out east: the default
 signal = "south"
 ```
 
-An unknown kind or side, or a malformed `[diagram]` entry, is W419 and is ignored.
+`stroke` must be `#rgb`, `#rrggbb` or a colour name and `dash` a list of numbers. An unknown kind or
+side, a malformed `[diagram]` entry, or a `flowKind:`/`side:` where nothing reads it, is W419 and is
+ignored.
 
 ### Codes
 
