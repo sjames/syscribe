@@ -5070,8 +5070,8 @@ A `Configuration` is a complete, named feature selection with parameter bindings
 
 ### ID scheme
 
-Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`:
-- System-level: `CONF-UAV-STD-001`, `CONF-UAV-HVY-001`
+Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+$`. Like `FEAT-*` and `BL-*` ids they need not end in a number, since a variant is often best named descriptively; the numeric form remains valid (a numeric last segment is still subject to the `E023` digit cap):
+- System-level: `CONF-UAV-STD-001`, `CONF-UAV-HVY-001`, `CONF-GTI-US-M3`
 - Component-level: `CONF-PROP-HEX-001`, `CONF-AVI-DUAL-001`
 
 ### Frontmatter schema
