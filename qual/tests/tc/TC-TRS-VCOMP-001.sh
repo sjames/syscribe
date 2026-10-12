@@ -13,9 +13,9 @@ tc_TRS_VCOMP_001() {
     assert_no_code "W047"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$G" simulate Exec::Bench --coverage 2>&1 || true)
     assert_output_contains "coverage of Exec::Bench.stim (Exec::StimM) [environment]"
-    assert_output_contains "(product parts only; environment parts not counted: stim)"
+    assert_output_contains "(product parts only; not counted, as not the product: stim)"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$G" inject Exec::Bench --report-only 2>&1 || true)
-    assert_output_contains "environment parts (not the product): stim"
+    assert_output_contains "parts that are not the product (environment, external): stim"
     assert_output_contains "FM-VC-001 [environment]"
 
     SCENARIO_NAME="each defect is reported"; printf "  ▶ %s\n" "$SCENARIO_NAME"
