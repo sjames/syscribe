@@ -16,6 +16,13 @@ testFunctions:
   - port_side_rule_places_ports_by_flow_and_a_port_side_wins
   - config_parses_styles_and_rules
   - unknown_kinds_sides_and_table_entries_are_w419
+  - plantuml_thickness_is_an_integer_and_signal_keeps_the_plain_arrow
+  - mermaid_styles_only_edges_whose_kind_changes_their_look_at_their_own_index
+  - dot_draws_data_dotted_and_command_dashed
+  - a_binding_carries_no_flow_kind
+  - a_port_def_inherits_its_supertypes_flow_kind
+  - a_manifest_diagram_takes_the_flow_kind_of_its_ports
+  - w419_covers_every_place_a_value_is_read_or_ignored
 tags:
   - diagrams
 ---

@@ -200,3 +200,106 @@ fn unknown_kinds_sides_and_table_entries_are_w419() {
     let g = graph(&root);
     assert_eq!(edge_flow(&g, "sensor-out"), None);
 }
+
+#[test]
+fn plantuml_thickness_is_an_integer_and_signal_keeps_the_plain_arrow() {
+    let root = model(true);
+    let elements = walk_model(&root).unwrap();
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::InvIBD").unwrap();
+    let puml = syscribe_model::plantuml::render_plantuml_in(d, &elements, None, &root).unwrap();
+    for line in puml.lines().filter(|l| l.contains("thickness=")) {
+        let t = line.split("thickness=").nth(1).unwrap();
+        let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+        assert!(!digits.is_empty() && !t[digits.len()..].starts_with('.'), "PlantUML takes an integer thickness: {line}");
+        assert!(line.contains("-[#"), "a PlantUML colour starts with #: {line}");
+    }
+    let signal = puml.lines().find(|l| l.contains("<<signal>>")).expect("the signal edge");
+    assert!(signal.contains(" --> "), "signal adds no style: {signal}");
+}
+
+#[test]
+fn mermaid_styles_only_edges_whose_kind_changes_their_look_at_their_own_index() {
+    let g = graph(&model(true));
+    let mmd = render_mermaid(&g, &no_links).unwrap();
+    let styled: Vec<usize> = mmd.lines().filter_map(|l| l.trim().strip_prefix("linkStyle ")).map(|r| r.split(' ').next().unwrap().parse().unwrap()).collect();
+    let expected: Vec<usize> = g.edges.iter().enumerate().filter(|(_, e)| matches!(e.flow, Some(FlowKind::Power) | Some(FlowKind::Command))).map(|(i, _)| i).collect();
+    assert_eq!(styled, expected, "{mmd}");
+}
+
+#[test]
+fn dot_draws_data_dotted_and_command_dashed() {
+    let root = model(true);
+    let inv = std::fs::read_to_string(root.join("Inv/Inverter.md")).unwrap();
+    write(&root, "Inv/Inverter.md", &inv.replace("flowKind: signal", "flowKind: data"));
+    let dot = render_dot(&graph(&root));
+    let line = |k: &str| dot.lines().find(|l| l.contains(&format!("flow-{k}"))).unwrap().to_string();
+    assert!(line("data").contains("style=dotted"), "{dot}");
+    assert!(line("command").contains("style=dashed"), "{dot}");
+}
+
+#[test]
+fn a_binding_carries_no_flow_kind() {
+    let root = model(true);
+    let inv = std::fs::read_to_string(root.join("Inv/Inverter.md")).unwrap();
+    write(&root, "Inv/Inverter.md", &inv.replace("connections:\n  - from: bus.dcOut\n    to: bridge.dcIn\n", "bindingConnections:\n  - left: bus.dcOut\n    right: bridge.dcIn\nconnections:\n"));
+    let g = graph(&root);
+    let b = g.edges.iter().find(|e| e.source.ends_with("bus-dcout")).expect("the binding");
+    assert_eq!(b.flow, None);
+}
+
+#[test]
+fn a_port_def_inherits_its_supertypes_flow_kind() {
+    let root = model(true);
+    write(&root, "Inv/HvDcPort.md", "---\ntype: PortDef\nname: HvDcPort\nsupertype: Inv::DcPort\n---\n");
+    let bus = std::fs::read_to_string(root.join("Inv/Bus.md")).unwrap();
+    write(&root, "Inv/Bus.md", &bus.replace("Inv::DcPort", "Inv::HvDcPort"));
+    let g = graph(&root);
+    assert_eq!(port(&g, "bus-dcout").flow, Some(FlowKind::Power));
+}
+
+#[test]
+fn a_manifest_diagram_takes_the_flow_kind_of_its_ports() {
+    let root = model(true);
+    write(&root, "Inv/BusOut.md", "---\ntype: Port\nname: BusOut\ntypedBy: Inv::DcPort\ndirection: out\n---\n");
+    write(
+        &root,
+        "Diagrams/Hand.md",
+        "---\ntype: Diagram\nname: Hand\ndiagramKind: IBD\nshapes:\n  bus: {ref: Inv::Bus, kind: block}\n  out: {ref: Inv::BusOut, kind: port, parent: bus}\n  bridge: {ref: Inv::Bridge, kind: block}\nedges:\n  e1: {source: out, target: bridge, kind: connection}\n---\n\nHand.\n",
+    );
+    let elements = walk_model(&root).unwrap();
+    let resolver = Resolver::new(&elements);
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::Hand").unwrap();
+    let g = build_graph_in(d, &elements, &resolver, &root).unwrap().0;
+    assert_eq!(g.node("out").unwrap().flow, Some(FlowKind::Power));
+    assert_eq!(g.edges[0].flow, Some(FlowKind::Power));
+}
+
+#[test]
+fn w419_covers_every_place_a_value_is_read_or_ignored() {
+    let root = model(false);
+    write(&root, ".syscribe.toml", "[diagram.styles.power]\nstroke = \"rgb(1, 2, 3)\"\ndash = \"a,b\"\n");
+    write(&root, "Inv/Bus.md", "---\ntype: PartDef\nname: Bus\nflowKind: power\nfeatures:\n  - name: mass\n    typedBy: ScalarValues::Real\n    flowKind: power\n    side: north\n  - name: dcOut\n    typedBy: Inv::DcPort\n    direction: out\n---\n");
+    let inv = std::fs::read_to_string(root.join("Inv/Inverter.md")).unwrap();
+    write(
+        &root,
+        "Inv/Inverter.md",
+        &inv.replace("connections:\n", "flowConnections:\n  - {from: ctl.gateOut, to: bridge.gate, flowKind: hydraulic}\nbindingConnections:\n  - {left: bus.dcOut, right: bridge.dcIn, flowKind: power}\nconnections:\n").replacen("    to: bridge.dcIn\n", "    to: bridge.dcIn\n    side: west\n", 1),
+    );
+    write(&root, "Diagrams/Hand.md", "---\ntype: Diagram\nname: Hand\ndiagramKind: IBD\nshapes:\n  a: {ref: Inv::Bus, kind: block}\n  b: {ref: Inv::Bridge, kind: block}\nedges:\n  e1: {source: a, target: b, kind: connection, flowKind: steam}\n---\n\nHand.\n");
+    let f = findings(&root);
+    let msgs: Vec<&str> = f.iter().map(|f| f.message.as_str()).collect();
+    for needle in [
+        "'rgb(1, 2, 3)' is not a colour",
+        "dash 'a,b'",
+        "ignored on a PartDef",
+        "'mass': flowKind is read only on a port",
+        "'mass': side is read only on a port",
+        "flowKind 'hydraulic'",
+        "flowKind is read only on connections and flowConnections",
+        "side is read only on a port feature",
+        "edges entry 'e1': flowKind 'steam'",
+    ] {
+        assert!(msgs.iter().any(|m| m.contains(needle)), "no W419 with {needle:?}: {msgs:#?}");
+    }
+    assert_eq!(f.len(), 9, "{msgs:#?}");
+}

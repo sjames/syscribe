@@ -296,6 +296,21 @@ pub fn edge_style_in(edge: &Edge, graph: &DiagramGraph) -> EdgeStyle {
     style
 }
 
+/// The flow kind's style of `edge` when it differs from its edge kind's (GH #335): what a writer that otherwise
+/// leaves an edge to its theme (Mermaid, PlantUML) must spell out. `None` for an edge with no flow kind, or one whose
+/// kind adds nothing (`signal`), so those edges draw exactly as before.
+pub fn flow_override(edge: &Edge, graph: &DiagramGraph) -> Option<EdgeStyle> {
+    edge.flow?;
+    let base = edge_style(edge.kind);
+    let st = edge_style_in(edge, graph);
+    (st.stroke != base.stroke || st.width != base.width || st.dash != base.dash).then_some(st)
+}
+
+/// Whether a `stroke-dasharray` reads as dots rather than dashes: its first dash is 2 or shorter.
+pub fn is_dotted(dash: &str) -> bool {
+    dash.split([',', ' ']).find(|t| !t.is_empty()).and_then(|t| t.trim().parse::<f64>().ok()).is_some_and(|d| d <= 2.0)
+}
+
 /// The style of a port square by direction: white for `in`, dark for `out`,
 /// half-filled (`inout` glyph, drawn by the client) for `inout`, grey for an
 /// undirected port.

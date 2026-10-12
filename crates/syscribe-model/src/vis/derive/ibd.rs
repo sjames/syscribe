@@ -198,13 +198,18 @@ pub fn generate(
             let n = counters.entry(base.clone()).or_insert(0);
             *n += 1;
             let id = if *n == 1 { base } else { format!("{base}-{n}") };
-            // what it carries (GH #335): the entry's own `flowKind:`, else either port's
-            let flow = entry
-                .as_mapping()
-                .and_then(|m| map_str(m, "flowKind"))
-                .and_then(FlowKind::parse)
-                .or_else(|| graph.node(&src).and_then(|n| n.flow))
-                .or_else(|| graph.node(&tgt).and_then(|n| n.flow));
+            // what it carries (GH #335): the entry's own `flowKind:`, else either port's. A binding equates two
+            // features and a succession orders them; neither carries anything, so they keep their own look.
+            let flow = matches!(kind, EdgeKind::Connection | EdgeKind::Flow)
+                .then(|| {
+                    entry
+                        .as_mapping()
+                        .and_then(|m| map_str(m, "flowKind"))
+                        .and_then(FlowKind::parse)
+                        .or_else(|| graph.node(&src).and_then(|n| n.flow))
+                        .or_else(|| graph.node(&tgt).and_then(|n| n.flow))
+                })
+                .flatten();
             edges.push(Edge {
                 id,
                 element_ref: Some(sq.to_string()),

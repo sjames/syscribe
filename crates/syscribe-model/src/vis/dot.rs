@@ -151,8 +151,10 @@ fn edge_attrs(graph: &DiagramGraph, edge: &Edge) -> String {
         attrs.push(format!("arrowtail={}", arrow(s.arrow_source)));
         attrs.push("dir=both".to_string());
     }
-    if s.dash.is_some() {
-        attrs.push("style=dashed".to_string());
+    match s.dash.as_deref() {
+        Some(d) if edge.flow.is_some() && super::style::is_dotted(d) => attrs.push("style=dotted".to_string()),
+        Some(_) => attrs.push("style=dashed".to_string()),
+        None => {}
     }
     if matches!(edge.kind, EdgeKind::CriticalPath | EdgeKind::WeakConduit) || edge.flow.is_some_and(|_| s.width != super::style::EDGE_WIDTH) {
         attrs.push(format!("penwidth={}", s.width));

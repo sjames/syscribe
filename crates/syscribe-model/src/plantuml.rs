@@ -409,13 +409,17 @@ fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
         if src == tgt {
             continue;
         }
-        let connector = match (e.kind, e.flow) {
+        let connector = match (e.kind, crate::vis::style::flow_override(e, graph)) {
             (EdgeKind::Binding, _) => "..>".to_string(),
-            // the flow kind's stroke and a `<<kind>>` stereotype (GH #335)
-            (_, Some(_)) => {
-                let st = crate::vis::style::edge_style_in(e, graph);
-                let line = if st.dash.is_some() { ",dashed" } else { "" };
-                format!("-[{},thickness={}{line}]->", st.stroke, st.width)
+            // the flow kind's stroke (GH #335); PlantUML takes an integer thickness and a `#` colour
+            (_, Some(st)) => {
+                let line = match st.dash.as_deref() {
+                    Some(d) if crate::vis::style::is_dotted(d) => ",dotted",
+                    Some(_) => ",dashed",
+                    None => "",
+                };
+                let color = if st.stroke.starts_with('#') { st.stroke.clone() } else { format!("#{}", st.stroke) };
+                format!("-[{color},thickness={}{line}]->", st.width.round().max(1.0) as i64)
             }
             _ => "-->".to_string(),
         };
