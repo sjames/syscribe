@@ -342,11 +342,13 @@ pub fn closest_feature(raw: &str, elements: &[RawElement]) -> Option<String> {
     let lower_path = as_path.to_lowercase();
     let depth = as_path.split("::").count();
     let mut best: Option<(usize, String)> = None;
+    let mut exact_tails = 0;
     for e in &fdefs {
         // A relative path or leaf is compared with the qname's tail of the same depth.
         let segs: Vec<&str> = e.qualified_name.split("::").collect();
         if !raw.contains("::") && depth < segs.len() {
             let d = edit_distance(&lower_path, &segs[segs.len() - depth..].join("::").to_lowercase());
+            exact_tails += usize::from(d == 0);
             if best.as_ref().is_none_or(|b| d < b.0) {
                 best = Some((d, e.qualified_name.clone()));
             }
@@ -363,6 +365,10 @@ pub fn closest_feature(raw: &str, elements: &[RawElement]) -> Option<String> {
     // Qualified names share long prefixes, so a whole-string limit must stay
     // small or an unrelated sibling (`…::Nope` → `…::Afci`) would be offered.
     let limit = (raw.chars().count() / 8).clamp(1, 3);
+    // Several features share that exact tail (`A::Enable`, `B::Enable`): no single guess.
+    if exact_tails > 1 && best.as_ref().is_some_and(|b| b.0 == 0) {
+        return None;
+    }
     best.filter(|(d, _)| *d <= limit).map(|(_, q)| q)
 }
 

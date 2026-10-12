@@ -34,6 +34,20 @@ id: FEAT-CORTEXM-001
 name: CortexM
 groupKind: optional
 ---
+# Features/Platform/RiscV.md
+---
+type: FeatureDef
+id: FEAT-RISCV-001
+name: RiscV
+groupKind: optional
+---
+# Features/Wdt.md               (an optional top-level feature)
+---
+type: FeatureDef
+id: FEAT-WDT-001
+name: Wdt
+groupKind: optional
+---
 ```
 
 Two orthogonal axes (`ADR-FM-003`):

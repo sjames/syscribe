@@ -817,7 +817,8 @@ fn explode_feature_model_trees(elements: &mut Vec<RawElement>) {
             let sheet_entries: HashSet<String> = tree
                 .iter()
                 .filter_map(|e| e.get("name").and_then(|v| v.as_str()))
-                .filter_map(|n| resolve_feature_ref(n, &sheet.qualified_name))
+                .filter(|n| !n.split('.').any(str::is_empty))
+                .map(|n| join_under_sheet(&sheet.qualified_name, &n.split('.').collect::<Vec<_>>().join("::")))
                 .collect();
             for entry in tree {
                 explode_feature_entry(
