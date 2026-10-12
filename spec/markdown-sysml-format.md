@@ -3441,6 +3441,8 @@ The `svgFile:` frontmatter field identifies the companion file. If absent, the p
 | `port in`, `port out`, `port inout` | Port shapes with direction |
 | `abstract` | Any shape representing an abstract element |
 
+**Deterministic exports** (GH #339, `REQ-TRS-VIS-032`). Node, port and label sizes are computed from advance widths compiled into the tool (Liberation Sans, SIL OFL 1.1, metric-compatible with the Helvetica and Arial that head the SVG `font-family` stack), never from the fonts installed on the machine, so a generated SVG, PlantUML, Mermaid or DOT export is a pure function of the model: the same bytes on every run and machine. A viewer draws the SVG with its own sans font; the sizer's 8 % + 2 px width margin keeps a slightly wider face from clipping. `syscribe diagram export --all` writes every `Diagram` to `<out-dir>/<qualified name as a path>.<ext>` (default `<model>/generated`, SVG), and `--check` exits 1 when a committed file differs from a fresh render, is missing, or is no longer produced, so a model can commit its renders and gate CI on them. A companion `svgFile:` may name such a render (`../generated/Diagrams/X.svg`) instead of keeping its own copy. A PlantUML export names its style `!include` by absolute path, so PlantUML text is reproducible only within one checkout location.
+
 #### 8.16.6 Complete Examples
 
 **Inline mode** (`model/VehicleSystem/Diagrams/VehiclePowertrainIBD.md`):

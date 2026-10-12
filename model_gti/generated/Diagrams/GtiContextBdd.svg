@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1027 385" width="1027" height="385" class="syscribe-diagram BDD" sysml:ref="Diagrams::GtiContextBdd">
+  <title>GtiContextBdd</title>
+  <defs>
+    <marker id="arrow-composition" viewBox="0 0 14 8" refX="14" refY="4" markerWidth="14" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0,4 L 7,0 L 14,4 L 7,8 z" fill="#555" stroke="#555" stroke-width="1.2"/></marker>
+  </defs>
+  <g id="s-context-gticontext" class="block PartDef" sysml:ref="Context::GtiContext">
+    <rect x="62.86" y="20" width="120" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="122.86" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="122.86" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Inverter Context</text>
+  </g>
+  <g id="s-context-installertool" class="block PartDef" sysml:ref="Context::InstallerTool">
+    <rect x="350" y="233" width="120" height="58" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="410" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«actor»</text>
+    <text x="410" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Installer Tool</text>
+  </g>
+  <g id="s-context-installertool-compartment" class="compartment" sysml:ref="Context::InstallerTool">
+    <rect x="350" y="266" width="120" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="358" y="280" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port link (inout)</text>
+  </g>
+  <g id="s-context-ownerheadend" class="block PartDef" sysml:ref="Context::OwnerHeadEnd">
+    <rect x="180" y="233" width="130" height="58" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="245" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«actor»</text>
+    <text x="245" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Owner / Head-End</text>
+  </g>
+  <g id="s-context-ownerheadend-compartment" class="compartment" sysml:ref="Context::OwnerHeadEnd">
+    <rect x="180" y="266" width="130" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="188" y="280" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port link (inout)</text>
+  </g>
+  <g id="s-context-pvarray" class="block PartDef" sysml:ref="Context::PvArray">
+    <rect x="887" y="233" width="120" height="58" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="947" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«actor»</text>
+    <text x="947" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">PV Array</text>
+  </g>
+  <g id="s-context-pvarray-compartment" class="compartment" sysml:ref="Context::PvArray">
+    <rect x="887" y="266" width="120" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="895" y="280" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port dcOut (out)</text>
+  </g>
+  <g id="s-context-rapidshutdowninitiator" class="block PartDef" sysml:ref="Context::RapidShutdownInitiator">
+    <rect x="510" y="233" width="172" height="58" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="596" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«actor»</text>
+    <text x="596" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Rapid Shutdown Initiator</text>
+  </g>
+  <g id="s-context-rapidshutdowninitiator-compartment" class="compartment" sysml:ref="Context::RapidShutdownInitiator">
+    <rect x="510" y="266" width="172" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="518" y="280" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port cmd (out)</text>
+  </g>
+  <g id="s-context-utilitygrid" class="block PartDef" sysml:ref="Context::UtilityGrid">
+    <rect x="20" y="233" width="120" height="58" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="80" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«actor»</text>
+    <text x="80" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Utility Grid</text>
+  </g>
+  <g id="s-context-utilitygrid-compartment" class="compartment" sysml:ref="Context::UtilityGrid">
+    <rect x="20" y="266" width="120" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="28" y="280" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port acIn (in)</text>
+  </g>
+  <g id="s-system-gridtieinverter" class="block PartDef" sysml:ref="System::GridTieInverter">
+    <rect x="722" y="233" width="125" height="132" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="784.5" y="247" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="784.5" y="263" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Grid-Tie Inverter</text>
+    <text x="784.5" y="277" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-gridtieinverter-compartment" class="compartment" sysml:ref="System::GridTieInverter">
+    <rect x="722" y="280" width="125" height="81" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="730" y="294" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port pvIn (in)</text>
+    <text x="730" y="309" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port gridOut (out)</text>
+    <text x="730" y="324" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port comms (inout)</text>
+    <text x="730" y="339" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port rsdIn (in)</text>
+    <text x="730" y="354" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: system</text>
+  </g>
+  <path id="e-composition-s-context-gticontext-s-system-gridtieinverter-inverter" class="edge composition" sysml:ref="Context::GtiContext::inverter" sysml:source="s-context-gticontext" sysml:target="s-system-gridtieinverter" marker-start="url(#arrow-composition)" d="M 148.57,60 L 148.57,100 L 784.5,100 L 784.5,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="763" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">inverter</text>
+  <path id="e-composition-s-context-gticontext-s-context-pvarray-pvarray" class="edge composition" sysml:ref="Context::GtiContext::pvArray" sysml:source="s-context-gticontext" sysml:target="s-context-pvarray" marker-start="url(#arrow-composition)" d="M 165.71,60 L 165.71,90 L 947,90 L 947,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="925" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">pvArray</text>
+  <path id="e-composition-s-context-gticontext-s-context-utilitygrid-grid" class="edge composition" sysml:ref="Context::GtiContext::grid" sysml:source="s-context-gticontext" sysml:target="s-context-utilitygrid" marker-start="url(#arrow-composition)" d="M 80,60 L 80,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="67.5" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">grid</text>
+  <path id="e-composition-s-context-gticontext-s-context-ownerheadend-owner" class="edge composition" sysml:ref="Context::GtiContext::owner" sysml:source="s-context-gticontext" sysml:target="s-context-ownerheadend" marker-start="url(#arrow-composition)" d="M 97.14,60 L 97.14,130 L 245,130 L 245,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="227" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">owner</text>
+  <path id="e-composition-s-context-gticontext-s-context-installertool-installer" class="edge composition" sysml:ref="Context::GtiContext::installer" sysml:source="s-context-gticontext" sysml:target="s-context-installertool" marker-start="url(#arrow-composition)" d="M 114.29,60 L 114.29,120 L 410,120 L 410,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="388" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">installer</text>
+  <path id="e-composition-s-context-gticontext-s-context-rapidshutdowninitiator-rsdinitiator" class="edge composition" sysml:ref="Context::GtiContext::rsdInitiator" sysml:source="s-context-gticontext" sysml:target="s-context-rapidshutdowninitiator" marker-start="url(#arrow-composition)" d="M 131.43,60 L 131.43,110 L 596,110 L 596,233" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="567.5" y="170" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">rsdInitiator</text>
+</svg>

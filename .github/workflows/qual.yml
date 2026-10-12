@@ -117,6 +117,12 @@ jobs:
           ./target/debug/syscribe -m qual/ > qual-self-check.md || true
           exit $fail
 
+      - name: Check the committed grid-tie diagram renders (gating, GH #339)
+        run: |
+          # model_gti/generated is what the model renders to today: an edit to a drawn element
+          # without `diagram export --all` fails here, naming the file to regenerate.
+          ./target/debug/syscribe -m model_gti diagram export --all --check
+
       - name: Run qualification test suite
         run: bash qual/tests/run_qual.sh --no-build
 

@@ -317,8 +317,9 @@ As built (`frontend/src/layout.ts`), the client does three things before and aft
   and label — the `«stereotype»`/`banner`/name labels of a node, a compartment's line
   labels, a port's name label, an edge's `«keyword»`/`label` children — arrives with a
   `size` computed in Rust (`vis::size`) from the shared text metrics (`vis::metrics`:
-  Helvetica → Arial → Liberation Sans → DejaVu Sans, with an approximate fallback and an
-  8 % + 2 px width margin), following the client's own `vbox` recipe. The client treats a
+  since GH #339 the Liberation Sans advance widths compiled into the binary, the metric twin
+  of the Helvetica → Arial head of the CSS stack, never the installed fonts, so every machine
+  computes the same sizes; plus an 8 % + 2 px width margin), following the client's own `vbox` recipe. The client treats a
   carried size as authoritative (`prepareForLayout` keeps it, the hidden pass measures only
   what arrived without one), so the browser's ELK and the embedded ELK start from identical
   numbers. A sized leaf node is laid out at exactly its size (`PORTS MINIMUM_SIZE`); a sized

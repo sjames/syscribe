@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1807 583" width="1807" height="583" class="syscribe-diagram BDD" sysml:ref="Diagrams::GtiBdd">
+  <title>GtiBdd</title>
+  <defs>
+    <marker id="arrow-composition" viewBox="0 0 14 8" refX="14" refY="4" markerWidth="14" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0,4 L 7,0 L 14,4 L 7,8 z" fill="#555" stroke="#555" stroke-width="1.2"/></marker>
+  </defs>
+  <g id="s-system-gridtieinverter" class="block PartDef" sysml:ref="System::GridTieInverter">
+    <rect x="105.5" y="20" width="160" height="118" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="185.5" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="185.5" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Grid-Tie Inverter</text>
+  </g>
+  <g id="s-system-gridtieinverter-compartment" class="compartment" sysml:ref="System::GridTieInverter">
+    <rect x="105.5" y="53" width="160" height="81" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="113.5" y="67" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port pvIn (in)</text>
+    <text x="113.5" y="82" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port gridOut (out)</text>
+    <text x="113.5" y="97" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port comms (inout)</text>
+    <text x="113.5" y="112" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port rsdIn (in)</text>
+    <text x="113.5" y="127" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: system</text>
+  </g>
+  <g id="s-system-hardware-powerstage" class="block PartDef" sysml:ref="System::Hardware::PowerStage">
+    <rect x="1432" y="341" width="191" height="192" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="1527.5" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="1527.5" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Power Stage</text>
+    <text x="1527.5" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-powerstage-compartment" class="compartment" sysml:ref="System::Hardware::PowerStage">
+    <rect x="1432" y="388" width="191" height="141" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="1440" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">boostCount : Integer</text>
+    <text x="1440" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">dcLinkVoltageV : Integer</text>
+    <text x="1440" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">switchingFrequencyKhz : Integer</text>
+    <text x="1440" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port dcIn (in)</text>
+    <text x="1440" y="462" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port acOut (out)</text>
+    <text x="1440" y="477" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port gate : DrivePort (in)</text>
+    <text x="1440" y="492" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port hwDisable : TripPort (in)</text>
+    <text x="1440" y="507" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port tempOut (out)</text>
+    <text x="1440" y="522" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-dcinput" class="block PartDef" sysml:ref="System::Hardware::DcInput">
+    <rect x="1663" y="341" width="124" height="117" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="1725" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="1725" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">DC Input</text>
+    <text x="1725" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-dcinput-compartment" class="compartment" sysml:ref="System::Hardware::DcInput">
+    <rect x="1663" y="388" width="124" height="66" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="1671" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port pvIn (in)</text>
+    <text x="1671" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port dcOut (out)</text>
+    <text x="1671" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port strSense (out)</text>
+    <text x="1671" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-acoutput" class="block PartDef" sysml:ref="System::Hardware::AcOutput">
+    <rect x="20" y="341" width="203" height="162" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="121.5" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="121.5" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">AC Output</text>
+    <text x="121.5" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-acoutput-compartment" class="compartment" sysml:ref="System::Hardware::AcOutput">
+    <rect x="20" y="388" width="203" height="111" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="28" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port acIn (in)</text>
+    <text x="28" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port gridOut (out)</text>
+    <text x="28" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port relayDrive : RelayCmdPort (in)</text>
+    <text x="28" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port relayTrip : TripPort (in)</text>
+    <text x="28" y="462" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port relayAux (out)</text>
+    <text x="28" y="477" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port acSense (out)</text>
+    <text x="28" y="492" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-sensing" class="block PartDef" sysml:ref="System::Hardware::Sensing">
+    <rect x="443" y="341" width="197" height="147" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="541.5" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="541.5" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Sensing</text>
+    <text x="541.5" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-sensing-compartment" class="compartment" sysml:ref="System::Hardware::Sensing">
+    <rect x="443" y="388" width="197" height="96" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="451" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port dcSig (in)</text>
+    <text x="451" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port acSig : SamplePort (in)</text>
+    <text x="451" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port tempSig (in)</text>
+    <text x="451" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port adcOut : SamplePort (out)</text>
+    <text x="451" y="462" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port hwVoltage : SamplePort (out)</text>
+    <text x="451" y="477" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-controlboard" class="block PartDef" sysml:ref="System::Hardware::ControlBoard">
+    <rect x="1042" y="341" width="189" height="222" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="1136.5" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="1136.5" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Control Board</text>
+    <text x="1136.5" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-controlboard-compartment" class="compartment" sysml:ref="System::Hardware::ControlBoard">
+    <rect x="1042" y="388" width="189" height="171" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="1050" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port adcIn (in)</text>
+    <text x="1050" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port hwVin : SamplePort (in)</text>
+    <text x="1050" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port arcIn (in)</text>
+    <text x="1050" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port auxIn (in)</text>
+    <text x="1050" y="462" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port pwmOut (out)</text>
+    <text x="1050" y="477" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port relayCmd (out)</text>
+    <text x="1050" y="492" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port hwTripGate : TripPort (out)</text>
+    <text x="1050" y="507" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port hwTripRelay : TripPort (out)</text>
+    <text x="1050" y="522" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port rsdCmd (out)</text>
+    <text x="1050" y="537" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port comms (inout)</text>
+    <text x="1050" y="552" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-enclosure" class="block PartDef" sysml:ref="System::Hardware::Enclosure">
+    <rect x="1271" y="341" width="121" height="72" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="1331.5" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="1331.5" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Enclosure</text>
+    <text x="1331.5" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-enclosure-compartment" class="compartment" sysml:ref="System::Hardware::Enclosure">
+    <rect x="1271" y="388" width="121" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="1279" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-software-firmware" class="block PartDef" sysml:ref="System::Software::Firmware">
+    <rect x="882" y="341" width="120" height="72" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="942" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="942" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Firmware</text>
+    <text x="942" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-software-firmware-compartment" class="compartment" sysml:ref="System::Software::Firmware">
+    <rect x="882" y="388" width="120" height="21" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="890" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: software</text>
+  </g>
+  <g id="s-system-hardware-arcfaultfrontend" class="block PartDef" sysml:ref="System::Hardware::ArcFaultFrontEnd">
+    <rect x="263" y="341" width="140" height="102" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="333" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="333" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Arc-Fault Front End</text>
+    <text x="333" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-arcfaultfrontend-compartment" class="compartment" sysml:ref="System::Hardware::ArcFaultFrontEnd">
+    <rect x="263" y="388" width="140" height="51" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="271" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port pvTap (in)</text>
+    <text x="271" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port sig (out)</text>
+    <text x="271" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <g id="s-system-hardware-rapidshutdowndriver" class="block PartDef" sysml:ref="System::Hardware::RapidShutdownDriver">
+    <rect x="680" y="341" width="162" height="117" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="761" y="355" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part def»</text>
+    <text x="761" y="371" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Rapid Shutdown Driver</text>
+    <text x="761" y="385" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#8a8f98">external</text>
+  </g>
+  <g id="s-system-hardware-rapidshutdowndriver-compartment" class="compartment" sysml:ref="System::Hardware::RapidShutdownDriver">
+    <rect x="680" y="388" width="162" height="66" fill="none" stroke="#666" stroke-width="1"/>
+    <text x="688" y="402" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port cmd (in)</text>
+    <text x="688" y="417" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port initiator (in)</text>
+    <text x="688" y="432" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">port dcLine (out)</text>
+    <text x="688" y="447" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">domain: hardware</text>
+  </g>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-powerstage-powerstage" class="edge composition" sysml:ref="System::GridTieInverter::powerStage" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-powerstage" marker-start="url(#arrow-composition)" d="M 233.5,138 L 233.5,178 L 1527.5,178 L 1527.5,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="1495.5" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">powerStage</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-dcinput-dcinput" class="edge composition" sysml:ref="System::GridTieInverter::dcInput" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-dcinput" marker-start="url(#arrow-composition)" d="M 249.5,138 L 249.5,168 L 1725,168 L 1725,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="1704" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">dcInput</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-acoutput-acoutput" class="edge composition" sysml:ref="System::GridTieInverter::acOutput" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-acoutput" marker-start="url(#arrow-composition)" d="M 121.5,138 L 121.5,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="96.5" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">acOutput</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-sensing-sensing" class="edge composition" sysml:ref="System::GridTieInverter::sensing" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-sensing" marker-start="url(#arrow-composition)" d="M 153.5,138 L 153.5,228 L 541.5,228 L 541.5,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="519.5" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">sensing</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-controlboard-controlboard" class="edge composition" sysml:ref="System::GridTieInverter::controlBoard" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-controlboard" marker-start="url(#arrow-composition)" d="M 201.5,138 L 201.5,198 L 1136.5,198 L 1136.5,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="1102.5" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">controlBoard</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-enclosure-enclosure" class="edge composition" sysml:ref="System::GridTieInverter::enclosure" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-enclosure" marker-start="url(#arrow-composition)" d="M 217.5,138 L 217.5,188 L 1331.5,188 L 1331.5,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="1305" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">enclosure</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-software-firmware-firmware" class="edge composition" sysml:ref="System::GridTieInverter::firmware" sysml:source="s-system-gridtieinverter" sysml:target="s-system-software-firmware" marker-start="url(#arrow-composition)" d="M 185.5,138 L 185.5,208 L 942,208 L 942,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="918" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">firmware</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-arcfaultfrontend-arcfaultfrontend" class="edge composition" sysml:ref="System::GridTieInverter::arcFaultFrontEnd" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-arcfaultfrontend" marker-start="url(#arrow-composition)" d="M 137.5,138 L 137.5,238 L 333,238 L 333,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="288" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">arcFaultFrontEnd</text>
+  <path id="e-composition-s-system-gridtieinverter-s-system-hardware-rapidshutdowndriver-rapidshutdowndriver" class="edge composition" sysml:ref="System::GridTieInverter::rapidShutdownDriver" sysml:source="s-system-gridtieinverter" sysml:target="s-system-hardware-rapidshutdowndriver" marker-start="url(#arrow-composition)" d="M 169.5,138 L 169.5,218 L 761,218 L 761,341" fill="none" stroke="#555" stroke-width="1.4"/>
+    <text x="707.5" y="278" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" stroke="#fff" stroke-width="3" paint-order="stroke">rapidShutdownDriver</text>
+</svg>

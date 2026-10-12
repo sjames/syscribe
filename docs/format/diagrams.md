@@ -378,6 +378,17 @@ Styles layer as project `[diagram.styles]`, then `[diagram.style.default]`, then
 
 `syscribe diagram export <qname> --config A --config B` draws two products in one diagram: what only `A` has is marked `only A`, what only `B` has `only B`. Parameter values that change no element are not shown; `syscribe diff --config A --config B` reports them.
 
+### Committed renders: `diagram export --all`
+
+`syscribe diagram export --all` renders every diagram in the model into `generated/` beside the
+model (SVG by default), one file per diagram named after its qualified name. Commit that directory
+and run `syscribe diagram export --all --check` in CI: it fails, naming the file, whenever an edit
+changed what a diagram draws and nobody regenerated it. The output does not depend on the machine.
+Box sizes come from Liberation Sans advance widths compiled into syscribe (a metric twin of
+Helvetica and Arial), plus a margin, so a browser drawing the SVG with its own sans font does not
+clip a label. Hand-drawn companion diagrams are skipped. See `model_gti/generated/` for the
+grid-tie inverter's renders.
+
 ### Codes
 
 | Code | Condition |

@@ -1,0 +1,276 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2033 772" width="2033" height="772" class="syscribe-diagram IBD" sysml:ref="Diagrams::GtiProtectionView">
+  <title>GtiProtectionView</title>
+  <g id="s-system-gridtieinverter" class="boundary PartDef" sysml:ref="System::GridTieInverter">
+    <rect x="54" y="20" width="1915" height="672" rx="8" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="88" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="116.5" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Grid-Tie Inverter</text>
+  </g>
+  <g id="s-system-gridtieinverter-pvin" class="port Port in" sysml:ref="System::GridTieInverter::pvIn">
+    <rect x="48" y="539.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="33.5" y="562.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pvIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-gridout" class="port Port out" sysml:ref="System::GridTieInverter::gridOut">
+    <rect x="1963" y="294.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1996" y="317.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-comms" class="port Port inout" sysml:ref="System::GridTieInverter::comms">
+    <rect x="281" y="686" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <path d="M 281,698 L 293,686 L 293,698 z" fill="#1f497d"/>
+    <text x="314" y="709" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">comms</text>
+  </g>
+  <g id="s-system-gridtieinverter-rsdin" class="port Port in" sysml:ref="System::GridTieInverter::rsdIn">
+    <rect x="48" y="100.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="32" y="95.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">rsdIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage" class="block Part" sysml:ref="System::GridTieInverter::powerStage">
+    <rect x="1155.75" y="206" width="181" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="1246.25" y="219" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="1246.25" y="234" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">powerStage : Power Stage</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-dcin" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::dcIn">
+    <rect x="1149.75" y="227.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1138.25" y="249.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-acout" class="port Port out" sysml:ref="System::GridTieInverter::powerStage::acOut">
+    <rect x="1330.75" y="261" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1357.75" y="283" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-gate" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::gate">
+    <rect x="1149.75" y="294.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1138.25" y="316.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gate</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-hwdisable" class="port Port in" sysml:ref="System::GridTieInverter::powerStage::hwDisable">
+    <rect x="1149.75" y="261" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1125.25" y="283" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwDisable</text>
+  </g>
+  <g id="s-system-gridtieinverter-powerstage-tempout" class="port Port out" sysml:ref="System::GridTieInverter::powerStage::tempOut">
+    <rect x="1240.25" y="328" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1273.25" y="350" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">tempOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput" class="block Part faded" sysml:ref="System::GridTieInverter::dcInput" opacity="0.25">
+    <rect x="789" y="200.5" width="131" height="72" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="854.5" y="213.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="854.5" y="228.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">dcInput : DC Input</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-pvin" class="port Port in faded" sysml:ref="System::GridTieInverter::dcInput::pvIn" opacity="0.25">
+    <rect x="783" y="227.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="771.5" y="249.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pvIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-dcout" class="port Port out faded" sysml:ref="System::GridTieInverter::dcInput::dcOut" opacity="0.25">
+    <rect x="914" y="227.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="941" y="249.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-dcinput-strsense" class="port Port out faded" sysml:ref="System::GridTieInverter::dcInput::strSense" opacity="0.25">
+    <rect x="848.5" y="266.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="882" y="288.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">strSense</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput" class="block Part" sysml:ref="System::GridTieInverter::acOutput">
+    <rect x="1555" y="239.5" width="152" height="128" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="1631" y="252.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="1631" y="267.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">acOutput : AC Output</text>
+    <text x="1631" y="279.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2]</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-acin" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::acIn">
+    <rect x="1549" y="261" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1537.5" y="283" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-gridout" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::gridOut">
+    <rect x="1701" y="294.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1731" y="316.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relaydrive" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::relayDrive">
+    <rect x="1549" y="328" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1525" y="350" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayDrive</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relaytrip" class="port Port in" sysml:ref="System::GridTieInverter::acOutput::relayTrip">
+    <rect x="1549" y="294.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1528" y="316.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayTrip</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-relayaux" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::relayAux">
+    <rect x="1599.67" y="361.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1578.67" y="383.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayAux</text>
+  </g>
+  <g id="s-system-gridtieinverter-acoutput-acsense" class="port Port out" sysml:ref="System::GridTieInverter::acOutput::acSense">
+    <rect x="1650.33" y="361.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1683.33" y="383.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acSense</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing" class="block Part faded" sysml:ref="System::GridTieInverter::sensing" opacity="0.25">
+    <rect x="1768" y="94" width="156" height="49" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="1846" y="107" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="1846" y="122" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">sensing : Sensing</text>
+    <text x="1846" y="134" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2]</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-dcsig" class="port Port in faded" sysml:ref="System::GridTieInverter::sensing::dcSig" opacity="0.25">
+    <rect x="1812" y="137" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1838.5" y="172" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-acsig" class="port Port in faded" sysml:ref="System::GridTieInverter::sensing::acSig" opacity="0.25">
+    <rect x="1840" y="137" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1866.5" y="159" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">acSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-tempsig" class="port Port in faded" sysml:ref="System::GridTieInverter::sensing::tempSig" opacity="0.25">
+    <rect x="1784" y="137" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1816" y="159" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">tempSig</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-adcout" class="port Port out faded" sysml:ref="System::GridTieInverter::sensing::adcOut" opacity="0.25">
+    <rect x="1896" y="137" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1926" y="172" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">adcOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-sensing-hwvoltage" class="port Port out faded" sysml:ref="System::GridTieInverter::sensing::hwVoltage" opacity="0.25">
+    <rect x="1868" y="137" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1905" y="159" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwVoltage</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard" class="block Part" sysml:ref="System::GridTieInverter::controlBoard">
+    <rect x="701" y="311.5" width="243" height="178" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="819.5" y="324.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="819.5" y="339.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">controlBoard : Control Board</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-adcin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::adcIn">
+    <rect x="813.5" y="483.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="839.5" y="505.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">adcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwvin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::hwVin">
+    <rect x="855" y="483.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="882.5" y="505.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwVin</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-arcin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::arcIn">
+    <rect x="772" y="483.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="797" y="505.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">arcIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-auxin" class="port Port in" sysml:ref="System::GridTieInverter::controlBoard::auxIn">
+    <rect x="896.5" y="483.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="922.5" y="505.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">auxIn</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-pwmout" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::pwmOut">
+    <rect x="938" y="391.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="970.5" y="413.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pwmOut</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-relaycmd" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::relayCmd">
+    <rect x="938" y="452.83" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="973" y="474.83" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayCmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwtripgate" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::hwTripGate">
+    <rect x="938" y="360.83" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="977.5" y="382.83" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwTripGate</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-hwtriprelay" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::hwTripRelay">
+    <rect x="938" y="422.17" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="979.5" y="444.17" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">hwTripRelay</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-rsdcmd" class="port Port out" sysml:ref="System::GridTieInverter::controlBoard::rsdCmd">
+    <rect x="938" y="330.17" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="969.5" y="352.17" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">rsdCmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-controlboard-comms" class="port Port inout" sysml:ref="System::GridTieInverter::controlBoard::comms">
+    <rect x="730.5" y="483.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <path d="M 730.5,495.5 L 742.5,483.5 L 742.5,495.5 z" fill="#1f497d"/>
+    <text x="760.5" y="505.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">comms</text>
+  </g>
+  <g id="s-system-gridtieinverter-firmware" class="block Part faded" sysml:ref="System::GridTieInverter::firmware" opacity="0.25">
+    <rect x="721" y="362.5" width="142" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="792" y="375.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="792" y="390.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">firmware : Firmware</text>
+  </g>
+  <g id="s-system-gridtieinverter-enclosure" class="block Part faded" sysml:ref="System::GridTieInverter::enclosure" opacity="0.25">
+    <rect x="210" y="622" width="154" height="40" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="287" y="635" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="287" y="650" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">enclosure : Enclosure</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend" class="block Part faded" sysml:ref="System::GridTieInverter::arcFaultFrontEnd" opacity="0.25">
+    <rect x="421" y="556.5" width="260" height="63" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4" stroke-dasharray="4,3"/>
+    <text x="554" y="569.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="554" y="584.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">arcFaultFrontEnd : Arc-Fault Front End</text>
+    <text x="554" y="597.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">when Afci</text>
+    <text x="554" y="609.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2] [optional]</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend-pvtap" class="port Port in faded" sysml:ref="System::GridTieInverter::arcFaultFrontEnd::pvTap" opacity="0.25">
+    <rect x="415" y="579" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="399" y="601" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pvTap</text>
+  </g>
+  <g id="s-system-gridtieinverter-arcfaultfrontend-sig" class="port Port out faded" sysml:ref="System::GridTieInverter::arcFaultFrontEnd::sig" opacity="0.25">
+    <rect x="548" y="613.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="568.5" y="635.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">sig</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver" class="block Part faded" sysml:ref="System::GridTieInverter::rapidShutdownDriver" opacity="0.25">
+    <rect x="1119" y="75" width="305" height="100" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4" stroke-dasharray="4,3"/>
+    <text x="1271.5" y="88" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="1271.5" y="103" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">rapidShutdownDriver : Rapid Shutdown Driver</text>
+    <text x="1271.5" y="116" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">when RapidShutdown</text>
+    <text x="1271.5" y="128" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 1] [optional]</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver-cmd" class="port Port in faded" sysml:ref="System::GridTieInverter::rapidShutdownDriver::cmd" opacity="0.25">
+    <rect x="1113" y="137.67" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1101.5" y="159.67" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">cmd</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver-initiator" class="port Port in faded" sysml:ref="System::GridTieInverter::rapidShutdownDriver::initiator" opacity="0.25">
+    <rect x="1113" y="100.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1095" y="96.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">initiator</text>
+  </g>
+  <g id="s-system-gridtieinverter-rapidshutdowndriver-dcline" class="port Port out faded" sysml:ref="System::GridTieInverter::rapidShutdownDriver::dcLine" opacity="0.25">
+    <rect x="1418" y="119" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1446.5" y="141" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">dcLine</text>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-dcinput-dcout-s-system-gridtieinverter-powerstage-dcin" class="edge connection flow-power" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-dcinput-dcout" sysml:target="s-system-gridtieinverter-powerstage-dcin" d="M 926,233.5 L 1149.75,233.5" fill="none" stroke="#b35900" stroke-width="2.6"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-powerstage-acout-s-system-gridtieinverter-acoutput-acin" class="edge connection flow-power" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-powerstage-acout" sysml:target="s-system-gridtieinverter-acoutput-acin" d="M 1342.75,267 L 1549,267" fill="none" stroke="#b35900" stroke-width="2.6"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-dcinput-strsense-s-system-gridtieinverter-sensing-dcsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-dcinput-strsense" sysml:target="s-system-gridtieinverter-sensing-dcsig" d="M 854.5,278.5 L 854.5,301.5 L 1018,301.5 L 1018,195 L 1818,195 L 1818,149" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-acoutput-acsense-s-system-gridtieinverter-sensing-acsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-acoutput-acsense" sysml:target="s-system-gridtieinverter-sensing-acsig" d="M 1656.33,373.5 L 1656.33,396.5 L 1846,396.5 L 1846,149" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-powerstage-tempout-s-system-gridtieinverter-sensing-tempsig" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-powerstage-tempout" sysml:target="s-system-gridtieinverter-sensing-tempsig" d="M 1246.25,340 L 1246.25,363 L 1472,363 L 1472,206 L 1758,206 L 1758,185 L 1790,185 L 1790,149" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-sensing-adcout-s-system-gridtieinverter-controlboard-adcin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-sensing-adcout" sysml:target="s-system-gridtieinverter-controlboard-adcin" d="M 1902,149 L 1902,550.5 L 819.5,550.5 L 819.5,495.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-sensing-hwvoltage-s-system-gridtieinverter-controlboard-hwvin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-sensing-hwvoltage" sysml:target="s-system-gridtieinverter-controlboard-hwvin" d="M 1874,149 L 1874,539.5 L 861,539.5 L 861,495.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-arcfaultfrontend-sig-s-system-gridtieinverter-controlboard-arcin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-arcfaultfrontend-sig" sysml:target="s-system-gridtieinverter-controlboard-arcin" d="M 554,625.5 L 554,648.5 L 778,648.5 L 778,495.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-acoutput-relayaux-s-system-gridtieinverter-controlboard-auxin" class="edge connection flow-signal" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-acoutput-relayaux" sysml:target="s-system-gridtieinverter-controlboard-auxin" d="M 1605.67,373.5 L 1605.67,528.5 L 902.5,528.5 L 902.5,495.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-controlboard-pwmout-s-system-gridtieinverter-powerstage-gate" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-pwmout" sysml:target="s-system-gridtieinverter-powerstage-gate" stroke-dasharray="6,3" d="M 950,397.5 L 1048,397.5 L 1048,300.5 L 1149.75,300.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-controlboard-relaycmd-s-system-gridtieinverter-acoutput-relaydrive" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-relaycmd" sysml:target="s-system-gridtieinverter-acoutput-relaydrive" stroke-dasharray="6,3" d="M 950,458.83 L 1068,458.83 L 1068,384 L 1492,384 L 1492,334 L 1549,334" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-hwtripgate-s-system-gridtieinverter-powerstage-hwdisable" class="edge connection flow-protection" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-hwtripgate" sysml:target="s-system-gridtieinverter-powerstage-hwdisable" d="M 950,366.83 L 1038,366.83 L 1038,267 L 1149.75,267" fill="none" stroke="#b3261e" stroke-width="4"/>
+  <path id="e-connection-s-system-gridtieinverter-controlboard-hwtriprelay-s-system-gridtieinverter-acoutput-relaytrip" class="edge connection flow-protection" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-hwtriprelay" sysml:target="s-system-gridtieinverter-acoutput-relaytrip" d="M 950,428.17 L 1058,428.17 L 1058,373 L 1482,373 L 1482,300.5 L 1549,300.5" fill="none" stroke="#b3261e" stroke-width="4"/>
+  <g class="faded" opacity="0.25">
+  <path id="e-connection-s-system-gridtieinverter-controlboard-rsdcmd-s-system-gridtieinverter-rapidshutdowndriver-cmd" class="edge connection flow-command" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-controlboard-rsdcmd" sysml:target="s-system-gridtieinverter-rapidshutdowndriver-cmd" stroke-dasharray="6,3" d="M 950,336.17 L 1028,336.17 L 1028,143.67 L 1113,143.67" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-binding-s-system-gridtieinverter-pvin-s-system-gridtieinverter-dcinput-pvin" class="edge binding" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-pvin" sysml:target="s-system-gridtieinverter-dcinput-pvin" stroke-dasharray="4,4" d="M 48,545.5 L 691,545.5 L 691,233.5 L 783,233.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="287" y="558.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-binding-s-system-gridtieinverter-pvin-s-system-gridtieinverter-arcfaultfrontend-pvtap" class="edge binding" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-pvin" sysml:target="s-system-gridtieinverter-arcfaultfrontend-pvtap" stroke-dasharray="4,4" d="M 48,545.5 L 200,545.5 L 200,585 L 415,585" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="287" y="598" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-binding-s-system-gridtieinverter-gridout-s-system-gridtieinverter-acoutput-gridout" class="edge binding" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-gridout" sysml:target="s-system-gridtieinverter-acoutput-gridout" stroke-dasharray="4,4" d="M 1975,300.5 L 1713,300.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="1855.5" y="313.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-binding-s-system-gridtieinverter-comms-s-system-gridtieinverter-controlboard-comms" class="edge binding" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-comms" sysml:target="s-system-gridtieinverter-controlboard-comms" stroke-dasharray="4,4" d="M 287,698 L 287,672 L 374,672 L 374,518.5 L 736.5,518.5 L 736.5,495.5" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="532.5" y="531.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+  </g>
+  <g class="faded" opacity="0.25">
+  <path id="e-binding-s-system-gridtieinverter-rsdin-s-system-gridtieinverter-rapidshutdowndriver-initiator" class="edge binding" sysml:ref="System::GridTieInverter" sysml:source="s-system-gridtieinverter-rsdin" sysml:target="s-system-gridtieinverter-rapidshutdowndriver-initiator" stroke-dasharray="4,4" d="M 48,106.33 L 1113,106.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="532.5" y="119.33" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+  </g>
+  <g class="legend">
+    <rect x="20" y="732" width="16" height="10" rx="2" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="44" y="741" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">safety-rated: SIL, ASIL or a safety stereotype</text>
+    <text x="20" y="757" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" font-style="italic">Badges name the safety level; a heavy outline is safety-rated.</text>
+  </g>
+</svg>

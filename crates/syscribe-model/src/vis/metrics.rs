@@ -5,18 +5,20 @@
 //! - [`FontMetrics`]: real glyph advances from a system font found through
 //!   `fontdb` and measured with `ab_glyph`;
 //! - [`ApproxMetrics`]: a per-character estimate used when no suitable
-//!   system font is installed (containers, CI images without fonts).
+//!   system font is installed (containers, CI images without fonts);
+//! - [`BundledMetrics`]: the advance widths of Liberation Sans compiled into
+//!   the binary ([`super::metrics_table`]), the same on every machine.
 //!
 //! [`load_metrics`] keeps the family stack the MagicGrid report has always
 //! used (Roboto, Inter, Noto Sans, DejaVu Sans, any sans), so its SVG output
-//! is unchanged by the move. [`diagram_metrics`] is the process-wide instance
-//! the diagram sizer ([`super::size`]) uses: the Helvetica → Arial →
-//! Liberation Sans → DejaVu Sans → any-sans stack that the static SVG writer
-//! names in its `font-family` and that the browser's CSS stack must match
-//! (`ADR-SYS-VIS-001`, addendum): the sizer adds a safety margin on top so a
-//! slightly wider browser font never clips a label.
+//! is unchanged by the move. [`diagram_metrics`] is what the diagram sizer
+//! ([`super::size`]) uses: [`BundledMetrics`], never the installed fonts, so
+//! the same model gives byte-identical diagrams on every machine (GH #339).
+//! Liberation Sans is metric-compatible with Arial and Helvetica, the head of
+//! the `font-family` stack the static SVG writer names and the browser's CSS
+//! must match (`ADR-SYS-VIS-001`, addendum); the sizer adds a safety margin on
+//! top so a slightly wider browser font never clips a label.
 
-use std::sync::OnceLock;
 
 use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
 
@@ -60,6 +62,25 @@ impl TextMetrics for ApproxMetrics {
     }
 }
 
+/// The advance widths of Liberation Sans, compiled in (GH #339): no font file is read, so the result does not
+/// depend on what the machine has installed. A character outside the table is measured as [`ApproxMetrics`] does.
+pub struct BundledMetrics;
+
+impl BundledMetrics {
+    fn advance(c: char, bold: bool) -> Option<f64> {
+        let table = super::metrics_table::ADVANCES;
+        let i = table.binary_search_by(|(k, _, _)| k.cmp(&c)).ok()?;
+        let (_, r, b) = table[i];
+        Some(f64::from(if bold { b } else { r }) / super::metrics_table::UNITS_PER_EM)
+    }
+}
+
+impl TextMetrics for BundledMetrics {
+    fn advance_width(&self, text: &str, font_size: f64, bold: bool) -> f64 {
+        text.chars().map(|c| Self::advance(c, bold).unwrap_or(0.58) * font_size).sum()
+    }
+}
+
 /// The MagicGrid report's family stack (unchanged since `svgkit`).
 pub const REPORT_FAMILIES: &[&str] = &["Roboto", "Inter", "Noto Sans", "DejaVu Sans"];
 
@@ -83,12 +104,11 @@ pub fn load_metrics_for(families: &[&str]) -> Box<dyn TextMetrics> {
     }
 }
 
-/// The process-wide diagram metrics ([`DIAGRAM_FAMILIES`]), loaded on first
-/// use. System-font discovery costs tens of milliseconds, so every sizer
-/// call shares one instance.
+/// The diagram metrics: [`BundledMetrics`], whatever fonts are installed (GH #339), so a diagram exported here
+/// and one exported on a machine with other fonts, or none, are the same file.
 pub fn diagram_metrics() -> &'static dyn TextMetrics {
-    static METRICS: OnceLock<Box<dyn TextMetrics>> = OnceLock::new();
-    METRICS.get_or_init(|| load_metrics_for(DIAGRAM_FAMILIES)).as_ref()
+    static METRICS: BundledMetrics = BundledMetrics;
+    &METRICS
 }
 
 fn try_load_font_metrics(families: &[&str]) -> Option<FontMetrics> {
@@ -133,6 +153,28 @@ mod tests {
         assert!(m.advance_width("abcd", 12.0, true) > m.advance_width("abcd", 10.0, true));
         assert_eq!(m.advance_width("", 12.0, false), 0.0);
         assert!((m.line_height(10.0) - 13.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bundled_metrics_are_liberation_sans_and_fall_back_per_character() {
+        let m = BundledMetrics;
+        // 'M' is 1706/2048 em regular, 1706 bold; 'i' 455 / 569
+        assert!((m.advance_width("M", 2048.0, false) - 1706.0).abs() < 1e-9);
+        assert!((m.advance_width("i", 2048.0, true) - 569.0).abs() < 1e-9);
+        assert!(m.advance_width("Wide", 12.0, true) > m.advance_width("Wide", 12.0, false));
+        // a character outside the table is measured as ApproxMetrics does
+        assert!((m.advance_width("日", 10.0, false) - 5.8).abs() < 1e-9);
+        // the table is sorted, so every entry is found
+        let t = super::super::metrics_table::ADVANCES;
+        assert!(t.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+
+    #[test]
+    fn the_diagram_sizer_measures_with_the_bundled_table_not_the_installed_fonts() {
+        // whatever this machine has installed, the sizer's widths are the table's
+        for (text, bold) in [("Grid-Tie Inverter", true), ("«part def»", false), ("pvIn: DcPowerPort", false)] {
+            assert_eq!(diagram_metrics().advance_width(text, 12.0, bold), BundledMetrics.advance_width(text, 12.0, bold));
+        }
     }
 
     #[test]

@@ -1,0 +1,250 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 2226 544" width="2226" height="544" class="syscribe-diagram IBD" sysml:ref="Diagrams::FirmwareIbd">
+  <title>FirmwareIbd</title>
+  <g id="s-system-software-firmware" class="boundary PartDef" sysml:ref="System::Software::Firmware">
+    <rect x="20" y="20" width="2186" height="448" rx="8" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="48" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="55" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Firmware</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor" class="block Part" sysml:ref="System::Software::Firmware::supervisor">
+    <rect x="1135" y="108" width="164" height="268" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="1217" y="121" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="1217" y="136" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">supervisor : Supervisor</text>
+    <text x="1217" y="148" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 1]</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-profile" class="port Port in" sysml:ref="System::Software::Firmware::supervisor::profile">
+    <rect x="1129" y="189.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1113.5" y="211.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">profile</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-trip" class="port Port in" sysml:ref="System::Software::Firmware::supervisor::trip">
+    <rect x="1129" y="236" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1120" y="258" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">trip</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-insulation" class="port Port in" sysml:ref="System::Software::Firmware::supervisor::insulation">
+    <rect x="1129" y="282.67" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1106" y="304.67" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">insulation</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-selftestfail" class="port Port in" sysml:ref="System::Software::Firmware::supervisor::selfTestFail">
+    <rect x="1129" y="329.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1102" y="351.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">selfTestFail</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-cmdin" class="port Port in" sysml:ref="System::Software::Firmware::supervisor::cmdIn">
+    <rect x="1129" y="142.67" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1113.5" y="164.67" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">cmdIn</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-mpptctl" class="port Port out" sysml:ref="System::Software::Firmware::supervisor::mpptCtl">
+    <rect x="1293" y="264" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1324" y="286" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">mpptCtl</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-gridctl" class="port Port out" sysml:ref="System::Software::Firmware::supervisor::gridCtl">
+    <rect x="1293" y="208" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1321.5" y="230" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridCtl</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-event" class="port Port out" sysml:ref="System::Software::Firmware::supervisor::event">
+    <rect x="1293" y="320" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1319" y="342" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">event</text>
+  </g>
+  <g id="s-system-software-firmware-supervisor-relaycmd" class="port Port out" sysml:ref="System::Software::Firmware::supervisor::relayCmd">
+    <rect x="1293" y="152" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1328" y="174" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayCmd</text>
+  </g>
+  <g id="s-system-software-firmware-mppt" class="block Part" sysml:ref="System::Software::Firmware::mppt">
+    <rect x="1441" y="188" width="163" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="1522.5" y="201" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="1522.5" y="216" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">mppt : MPPT Controller</text>
+  </g>
+  <g id="s-system-software-firmware-mppt-ctl" class="port Port in" sysml:ref="System::Software::Firmware::mppt::ctl">
+    <rect x="1435" y="222.67" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1428" y="218.67" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">ctl</text>
+  </g>
+  <g id="s-system-software-firmware-mppt-stringsamples" class="port Port in" sysml:ref="System::Software::Firmware::mppt::stringSamples">
+    <rect x="1435" y="269.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1402" y="291.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">stringSamples</text>
+  </g>
+  <g id="s-system-software-firmware-mppt-powerref" class="port Port out" sysml:ref="System::Software::Firmware::mppt::powerRef">
+    <rect x="1598" y="222.67" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1633" y="218.67" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">powerRef</text>
+  </g>
+  <g id="s-system-software-firmware-mppt-stringdata" class="port Port out" sysml:ref="System::Software::Firmware::mppt::stringData">
+    <rect x="1598" y="269.33" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1634.5" y="291.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">stringData</text>
+  </g>
+  <g id="s-system-software-firmware-gridcontroller" class="block Part" sysml:ref="System::Software::Firmware::gridController">
+    <rect x="1742" y="91.33" width="209" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="1846.5" y="104.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="1846.5" y="119.33" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">gridController : Grid Controller</text>
+  </g>
+  <g id="s-system-software-firmware-gridcontroller-ctl" class="port Port in" sysml:ref="System::Software::Firmware::gridController::ctl">
+    <rect x="1736" y="114.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1729" y="136.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">ctl</text>
+  </g>
+  <g id="s-system-software-firmware-gridcontroller-powerref" class="port Port in" sysml:ref="System::Software::Firmware::gridController::powerRef">
+    <rect x="1736" y="149.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1713" y="171.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">powerRef</text>
+  </g>
+  <g id="s-system-software-firmware-gridcontroller-gridsamples" class="port Port in" sysml:ref="System::Software::Firmware::gridController::gridSamples">
+    <rect x="1736" y="184.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1706.5" y="206.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridSamples</text>
+  </g>
+  <g id="s-system-software-firmware-gridcontroller-pwm" class="port Port out" sysml:ref="System::Software::Firmware::gridController::pwm">
+    <rect x="1945" y="149.33" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1969.5" y="171.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">pwm</text>
+  </g>
+  <g id="s-system-software-firmware-protection" class="block Part" sysml:ref="System::Software::Firmware::protection">
+    <rect x="779" y="136" width="214" height="156" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="886" y="149" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="886" y="164" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">protection : Protection Manager</text>
+    <text x="886" y="176" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2]</text>
+  </g>
+  <g id="s-system-software-firmware-protection-gridsamples" class="port Port in" sysml:ref="System::Software::Firmware::protection::gridSamples">
+    <rect x="773" y="250" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="743.5" y="272" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">gridSamples</text>
+  </g>
+  <g id="s-system-software-firmware-protection-arctrip" class="port Port in" sysml:ref="System::Software::Firmware::protection::arcTrip">
+    <rect x="773" y="208" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="755.5" y="230" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">arcTrip</text>
+  </g>
+  <g id="s-system-software-firmware-protection-profile" class="port Port in" sysml:ref="System::Software::Firmware::protection::profile">
+    <rect x="773" y="166" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="757.5" y="188" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">profile</text>
+  </g>
+  <g id="s-system-software-firmware-protection-trip" class="port Port out" sysml:ref="System::Software::Firmware::protection::trip">
+    <rect x="987" y="236" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1008" y="258" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">trip</text>
+  </g>
+  <g id="s-system-software-firmware-protection-relaycmd" class="port Port out" sysml:ref="System::Software::Firmware::protection::relayCmd">
+    <rect x="987" y="180" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1022" y="176" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">relayCmd</text>
+  </g>
+  <g id="s-system-software-firmware-profile" class="block Part" sysml:ref="System::Software::Firmware::profile">
+    <rect x="445" y="86" width="197" height="72" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="543.5" y="99" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="543.5" y="114" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">profile : Grid Profile Manager</text>
+  </g>
+  <g id="s-system-software-firmware-profile-write" class="port Port in" sysml:ref="System::Software::Firmware::profile::write">
+    <rect x="439" y="116" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="426.5" y="138" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">write</text>
+  </g>
+  <g id="s-system-software-firmware-profile-profile" class="port Port out" sysml:ref="System::Software::Firmware::profile::profile">
+    <rect x="636" y="116" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="663.5" y="138" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">profile</text>
+  </g>
+  <g id="s-system-software-firmware-arcanalyser" class="block Part" sysml:ref="System::Software::Firmware::arcAnalyser">
+    <rect x="453" y="178" width="219" height="72" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4" stroke-dasharray="4,3"/>
+    <text x="562.5" y="191" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="562.5" y="206" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">arcAnalyser : Arc-Fault Analyser</text>
+    <text x="562.5" y="219" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">when Afci</text>
+    <text x="562.5" y="231" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2] [optional]</text>
+  </g>
+  <g id="s-system-software-firmware-arcanalyser-arcsamples" class="port Port in" sysml:ref="System::Software::Firmware::arcAnalyser::arcSamples">
+    <rect x="447" y="208" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="419" y="230" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">arcSamples</text>
+  </g>
+  <g id="s-system-software-firmware-arcanalyser-trip" class="port Port out" sysml:ref="System::Software::Firmware::arcAnalyser::trip">
+    <rect x="666" y="208" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="687" y="230" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">trip</text>
+  </g>
+  <g id="s-system-software-firmware-insulationmonitor" class="block Part" sysml:ref="System::Software::Firmware::insulationMonitor">
+    <rect x="762" y="312" width="251" height="72" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="887.5" y="325" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«part»</text>
+    <text x="887.5" y="340" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">insulationMonitor : Insulation Monitor</text>
+    <text x="887.5" y="352" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[SIL 2]</text>
+  </g>
+  <g id="s-system-software-firmware-insulationmonitor-measure" class="port Port in" sysml:ref="System::Software::Firmware::insulationMonitor::measure">
+    <rect x="756" y="342" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="735" y="364" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">measure</text>
+  </g>
+  <g id="s-system-software-firmware-insulationmonitor-result" class="port Port out" sysml:ref="System::Software::Firmware::insulationMonitor::result">
+    <rect x="1007" y="342" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1033" y="364" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">result</text>
+  </g>
+  <g id="s-system-software-firmware-stringmonitor" class="block Part" sysml:ref="System::Software::Firmware::stringMonitor">
+    <rect x="1732" y="239.33" width="202" height="72" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4" stroke-dasharray="4,3"/>
+    <text x="1833" y="252.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">«part»</text>
+    <text x="1833" y="267.33" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">stringMonitor : String Monitor</text>
+    <text x="1833" y="280.33" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">when StringMonitoring</text>
+    <text x="1833" y="292.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#8a8f98">[optional]</text>
+  </g>
+  <g id="s-system-software-firmware-stringmonitor-stringdata" class="port Port in" sysml:ref="System::Software::Firmware::stringMonitor::stringData">
+    <rect x="1726" y="269.33" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1701.5" y="291.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">stringData</text>
+  </g>
+  <g id="s-system-software-firmware-stringmonitor-warning" class="port Port out" sysml:ref="System::Software::Firmware::stringMonitor::warning">
+    <rect x="1928" y="269.33" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1959.5" y="291.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">warning</text>
+  </g>
+  <g id="s-system-software-firmware-comms" class="block Part" sysml:ref="System::Software::Firmware::comms">
+    <rect x="142" y="197.5" width="161" height="128" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="222.5" y="210.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="222.5" y="225.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">comms : Comms Stack</text>
+  </g>
+  <g id="s-system-software-firmware-comms-fieldbus" class="port Port inout" sysml:ref="System::Software::Firmware::comms::fieldbus">
+    <rect x="216.5" y="319.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <path d="M 216.5,331.5 L 228.5,319.5 L 228.5,331.5 z" fill="#1f497d"/>
+    <text x="247.5" y="341.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">fieldbus</text>
+  </g>
+  <g id="s-system-software-firmware-comms-command" class="port Port out" sysml:ref="System::Software::Firmware::comms::command">
+    <rect x="297" y="219" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="332.5" y="241" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">command</text>
+  </g>
+  <g id="s-system-software-firmware-comms-profilewrite" class="port Port out" sysml:ref="System::Software::Firmware::comms::profileWrite">
+    <rect x="297" y="252.5" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="336" y="274.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">profileWrite</text>
+  </g>
+  <g id="s-system-software-firmware-comms-status" class="port Port in" sysml:ref="System::Software::Firmware::comms::status">
+    <rect x="136" y="252.5" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="121" y="274.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">status</text>
+  </g>
+  <g id="s-system-software-firmware-comms-image" class="port Port out" sysml:ref="System::Software::Firmware::comms::image">
+    <rect x="297" y="286" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="324.5" y="308" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">image</text>
+  </g>
+  <g id="s-system-software-firmware-update" class="block Part" sysml:ref="System::Software::Firmware::update">
+    <rect x="453" y="270" width="163" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="537.5" y="283" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="537.5" y="298" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">update : Secure Update</text>
+  </g>
+  <g id="s-system-software-firmware-update-image" class="port Port in" sysml:ref="System::Software::Firmware::update::image">
+    <rect x="447" y="286" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="431.5" y="308" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">image</text>
+  </g>
+  <g id="s-system-software-firmware-selftest" class="block Part" sysml:ref="System::Software::Firmware::selfTest">
+    <rect x="862" y="404" width="133" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="925.5" y="417" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="925.5" y="432" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">selfTest : Self Test</text>
+  </g>
+  <g id="s-system-software-firmware-selftest-fail" class="port Port out" sysml:ref="System::Software::Firmware::selfTest::fail">
+    <rect x="989" y="420" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="1009.5" y="442" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">fail</text>
+  </g>
+  <g id="s-system-software-firmware-logger" class="block Part" sysml:ref="System::Software::Firmware::logger">
+    <rect x="2034" y="304" width="152" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="2113" y="317" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="2113" y="332" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">logger : Event Logger</text>
+  </g>
+  <g id="s-system-software-firmware-logger-event" class="port Port in" sysml:ref="System::Software::Firmware::logger::event">
+    <rect x="2028" y="320" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="2014" y="342" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">event</text>
+  </g>
+  <path id="e-connection-s-system-software-firmware-profile-profile-s-system-software-firmware-supervisor-profile" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-profile-profile" sysml:target="s-system-software-firmware-supervisor-profile" d="M 648,122 L 1056,122 L 1056,195.33 L 1129,195.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-profile-profile-s-system-software-firmware-protection-profile" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-profile-profile" sysml:target="s-system-software-firmware-protection-profile" d="M 648,122 L 705,122 L 705,172 L 773,172" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-protection-trip-s-system-software-firmware-supervisor-trip" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-protection-trip" sysml:target="s-system-software-firmware-supervisor-trip" d="M 999,242 L 1129,242" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-arcanalyser-trip-s-system-software-firmware-protection-arctrip" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-arcanalyser-trip" sysml:target="s-system-software-firmware-protection-arctrip" d="M 678,214 L 773,214" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-insulationmonitor-result-s-system-software-firmware-supervisor-insulation" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-insulationmonitor-result" sysml:target="s-system-software-firmware-supervisor-insulation" d="M 1019,348 L 1056,348 L 1056,288.67 L 1129,288.67" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-selftest-fail-s-system-software-firmware-supervisor-selftestfail" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-selftest-fail" sysml:target="s-system-software-firmware-supervisor-selftestfail" d="M 1001,426 L 1066,426 L 1066,335.33 L 1129,335.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-comms-command-s-system-software-firmware-supervisor-cmdin" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-comms-command" sysml:target="s-system-software-firmware-supervisor-cmdin" d="M 309,225 L 372,225 L 372,75 L 1066,75 L 1066,148.67 L 1129,148.67" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-comms-profilewrite-s-system-software-firmware-profile-write" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-comms-profilewrite" sysml:target="s-system-software-firmware-profile-write" d="M 309,258.5 L 382,258.5 L 382,122 L 439,122" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-comms-image-s-system-software-firmware-update-image" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-comms-image" sysml:target="s-system-software-firmware-update-image" d="M 309,292 L 447,292" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-supervisor-mpptctl-s-system-software-firmware-mppt-ctl" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-supervisor-mpptctl" sysml:target="s-system-software-firmware-mppt-ctl" d="M 1305,270 L 1360,270 L 1360,228.67 L 1435,228.67" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-supervisor-gridctl-s-system-software-firmware-gridcontroller-ctl" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-supervisor-gridctl" sysml:target="s-system-software-firmware-gridcontroller-ctl" d="M 1305,214 L 1360,214 L 1360,120.33 L 1736,120.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-mppt-powerref-s-system-software-firmware-gridcontroller-powerref" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-mppt-powerref" sysml:target="s-system-software-firmware-gridcontroller-powerref" d="M 1610,228.67 L 1668,228.67 L 1668,155.33 L 1736,155.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-mppt-stringdata-s-system-software-firmware-stringmonitor-stringdata" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-mppt-stringdata" sysml:target="s-system-software-firmware-stringmonitor-stringdata" d="M 1610,275.33 L 1726,275.33" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-supervisor-event-s-system-software-firmware-logger-event" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-supervisor-event" sysml:target="s-system-software-firmware-logger-event" d="M 1305,326 L 2028,326" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <path id="e-connection-s-system-software-firmware-stringmonitor-warning-s-system-software-firmware-logger-event" class="edge connection" sysml:ref="System::Software::Firmware" sysml:source="s-system-software-firmware-stringmonitor-warning" sysml:target="s-system-software-firmware-logger-event" d="M 1940,275.33 L 1991,275.33 L 1991,326 L 2028,326" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+  <g class="legend">
+    <rect x="20" y="488" width="16" height="10" rx="2" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="44" y="497" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">safety-rated: SIL, ASIL or a safety stereotype</text>
+    <rect x="20" y="504" width="16" height="10" rx="2" fill="#f1f2f4" stroke="#8a8f98" stroke-width="1.4"/>
+    <text x="44" y="513" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">optional: present only where its appliesWhen holds</text>
+    <text x="20" y="529" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" font-style="italic">Badges name the safety level; a heavy outline is safety-rated.</text>
+  </g>
+</svg>

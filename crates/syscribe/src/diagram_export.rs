@@ -9,8 +9,15 @@
 //! (`REQ-TRS-VIS-016`). Mermaid and SVG take their `[links]` hyperlinks from
 //! `ValidateConfig::hosted_url_for` (inert when `[links]` is absent); PlantUML
 //! keeps its own `[plantuml] base_url` links.
+//!
+//! `diagram export --all [--check] [--out-dir <dir>]` (GH #339) renders every
+//! diagram that has an IR to `<dir>/<qualified name>.<ext>` (default
+//! `<model>/generated`, SVG); with `--check` it writes nothing and exits 1 when
+//! a committed file differs from a fresh render, is missing, or is left over.
+//! Text is sized with the bundled metrics (`vis::metrics::diagram_metrics`), so
+//! a render is the same file on every machine.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use syscribe_model::config::{load_plantuml_config, ValidateConfig};
 use syscribe_model::element::{ElementType, RawElement};
@@ -18,7 +25,7 @@ use syscribe_model::resolver::Resolver;
 use syscribe_model::vis;
 
 const FORMATS: &[&str] = &["plantuml", "mermaid", "svg", "dot"];
-const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--config <C> [--config <D>]] [--out <file>]";
+const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--config <C> [--config <D>]] [--out <file>]\n       syscribe -m <model> diagram export --all [--format svg|mermaid|dot|plantuml] [--config <C>] [--out-dir <dir>] [--check]";
 
 /// Entry point for `syscribe -m <root> diagram <sub> …`. Returns the exit code.
 pub fn cmd_diagram(
@@ -151,6 +158,9 @@ fn export_variant(elements: &[RawElement], model_root: &Path, config: &ValidateC
 }
 
 fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, config: &ValidateConfig, args: &[String]) -> i32 {
+    if args.iter().any(|a| a == "--all") {
+        return cmd_export_all(elements, model_root, config, args);
+    }
     let format = crate::cliargs::or_exit(crate::cliargs::enum_value("diagram export", args, "--format", FORMATS, "plantuml"));
     let out_file = args.windows(2).find(|w| w[0] == "--out").map(|w| w[1].as_str());
     let configs: Vec<&str> = args.windows(2).filter(|w| w[0] == "--config").map(|w| w[1].as_str()).collect();
@@ -220,6 +230,123 @@ fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, c
         return 1;
     };
     emit(export_diagram(elem, elements, resolver, model_root, config, format), out_file)
+}
+
+/// `diagram export --all` (GH #339): every diagram with an IR, sorted by qualified name, to `--out-dir`.
+fn cmd_export_all(elements: &[RawElement], model_root: &Path, config: &ValidateConfig, args: &[String]) -> i32 {
+    // SVG unless asked otherwise: the format a committed, reviewed render is kept in
+    let format = crate::cliargs::or_exit(crate::cliargs::enum_value("diagram export", args, "--format", FORMATS, "svg"));
+    let check = args.iter().any(|a| a == "--check");
+    let out_dir = args.windows(2).find(|w| w[0] == "--out-dir").map(|w| PathBuf::from(&w[1])).unwrap_or_else(|| model_root.join("generated"));
+    let configs: Vec<&str> = args.windows(2).filter(|w| w[0] == "--config").map(|w| w[1].as_str()).collect();
+    if configs.len() > 1 {
+        eprintln!("error: `--all` takes one --config (a variant view is one diagram's export)");
+        return 1;
+    }
+    let projected: Option<Vec<RawElement>> = match configs.first() {
+        None => None,
+        Some(c) => match syscribe_model::projection::resolve_config_flag(elements, c) {
+            syscribe_model::projection::SelectionOutcome::Dormant => None,
+            syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                let mut view = syscribe_model::projection::project(elements, &sel);
+                syscribe_model::vis::settle_variant(&mut view);
+                Some(view)
+            }
+            syscribe_model::projection::SelectionOutcome::Error(m) => {
+                eprintln!("{m}");
+                return 1;
+            }
+        },
+    };
+    let elements = projected.as_deref().unwrap_or(elements);
+    let resolver = Resolver::new(elements);
+    let ext = match format {
+        "plantuml" => "puml",
+        "mermaid" => "mmd",
+        other => other,
+    };
+    let mut diagrams: Vec<&RawElement> = elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Diagram)).collect();
+    diagrams.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
+    let mut fresh: std::collections::BTreeMap<PathBuf, String> = std::collections::BTreeMap::new();
+    for d in diagrams {
+        match export_diagram(d, elements, &resolver, model_root, config, format) {
+            Ok(text) => {
+                let rel: PathBuf = d.qualified_name.split("::").collect();
+                fresh.insert(out_dir.join(rel).with_extension(ext), text);
+            }
+            // a hand-authored body, a kind with no mapping in this format, nothing to draw
+            Err(why) => eprintln!("skipped: {why}"),
+        }
+    }
+    // files of this format already under the directory: what a render no longer produces is left over
+    let mut existing: Vec<PathBuf> = Vec::new();
+    collect_files(&out_dir, ext, &mut existing);
+    let stale: Vec<&PathBuf> = existing.iter().filter(|p| !fresh.contains_key(*p)).collect();
+    if check {
+        let mut problems = 0;
+        for (path, text) in &fresh {
+            match std::fs::read_to_string(path) {
+                Ok(old) if old == *text => {}
+                Ok(_) => {
+                    eprintln!("differs: {} (regenerate with `diagram export --all`)", path.display());
+                    problems += 1;
+                }
+                Err(_) => {
+                    eprintln!("missing: {}", path.display());
+                    problems += 1;
+                }
+            }
+        }
+        for p in &stale {
+            eprintln!("left over: {} (no diagram renders it)", p.display());
+            problems += 1;
+        }
+        if problems > 0 {
+            eprintln!("{problems} diagram file(s) out of date under {}", out_dir.display());
+            return 1;
+        }
+        eprintln!("{} diagram file(s) up to date under {}", fresh.len(), out_dir.display());
+        return 0;
+    }
+    for (path, text) in &fresh {
+        if let Some(parent) = path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("error: cannot create {}: {e}", parent.display());
+                return 1;
+            }
+        }
+        // rewrite only what changed, so an unchanged file keeps its timestamp
+        if std::fs::read_to_string(path).ok().as_deref() != Some(text.as_str()) {
+            if let Err(e) = std::fs::write(path, text) {
+                eprintln!("error: cannot write {}: {e}", path.display());
+                return 1;
+            }
+        }
+    }
+    for p in stale {
+        // the directory is the export's own: a file of this format that nothing renders any more goes
+        if let Err(e) = std::fs::remove_file(p) {
+            eprintln!("error: cannot remove {}: {e}", p.display());
+            return 1;
+        }
+        eprintln!("removed {}", p.display());
+    }
+    eprintln!("wrote {} diagram file(s) under {}", fresh.len(), out_dir.display());
+    0
+}
+
+/// Every file under `dir` (recursively) with extension `ext`, sorted.
+fn collect_files(dir: &Path, ext: &str, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
+    paths.sort();
+    for p in paths {
+        if p.is_dir() {
+            collect_files(&p, ext, out);
+        } else if p.extension().and_then(|x| x.to_str()) == Some(ext) {
+            out.push(p);
+        }
+    }
 }
 
 /// Print the export, or write it to `out_file`; the exit code.

@@ -21,6 +21,7 @@ pub mod layout;
 pub mod manifest;
 pub mod mermaid;
 pub mod metrics;
+mod metrics_table;
 pub mod shape;
 pub mod size;
 pub mod sprotty;

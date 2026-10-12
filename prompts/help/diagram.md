@@ -2,6 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--config <C>] [--out <file>]
+    syscribe -m <root> diagram export --all [--format svg|mermaid|dot|plantuml] [--config <C>] [--out-dir <dir>] [--check]
 
 ## DESCRIPTION
 Writes one `Diagram` element's picture source, generated from its Diagram IR
@@ -40,6 +41,16 @@ When `.syscribe.toml` has a `[links]` table, Mermaid output gains a
 is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener">`
 (REQ-TRS-LINK-002); without `[links]` both are inert.
 
+`--all` (GH #339) writes every `Diagram` to `<out-dir>/<qname path>.<ext>`
+(default `<root>/generated`, SVG unless `--format` says otherwise), rewriting
+only files whose content changed and removing files of that format that no
+diagram renders any more. A diagram with nothing to draw (a hand-drawn
+companion) is reported `skipped:` and is not an error. `--check` writes
+nothing and exits 1 naming each file that differs, is missing or is left over,
+so a committed directory of renders can gate CI. Text is measured with metrics
+compiled into syscribe, never the installed fonts, so a render is the same
+bytes on every machine (a PlantUML `!include` names an absolute path).
+
 ## OPTIONS
     --format <plantuml|mermaid|svg|dot>   Output format (default: plantuml). Any
                                       other value is a usage error.
@@ -49,12 +60,17 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
                                       exits 1.
     --out <file>                      Write to <file> (parent directories are
                                       created) instead of stdout.
+    --all                             Every Diagram of the model, into --out-dir.
+    --out-dir <dir>                   With --all: the directory (default <root>/generated).
+    --check                           With --all: write nothing; exit 1 when a file is
+                                      out of date, missing or left over.
 
 ## EXIT CODES
     0  written
     1  element '<qname>' not found (nothing on stdout); '<qname>' is not a
        Diagram; svg requested for a diagram with no shapes to draw; a
-       diagramKind with no mapping for the format; invalid --format
+       diagramKind with no mapping for the format; invalid --format; with
+       --check, a render out of date
 
 ## EXAMPLES
     syscribe -m model/ diagram export Diagrams::PowerSystemDerivedIBD --format mermaid
@@ -63,6 +79,7 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
     syscribe -m model_auto/ diagram export Diagrams::ZoneConduitEngine --format dot
     syscribe -m model_auto/ diagram export Diagrams::TraceabilityEngine --format mermaid
     syscribe -m model_auto/ diagram export Diagrams::ThreatGraphEngine --format svg --out threats.svg
+    syscribe -m model_gti/ diagram export --all --check
 
 ## NOTES
 The `Traceability`, `ZoneConduit` and `ThreatGraph` kinds (GH #223) are derived from
