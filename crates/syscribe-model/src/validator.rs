@@ -6312,13 +6312,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             None => findings.push(error(
                                 "E209",
                                 &elem.file_path,
-                                &format!("unresolved appliesWhen reference '{}'", r),
+                                &format!("unresolved appliesWhen reference '{}' ({}){}",
+                                    r, crate::variability::FORMS_FEATURE_REF,
+                                    crate::variability::did_you_mean_feature(&r, elements)),
                             )),
                             Some(target) if !Resolver::is_feature_def(target) => {
                                 findings.push(error(
                                     "E209",
                                     &elem.file_path,
-                                    &format!("'{}' does not resolve to a FeatureDef", r),
+                                    &format!("appliesWhen reference '{}' resolves to a {}, not a FeatureDef ({}){}",
+                                        r, target.frontmatter.element_type.as_ref().map(|t| format!("{t:?}")).unwrap_or_else(|| "non-FeatureDef".into()),
+                                        crate::variability::FORMS_FEATURE_REF,
+                                        crate::variability::did_you_mean_feature(&r, elements)),
                                 ));
                             }
                             _ => {}
@@ -6373,6 +6378,35 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "configuration '{}' {} the abstract feature '{}': an abstract feature is not a choice, it follows from the concrete features — remove it from `features:`",
                             cfg.frontmatter.id.as_deref().unwrap_or(&cfg.qualified_name), if *val { "selects" } else { "deselects" }, feat)));
                     }
+                }
+            }
+        }
+    }
+
+    // E239: a `features:` key that names no FeatureDef selects nothing, so the
+    // product silently differs from what the author wrote (GH #325).
+    {
+        let fdefs: HashSet<&str> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)))
+            .map(|e| e.qualified_name.as_str())
+            .collect();
+        if !fdefs.is_empty() {
+            let alias = crate::variability::feature_id_to_qname(elements);
+            for cfg in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration))) {
+                for key in cfg.frontmatter.declared_feature_selections().keys() {
+                    let canon = crate::variability::canon_feature_ref(key, &alias);
+                    // Exactly the keys selection honours (qname or FEAT- id, via
+                    // `canon_selection`); a looser resolver match would hide a key
+                    // that still selects nothing.
+                    if fdefs.contains(canon.as_str()) {
+                        continue;
+                    }
+                    findings.push(error("E239", &cfg.file_path, &format!(
+                        "configuration '{}' selects '{}' in `features:`, which does not resolve to a FeatureDef ({}){}",
+                        cfg.frontmatter.id.as_deref().unwrap_or(&cfg.qualified_name), key,
+                        crate::variability::FORMS_FEATURE_REF,
+                        crate::variability::did_you_mean_feature(key, elements))));
                 }
             }
         }
@@ -10364,11 +10398,21 @@ pub fn parameter_binding_findings(
 
                 let Some(resolved) = resolved else {
                     if is_local {
+                        let hint = crate::variability::closest_name(
+                            pname, feature_params[feat].keys().map(String::as_str))
+                            .map(|n| format!("; did you mean '{feat}.{n}'?"))
+                            .unwrap_or_default();
                         findings.push(error("E222", file, &format!(
-                            "parameterBindings path '{}' references undeclared parameter '{}' on '{}'", path, pname, feat)));
+                            "parameterBindings path '{}' references undeclared parameter '{}' on '{}'{}", path, pname, feat, hint)));
                     } else {
+                        // `Features::Mppt.GlobalScan.scanPeriodS` splits as feature
+                        // `Features::Mppt.GlobalScan`; suggest the path it spells.
+                        let hint = crate::variability::closest_feature(feat, elements)
+                            .map(|q| format!("; did you mean '{q}.{pname}'?"))
+                            .unwrap_or_default();
                         findings.push(error("E222", file, &format!(
-                            "parameterBindings path '{}' references unknown FeatureDef '{}'", path, feat)));
+                            "parameterBindings path '{}' references unknown FeatureDef '{}' ({}){}",
+                            path, feat, crate::variability::FORMS_PARAM_REF, hint)));
                     }
                     continue;
                 };

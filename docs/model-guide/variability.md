@@ -34,12 +34,28 @@ id: FEAT-CORTEXM-001
 name: CortexM
 groupKind: optional
 ---
+# Features/Platform/RiscV.md
+---
+type: FeatureDef
+id: FEAT-RISCV-001
+name: RiscV
+groupKind: optional
+---
+# Features/Wdt.md               (an optional top-level feature)
+---
+type: FeatureDef
+id: FEAT-WDT-001
+name: Wdt
+groupKind: optional
+---
 ```
 
 Two orthogonal axes (`ADR-FM-003`):
 
 - **`groupKind`** describes how a feature's **children** are grouped: `optional` · `alternative` (XOR) · `or`.
 - **`mandatory: true`** describes the feature's **membership** relative to its parent — selected whenever the parent is (or always, at top level). It is independent of `groupKind`, so a node can be a *mandatory XOR group* as above. (The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a leaf.)
+
+  A **mandatory group with optional children** (a `Protection` node that is in every product, whose `Afci` and `RapidShutdown` children are each optional) is spelled `mandatory: true` with `groupKind: optional`. Being selected in every `Configuration` is what `mandatory` means, so it does not raise `W012`; only an optional member that every `Configuration` happens to select does.
 
 **Abstract features.** `isAbstract: true` marks a feature that only groups: it has no realisation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It behaves as an abstract feature does in a proper feature model:
 
@@ -107,7 +123,18 @@ crossTreeConstraints:
     excludes: [Wdt]
 ```
 
-`feature`/`requires`/`excludes` values resolve the same way everywhere in this section: a value containing `::` is already an absolute qname; one starting with `FEAT` is a stable id; anything else is a dotted path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. A `feature:` that doesn't resolve to a `FeatureDef` synthesized from *this sheet's own* `featureTree:` is `E233` — there's nothing local to attach the constraint to.
+`feature`/`requires`/`excludes` values resolve the same way everywhere in this section: a value containing `::` is already an absolute qname; one starting with `FEAT` is a stable id; anything else is a dotted path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. A `feature:` that doesn't resolve to a `FeatureDef` synthesized from *this sheet's own* `featureTree:` is `E233` — there's nothing local to attach the constraint to. Inline `requires:`/`excludes:` on a `featureTree:` entry also accept a path relative to the sheet when it names another entry of the same sheet, so `requires: [Protection.Afci]` works next to `requires: [FEAT-GTI-AFCI]` and `requires: [Features::Protection::Afci]`. A value that names no entry of the sheet is left as written and resolved as a qname or id.
+
+**Which form each field takes.** The dotted tree path is a name *inside the sheet* only. Everywhere else a feature is its qualified name or its `FEAT-` id, and a parameter is `<qualified name>.<parameter>`:
+
+| Field | Accepted forms |
+|---|---|
+| `featureTree:` entry `requires:`/`excludes:`, `crossTreeConstraints:` | `Group.Leaf` (relative to the sheet), `Features::Group::Leaf`, `FEAT-…` |
+| `appliesWhen:`, `Configuration.features:` keys | `Features::Group::Leaf`, `FEAT-…` |
+| `parameterBindings:` keys, `parameterConstraints` | `Features::Group::Leaf.param` |
+| placeholders | `{{Features::Group::Leaf.param}}`, `{{FEAT-….param}}` |
+
+An unresolved reference (`E212`, `E209`, `E239`, `E222`, `E241`) says which form its field accepts and, when one is close, which feature it most likely meant: `appliesWhen: Features::Protection.Afci` reports *did you mean 'Features::Protection::Afci'?*.
 
 **`parameterConstraints:`** (§9.7's cross-feature numeric constraints, normally on a `Package`/`LibraryPackage`/`Namespace` `_index.md`) can also be declared directly on the `FeatureModel` sheet — the natural single home for everything about this feature model:
 
@@ -251,7 +278,7 @@ syscribe -m model/ feature-check
 |---|---|
 | `E212` | `requires`/`excludes` target is not a `FeatureDef` |
 | `E219` / `E220` | a selected feature's `requires` unmet / `excludes` violated in a `Configuration` |
-| `W011` / `W012` | optional feature selected in no / every `Configuration` |
+| `W011` / `W012` | feature selected in no `Configuration` / optional (not `mandatory: true`) feature selected in every `Configuration` |
 | `E207` | circular `derivedFrom:` among a feature's parameters |
 | `E202` | a `bindTo:`-propagated value is outside the component parameter's `range:` |
 | `E229` | a parameter's `bindingTime:` is earlier than a `derivedFrom`/`bindTo` source it depends on |

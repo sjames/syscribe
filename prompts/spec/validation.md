@@ -606,7 +606,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E238)
+## Product Line Engineering errors (E200–E247)
 
 | Code | Condition |
 |---|---|
@@ -618,14 +618,14 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E205` | Bound parameter value violates `range:` constraint |
 | `E206` | Bound parameter value not in `enumValues:` |
 | `E207` | Circular `derivedFrom:` dependency between parameters of the same `FeatureDef` |
-| `E209` | `appliesWhen:` is malformed, or an operand does not resolve to a `FeatureDef` (operands of `and`/`or`/`not` expressions are each checked) |
-| `E212` | `FeatureDef.requires:` or `excludes:` does not resolve to a `FeatureDef` |
+| `E209` | `appliesWhen:` is malformed, or an operand does not resolve to a `FeatureDef` (operands of `and`/`or`/`not` expressions are each checked); the message names the accepted form and the closest feature |
+| `E212` | `FeatureDef.requires:` or `excludes:` does not resolve to a `FeatureDef` (a `featureTree:` entry may use its sheet's dotted tree path); the message names the accepted forms and the closest feature |
 | `E215` | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
 | `E213` | Cross-feature `parameterConstraints` references unresolved parameter path (`<FeatureDef>.<param>`) |
 | `E219` | `FeatureDef.requires:` constraint violated by selected features |
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
 | `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `feature-check`; default severity) |
-| `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter) |
+| `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter); the message names the accepted form and the path or parameter it most likely meant |
 | `E229` | A parameter's `bindingTime:` is earlier than that of a `derivedFrom`/`bindTo` source it depends on (impossible ordering; checked when both ends declare a `bindingTime:`) |
 | `E230` | A parameter's `bindingTime:` is not `compile`/`load`/`runtime` (§9.7) |
 | `E223` | (`feature-check --deep`) feature model is **void** — no valid configuration exists |
@@ -638,7 +638,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E232` | (§9.6a) a `featureTree:` entry's resolved qualified name collides with an existing element (or another entry) of the same qname |
 | `E233` | (§9.6a) a `crossTreeConstraints:` entry is not a mapping, has no `feature:`, has an empty path segment in `feature:`/`requires:`/`excludes:`, or its `feature:` does not resolve to a `FeatureDef` synthesized from the same sheet's `featureTree:` |
 | `E240` | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| `E241` | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
+| `E241` | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}`; the message names the accepted form and the closest match |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
@@ -647,13 +647,14 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |
 | `E237` | (§9.8) a `Configuration`'s `derivedFrom:` names more than one base — a Configuration inherits from at most one; it inherits nothing |
 | `E238` | (`validate`) a `Configuration` names an abstract feature (`isAbstract: true`) in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
+| `E239` | (`validate`) a `Configuration`'s `features:` key does not resolve to a `FeatureDef`, so it selects nothing; the message names the accepted forms and the closest feature |
 
 ## Product Line Engineering warnings (W011–W027, W048)
 
 | Code | Condition |
 |---|---|
 | `W011` | `FeatureDef` with `groupKind: optional` selected in zero `Configuration` files |
-| `W012` | `FeatureDef` with `groupKind: optional` selected in every `Configuration` |
+| `W012` | `FeatureDef` with `groupKind: optional` and no `mandatory: true` selected in every `Configuration` |
 | `W014` | `parameterConstraint` has `appliesWhen:` referencing a feature not in any `Configuration` |
 | `W015` | A requirement is active in a `Configuration` (its `appliesWhen` holds) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Only emitted when the variability dimension is active; honours draft suppression; gate with `--deny W015`. Reported **once per requirement**, listing every configuration where it is uncovered. For a parent requirement the message adds whether the live leaves below it are all verified in those configurations (covered through its children only — it still needs a direct test), not all verified, or none is active there.  |
 | `W016` | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used an unrecognized `selections:` key instead of the `features:` map. Surfaces the otherwise-silent all-N/A footgun. Not emitted when no `FeatureDef` is present. |

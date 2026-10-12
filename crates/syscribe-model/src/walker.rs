@@ -811,10 +811,20 @@ fn explode_feature_model_trees(elements: &mut Vec<RawElement>) {
         // range is what `crossTreeConstraints:` below is allowed to attach to.
         let sheet_start = synthetic.len();
         if let Some(tree) = &sheet.frontmatter.feature_tree {
+            // The qnames this sheet's entries will get, so an inline
+            // requires:/excludes: path can be checked against siblings that are
+            // exploded after the entry naming them.
+            let sheet_entries: HashSet<String> = tree
+                .iter()
+                .filter_map(|e| e.get("name").and_then(|v| v.as_str()))
+                .filter(|n| !n.split('.').any(str::is_empty))
+                .map(|n| join_under_sheet(&sheet.qualified_name, &n.split('.').collect::<Vec<_>>().join("::")))
+                .collect();
             for entry in tree {
                 explode_feature_entry(
                     entry,
                     &sheet.qualified_name,
+                    &sheet_entries,
                     &sheet.file_path,
                     idx,
                     &mut seen_qnames,
@@ -874,6 +884,7 @@ fn resolve_feature_ref(raw: &str, sheet_qname: &str) -> Option<String> {
 fn explode_feature_entry(
     entry: &serde_yaml::Value,
     sheet_qname: &str,
+    sheet_entries: &HashSet<String>,
     sheet_file: &str,
     sheet_idx: usize,
     seen_qnames: &mut HashSet<String>,
@@ -956,6 +967,26 @@ fn explode_feature_entry(
     }
 
     map.insert("name".into(), leaf_name.into());
+    // GH #325: inside the sheet a feature is *named* by its dotted tree path, so
+    // an inline `requires:`/`excludes:` may name a sibling that way
+    // (`Protection.Afci`), as a `crossTreeConstraints:` value can. The path is
+    // rewritten only when it names an entry of this sheet; anything else
+    // (a qname, a `FEAT-` id, a feature outside the sheet) is left as written,
+    // so a reference that resolved before still means the same feature.
+    for key in ["requires", "excludes"] {
+        let to_qname = |v: &mut serde_yaml::Value| {
+            if let serde_yaml::Value::String(r) = v {
+                if let Some(q) = resolve_feature_ref(r, sheet_qname).filter(|q| sheet_entries.contains(q)) {
+                    *r = q;
+                }
+            }
+        };
+        match map.get_mut(key) {
+            Some(serde_yaml::Value::Sequence(seq)) => seq.iter_mut().for_each(to_qname),
+            Some(v) => to_qname(v),
+            None => {}
+        }
+    }
     // A type-mismatched field anywhere in the entry (e.g. `mandatory: "yes"`)
     // fails the *whole* deserialize — `unwrap_or_default()` would silently
     // discard every other field (id, groupKind, requires, ...) with no

@@ -29,7 +29,11 @@ impl Lcg {
 /// groups `or`, and 300 `requires` between random leaves (never an `excludes` or an
 /// XOR group, so the model stays satisfiable).
 fn model(features: usize, constraints: usize) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("syscribe-fscale-{}-{features}", std::process::id()));
+    // Both tests build the same model concurrently; a per-call directory keeps one
+    // test's `remove_dir_all` from deleting files the other is reading.
+    static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let root = std::env::temp_dir().join(format!("syscribe-fscale-{}-{features}-{n}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("F")).unwrap();
     std::fs::write(root.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();

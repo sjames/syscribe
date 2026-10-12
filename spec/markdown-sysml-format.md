@@ -5405,7 +5405,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E209` | `appliesWhen:` is malformed, or an operand references a qualified name that does not resolve to a `FeatureDef` |
 | `E210` | *Not yet implemented* — a selected system feature has no component `Configuration` in some package satisfying it |
 | `E211` | *Not yet implemented* — a selected system feature is satisfied by more than one component `Configuration` in the same package |
-| `E212` | A `FeatureDef.requires:` or `excludes:` entry does not resolve to another `FeatureDef` |
+| `E212` | A `FeatureDef.requires:` or `excludes:` entry does not resolve to another `FeatureDef` (on a `featureTree:` entry, a dotted path relative to the sheet resolves as in `crossTreeConstraints:`) |
 | `E213` | A cross-feature `parameterConstraints` expression references a parameter path that does not resolve |
 | `E214` | *Not yet implemented* — a `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` in a system feature model |
 | `E215` | A `Configuration.derivedFrom:` base configuration is not in `approved` or `released` status |
@@ -5414,6 +5414,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E236` | A `Configuration` is on a `derivedFrom:` inheritance cycle (each member is reported; none inherits) |
 | `E237` | A `Configuration.derivedFrom:` names more than one base |
 | `E238` | (§9) a `Configuration` names an abstract feature in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
+| `E239` | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` |
 | `E216` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
 | `E217` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map selects both sides of an `alternative` group |
 | `E218` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map violates an `or` group's `cardinality:` constraint |
@@ -5427,7 +5428,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E232` | (§9.6a) Two `featureTree:` entries resolve to the same qualified name. |
 | `E233` | (§9.6a) A `crossTreeConstraints:` entry is malformed, or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:`. |
 | `E240` | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| `E241` | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
+| `E241` | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}` |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
@@ -5443,7 +5444,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | Code | Condition |
 |---|---|
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in zero `Configuration` files (possibly dead feature) |
-| `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
+| `W012` | A `FeatureDef` with `groupKind: optional` and no `mandatory: true` is selected in every `Configuration` (should be `mandatory: true`) |
 | `W013` | *Not yet implemented* — a component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Reported **once per requirement**, listing every such configuration; in the `--config` lens only the selected configuration is judged. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. For a parent requirement the message adds whether the live leaves below it are all verified in those configurations (covered through its children only — it still needs a direct test), not all verified, or none is active there. |
