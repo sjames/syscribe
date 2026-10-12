@@ -57,4 +57,9 @@ features:
 
 `models:` is a trace link: `links` and `refs` list it, `follow <arch> modeledBy` walks it backwards, `impact <arch>` reaches the executable parts, `trace <REQ>` adds a *Behavioural models of the satisfiers* table, and `why <exec-part>` answers with the requirements its modelled elements satisfy. It takes part in suspect-link detection, so a change to the architecture element raises `W090` on the behaviour once baselined with `suspect accept`.
 
+## Limits of this version
+
+* A `models:` written on a part usage (a composite's `features:` entry) is checked and counted for `W992`, but `links`, `refs`, `follow`, `impact` and suspect-link detection see only a `models:` on a definition.
+* `W991` matches direct architecture connections. Two executable parts that model elements at different levels of the hierarchy, joined in the architecture through a delegated port, are reported; connections between a software and a hardware element are not checked at all.
+
 The worked example is `model_gti/Behavior/Parts/` and `model_gti/Behavior/Chain/ProtectionChain.md`.

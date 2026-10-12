@@ -373,6 +373,19 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
+## Behavioural model trace (E990–E991, W990–W992, §12.11)
+
+Dormant unless some part declares `models:`. See spec §12.11 and `docs/model-guide/behaviour-models.md`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E990 | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
+| E991 | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction (GH #330, §12.11) |
+| W990 | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
+| W991 | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
+| W992 | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
+
+
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 
 | Code | Condition |
@@ -953,11 +966,6 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E935 | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272) |
 | E936 | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306) |
 | E937 | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
-| E990 | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
-| E991 | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction (GH #330, §12.11) |
-| W990 | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
-| W991 | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
-| W992 | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
 | W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)

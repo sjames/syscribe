@@ -7225,6 +7225,8 @@ Because the vocabulary is per-project, the generic authoring prompt cannot enume
 | `W991` | In an executable composite with at least two modelling parts: a connection whose ends model two different elements has no architecture connection between the corresponding ports; or an architecture connection between two elements the composite models, whose ports are both covered and not abstracted, has no executable connection. A connection between a `software` and a `hardware` element is skipped, since §12.6 joins those through allocation, never a connection |
 | `W992` | A `TestCase` whose `subject:` is a part `verifies:` a requirement satisfied by architecture elements, and no part reachable from the subject models one of them without naming the requirement in `abstracts:`: its scenarios cannot be evidence for it |
 
+`W991` matches direct architecture connections only, not paths through delegated ports. A usage-level `models:` takes part in the checks but not in the query commands below, which read a definition's `models:`.
+
 The link is a trace link like the others: `links`, `refs`, `follow <elem> models` / `follow <elem> modeledBy`, `impact` (`modeledBy` downstream), `trace` (a *Behavioural models of the satisfiers* table), `why` (an executable part answers with the requirements its modelled elements satisfy), and suspect-link detection (`traceBaselines:`, `W090`), so a change to the architecture element marks the behaviour for re-review.
 
 **Example** (the grid-tie inverter, `model_gti/Behavior/Parts/`):
