@@ -197,7 +197,8 @@ pub fn node_style(node: &Node) -> NodeStyle {
         stroke: stroke.to_string(),
         header_fill: header.then(|| stroke.to_string()),
         text: TEXT.to_string(),
-        dashed: !node.resolved,
+        // an `optional` (appliesWhen-gated) part, GH #336, is dashed like an unresolved one
+        dashed: !node.resolved || node.mark.as_ref().is_some_and(|m| m.badges.iter().any(|b| b == "optional")),
         stroke_width,
     }
 }

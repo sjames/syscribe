@@ -158,4 +158,154 @@ fn without_the_new_fields_the_part_tree_is_as_before() {
             ("s-inv-inverter-arc", Some("s-inv-inverter")),
         ]
     );
+    let ports: Vec<(&str, Option<&str>)> = g.nodes.iter().filter(|n| n.kind == NodeKind::Port).map(|n| (n.id.as_str(), n.parent.as_deref())).collect();
+    assert_eq!(ports, vec![("s-inv-inverter-board-pwm", Some("s-inv-inverter-board")), ("s-inv-inverter-stage-gate", Some("s-inv-inverter-stage"))]);
+    let edges: Vec<(&str, &str)> = g.edges.iter().map(|e| (e.source.as_str(), e.target.as_str())).collect();
+    assert_eq!(edges, vec![("s-inv-inverter-board-pwm", "s-inv-inverter-stage-gate")]);
+}
+
+// ── review findings (PR #354) ───────────────────────────────────────────
+
+fn hits(root: &Path, code: &str) -> Vec<syscribe_model::validator::Finding> {
+    validate(&walk_model(root).unwrap()).findings.into_iter().filter(|f| f.code == code).collect()
+}
+
+/// A bare root with the given files.
+fn bare(files: &[(&str, &str)]) -> PathBuf {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(&root, "P/_index.md", "---\ntype: Package\nname: P\n---\n");
+    write(&root, "Diagrams/_index.md", "---\ntype: Package\nname: Diagrams\n---\n");
+    for (rel, content) in files {
+        write(&root, rel, content);
+    }
+    root
+}
+
+fn ibd(subject: &str, extra: &str) -> String {
+    format!("---\ntype: Diagram\nname: Ibd\ndiagramKind: IBD\nsubject: {subject}\n{extra}---\n\nIBD.\n")
+}
+
+#[test]
+fn a_definition_that_contains_itself_is_opened_once_and_depth_is_capped() {
+    let root = bare(&[
+        ("P/Top.md", "---\ntype: PartDef\nname: Top\nfeatures:\n  - {name: n, typedBy: P::Node}\n---\n"),
+        ("P/Node.md", "---\ntype: PartDef\nname: Node\nfeatures:\n  - {name: left, typedBy: P::Node}\n  - {name: right, typedBy: P::Node}\n---\n"),
+        ("Diagrams/Ibd.md", &ibd("P::Top", "depth: 2000\n")),
+    ]);
+    let g = graph(&root);
+    let blocks: Vec<&str> = g.nodes.iter().filter(|n| n.kind == NodeKind::Block).map(|n| n.id.as_str()).collect();
+    assert_eq!(blocks, vec!["s-p-top-n", "s-p-top-n-left", "s-p-top-n-right"], "Node is not opened inside Node");
+    assert!(hits(&root, "W420").is_empty());
+    assert_eq!(syscribe_model::vis::derive::ibd::MAX_DEPTH, 16);
+}
+
+#[test]
+fn each_package_goes_into_the_nearest_host_and_packages_pair_with_hosts() {
+    let common = [
+        ("P/Mcu.md", "---\ntype: PartDef\nname: Mcu\ndomain: hardware\n---\n"),
+        ("P/Fw.md", "---\ntype: PartDef\nname: Fw\ndomain: software\nisDeploymentPackage: true\n---\n"),
+        ("P/A1.md", "---\ntype: Allocation\nname: A1\nallocatedFrom: [P::Fw]\nallocatedTo: [P::Mcu]\n---\n"),
+        ("P/Board.md", "---\ntype: PartDef\nname: Board\ndomain: hardware\nfeatures:\n  - {name: mcu, typedBy: P::Mcu}\n  - {name: fw, typedBy: P::Fw}\n---\n"),
+    ];
+    // two boards, each with its MCU and firmware: each firmware in its own board's MCU
+    let mut files = common.to_vec();
+    files.push(("P/Top.md", "---\ntype: PartDef\nname: Top\nfeatures:\n  - {name: b1, typedBy: P::Board}\n  - {name: b2, typedBy: P::Board}\n---\n"));
+    let ibd2 = ibd("P::Top", "depth: 2\n");
+    files.push(("Diagrams/Ibd.md", &ibd2));
+    let g = graph(&bare(&files));
+    assert_eq!(parent(&g, "s-p-top-b1-fw"), Some("s-p-top-b1-mcu"));
+    assert_eq!(parent(&g, "s-p-top-b2-fw"), Some("s-p-top-b2-mcu"));
+    // two firmware images and two MCUs side by side: one each
+    let mut files = common.to_vec();
+    files.push(("P/Duo.md", "---\ntype: PartDef\nname: Duo\nfeatures:\n  - {name: m1, typedBy: P::Mcu}\n  - {name: m2, typedBy: P::Mcu}\n  - {name: fwA, typedBy: P::Fw}\n  - {name: fwB, typedBy: P::Fw}\n---\n"));
+    let ibd1 = ibd("P::Duo", "");
+    files.push(("Diagrams/Ibd.md", &ibd1));
+    let g = graph(&bare(&files));
+    assert_eq!(parent(&g, "s-p-duo-fwa"), Some("s-p-duo-m1"));
+    assert_eq!(parent(&g, "s-p-duo-fwb"), Some("s-p-duo-m2"));
+}
+
+#[test]
+fn members_whose_ids_collide_are_all_drawn() {
+    let root = bare(&[
+        ("P/Hw.md", "---\ntype: PartDef\nname: Hw\ndomain: hardware\n---\n"),
+        // a port and a part both named `comms`, and a part named like a domain frame
+        ("P/Board.md", "---\ntype: PartDef\nname: Board\ndomain: hardware\nfeatures:\n  - {name: comms, type: Port, direction: inout}\n  - {name: comms, typedBy: P::Hw}\n---\n"),
+        ("P/Top.md", "---\ntype: PartDef\nname: Top\nfeatures:\n  - {name: board, typedBy: P::Board}\n  - {name: domain_hardware, typedBy: P::Hw}\n---\n"),
+        ("Diagrams/Ibd.md", &ibd("P::Top", "depth: 2\ngroupBy: domain\n")),
+    ]);
+    let g = graph(&root);
+    assert_eq!(g.node("s-p-top-board-comms").unwrap().kind, NodeKind::Port);
+    assert_eq!(g.node("s-p-top-board-comms-2").unwrap().label, "comms : Hw");
+    let mut ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
+    let n = ids.len();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), n, "node ids are unique");
+    assert!(g.nodes.iter().any(|n| n.kind == NodeKind::Swimlane && n.label == "hardware"));
+    parents_precede_children(&g);
+}
+
+#[test]
+fn child_part_files_are_nested_at_depth_two() {
+    let root = bare(&[
+        ("P/Mcu.md", "---\ntype: PartDef\nname: Mcu\n---\n"),
+        ("P/Board.md", "---\ntype: PartDef\nname: Board\n---\n"),
+        ("P/Board/mcuA.md", "---\ntype: Part\nname: mcuA\ntypedBy: P::Mcu\n---\n"),
+        ("P/Top.md", "---\ntype: PartDef\nname: Top\nfeatures:\n  - {name: b1, typedBy: P::Board}\n---\n"),
+        ("Diagrams/Ibd.md", &ibd("P::Top", "depth: 2\n")),
+    ]);
+    assert_eq!(parent(&graph(&root), "s-p-top-b1-mcua"), Some("s-p-top-b1"));
+}
+
+#[test]
+fn asil_badges_keep_the_decomposition_and_drop_a_repeated_prefix() {
+    let badge = |asil: &str| {
+        let root = bare(&[
+            ("P/S.md", &format!("---\ntype: PartDef\nname: S\nasilLevel: \"{asil}\"\n---\n")),
+            ("P/Top.md", "---\ntype: PartDef\nname: Top\nfeatures:\n  - {name: s, typedBy: P::S}\n---\n"),
+            ("Diagrams/Ibd.md", &ibd("P::Top", "")),
+        ]);
+        graph(&root).node("s-p-top-s").unwrap().mark.clone().map(|m| m.badges)
+    };
+    assert_eq!(badge("B(D)"), Some(vec!["ASIL B(D)".to_string()]));
+    assert_eq!(badge("ASIL C"), Some(vec!["ASIL C".to_string()]));
+    assert_eq!(badge("QM"), None);
+}
+
+#[test]
+fn group_by_outside_a_derived_ibd_is_w420() {
+    let root = bare(&[
+        ("P/Top.md", "---\ntype: PartDef\nname: Top\ngroupBy: domain\n---\n"),
+        ("Diagrams/Bdd.md", "---\ntype: Diagram\nname: Bdd\ndiagramKind: BDD\nsubject: P::Top\ngroupBy: domain\n---\n\nBDD.\n"),
+        ("Diagrams/Man.md", "---\ntype: Diagram\nname: Man\ndiagramKind: IBD\ngroupBy: domain\nshapes:\n  - {ref: P::Top}\n---\n\nManifest.\n"),
+    ]);
+    let f = hits(&root, "W420");
+    assert_eq!(f.len(), 3, "{f:?}");
+}
+
+#[test]
+fn plantuml_and_dot_draw_marks_and_containment() {
+    let root = model("depth: 2\ngroupBy: domain\n");
+    let elements = walk_model(&root).unwrap();
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::Ibd").unwrap();
+    let puml = syscribe_model::plantuml::render_plantuml(d, &elements, None).unwrap();
+    assert!(puml.contains("<<SIL 2>>") && puml.contains("line.bold"), "{puml}");
+    assert!(puml.contains("<<optional>>") && puml.contains("line.dashed"), "{puml}");
+    let dot = syscribe_model::vis::render_dot(&graph(&root));
+    assert!(dot.contains("subgraph cluster_s_inv_inverter_domain_hardware"), "{dot}");
+    assert!(dot.contains("subgraph cluster_s_inv_inverter_board_mcu"), "the MCU holding the firmware is a cluster: {dot}");
+}
+
+#[test]
+fn a_projected_variant_badges_nothing_optional() {
+    let root = model("");
+    let mut elements = walk_model(&root).unwrap();
+    syscribe_model::vis::settle_variant(&mut elements);
+    let resolver = Resolver::new(&elements);
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::Ibd").unwrap();
+    let g = build_graph(d, &elements, &resolver).unwrap().0;
+    assert!(g.node("s-inv-inverter-arc").unwrap().mark.is_none());
+    assert!(g.node("s-inv-inverter-stage").unwrap().mark.is_some(), "the safety mark stays");
 }

@@ -131,7 +131,12 @@ fn cmd_export(elements: &[RawElement], resolver: &Resolver, model_root: &Path, c
         None => None,
         Some(c) => match syscribe_model::projection::resolve_config_flag(elements, c) {
             syscribe_model::projection::SelectionOutcome::Dormant => None,
-            syscribe_model::projection::SelectionOutcome::Resolved(sel) => Some(syscribe_model::projection::project(elements, &sel)),
+            syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                let mut view = syscribe_model::projection::project(elements, &sel);
+                // in one product every part drawn is present: no `optional` badge (GH #336)
+                syscribe_model::vis::settle_variant(&mut view);
+                Some(view)
+            }
             syscribe_model::projection::SelectionOutcome::Error(m) => {
                 eprintln!("{m}");
                 return 1;

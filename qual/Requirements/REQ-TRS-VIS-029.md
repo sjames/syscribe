@@ -14,7 +14,7 @@ drawn usage of that hardware, else inside the innermost drawn usage containing i
 element or definition declares a safety level **shall** carry a mark naming the level with a heavy
 outline, and one with `appliesWhen:` a mark badged `optional`. `groupBy: domain` **shall** frame
 the subject's parts by `domain:`, with containment winning over the frame; any other value is
-warning `W420`. Parents **shall** precede their children in the node order. Without these inputs
+warning `W420`. A definition that contains itself **shall** be opened once on a path, and `depth:` **shall** be capped at 16. Among several hosts a deployment package **shall** go into the nearest. Parents **shall** precede their children in the node order. Without these inputs
 the derived IBD **shall** be unchanged.
 
 **Source:** GH #336, spec §8.16.8.2.

@@ -15,6 +15,14 @@ testFunctions:
   - unknown_group_by_is_w420
   - edges_cross_nesting_through_ports
   - without_the_new_fields_the_part_tree_is_as_before
+  - a_definition_that_contains_itself_is_opened_once_and_depth_is_capped
+  - each_package_goes_into_the_nearest_host_and_packages_pair_with_hosts
+  - members_whose_ids_collide_are_all_drawn
+  - child_part_files_are_nested_at_depth_two
+  - asil_badges_keep_the_decomposition_and_drop_a_repeated_prefix
+  - group_by_outside_a_derived_ibd_is_w420
+  - plantuml_and_dot_draw_marks_and_containment
+  - a_projected_variant_badges_nothing_optional
 tags:
   - diagrams
 ---
@@ -36,4 +44,10 @@ Feature: IBD grouping and containment (TC-TRS-VIS-029)
 
   Scenario: defaults
     Then an unknown groupBy is W420 and a model without these fields draws the same part tree as before
+
+  Scenario: robustness
+    Then a self-containing definition is opened once, each board's firmware goes into its own MCU, colliding ids are all drawn and child Part files nest
+
+  Scenario: writers and variants
+    Then PlantUML and DOT draw the marks and containment, and a projected variant badges nothing optional
 ```

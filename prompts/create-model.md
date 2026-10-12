@@ -223,7 +223,7 @@ Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`
 **Batch 8 — Diagrams**
 Write `Diagram` elements after all model elements are in place.
 
-- **Derived BDD / IBD** — **preferred for those two kinds.** Declare only `diagramKind: BDD` (subject: a Package, PartDef or ItemDef) or `diagramKind: IBD` (subject: a PartDef or Part) and `subject:`; no `shapes:`/`edges:` — the content is derived from the model and follows it. Optional `include:`/`exclude:` narrow the members shown. Validate: fix W401, W417 (filter entry names no member), W418 (subject type wrong for the kind).
+- **Derived BDD / IBD** — **preferred for those two kinds.** Declare only `diagramKind: BDD` (subject: a Package, PartDef or ItemDef) or `diagramKind: IBD` (subject: a PartDef or Part) and `subject:`; no `shapes:`/`edges:` — the content is derived from the model and follows it. Optional `include:`/`exclude:` narrow the members shown. On an IBD, `depth: 2` draws each part's own parts inside it (deployed software inside the hardware it is allocated to) and `groupBy: domain` frames the parts by `domain:`. Validate: fix W401, W417 (filter entry names no member), W418 (subject type wrong for the kind), W420 (`groupBy:` other than `domain`, or not on a derived IBD).
 - **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
 - **svgMode: companion** (companion SVG) — the `.svg` is saved from the browser (Save companion SVG) or produced by `syscribe -m model/ plantuml render`; there is no CLI command that composes it. Commit both `.md` and the `.svg`.
 - **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion` and `pumlFile: ./<Name>.puml`. Then run:
@@ -882,6 +882,8 @@ SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape 
 | W414 | `pumlMode: companion` but the `.puml` file does not exist yet |
 | W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry naming no member of the subject |
 | W418 | Derived diagram's `subject:` type is not valid for its `diagramKind:` — drawn empty |
+| W419 | A `flowKind:` or port `side:` that is not known, or set where it is not read |
+| W420 | `groupBy:` other than `domain`, or not on a derived IBD — ignored |
 
 ---
 

@@ -3580,6 +3580,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // ── Diagram checks (E4xx / W4xx) ─────────────────────────────────────
 
+        // W420: `groupBy:` is a field of an IBD `Diagram` only (GH #336)
+        if fm.group_by.is_some() && !matches!(fm.element_type, Some(ElementType::Diagram)) {
+            findings.push(warning("W420", &file, "`groupBy` is a field of a derived IBD `Diagram` — ignored here"));
+        }
+
         if matches!(fm.element_type, Some(ElementType::Diagram)) {
             // W400: no diagramKind — rendering mode is ambiguous
             // Suppressed for companion SVGs: svgMode: companion already specifies how to display the diagram.

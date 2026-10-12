@@ -327,6 +327,22 @@ fn render_bdd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
 
 // ── IBD ───────────────────────────────────────────────────────────────────────
 
+/// A marked IBD node's stereotypes (` <<SIL 2>> <<optional>>`) and colours (` #fill;line:stroke;line.bold`, dashed
+/// for an optional part), GH #336. PlantUML takes the stereotypes before the link and the colours after it, and the
+/// line colour without `#`. Both empty for an unmarked node, so its output is unchanged.
+fn ibd_mark(node: &Node) -> (String, String) {
+    let Some(m) = node.mark.as_ref().filter(|m| !m.is_detail_only()) else { return (String::new(), String::new()) };
+    let st = crate::vis::style::node_style(node);
+    let stereotypes: String = m.badges.iter().map(|b| format!(" <<{b}>>")).collect();
+    let mut colours = format!(" {};line:{}", st.fill, st.stroke.trim_start_matches('#'));
+    if m.emphasis {
+        colours.push_str(";line.bold");
+    } else if st.dashed {
+        colours.push_str(";line.dashed");
+    }
+    (stereotypes, colours)
+}
+
 fn render_ibd_container(
     node: &Node,
     graph: &DiagramGraph,
@@ -337,7 +353,8 @@ fn render_ibd_container(
 ) {
     let pad = "  ".repeat(indent);
     let url = element_url(&node.element_ref, cfg);
-    out.push_str(&format!("{}rectangle \"{}\" as {} {} {{\n", pad, node.label, sanitize_id(&node.id), url));
+    let (st, colours) = ibd_mark(node);
+    out.push_str(&format!("{}rectangle \"{}\" as {}{st} {url}{colours} {{\n", pad, node.label, sanitize_id(&node.id)));
     for child in graph.children_of(&node.id) {
         if child.kind == NodeKind::Port {
             continue;
@@ -346,7 +363,8 @@ fn render_ibd_container(
             render_ibd_container(child, graph, container_ids, cfg, indent + 1, out);
         } else {
             let curl = element_url(&child.element_ref, cfg);
-            out.push_str(&format!("{}  component \"{}\" as {} {}\n", pad, child.label, sanitize_id(&child.id), curl));
+            let (st, colours) = ibd_mark(child);
+            out.push_str(&format!("{}  component \"{}\" as {}{st} {curl}{colours}\n", pad, child.label, sanitize_id(&child.id)));
         }
     }
     out.push_str(&format!("{}}}\n", pad));

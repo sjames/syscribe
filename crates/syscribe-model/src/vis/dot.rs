@@ -168,9 +168,15 @@ fn edge_attrs(graph: &DiagramGraph, edge: &Edge) -> String {
     attrs.join(", ")
 }
 
-/// Whether `node` is drawn as a DOT `cluster`: a zone (GH #223) with something in it.
+/// Whether `node` is drawn as a DOT `cluster`: a zone (GH #223) with something in it, or an IBD domain frame or
+/// a part with parts drawn inside it (GH #336).
 fn is_cluster(graph: &DiagramGraph, node: &Node) -> bool {
-    node.kind == NodeKind::Zone && graph.children_of(&node.id).any(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label))
+    match node.kind {
+        NodeKind::Zone => graph.children_of(&node.id).any(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label)),
+        NodeKind::Swimlane => node.stereotype.as_deref() == Some("domain") && graph.children_of(&node.id).next().is_some(),
+        NodeKind::Block => graph.children_of(&node.id).any(|c| c.kind == NodeKind::Block),
+        _ => false,
+    }
 }
 
 /// The first non-cluster node inside (or equal to) `node`: DOT cannot attach an

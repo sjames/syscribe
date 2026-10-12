@@ -252,17 +252,20 @@ layout:
 
 A derived IBD reads more of the model than its subject's direct parts:
 
-- `depth: 2` (or more) draws each part's own parts inside it, with their ports and the connections
-  their definition declares.
+- `depth: 2` (or more, up to 16) draws each part's own parts inside it, inline or child `Part` files,
+  with their ports and the connections their definition declares. A part that contains itself is
+  opened once.
 - Software with `isDeploymentPackage: true` that is allocated to hardware (an `Allocation`, or
   `allocatedTo:`) is drawn inside that hardware. If the hardware is not drawn at this depth, the
-  software goes inside the part that contains it.
+  software goes inside the part that contains it. With two boards, each board's firmware goes into
+  that board's MCU.
 - A part with `silLevel:`, `asilLevel:` or a `safety` stereotype gets a heavy amber outline and a
-  `SIL 2`/`ASIL B` badge. A part with `appliesWhen:` is drawn muted with an `optional` badge and
+  `SIL 2`/`ASIL B` badge. A part with `appliesWhen:` is drawn dashed with an `optional` badge and
   `when <feature>`. The SVG adds a legend when any part is marked.
 - `groupBy: domain` frames the subject's parts by `domain:` (system, hardware, software). Deployed
   software stays inside its hardware and shows its domain as a banner.
-- `syscribe diagram export <qname> --config <CONF>` draws only the parts active in that product.
+- `syscribe diagram export <qname> --config <CONF>` draws only the parts active in that product, and
+  badges none of them optional.
 
 <!-- syscribe-example: skip reason="an excerpt of model_gti; the subject lives there" -->
 ```yaml

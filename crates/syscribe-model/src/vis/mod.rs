@@ -105,6 +105,20 @@ pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolv
 
 /// [`build_graph`] under the project's `[cyber]` configuration, which the
 /// `ThreatGraph` kind reads for its risk tones (GH #223).
+/// Drop every `appliesWhen:` (element and inline feature) from a model already projected onto one
+/// Configuration: everything left is present in that product, so its diagrams badge nothing `optional`
+/// (GH #336). Only for drawing a projected view; validation keeps the conditions.
+pub fn settle_variant(elements: &mut [RawElement]) {
+    for e in elements.iter_mut() {
+        e.frontmatter.applies_when = None;
+        for f in e.frontmatter.features.iter_mut().flatten() {
+            if let Some(m) = f.as_mapping_mut() {
+                m.remove("appliesWhen");
+            }
+        }
+    }
+}
+
 pub fn build_graph_with(
     elem: &RawElement,
     elements: &[RawElement],
@@ -124,6 +138,9 @@ pub fn build_graph_with(
                 derive::sequence::place_manifest(&mut graph);
             }
             let filters = derive::Filters::of(elem);
+            if filters.group_by.is_some() {
+                issues.push(derive::w420("`groupBy` applies only to a derived IBD (one with a `subject` and no `shapes`) — ignored".to_string()));
+            }
             if !filters.is_empty() {
                 issues.push(derive::w417(
                     "`include`/`exclude` apply only to a derived diagram (one with a `subject` and no `shapes`) — ignored".to_string(),
