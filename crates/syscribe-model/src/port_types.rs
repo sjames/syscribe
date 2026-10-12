@@ -4,6 +4,10 @@
 //! (`E932`), and a payload value or use of a field of the wrong type or dimension (`E935`). An untyped port is checked
 //! as before, by name and direction only.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use serde_yaml::{Mapping, Value as Y};
 
 use crate::element::{ElementType, RawElement};
@@ -16,6 +20,49 @@ use crate::typecheck::{self, Ty};
 /// `(code, message)`.
 pub type Finding = (&'static str, String);
 
+/// What the checks look up once per model rather than once per part: the child `Port` elements of each element, the
+/// typed ports of each part definition and each lowered machine.
+pub struct Ctx<'a> {
+    child_ports: HashMap<&'a str, Vec<&'a RawElement>>,
+    typed: RefCell<HashMap<String, Rc<Vec<TypedPort>>>>,
+    machines: RefCell<HashMap<String, Option<Rc<Machine>>>>,
+}
+
+impl<'a> Ctx<'a> {
+    pub fn new(elements: &'a [RawElement]) -> Self {
+        let mut child_ports: HashMap<&str, Vec<&RawElement>> = HashMap::new();
+        for p in elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Port)))
+        {
+            if let Some((parent, _)) = p.qualified_name.rsplit_once("::") {
+                child_ports.entry(parent).or_default().push(p);
+            }
+        }
+        Ctx {
+            child_ports,
+            typed: RefCell::default(),
+            machines: RefCell::default(),
+        }
+    }
+
+    fn machine(
+        &self,
+        elements: &[RawElement],
+        resolver: &Resolver,
+        qname: &str,
+    ) -> Option<Rc<Machine>> {
+        if let Some(m) = self.machines.borrow().get(qname) {
+            return m.clone();
+        }
+        let m = ir::lower_with(elements, resolver, qname).ok().map(Rc::new);
+        self.machines
+            .borrow_mut()
+            .insert(qname.to_string(), m.clone());
+        m
+    }
+}
+
 /// One payload field of an item.
 #[derive(Debug, Clone)]
 pub struct Field {
@@ -26,7 +73,7 @@ pub struct Field {
 /// One item a port type carries: the event it names and, when its `ItemDef` resolves, the payload fields.
 #[derive(Debug, Clone)]
 pub struct Item {
-    /// The event name a machine uses: the `ItemDef`'s name, or the usage's own name when it has no type.
+    /// The event name a machine uses: the `ItemDef`'s name (the last segment of `typedBy:` when it does not resolve).
     pub event: String,
     /// The direction relative to a part that owns the port unconjugated; `None` when the item does not say.
     pub dir: Option<Dir>,
@@ -113,7 +160,7 @@ fn field_ty(m: &Mapping) -> Ty {
 /// The payload fields of an `ItemDef`: its non-port `features:` along its definition chain.
 fn item_fields(elements: &[RawElement], resolver: &Resolver, def: &RawElement) -> Vec<Field> {
     let mut out: Vec<Field> = Vec::new();
-    for d in system::chain(elements, resolver, def) {
+    for d in system::chain_with(elements, resolver, def, false) {
         for f in d.frontmatter.features.iter().flatten() {
             let Some(m) = f.as_mapping() else { continue };
             let Some(n) = field(m, "name").and_then(|n| n.as_str()) else {
@@ -133,39 +180,62 @@ fn item_fields(elements: &[RawElement], resolver: &Resolver, def: &RawElement) -
     out
 }
 
-/// The items of a `PortDef` (its `features:` along its chain), or `None` when `ty` is not a `PortDef`.
+/// The items of a `PortDef` (its `features:` along its supertype chain). `None` when `ty` is not a `PortDef`, or when
+/// the `PortDef` names no item at all (only attributes or flows): such a port is checked as an untyped one.
 fn items_of(elements: &[RawElement], resolver: &Resolver, ty: &str) -> Option<(String, Vec<Item>)> {
     let pd = resolver
         .resolve_ref(elements, ty)
         .filter(|d| matches!(d.frontmatter.element_type, Some(ElementType::PortDef)))?;
     let mut items: Vec<Item> = Vec::new();
-    for d in system::chain(elements, resolver, pd) {
+    for d in system::chain_with(elements, resolver, pd, false) {
         for f in d.frontmatter.features.iter().flatten() {
             let Some(m) = f.as_mapping() else { continue };
-            let def = field(m, "typedBy")
-                .and_then(|t| t.as_str())
-                .and_then(|t| resolver.resolve_ref(elements, t));
-            let (event, fields) = match def {
-                Some(id) if matches!(id.frontmatter.element_type, Some(ElementType::ItemDef)) => (
-                    last(&id.qualified_name).to_string(),
-                    Some(item_fields(elements, resolver, id)),
-                ),
-                Some(_) => continue, // an attribute or a nested port, not an item
-                None => match field(m, "name").and_then(|n| n.as_str()) {
-                    Some(n) if field(m, "typedBy").is_none() => (n.to_string(), None),
-                    _ => continue,
-                },
+            let typed_by = field(m, "typedBy").and_then(|t| t.as_str());
+            let (event, fields) = match typed_by.map(|t| resolver.resolve_ref(elements, t)) {
+                Some(Some(id))
+                    if matches!(id.frontmatter.element_type, Some(ElementType::ItemDef)) =>
+                {
+                    (
+                        last(&id.qualified_name).to_string(),
+                        Some(item_fields(elements, resolver, id)),
+                    )
+                }
+                Some(Some(_)) => continue, // an attribute or a nested port, not an item
+                // an `ItemDef` that does not resolve (E111) is still an item, with fields unknown
+                Some(None) if !is_scalar(typed_by.unwrap_or("")) => {
+                    (last(typed_by.unwrap_or("")).to_string(), None)
+                }
+                Some(None) | None => continue,
             };
-            if !items.iter().any(|i| i.event == event) {
-                items.push(Item {
-                    event,
-                    dir: parse_dir(field(m, "direction").and_then(|v| v.as_str())),
-                    fields,
-                });
+            let dir = parse_dir(field(m, "direction").and_then(|v| v.as_str()));
+            match items.iter_mut().find(|i| i.event == event) {
+                // the same item declared in both directions flows both ways
+                Some(i) if i.dir.is_some() && dir.is_some() && i.dir != dir => {
+                    i.dir = Some(Dir::InOut)
+                }
+                Some(_) => {}
+                None => items.push(Item { event, dir, fields }),
             }
         }
     }
+    if items.is_empty() {
+        return None;
+    }
     Some((pd.qualified_name.clone(), items))
+}
+
+/// A built-in scalar or ISQ quantity type: an attribute, never an item.
+fn is_scalar(t: &str) -> bool {
+    t.starts_with("ScalarValues::")
+        || t.starts_with("ISQ::")
+        || t.starts_with("SI::")
+        || !matches!(field_ty_of(t), Ty::Unknown)
+}
+
+fn field_ty_of(t: &str) -> Ty {
+    let mut m = Mapping::new();
+    m.insert(Y::String("typedBy".into()), Y::String(t.into()));
+    field_ty(&m)
 }
 
 fn conjugated(m: &Mapping) -> bool {
@@ -178,6 +248,23 @@ fn conjugated(m: &Mapping) -> bool {
 pub fn typed_ports(
     elements: &[RawElement],
     resolver: &Resolver,
+    ctx: &Ctx,
+    def: &RawElement,
+) -> Rc<Vec<TypedPort>> {
+    if let Some(t) = ctx.typed.borrow().get(&def.qualified_name) {
+        return t.clone();
+    }
+    let t = Rc::new(typed_ports_uncached(elements, resolver, ctx, def));
+    ctx.typed
+        .borrow_mut()
+        .insert(def.qualified_name.clone(), t.clone());
+    t
+}
+
+fn typed_ports_uncached(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    ctx: &Ctx,
     def: &RawElement,
 ) -> Vec<TypedPort> {
     let mut out: Vec<TypedPort> = Vec::new();
@@ -208,14 +295,16 @@ pub fn typed_ports(
                 });
             }
         }
-        for p in elements
-            .iter()
-            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Port)))
+        for p in ctx
+            .child_ports
+            .get(d.qualified_name.as_str())
+            .into_iter()
+            .flatten()
         {
-            let Some((parent, n)) = p.qualified_name.rsplit_once("::") else {
+            let Some((_, n)) = p.qualified_name.rsplit_once("::") else {
                 continue;
             };
-            if parent != d.qualified_name || seen.iter().any(|s| s == n) {
+            if seen.iter().any(|s| s == n) {
                 continue;
             }
             seen.push(n.to_string());
@@ -241,13 +330,14 @@ pub fn typed_ports(
 pub fn port_type_of(
     elements: &[RawElement],
     resolver: &Resolver,
+    ctx: &Ctx,
     def: &RawElement,
     name: &str,
 ) -> Option<(String, bool)> {
-    typed_ports(elements, resolver, def)
-        .into_iter()
+    typed_ports(elements, resolver, ctx, def)
+        .iter()
         .find(|p| p.name == name)
-        .map(|p| (p.ty, p.conjugated))
+        .map(|p| (p.ty.clone(), p.conjugated))
 }
 
 /// How a port type reads in a message: `T` or `~T` (conjugated).
@@ -316,16 +406,38 @@ fn exprs_of<'a>(acts: &'a [Action], out: &mut Vec<(&'a IrExpr, Option<usize>)>) 
     }
 }
 
-fn walk_actions<'a>(m: &'a Machine) -> Vec<(String, &'a [Action])> {
-    let mut v: Vec<(String, &[Action])> = vec![("initialEffect".into(), &m.initial_actions[..])];
+/// Every action list of `m`, with where it is and, for a transition's, the transition (whose accepted event's fields a
+/// forwarded payload value may use).
+fn walk_actions<'a>(m: &'a Machine) -> Vec<(String, &'a [Action], Option<&'a ir::Transition>)> {
+    let mut v: Vec<(String, &[Action], _)> =
+        vec![("initialEffect".into(), &m.initial_actions[..], None)];
     for s in &m.states {
-        v.push((format!("state '{}' entry", s.path), &s.entry[..]));
-        v.push((format!("state '{}' exit", s.path), &s.exit[..]));
+        v.push((format!("state '{}' entry", s.path), &s.entry[..], None));
+        v.push((format!("state '{}' exit", s.path), &s.exit[..], None));
     }
     for t in &m.transitions {
-        v.push((transition_ctx(m, t), &t.actions[..]));
+        v.push((transition_ctx(m, t), &t.actions[..], Some(t)));
     }
     v
+}
+
+/// The `as:` binding of the event `t` accepts through a typed port, with the item's fields, when they are known.
+fn accepted<'a>(ports: &'a [TypedPort], t: &'a ir::Transition) -> Option<(&'a str, &'a [Field])> {
+    let Trigger::Event {
+        name,
+        bind: Some(b),
+    } = &t.trigger
+    else {
+        return None;
+    };
+    let (p, event) = name.split_once('/')?;
+    let fields = ports
+        .iter()
+        .find(|x| x.name == p)?
+        .item(event)?
+        .fields
+        .as_deref()?;
+    Some((b.as_str(), fields))
 }
 
 fn transition_ctx(m: &Machine, t: &ir::Transition) -> String {
@@ -339,25 +451,32 @@ fn transition_ctx(m: &Machine, t: &ir::Transition) -> String {
 }
 
 /// The findings for one part definition that exhibits a state machine and has typed ports. `holder` names it.
-pub fn findings(elements: &[RawElement], resolver: &Resolver, def: &RawElement) -> Vec<Finding> {
+pub fn findings(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    ctx: &Ctx,
+    def: &RawElement,
+) -> Vec<Finding> {
     let mut out = Vec::new();
     let Some(machine) = def.frontmatter.exhibits_states.iter().flatten().next() else {
         return out;
     };
-    let ports = typed_ports(elements, resolver, def);
+    let ports = typed_ports(elements, resolver, ctx, def);
     if ports.is_empty() {
         return out;
     }
     let Some(sm) = resolver.resolve_ref(elements, machine) else {
         return out;
     };
-    let Ok(m) = ir::lower(elements, &sm.qualified_name) else {
+    let Some(m) = ctx.machine(elements, resolver, &sm.qualified_name) else {
         return out;
     };
+    let m: &Machine = &m;
     let q = &def.qualified_name;
 
     // sends
-    for (ctx, acts) in walk_actions(&m) {
+    for (ctx, acts, tr) in walk_actions(m) {
+        let bind = tr.and_then(|t| accepted(&ports, t));
         for a in acts {
             let Action::Send {
                 event,
@@ -374,8 +493,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver, def: &RawElement) 
                 out.push(("E932", format!("{q}: {ctx} sends {event} via '{p}', but its type '{}' carries no {event} (it carries {})", tp.ty, tp.carried())));
                 continue;
             };
-            if let Some(f) = tp.flow(item).filter(|f| !f.sends()) {
-                let _ = f;
+            if tp.flow(item).is_some_and(|f| !f.sends()) {
                 out.push((
                     "E932",
                     format!(
@@ -395,7 +513,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver, def: &RawElement) 
                     out.push(("E932", format!("{q}: {ctx} sends {event} via '{p}' with payload field '{k}', which {event} does not have (it has {})", names(fields))));
                     continue;
                 };
-                if let Ok(t) = infer_with(&m, e, None) {
+                if let Ok(t) = infer_with(m, e, bind) {
                     if let Some(why) = mismatch(fd.ty, t) {
                         out.push((
                             "E935",
@@ -422,7 +540,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver, def: &RawElement) 
         let Some(tp) = ports.iter().find(|x| x.name == p) else {
             continue;
         };
-        let ctx = transition_ctx(&m, t);
+        let ctx = transition_ctx(m, t);
         let Some(item) = tp.item(event) else {
             out.push(("E932", format!("{q}: {ctx} accepts {event} via '{p}', but its type '{}' carries no {event} (it carries {})", tp.ty, tp.carried())));
             continue;
@@ -466,14 +584,13 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver, def: &RawElement) 
                 }
             }
             let is_guard = i == 0 && t.guard.is_some();
-            if let Some(why) = typed_error(&m, e, (b, fields), is_guard) {
+            if let Some(why) = typed_error(m, e, (b, fields), is_guard) {
                 out.push(("E935", format!("{q}: {ctx}: {why}")));
             } else if let Some(v) = var {
-                let lhs = var_ty(&m, *v);
-                if let (Ok(rhs), Ok(plain)) = (
-                    infer_with(&m, e, Some((b, fields))),
-                    infer_with(&m, e, None),
-                ) {
+                let lhs = var_ty(m, *v);
+                if let (Ok(rhs), Ok(plain)) =
+                    (infer_with(m, e, Some((b, fields))), infer_with(m, e, None))
+                {
                     if typecheck::assign_mismatch(lhs, plain).is_none() {
                         if let Some(why) = typecheck::assign_mismatch(lhs, rhs) {
                             out.push((

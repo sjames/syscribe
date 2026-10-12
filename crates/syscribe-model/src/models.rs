@@ -88,6 +88,7 @@ fn counterparts(
     pm: &PortMap,
     port: &str,
     index: &HashMap<String, Vec<PortSpec>>,
+    pctx: &crate::port_types::Ctx,
 ) -> Vec<String> {
     if pm.contains_key(port) {
         return mapped(pm, port);
@@ -98,10 +99,10 @@ fn counterparts(
             .any(|q| q.name == port)
     });
     if !same {
-        if let Some(ty) = crate::port_types::port_type_of(elements, resolver, def, port) {
+        if let Some(ty) = crate::port_types::port_type_of(elements, resolver, pctx, def, port) {
             let typed: BTreeSet<String> = targets
                 .iter()
-                .flat_map(|t| crate::port_types::typed_ports(elements, resolver, t))
+                .flat_map(|t| crate::port_types::typed_ports(elements, resolver, pctx, t).to_vec())
                 .filter(|p| (&p.ty, p.conjugated) == (&ty.0, ty.1))
                 .map(|p| p.name)
                 .collect();
@@ -536,6 +537,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
 
     // E991: each executable port corresponds to a port of a modelled element, in a compatible direction.
     let port_index = system::child_port_index(elements);
+    let pctx = crate::port_types::Ctx::new(elements);
     let ports_cache: std::cell::RefCell<HashMap<String, Vec<PortSpec>>> = Default::default();
     let ports = |d: &RawElement| -> Vec<PortSpec> {
         ports_cache
@@ -575,6 +577,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 &b.port_map,
                 &p.name,
                 &port_index,
+                &pctx,
             ) {
                 let hits: Vec<(&RawElement, PortSpec)> = b
                     .targets
@@ -604,8 +607,8 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                     covered.insert((t.qualified_name.clone(), q.name.clone()));
                     // GH #331: ports typed on both sides share the interface
                     if let (Some(a), Some(c)) = (
-                        crate::port_types::port_type_of(elements, resolver, b.def, &p.name),
-                        crate::port_types::port_type_of(elements, resolver, t, &q.name),
+                        crate::port_types::port_type_of(elements, resolver, &pctx, b.def, &p.name),
+                        crate::port_types::port_type_of(elements, resolver, &pctx, t, &q.name),
                     ) {
                         if a != c {
                             out.push((
@@ -795,8 +798,8 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 continue;
             };
             let (pas, pbs) = (
-                counterparts(elements, resolver, dfa, tsa, ma, pa, &port_index),
-                counterparts(elements, resolver, dfb, tsb, mb, pb, &port_index),
+                counterparts(elements, resolver, dfa, tsa, ma, pa, &port_index, &pctx),
+                counterparts(elements, resolver, dfb, tsb, mb, pb, &port_index, &pctx),
             );
             if pas.is_empty() || pbs.is_empty() {
                 continue; // an end mapped to `null`

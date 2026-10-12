@@ -2327,9 +2327,9 @@ A part that `exhibitsStates:` a machine is checked against its typed ports:
 | a `send` payload key, or an `as: m` reference `m.f`, naming a field the item does not have | `E932` |
 | a `send` payload value, or an expression using `m.f`, of the wrong kind or unit dimension (by dimension, not exact unit, like every other `E935`) | `E935` |
 
-An untyped port, an item with no `direction:`, and an item whose `ItemDef` does not resolve keep today's checks (name and port direction only). A `PortDef` types a single port; an `InterfaceDef` types a connection between two ends and is not used here.
+An untyped port, and a port typed by a `PortDef` that has no items (only attribute or flow features), keep today's checks (name and port direction only). An item with no `direction:` is not direction-checked. An item whose `ItemDef` does not resolve (`E111`) is still carried, under the last segment of its `typedBy:`, with its payload fields unchecked. One `ItemDef` declared by two features of opposite directions flows both ways. A `send` payload value that forwards a field `m.f` of the event its transition accepted has that field's type. A `PortDef` types a single port; an `InterfaceDef` types a connection between two ends and is not used here. This version checks each machine against its own ports: it does not check that the two ends of a connection are typed as conjugates.
 
-When an executable part `models:` an architecture element (§12.11), a port typed by the same `PortDef` and conjugation as exactly one port of the modelled elements corresponds to it without a `portMap:` entry, and two corresponding ports typed differently are `E991`.
+When an executable part `models:` an architecture element (§12.11), a port typed by the same `PortDef` and conjugation as exactly one port of the modelled elements corresponds to it without a `portMap:` entry, and two corresponding ports typed differently are `E991`. The types must be the same `PortDef`: a port typed by a specialisation of the other side's `PortDef` is `E991` too.
 
 <!-- syscribe-example: skip reason="an excerpt; the ItemDef and machine it names are not shown" -->
 ```yaml

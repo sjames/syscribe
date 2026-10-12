@@ -251,6 +251,7 @@ fn the_link_appears_in_links_follow_why_trace_impact_and_suspect() {
 #[test]
 fn a_shared_port_type_makes_port_map_unnecessary() {
     // GH #331: Monitor's `out` and Manager's `trip` are both typed by TripPort, so they correspond without `portMap:`
+    // (and so Chain's `mon.out → rel.cmd` still matches Board's `mgr.trip → relay.cmd`: no W991)
     let mut f = base();
     f.insert("Ifc/Trip.md", "---\ntype: ItemDef\nname: Trip\n---\nA trip.\n".into());
     f.insert("Ifc/TripPort.md", "---\ntype: PortDef\nname: TripPort\nfeatures:\n  - {name: trip, typedBy: Ifc::Trip, direction: out}\n---\nTrips.\n".into());

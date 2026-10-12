@@ -119,5 +119,64 @@ fn untyped_ports_are_checked_as_before() {
     }
     edit(&mut f, "P/SrcM.md", "payload: {v: \"3 V\", ok: \"true\"}", "payload: {v: \"3 A\", ok: \"1\", x: \"1\"}");
     let out = run(&f);
-    assert!(lines(&out, "E932").is_empty() && lines(&out, "E935").is_empty(), "{out}");
+    for c in ["E930", "E931", "E932", "E933", "E934", "E935"] {
+        assert!(lines(&out, c).is_empty(), "{c}:\n{out}");
+    }
+}
+
+#[test]
+fn a_port_def_with_no_items_is_an_untyped_port() {
+    // a legacy PortDef with only an attribute: the port is checked by name and direction, as before
+    let mut f = base();
+    f.insert("Ifc/SamplePort.md", "---\ntype: PortDef\nname: SamplePort\nfeatures:\n  - {name: voltage, typedBy: ScalarValues::Real, unit: V, direction: out}\n---\nA flow.\n".to_string());
+    let out = run(&f);
+    for c in ["E932", "E935"] {
+        assert!(lines(&out, c).is_empty(), "{c}:\n{out}");
+    }
+}
+
+#[test]
+fn an_item_whose_item_def_does_not_resolve_is_still_carried() {
+    let mut f = base();
+    edit(&mut f, "Ifc/SamplePort.md", "typedBy: Ifc::Trip,", "typedBy: Ifc::Trap,");
+    f.insert("P/MonM.md", f["P/MonM.md"].replace("send: Trip, via: inp", "send: Trap, via: inp"));
+    f.insert("P/SrcM.md", f["P/SrcM.md"].replace("payload: Trip, via: out", "payload: Trap, via: out"));
+    let out = run(&f);
+    assert!(!lines(&out, "E111").is_empty(), "{out}");
+    assert!(lines(&out, "E932").is_empty(), "the unresolved item is reported once (E111), not at every use:\n{out}");
+}
+
+#[test]
+fn one_item_def_declared_both_ways_flows_both_ways() {
+    let mut f = base();
+    edit(&mut f, "Ifc/SamplePort.md", "  - {name: trip,", "  - {name: echo, typedBy: Ifc::Sample, direction: in}\n  - {name: trip,");
+    // Src (unconjugated) also accepts a Sample back through its port
+    edit(&mut f, "P/SrcM.md", "accept: {payload: Trip, via: out}", "accept: {payload: Sample, via: out}");
+    let out = run(&f);
+    assert!(lines(&out, "E932").is_empty(), "{out}");
+}
+
+#[test]
+fn child_port_elements_and_inherited_ports_are_typed_too() {
+    // Mon's port as a child Port element
+    let mut f = base();
+    edit(&mut f, "P/Mon.md", "features:\n  - {name: inp, type: Port, direction: inout, typedBy: Ifc::SamplePort, isConjugated: true}\n", "");
+    f.insert("P/Mon/inp.md", "---\ntype: Port\nname: inp\ndirection: inout\ntypedBy: Ifc::SamplePort\nisConjugated: true\n---\n".to_string());
+    edit(&mut f, "P/MonM.md", "accept: {payload: Sample, via: inp, as: s}", "accept: {payload: Sampel, via: inp, as: s}");
+    has(&run(&f), "E932", "accepts Sampel via 'inp', but its type 'Ifc::SamplePort' carries no Sampel");
+    // Src's port inherited from a supertype
+    let mut f = base();
+    f.insert("P/SrcBase.md", "---\ntype: PartDef\nname: SrcBase\nfeatures:\n  - {name: out, type: Port, direction: inout, typedBy: Ifc::SamplePort}\n---\n".to_string());
+    f.insert("P/Src.md", "---\ntype: PartDef\nname: Src\nsupertype: P::SrcBase\nexhibitsStates: [P::SrcM]\n---\n".to_string());
+    edit(&mut f, "P/SrcM.md", "send: Sample, via: out,", "send: Sampel, via: out,");
+    has(&run(&f), "E932", "sends Sampel via 'out', but its type 'Ifc::SamplePort' carries no Sampel");
+}
+
+#[test]
+fn a_forwarded_payload_value_has_the_accepted_field_type() {
+    // Mon forwards the accepted sample's boolean as the voltage of a Sample it sends back
+    let mut f = base();
+    edit(&mut f, "Ifc/SamplePort.md", "  - {name: trip,", "  - {name: echo, typedBy: Ifc::Sample, direction: in}\n  - {name: trip,");
+    edit(&mut f, "P/MonM.md", "effect: {send: Trip, via: inp}", "effect: {send: Sample, via: inp, payload: {v: \"s.ok\", ok: \"s.ok\"}}");
+    has(&run(&f), "E935", "payload 'v' of Sample is");
 }

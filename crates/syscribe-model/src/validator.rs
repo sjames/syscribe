@@ -1135,6 +1135,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     };
 
     let resolver = Resolver::new(elements);
+    // GH #331: typed ports and lowered machines, looked up once per model
+    let port_ctx = crate::port_types::Ctx::new(machine_view);
 
     // Segments some element claims as its own name (covers element names and
     // `_index.md` packages). A directory WITHOUT an `_index.md` owns no element,
@@ -2960,7 +2962,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E932/E935 against typed ports (GH #331): a part definition that exhibits a machine and has ports typed by a
         // `PortDef`. Dormant for untyped ports.
         if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.exhibits_states.as_ref().is_some_and(|v| !v.is_empty()) {
-            for (code, msg) in crate::port_types::findings(machine_view, &resolver, elem) {
+            for (code, msg) in crate::port_types::findings(machine_view, &resolver, &port_ctx, elem) {
                 findings.push(error(code, &file, &msg));
             }
         }

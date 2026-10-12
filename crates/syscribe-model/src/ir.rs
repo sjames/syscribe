@@ -358,7 +358,11 @@ impl<'a> Ctx<'a> {
 /// Lower the `StateDef`/`State` element named `target` (qualified name, id or name). Errors are
 /// diagnostics with the codes of REQ-TRS-SMSCHEMA-001; the machine is only returned when there are none.
 pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>> {
-    let resolver = Resolver::new(elements);
+    lower_with(elements, &Resolver::new(elements), target)
+}
+
+/// [`lower`] with a resolver the caller already built over `elements`.
+pub fn lower_with(elements: &[RawElement], resolver: &Resolver, target: &str) -> Result<Machine, Vec<Diag>> {
     let Some(el) = resolver.resolve_ref(elements, target) else {
         return Err(vec![("E001", format!("no element '{target}'"))]);
     };

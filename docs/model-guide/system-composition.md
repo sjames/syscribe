@@ -115,7 +115,7 @@ features:
   - {name: samples, type: Port, direction: in, typedBy: Interfaces::SamplePort, isConjugated: true} # the receiver
 ```
 
-An item's `direction:` is seen from a part that owns the port unconjugated; `isConjugated: true` reverses it. A machine that sends or accepts an event its port's type does not carry, or carries the other way, or names a payload field the item does not have, gets `E932`; a payload value or a use of an accepted field of the wrong type or unit dimension gets `E935`. Units are compared by dimension, like every other type check. Untyped ports are checked as before. When a part `models:` an architecture element whose port has the same type, the two correspond without `portMap:` (see [Behavioural models](behaviour-models.md)).
+An item's `direction:` is seen from a part that owns the port unconjugated; `isConjugated: true` reverses it. A machine that sends or accepts an event its port's type does not carry, or carries the other way, or names a payload field the item does not have, gets `E932`; a payload value or a use of an accepted field of the wrong type or unit dimension gets `E935`. Units are compared by dimension, like every other type check. A payload value that forwards a field of the event the transition accepted is typed from that field. Untyped ports, and ports typed by a `PortDef` that names no `ItemDef` items (only attributes or flows), are checked as before. The checks are per machine: whether the two ends of a connection are conjugates of each other is not checked yet. When a part `models:` an architecture element whose port has the same type, the two correspond without `portMap:` (see [Behavioural models](behaviour-models.md)).
 
 ## Diagnostics
 

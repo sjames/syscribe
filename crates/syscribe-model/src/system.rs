@@ -100,7 +100,7 @@ pub(crate) fn chain<'a>(elements: &'a [RawElement], resolver: &Resolver, def: &'
 }
 
 /// [`chain`], optionally following only `supertype` (a composite inherits from its supertypes, not from what it is typed by).
-fn chain_with<'a>(elements: &'a [RawElement], resolver: &Resolver, def: &'a RawElement, follow_typed_by: bool) -> Vec<&'a RawElement> {
+pub fn chain_with<'a>(elements: &'a [RawElement], resolver: &Resolver, def: &'a RawElement, follow_typed_by: bool) -> Vec<&'a RawElement> {
     let mut out: Vec<&RawElement> = vec![def];
     let mut i = 0;
     while i < out.len() && out.len() < 32 {
