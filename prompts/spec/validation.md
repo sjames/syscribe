@@ -638,7 +638,6 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E232` | (§9.6a) a `featureTree:` entry's resolved qualified name collides with an existing element (or another entry) of the same qname |
 | `E233` | (§9.6a) a `crossTreeConstraints:` entry is not a mapping, has no `feature:`, has an empty path segment in `feature:`/`requires:`/`excludes:`, or its `feature:` does not resolve to a `FeatureDef` synthesized from the same sheet's `featureTree:` |
 | `E240` | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| `E239` | (`validate`) a `Configuration`'s `features:` key does not resolve to a `FeatureDef`, so it selects nothing; the message names the accepted forms and the closest feature |
 | `E241` | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}`; the message names the accepted form and the closest match |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
@@ -648,6 +647,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |
 | `E237` | (§9.8) a `Configuration`'s `derivedFrom:` names more than one base — a Configuration inherits from at most one; it inherits nothing |
 | `E238` | (`validate`) a `Configuration` names an abstract feature (`isAbstract: true`) in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
+| `E239` | (`validate`) a `Configuration`'s `features:` key does not resolve to a `FeatureDef`, so it selects nothing; the message names the accepted forms and the closest feature |
 
 ## Product Line Engineering warnings (W011–W027, W048)
 

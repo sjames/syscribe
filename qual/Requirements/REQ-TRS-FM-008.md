@@ -11,7 +11,7 @@ Inside a single-file `featureTree:` ([[REQ-TRS-FM-005]]) a feature is named by i
 
 The tool **shall**:
 
-- resolve an inline `requires:`/`excludes:` entry on a `featureTree:` entry exactly as a `crossTreeConstraints:` value: a qualified name or `FEAT-` id as written, anything else as a dotted path relative to the sheet;
+- resolve an inline `requires:`/`excludes:` entry on a `featureTree:` entry that is a path relative to the sheet (`Protection.Afci`) to the sheet entry it names, as a `crossTreeConstraints:` value does, and leave any other value (a qualified name, a `FEAT-` id, a feature outside the sheet) to resolve as written, so no reference that resolved before changes meaning;
 - report a `Configuration` `features:` key that does not resolve to a `FeatureDef` as `E239`, since it selects nothing;
 - in each unresolved-feature finding (`E212` requires/excludes, `E209` appliesWhen, `E239` Configuration features, `E222` parameterBindings, `E241` placeholders), name the form that field accepts and, when a `FeatureDef` (or declared parameter) is close, the reference it most likely meant, written in the accepted form;
 - report a feature-shaped placeholder that does not parse as `{{<feature>.<param>}}` (for example `{{Features::Mppt.GlobalScan.scanPeriodS}}`) as `E241` rather than leaving it unexpanded and unreported. Placeholder syntax inside code spans and fences, and `{{ … }}` text that is not feature-shaped, stays exempt.

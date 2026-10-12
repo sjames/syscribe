@@ -133,7 +133,6 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
 | E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
 | E240 | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| E239 | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` (it would select nothing). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E241 | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}` (e.g. `{{Features::Mppt.GlobalScan.scanPeriodS}}`). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E242 | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | E243 | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
@@ -143,6 +142,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E236 | (Configuration inheritance) A `Configuration` is on a `derivedFrom:` cycle — reported on each member; none inherits |
 | E237 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` names more than one base |
 | E238 | (`validate`) a `Configuration` names an **abstract** feature in `features:`, selected or not. An abstract feature is not a choice: it follows from the concrete features, so remove the entry (the configurator's Save omits abstract features) |
+| E239 | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` (it would select nothing). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 
 ## PLE warnings (W015–W017)
 

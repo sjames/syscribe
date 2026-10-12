@@ -121,3 +121,22 @@ fn a_valid_placeholder_and_template_text_are_not_reported() {
     let root = model("", ALL, GOOD_BIND, "Features::Protection::Afci", "scan every {{Features::Mppt::GlobalScan.scanPeriodS}} s, see {{ user.name }} and `{{Features::Mppt.GlobalScan.scanPeriodS}}`");
     assert!(!run(&root, &["validate"]).contains("E241"));
 }
+
+#[test]
+fn a_bare_name_outside_the_sheet_keeps_its_meaning() {
+    // A model-root FeatureDef `Wdt` named from inside the `Features` sheet still
+    // resolves to it; the sheet-relative rewrite only applies to the sheet's own entries.
+    let root = model("requires: [Wdt]", ALL, GOOD_BIND, "Features::Protection::Afci", "trip");
+    std::fs::write(root.join("Wdt.md"), "---\ntype: FeatureDef\nid: FEAT-FR-WDT\nname: Wdt\n---\n").unwrap();
+    let out = run(&root, &["feature-check"]);
+    assert!(!out.contains("E212"), "{out}");
+    assert!(out.contains("E219"), "Rsd is selected without the root Wdt it requires: {out}");
+}
+
+#[test]
+fn a_leaf_name_key_in_configuration_is_e239_and_suggests_the_qname() {
+    let feats = ["Features::Protection", "Afci", "Features::Mppt", "Features::Mppt::GlobalScan"];
+    let root = model("", &feats, GOOD_BIND, "Features::Protection::Afci", "trip");
+    let l = line(&run(&root, &["validate"]), "E239").to_string();
+    assert!(l.contains("did you mean 'Features::Protection::Afci'"), "{l}");
+}

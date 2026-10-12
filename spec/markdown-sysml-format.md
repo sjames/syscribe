@@ -5414,6 +5414,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E236` | A `Configuration` is on a `derivedFrom:` inheritance cycle (each member is reported; none inherits) |
 | `E237` | A `Configuration.derivedFrom:` names more than one base |
 | `E238` | (§9) a `Configuration` names an abstract feature in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
+| `E239` | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` |
 | `E216` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
 | `E217` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map selects both sides of an `alternative` group |
 | `E218` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map violates an `or` group's `cardinality:` constraint |
@@ -5427,7 +5428,6 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E232` | (§9.6a) Two `featureTree:` entries resolve to the same qualified name. |
 | `E233` | (§9.6a) A `crossTreeConstraints:` entry is malformed, or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:`. |
 | `E240` | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| `E239` | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` |
 | `E241` | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}` |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |

@@ -330,15 +330,27 @@ pub fn closest_feature(raw: &str, elements: &[RawElement]) -> Option<String> {
         if let Some(e) = fdefs.iter().find(|e| e.qualified_name == as_path) {
             return Some(e.qualified_name.clone());
         }
-        let suffix = format!("::{as_path}");
-        let hits: Vec<&&RawElement> = fdefs.iter().filter(|e| e.qualified_name.ends_with(&suffix)).collect();
-        if hits.len() == 1 {
-            return Some(hits[0].qualified_name.clone());
-        }
+    }
+    // A tree path or bare leaf name (`Protection.Afci`, `Afci`) that is the tail
+    // of exactly one qualified name.
+    let suffix = format!("::{as_path}");
+    let hits: Vec<&&RawElement> = fdefs.iter().filter(|e| e.qualified_name.ends_with(&suffix)).collect();
+    if hits.len() == 1 {
+        return Some(hits[0].qualified_name.clone());
     }
     let lower = raw.to_lowercase();
+    let lower_path = as_path.to_lowercase();
+    let depth = as_path.split("::").count();
     let mut best: Option<(usize, String)> = None;
     for e in &fdefs {
+        // A relative path or leaf is compared with the qname's tail of the same depth.
+        let segs: Vec<&str> = e.qualified_name.split("::").collect();
+        if !raw.contains("::") && depth < segs.len() {
+            let d = edit_distance(&lower_path, &segs[segs.len() - depth..].join("::").to_lowercase());
+            if best.as_ref().is_none_or(|b| d < b.0) {
+                best = Some((d, e.qualified_name.clone()));
+            }
+        }
         let mut cands = vec![e.qualified_name.as_str()];
         cands.extend(e.frontmatter.id.as_deref());
         for c in cands {
@@ -361,7 +373,7 @@ pub fn did_you_mean_feature(raw: &str, elements: &[RawElement]) -> String {
 
 /// The nearest of `names` to `raw` by edit distance, if one is close enough.
 pub fn closest_name<'a>(raw: &str, names: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    let limit = (raw.chars().count() / 3).max(2);
+    let limit = (raw.chars().count() / 3).max(1);
     names
         .into_iter()
         .map(|n| (edit_distance(&raw.to_lowercase(), &n.to_lowercase()), n))

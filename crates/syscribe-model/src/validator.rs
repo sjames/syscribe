@@ -6396,9 +6396,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             for cfg in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration))) {
                 for key in cfg.frontmatter.declared_feature_selections().keys() {
                     let canon = crate::variability::canon_feature_ref(key, &alias);
-                    if fdefs.contains(canon.as_str())
-                        || resolver.resolve_ref(elements, key).is_some_and(Resolver::is_feature_def)
-                    {
+                    // Exactly the keys selection honours (qname or FEAT- id, via
+                    // `canon_selection`); a looser resolver match would hide a key
+                    // that still selects nothing.
+                    if fdefs.contains(canon.as_str()) {
                         continue;
                     }
                     findings.push(error("E239", &cfg.file_path, &format!(

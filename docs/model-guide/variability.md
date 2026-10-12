@@ -107,7 +107,7 @@ crossTreeConstraints:
     excludes: [Wdt]
 ```
 
-`feature`/`requires`/`excludes` values resolve the same way everywhere in this section: a value containing `::` is already an absolute qname; one starting with `FEAT` is a stable id; anything else is a dotted path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. A `feature:` that doesn't resolve to a `FeatureDef` synthesized from *this sheet's own* `featureTree:` is `E233` — there's nothing local to attach the constraint to. Inline `requires:`/`excludes:` on a `featureTree:` entry resolve the same way, so `requires: [Protection.Afci]` works next to `requires: [FEAT-GTI-AFCI]` and `requires: [Features::Protection::Afci]`.
+`feature`/`requires`/`excludes` values resolve the same way everywhere in this section: a value containing `::` is already an absolute qname; one starting with `FEAT` is a stable id; anything else is a dotted path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. A `feature:` that doesn't resolve to a `FeatureDef` synthesized from *this sheet's own* `featureTree:` is `E233` — there's nothing local to attach the constraint to. Inline `requires:`/`excludes:` on a `featureTree:` entry also accept a path relative to the sheet when it names another entry of the same sheet, so `requires: [Protection.Afci]` works next to `requires: [FEAT-GTI-AFCI]` and `requires: [Features::Protection::Afci]`. A value that names no entry of the sheet is left as written and resolved as a qname or id.
 
 **Which form each field takes.** The dotted tree path is a name *inside the sheet* only. Everywhere else a feature is its qualified name or its `FEAT-` id, and a parameter is `<qualified name>.<parameter>`:
 
