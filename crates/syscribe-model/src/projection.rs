@@ -403,6 +403,9 @@ pub fn validate_projected(
         e.frontmatter.element_type.as_ref() != Some(&ElementType::Configuration)
             || canonical_selection(full, e) == wanted
     });
+    // Machines are checked at this variant's parameter values (GH #328); a
+    // parameter still without one falls back to the base-model stand-in (W248).
+    crate::placeholders::substitute_machines(&mut active, full, crate::placeholders::matching_config(full, &wanted));
     let res = validator::validate_with_config(&active, config);
     findings.extend(
         res.findings

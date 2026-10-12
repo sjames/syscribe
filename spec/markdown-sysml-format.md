@@ -5460,6 +5460,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W245` | As `E243`, for a draft or review element |
 | `W246` | A placeholder references a `bindingTime: runtime` parameter (no value at projection time) |
+| `W248` | A feature parameter used in a state-machine expression has no `value:` or `default:`, so `validate` checks those expressions in the base model with a stand-in of the parameter's type; one finding per parameter, on its FeatureDef, naming the machines. `validate --config` checks them at the bound value |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
 | `W238` | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | `W239` | (§9) an abstract feature has no children: it groups nothing |
@@ -6037,7 +6038,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | Codes | Family | Specified in |
 |---|---|---|
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
-| `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |

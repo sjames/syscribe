@@ -502,17 +502,90 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
 
 /// The model with every placeholder in a state machine replaced by its parameter's fixed or default value, so the
 /// symbolic base model can be checked like any other (GH #311). `None` when no machine uses a placeholder.
-pub fn machines_at_defaults(elements: &[RawElement]) -> Option<Vec<RawElement>> {
+pub fn machines_at_defaults(elements: &[RawElement]) -> Option<MachinesAtDefaults> {
     if !elements.iter().any(machine_has_placeholder) {
         return None;
     }
     let resolver = Resolver::new(elements);
-    let f = |ph: &Placeholder| value_for(elements, &resolver, None, ph);
+    // A parameter with no `value:`/`default:` (the usual `isRequired: true`
+    // profile value) has nothing to check the base model at. Its placeholder
+    // becomes a neutral literal of the parameter's type, so the rest of the
+    // expression is still checked and no parse error points at the `{`; the
+    // parameter is reported once instead (W248, GH #328).
+    let no_default: std::cell::RefCell<std::collections::BTreeMap<(String, String), (String, std::collections::BTreeSet<String>)>> =
+        Default::default();
+    let current: std::cell::RefCell<String> = Default::default();
+    let f = |ph: &Placeholder| {
+        value_for(elements, &resolver, None, ph).or_else(|| {
+            let d = decl(elements, &resolver, &ph.feature, &ph.param).ok()?;
+            let file = resolver.resolve_ref(elements, &d.feature_qname).map(|e| e.file_path.clone()).unwrap_or_default();
+            no_default
+                .borrow_mut()
+                .entry((d.feature_qname.clone(), ph.param.clone()))
+                .or_insert_with(|| (file, Default::default()))
+                .1
+                .insert(current.borrow().clone());
+            Some(stand_in(&d))
+        })
+    };
     let mut out = elements.to_vec();
     for e in out.iter_mut().filter(|e| machine_has_placeholder(e)) {
+        *current.borrow_mut() = e.qualified_name.clone();
         substitute_machine(&mut e.frontmatter, &f);
     }
-    Some(out)
+    let without_default = no_default
+        .into_inner()
+        .into_iter()
+        .map(|((feature, param), (file, machines))| NoDefault { feature, param, file, machines: machines.into_iter().collect() })
+        .collect();
+    Some(MachinesAtDefaults { elements: out, without_default })
+}
+
+/// The base-model view [`machines_at_defaults`] checks machines against.
+pub struct MachinesAtDefaults {
+    pub elements: Vec<RawElement>,
+    /// Parameters a machine uses that have no value to check the base model at.
+    pub without_default: Vec<NoDefault>,
+}
+
+/// A parameter used in a machine expression with no `value:` or `default:`.
+pub struct NoDefault {
+    pub feature: String,
+    pub param: String,
+    /// The declaring FeatureDef's file.
+    pub file: String,
+    /// Qualified names of the machines that use it.
+    pub machines: Vec<String>,
+}
+
+/// A literal of the parameter's type that stands in for a missing default: the
+/// first `enumValues` entry, `false` for a Boolean, `""` for a String, else `0`.
+fn stand_in(d: &Decl) -> String {
+    if let Some(serde_yaml::Value::Sequence(vs)) = d.entry.get("enumValues") {
+        if let Some(v) = vs.first().and_then(scalar) {
+            return v;
+        }
+    }
+    let ty = d.entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    match ty.rsplit("::").next().unwrap_or(ty) {
+        "Boolean" => "false".into(),
+        "String" => "\"\"".into(),
+        _ => "0".into(),
+    }
+}
+
+/// The machines of `view` with their placeholders taken from `cfg`'s bindings,
+/// falling back to `value:`/`default:` (GH #328: `validate --config` checks a
+/// machine at the variant's values, not the base model's).
+pub fn substitute_machines(view: &mut [RawElement], full: &[RawElement], cfg: Option<&RawElement>) {
+    if !view.iter().any(machine_has_placeholder) {
+        return;
+    }
+    let resolver = Resolver::new(full);
+    let f = |ph: &Placeholder| value_for(full, &resolver, cfg, ph);
+    for e in view.iter_mut().filter(|e| machine_has_placeholder(e)) {
+        substitute_machine(&mut e.frontmatter, &f);
+    }
 }
 
 /// `(is_error, code, file, message)` for every placeholder problem in the base model.

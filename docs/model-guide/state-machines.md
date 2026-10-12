@@ -175,7 +175,7 @@ subStates:
 
 ### Feature parameters in a machine
 
-A guard, an assignment, a variable's initial value or a duration can use a feature parameter, written as a placeholder (`{{Features::GridProfile.reconnectDelayS}}`, see [Variability](variability.md)). `simulate`, `compile`, `mutate` and `inject` take `--config <Configuration>` and run on that product, with the placeholder replaced by the Configuration's binding, else the parameter's fixed or default value. `validate` checks the symbolic base model at the parameters' defaults. Without `--config` a run sees the written placeholder and reports it as an expression error.
+A guard, an assignment, a variable's initial value or a duration can use a feature parameter, written as a placeholder (`{{Features::GridProfile.reconnectDelayS}}`, see [Variability](variability.md)). `simulate`, `compile`, `mutate` and `inject` take `--config <Configuration>` and run on that product, with the placeholder replaced by the Configuration's binding, else the parameter's fixed or default value. `validate` checks the symbolic base model at the parameters' defaults. A parameter with no `value:` or `default:` (the usual `isRequired: true` profile value) has nothing to check at, so its expressions are checked with a stand-in of the parameter's type (`0`, `false`, `""` or the first `enumValues` entry) and the parameter is reported once as `W248`, naming the machines that use it. `validate --config <Configuration>` checks the machines at that product's bound values instead. Without `--config` a run sees the written placeholder and reports it as an expression error.
 
 ```text
 accept: {after: "{{Features::GridProfile.reconnectDelayS}} s"}
