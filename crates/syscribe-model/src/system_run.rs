@@ -15,13 +15,20 @@ use crate::units::Dim;
 use crate::sm_run::{Options, Pin, Run, Step};
 use crate::system::{self, Behavior, SystemSpec};
 
-/// An FMU plant part, resolved: its file, declared hash, parameters and what the file says about itself.
+/// A plant part, resolved: where its behaviour comes from, its parameters and its variables.
 #[derive(Clone)]
 pub struct PlantSpec {
-    pub file: PathBuf,
-    pub sha256: Option<String>,
+    pub source: PlantSource,
     pub params: Vec<(String, f64)>,
     pub info: FmuInfo,
+}
+
+#[derive(Clone)]
+pub enum PlantSource {
+    /// An FMU file and the hash its declaration pins (REQ-TRS-FMI-001).
+    Fmu { file: PathBuf, sha256: Option<String> },
+    /// An in-process plant: a `PlantDef` or a library plant (GH #340).
+    Equations(std::sync::Arc<crate::plant_def::PlantModel>),
 }
 
 /// A binding between a plant variable and a machine variable, checked.
@@ -42,13 +49,15 @@ pub enum FaultItem {
     Drop { part: usize, port: String, event: Option<String> },
     Delay { part: usize, port: String, event: Option<String>, by: f64 },
     Corrupt { part: usize, port: String, event: Option<String>, field: String, value: Value },
+    /// A plant parameter changed to `value` (GH #340).
+    Parameter { part: usize, name: String, value: Value },
 }
 
 impl FaultItem {
     /// The index of the part the fault applies to.
     pub fn part(&self) -> usize {
         match self {
-            FaultItem::Stuck { part, .. } | FaultItem::Offset { part, .. } | FaultItem::Silent { part } | FaultItem::Drop { part, .. } | FaultItem::Delay { part, .. } | FaultItem::Corrupt { part, .. } => *part,
+            FaultItem::Stuck { part, .. } | FaultItem::Offset { part, .. } | FaultItem::Silent { part } | FaultItem::Drop { part, .. } | FaultItem::Delay { part, .. } | FaultItem::Corrupt { part, .. } | FaultItem::Parameter { part, .. } => *part,
         }
     }
 }
@@ -117,7 +126,7 @@ impl SystemModel {
                 Err(es) => errs.extend(es),
             }
         }
-        let faults = resolve_faults(elements, &resolver, &spec, &machines);
+        let faults = resolve_faults(elements, &resolver, &spec, &machines, &plants);
         if !errs.is_empty() {
             return Err(errs);
         }
@@ -126,6 +135,7 @@ impl SystemModel {
             let links: Vec<_> = spec.links.iter().map(|l| serde_json::json!([spec.instances[l.from.0].name, l.from.1, spec.instances[l.to.0].name, l.to.1, l.delay])).collect();
             let binds: Vec<_> = spec.bindings.iter().map(|b| serde_json::json!([spec.instances[b.from.0].name, b.from.1, spec.instances[b.to.0].name, b.to.1])).collect();
             let plant_cfg: Vec<_> = spec.instances.iter().zip(&plants).filter_map(|(i, p)| p.as_ref().map(|p| serde_json::json!({"name": i.name, "sha256": p.info.sha256, "fmiVersion": p.info.fmi_version, "parameters": p.params}))).collect();
+            // an in-process plant's `sha256` is the hash of its whole definition (equations, values, method)
             blake3::hash(serde_json::json!({"parts": parts, "connections": links, "bindings": binds, "plantStep": plant_step, "plants": plant_cfg, "faults": faults.iter().map(|f| format!("{f:?}")).collect::<Vec<_>>()}).to_string().as_bytes()).to_hex().to_string()
         };
         Ok(SystemModel { spec, machines, plants, exchanges, plant_step, faults, hash })
@@ -139,7 +149,7 @@ fn constant(src: &str) -> Result<Value, String> {
 /// Resolve the faults of every FMEA row and fault-tree event against the parts of the composite. A fault whose target is
 /// not a part of it does not apply and is left out; one that applies but names a variable, port or value that does not
 /// fit is an error (`E936`).
-fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpec, machines: &[Option<Machine>]) -> Vec<ResolvedFault> {
+fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpec, machines: &[Option<Machine>], plants: &[Option<PlantSpec>]) -> Vec<ResolvedFault> {
     use crate::fault::FaultKind;
     let mut out = Vec::new();
     for def in crate::fault::fault_defs(elements) {
@@ -161,10 +171,15 @@ fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpe
             for p in parts {
                 let inst = &spec.instances[p];
                 let at = format!("E936: fault {} on part '{}'", def.id, inst.name);
-                let var_of = |name: &str| machines[p].as_ref().and_then(|m| m.variables.iter().find(|v| v.name == name)).map(|v| v.value.clone());
+                // a machine's variable, or a plant's output (GH #340): what a stuck or offset fault can hold
+                let var_of = |name: &str| match (&machines[p], &plants[p]) {
+                    (Some(m), _) => m.variables.iter().find(|v| v.name == name).map(|v| v.value.clone()),
+                    (None, Some(ps)) => ps.info.var(name).filter(|v| matches!(v.causality, crate::plant::Causality::Output)).map(|v| Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim.unwrap_or(crate::units::Dim([0; 7])) })),
+                    _ => None,
+                };
                 match &fs.kind {
                     FaultKind::Stuck { variable, value } => match (var_of(variable), constant(value)) {
-                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine")),
+                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine or an output of its plant")),
                         (_, Err(e)) => errs.push(format!("{at}: {e}")),
                         (Some(cur), Ok(v)) => match (&cur, &v) {
                             (Value::Num(a), Value::Num(b)) if a.dim != b.dim => errs.push(format!("{at}: stuck value {} does not have the dimension of '{variable}'", format_value(&v))),
@@ -173,16 +188,28 @@ fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpe
                         },
                     },
                     FaultKind::Offset { variable, by } => match (var_of(variable), constant(by)) {
-                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine")),
+                        (None, _) => errs.push(format!("{at}: '{variable}' is not a variable of its machine or an output of its plant")),
                         (_, Err(e)) => errs.push(format!("{at}: {e}")),
                         (Some(Value::Num(a)), Ok(Value::Num(b))) if a.dim == b.dim => items.push(FaultItem::Offset { part: p, variable: variable.clone(), by: Value::Num(b) }),
                         (Some(cur), Ok(v)) => errs.push(format!("{at}: offset {} does not fit '{variable}' ({})", format_value(&v), cur.kind())),
                     },
                     FaultKind::Silent => {
-                        if machines[p].is_some() {
+                        if machines[p].is_some() || plants[p].is_some() {
                             items.push(FaultItem::Silent { part: p });
                         } else {
-                            errs.push(format!("{at}: only a part with a state machine can fail silent"));
+                            errs.push(format!("{at}: only a part with a state machine or a plant can fail silent"));
+                        }
+                    }
+                    FaultKind::Parameter { parameter, value } => {
+                        let Some(ps) = &plants[p] else {
+                            errs.push(format!("{at}: only a plant part has parameters"));
+                            continue;
+                        };
+                        match (ps.info.var(parameter).filter(|v| matches!(v.causality, crate::plant::Causality::Parameter)), constant(value)) {
+                            (None, _) => errs.push(format!("{at}: '{parameter}' is not a parameter of its plant")),
+                            (_, Err(e)) => errs.push(format!("{at}: {e}")),
+                            (Some(v), Ok(Value::Num(q))) if q.dim == v.dim.unwrap_or(crate::units::Dim([0; 7])) => items.push(FaultItem::Parameter { part: p, name: parameter.clone(), value: Value::Num(q) }),
+                            (Some(_), Ok(v)) => errs.push(format!("{at}: parameter value {} does not have the dimension of '{parameter}'", format_value(&v))),
                         }
                     }
                     FaultKind::Drop { port, event } | FaultKind::Delay { port, event, .. } | FaultKind::Corrupt { port, event, .. } => {
@@ -216,9 +243,6 @@ fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpe
 fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawElement, spec: &SystemSpec, machines: &[Option<Machine>], model_root: &Path) -> Result<(Vec<Option<PlantSpec>>, Vec<Exchange>, f64), Vec<String>> {
     use crate::config::{SourceLocation, ValidateConfig};
     use crate::plant_cfg::parse_fmu;
-    let Some(be) = plant::backend() else {
-        return Err(vec!["this composite has plant parts but this build has no FMI support (rebuild with `cargo build --features fmi`)".to_string()]);
-    };
     let mut errs = Vec::new();
     let step = match crate::system::composite_view(elements, resolver, composite).plant_step.as_ref().and_then(|v| match v {
         serde_yaml::Value::String(s) => Some(s.clone()),
@@ -226,13 +250,29 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
         _ => None,
     }) {
         Some(s) => crate::system::duration(&s).filter(|d| *d > 0.0).ok_or_else(|| vec![format!("`plantStep: {s}` is not a positive duration")])?,
-        None => return Err(vec![format!("{}: a composite with plant parts needs a `plantStep:` (the communication step)", composite.qualified_name)]),
+        None => return Err(vec![format!("E934: {}: a composite with plant parts needs a `plantStep:` (the communication step)", composite.qualified_name)]),
     };
     let cfg = ValidateConfig::with_model_root(model_root);
     let mut plants: Vec<Option<PlantSpec>> = spec.instances.iter().map(|_| None).collect();
     for (idx, inst) in spec.instances.iter().enumerate() {
         let Behavior::Plant(def) = &inst.behavior else { continue };
         let Some(d) = resolver.resolve_ref(elements, def) else { continue };
+        // an in-process plant (GH #340): compiled here, nothing to load
+        if let Some(decl) = &d.frontmatter.plant {
+            match crate::plant_def::resolve(elements, resolver, decl) {
+                Ok(model) => {
+                    let info = model.info();
+                    let params = model.parameters.iter().map(|p| (p.name.clone(), p.value)).collect();
+                    plants[idx] = Some(PlantSpec { source: PlantSource::Equations(std::sync::Arc::new(model)), params, info });
+                }
+                Err(fs) => errs.extend(fs.into_iter().map(|(c, m)| format!("{c}: part '{}': {m}", inst.name))),
+            }
+            continue;
+        }
+        let Some(be) = plant::backend() else {
+            errs.push(format!("part '{}' is an FMU plant but this build has no FMI support (rebuild with `cargo build --features fmi`)", inst.name));
+            continue;
+        };
         let decl = match d.frontmatter.fmu.as_ref().map(parse_fmu) {
             Some(Ok(decl)) => decl,
             Some(Err(es)) => {
@@ -262,7 +302,7 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
             }
         }
         match decl.raw_parameters(&info) {
-            Ok(params) => plants[idx] = Some(PlantSpec { file, sha256: decl.sha256.clone(), params, info }),
+            Ok(params) => plants[idx] = Some(PlantSpec { source: PlantSource::Fmu { file, sha256: decl.sha256.clone() }, params, info }),
             Err(es) => errs.extend(es.into_iter().map(|e| format!("E888: part '{}': {e}", inst.name))),
         }
     }
@@ -302,6 +342,18 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
     }
 }
 
+/// A value read from plant output `var` of part `part`, as the faults pinned on it make it.
+fn pinned(pins: &[(usize, String, String, Pin)], part: usize, var: &str, mut v: Value) -> Value {
+    for (_, _, _, pin) in pins.iter().filter(|(p, n, _, _)| *p == part && n == var) {
+        v = match (pin, &v) {
+            (Pin::Stuck(s), _) => s.clone(),
+            (Pin::Offset(Value::Num(b)), Value::Num(a)) => Value::Num(crate::expr::Quantity { v: a.v + b.v, dim: a.dim }),
+            _ => v,
+        };
+    }
+    v
+}
+
 /// A message on its way, or delivered: the record the trace and `sent` assertions use.
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -336,12 +388,18 @@ pub struct System<'m> {
     active: Vec<usize>,
     /// "fault X injected at 1 s" lines, in order.
     fault_log: Vec<String>,
+    /// Stuck and offset faults on plant outputs (GH #340): (part, output, fault id, pin), applied to every read.
+    plant_pins: Vec<(usize, String, String, Pin)>,
+    /// Plants failed silent: no longer stepped or read, so the machines keep their last outputs.
+    frozen: Vec<bool>,
+    /// Plant parameters a fault changed: (fault id, part, parameter, value before), restored when it is cleared.
+    saved_params: Vec<(String, usize, String, f64)>,
 }
 
 impl<'m> System<'m> {
     /// Start every part's machine and run the system to quiescence at time 0.
     pub fn new(model: &'m SystemModel, opts: Options) -> System<'m> {
-        let mut s = System { model, runs: Vec::new(), time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None, plants: Vec::new(), active: Vec::new(), fault_log: Vec::new() };
+        let mut s = System { model, runs: Vec::new(), time: 0.0, queue: VecDeque::new(), log: Vec::new(), seq: 0, error: None, plants: Vec::new(), active: Vec::new(), fault_log: Vec::new(), plant_pins: Vec::new(), frozen: vec![false; model.spec.instances.len()], saved_params: Vec::new() };
         s.start_plants();
         // the plants' initial outputs are known before any machine starts: they are the machines' starting values
         let mut initial: Vec<Vec<(String, Value)>> = model.machines.iter().map(|_| Vec::new()).collect();
@@ -374,14 +432,18 @@ impl<'m> System<'m> {
             };
             let name = &model.spec.instances[i].name;
             let made = (|| -> Result<Box<dyn Plant>, String> {
+                let (file, sha256) = match &ps.source {
+                    PlantSource::Equations(m) => return Ok(Box::new(crate::plant_def::EquationPlant::new(m.clone()))),
+                    PlantSource::Fmu { file, sha256 } => (file, sha256),
+                };
                 let be = plant::backend().ok_or("no FMI backend")?;
-                if let Some(h) = &ps.sha256 {
-                    let now = be.inspect(&ps.file)?;
+                if let Some(h) = sha256 {
+                    let now = be.inspect(file)?;
                     if !h.eq_ignore_ascii_case(&now.sha256) {
                         return Err(format!("declared sha256 {h} but the file hashes to {} (the FMU changed)", now.sha256));
                     }
                 }
-                be.instantiate(&ps.file, &ps.params)
+                be.instantiate(file, &ps.params)
             })();
             match made {
                 Ok(p) => self.plants.push(Some(p)),
@@ -416,7 +478,7 @@ impl<'m> System<'m> {
     fn step_plants(&mut self, t: f64, h: f64) {
         let model = self.model;
         for (i, p) in self.plants.iter_mut().enumerate() {
-            if let Some(p) = p {
+            if let (Some(p), false) = (p, self.frozen[i]) {
                 if let Err(e) = p.step(t, h) {
                     return self.fail(format!("plant '{}': {e}", model.spec.instances[i].name));
                 }
@@ -435,8 +497,11 @@ impl<'m> System<'m> {
         for ex in &model.exchanges {
             if let Exchange::Read { plant: pi, var, sink, machine_bool, machine_dim } = ex {
                 let Some(p) = self.plants.get_mut(*pi).and_then(|p| p.as_mut()) else { continue };
+                if self.frozen[*pi] {
+                    continue;
+                }
                 match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
-                    Ok(v) => staged[sink.0].push((sink.1.clone(), v)),
+                    Ok(v) => staged[sink.0].push((sink.1.clone(), pinned(&self.plant_pins, *pi, &var.name, v))),
                     Err(e) => return self.fail(e),
                 }
             }
@@ -548,6 +613,43 @@ impl<'m> System<'m> {
         if !model.faults[fi].problems.is_empty() {
             return Err(model.faults[fi].problems.join("; "));
         }
+        // a plant's parameter first: it is the one item that can be refused by the plant itself
+        let mut changed: Vec<(String, usize, String, f64)> = Vec::new();
+        for item in &model.faults[fi].items {
+            let FaultItem::Parameter { part, name, value } = item else { continue };
+            let r = (|| -> Result<f64, String> {
+                let p = self.plants[*part].as_mut().ok_or("the plant is not running")?;
+                let var = p.info().var(name).cloned().ok_or_else(|| format!("'{name}' is not a parameter of the plant"))?;
+                let before = p.get(name)?;
+                plant::write_si(p.as_mut(), &model.spec.instances[*part].name, &var, value)?;
+                Ok(before)
+            })();
+            match r {
+                Ok(before) => changed.push((id.to_string(), *part, name.clone(), before)),
+                Err(e) => {
+                    for (_, part, name, before) in changed {
+                        if let Some(p) = self.plants[part].as_mut() {
+                            let _ = p.set(&name, before);
+                        }
+                    }
+                    return Err(format!("E936: fault {id}: {e}"));
+                }
+            }
+        }
+        self.saved_params.extend(changed);
+        // value faults on a plant's outputs act on every read from now on, starting with one now
+        let pins_before = self.plant_pins.len();
+        for item in &model.faults[fi].items {
+            match item {
+                FaultItem::Stuck { part, variable, value } if self.runs[*part].is_none() => self.plant_pins.push((*part, variable.clone(), id.to_string(), Pin::Stuck(value.clone()))),
+                FaultItem::Offset { part, variable, by } if self.runs[*part].is_none() => self.plant_pins.push((*part, variable.clone(), id.to_string(), Pin::Offset(by.clone()))),
+                FaultItem::Silent { part } if self.runs[*part].is_none() => self.frozen[*part] = true,
+                _ => {}
+            }
+        }
+        if self.plant_pins.len() > pins_before {
+            self.read_plants(self.time);
+        }
         // value faults first, a fail-silent part last: if one cannot be applied, nothing stays half-applied
         let mut pinned: Vec<usize> = Vec::new();
         for item in &model.faults[fi].items {
@@ -599,6 +701,19 @@ impl<'m> System<'m> {
                     r.unpin(id, variable);
                 }
             }
+        }
+        let pins_before = self.plant_pins.len();
+        self.plant_pins.retain(|(_, _, cause, _)| cause != id);
+        for (_, part, name, before) in self.saved_params.iter().filter(|(cause, ..)| cause == id) {
+            if let Some(p) = self.plants[*part].as_mut() {
+                if let Err(e) = p.set(name, *before) {
+                    self.error.get_or_insert(format!("plant '{}': restoring '{name}': {e}", model.spec.instances[*part].name));
+                }
+            }
+        }
+        self.saved_params.retain(|(cause, ..)| cause != id);
+        if self.plant_pins.len() < pins_before {
+            self.read_plants(self.time);
         }
         self.active.retain(|x| *x != fi);
         self.fault_log.push(format!("fault {id} cleared at {} s", crate::expr::format_number(self.time)));

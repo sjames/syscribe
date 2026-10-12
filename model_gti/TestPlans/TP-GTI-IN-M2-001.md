@@ -26,6 +26,7 @@ testCases:
   - TC-GTI-SAF-007
   - TC-GTI-SAF-008
   - TC-GTI-SAF-009
+  - TC-GTI-SAF-010
   - TC-GTI-SYS-001
   - TC-GTI-SYS-002
   - TC-GTI-SYS-003

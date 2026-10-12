@@ -2938,12 +2938,57 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // E888/E889/E966 (REQ-TRS-FMI-001): plant declarations and wiring. With no plant backend registered (a build
         // without the `fmi` feature) the fields only parse and one I011 says why nothing was checked.
-        if crate::plant_cfg::declares_plants(fm) {
+        // a composite's `plantStep:` alone needs FMI support only when one of its parts is an FMU (GH #340: an
+        // in-process plant needs none)
+        let only_in_process = fm.plant_step.is_some() && fm.fmu.is_none() && fm.plants.is_none() && fm.plant_connections.is_none() && {
+            let (spec, _) = crate::system::resolve(elements, &resolver, elem);
+            !spec.is_some_and(|sp| {
+                sp.instances.iter().any(|i| match &i.behavior {
+                    crate::system::Behavior::Plant(d) => resolver.resolve_ref(elements, d).is_some_and(|d| d.frontmatter.fmu.is_some()),
+                    _ => false,
+                })
+            })
+        };
+        if crate::plant_cfg::declares_plants(fm) && !only_in_process {
             if crate::plant::backend().is_none() {
                 findings.push(info("I011", &file, "plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support (rebuild with `cargo build --features fmi`); they are not checked"));
             } else {
                 for (code, msg) in crate::plant_checks::check(elements, &resolver, config, elem) {
                     findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
+                }
+            }
+        }
+
+        // E938/E935/E939 (GH #340): an in-process plant — a `PlantDef`'s declaration and equations, a part's `plant:`.
+        if fm.element_type == Some(ElementType::PlantDef) {
+            if let Err(fs) = crate::plant_def::compile(elem) {
+                for (code, msg) in fs {
+                    findings.push(error(code, &file, &format!("{}: {msg}", elem.qualified_name)));
+                }
+            }
+        } else {
+            let plant_only: Vec<&str> = [
+                ("inputs", fm.plant_inputs.is_some()),
+                ("outputs", fm.outputs.is_some()),
+                ("states", fm.states.is_some()),
+                ("equations", fm.equations.is_some()),
+                ("method", fm.method.is_some()),
+                ("maxStep", fm.max_step.is_some()),
+            ]
+            .into_iter()
+            .filter(|(_, set)| *set)
+            .map(|(k, _)| k)
+            .collect();
+            if !plant_only.is_empty() {
+                findings.push(error("E938", &file, &format!("{}: {} belong(s) to a `type: PlantDef`; on a {} it would be ignored", elem.qualified_name, plant_only.iter().map(|k| format!("`{k}:`")).collect::<Vec<_>>().join(", "), fm.element_type.as_ref().map_or("element", |t| t.name()))));
+            }
+        }
+        if let Some(decl) = &fm.plant {
+            if !matches!(fm.element_type, Some(ElementType::PartDef) | Some(ElementType::Part)) {
+                findings.push(error("E939", &file, &format!("{}: `plant:` belongs on a PartDef or Part", elem.qualified_name)));
+            } else if let Err(fs) = crate::plant_def::resolve(elements, &resolver, decl) {
+                for (code, msg) in fs {
+                    findings.push(error(code, &file, &format!("{}: {msg}", elem.qualified_name)));
                 }
             }
         }

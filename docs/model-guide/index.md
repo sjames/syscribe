@@ -109,6 +109,7 @@ Its shape:
 - [State Machines](state-machines.md) — `StateDef` transitions, hierarchy/parallel regions, the `W070`–`W079` and `W929` completeness checks
 - [System Composition](system-composition.md) — executing the parts of a composite together: `send` effects, port connections with delay, bindings, part-qualified scenarios (`E930`–`E934`, `W936`)
 - [FMU Plants (FMI)](fmi-plants.md) — co-simulating FMI 2.0/3.0 Co-Simulation FMUs with a state machine behind the `fmi` build feature (`E888`, `E889`, `E966`, `I011`)
+- [In-process Plants](plant-models.md) — `PlantDef` plants written in the expression language and standard library plants, run in a composite with no toolchain (`E938`, `E939`)
 - [Action Flows](action-flows.md) — executable `ActionDef`s: token semantics, scenarios, coverage, mutation
 - [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens
 - [Multi-Repository Composition](multi-repo.md) — `[repos]`, `repoImports:`, cross-repo resolution, the `E510`–`E515`/`W510`–`W512` reproducibility gates, git-submodule integration

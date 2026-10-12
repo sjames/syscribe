@@ -208,6 +208,7 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | System context: `role: external` actors, «actor» in IBD/BDD, W996 (§12.13) | REQ-TRS-VIS-030 | TC-TRS-VIS-030 |
 | Diagram views: `include:` selectors that fade the context, named styles, `layout:` hints, the variant view, W421 (§8.16.10) | REQ-TRS-VIS-031 | TC-TRS-VIS-031 |
 | Deterministic diagram exports: bundled text metrics, `diagram export --all` and `--check` over committed renders | REQ-TRS-VIS-032 | TC-TRS-VIS-032 |
+| In-process plants: `PlantDef`, library plants, plant faults, E938, E939 (§8.8.6) | REQ-TRS-PLANT-001 | TC-TRS-PLANT-001 |
 | Typed ports: events and payloads against `PortDef` items, E932/E935 (§8.8.5) | REQ-TRS-PORTTYPE-001 | TC-TRS-PORTTYPE-001 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |
 | Model-time errors E101–E106, E310–E315 (§11.12) | REQ-TRS-VAL-002 | TC-TRS-VAL-002 |

@@ -3583,6 +3583,27 @@ name: MyCalculationDef
 
 Description of this calculation definition.
 "#,
+        "plantdef" => r#"---
+type: PlantDef
+name: MyPlant
+parameters:                  # constants with their unit
+  - {name: k, value: "1"}
+  - {name: tau, value: "200 ms"}
+inputs:                      # written by a composite binding
+  - {name: u}
+outputs:                     # read by a composite binding (at least one)
+  - {name: y}
+states:                      # the initial value fixes the dimension
+  - {name: x, value: "0"}
+equations:                   # der(state) = expression, output := expression
+  - "der(x) = (k * u - x) / tau"
+  - "y := x"
+# method: rk4                # or euler
+# maxStep: "1 ms"            # longest integration sub-step
+---
+
+A first-order lag. A part becomes this plant with `plant: MyPlant`; the composite sets `plantStep:`.
+"#,
         "statedef" => r#"---
 type: StateDef
 name: MyStateDef

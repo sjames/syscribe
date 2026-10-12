@@ -18,3 +18,7 @@ The hardware trip reads the grid voltage through its own chain (REQ-GTI-HW-008).
 ## Consequences
 
 One more isolated voltage measurement on the control board and its own reference. The start-up self-test must exercise the hardware trip (REQ-GTI-SYS-071).
+
+## Addendum: the common cause (GH #340)
+
+The residual risk is now mitigated in the executable chain. A perturbation-response check (`Behavior::Parts::PerturbationCheckPart`, REQ-GTI-SW-008) injects a small current while the bridge switches and measures how the grid answers through the software sensing chain; the answer comes from an in-process plant of the grid impedance (`Behavior::Plants::GridImpedance`). Chains that read a fixed value show no answer, so the check reports the grid lost. FTE-GTI-009 is a cut set of order 2 with the failure of the check (FTE-GTI-010): the campaign reports the single event as survived and the pair as defeated, in both regional variants. The thresholds of the check are unverified.

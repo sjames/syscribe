@@ -74,6 +74,16 @@ fn ecma(e: &Expr, bind: Option<&str>, warnings: &mut Vec<String>) -> String {
                     "Math.round"
                 }
                 "pow" => "Math.pow",
+                f @ ("exp" | "ln" | "sin" | "cos" | "tanh") => {
+                    warnings.push(format!("{f}(): ECMAScript Math may differ from syscribe's libm in the last bits"));
+                    match f {
+                        "exp" => "Math.exp",
+                        "ln" => "Math.log",
+                        "sin" => "Math.sin",
+                        "cos" => "Math.cos",
+                        _ => "Math.tanh",
+                    }
+                }
                 other => {
                     warnings.push(format!("function '{other}' has no ECMAScript equivalent"));
                     other

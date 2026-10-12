@@ -47,8 +47,8 @@ grades every requirement:
 | `unverified` | nothing verifies it |
 | `not-applicable` | verified by inspection or analysis, or a parent whose children all have executable evidence or need none |
 
-For the US configuration of the inverter, 11 of the 63 applicable requirements are `executable`; the protection
-scenarios carry `REQ-GTI-SYS-007`, `-010`, `-030`, `-038`, `-039`, `REQ-GTI-SW-001` and `REQ-GTI-HW-008`/`-009`, and
+For the US configuration of the inverter, 13 of the 63 applicable requirements are `executable`; the protection
+scenarios carry `REQ-GTI-SYS-007`, `-010`, `-030`, `-038`, `-039`, `-045`, `REQ-GTI-SW-001`, `-008` and `REQ-GTI-HW-008`/`-009`, and
 the MPPT scenarios `REQ-GTI-SYS-022`/`-023` and `REQ-GTI-SW-006`. `REQ-GTI-SYS-037` (the 10 µs overcurrent trip) is
 `descriptive-only`: the parts that model the power stage name it in `abstracts:`, so only the bench TestCases verify it.
 

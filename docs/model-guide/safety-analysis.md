@@ -728,6 +728,9 @@ entries:
 | `drop` | `port`, optional `event` | messages through the port are lost |
 | `delay` | `port`, `by`, optional `event` | messages through the port arrive `by` later |
 | `corrupt` | `port`, `field`, `value`, optional `event` | the payload field is replaced |
+| `parameter` | `parameter`, `value` | an in-process plant's parameter takes `value` until the fault is cleared (GH #340) |
+
+On an in-process plant part (`plant:`, see [In-process plants](plant-models.md)) `stuck` and `offset` name one of its outputs and act on every read from the moment of injection, and `silent` freezes the plant: it is no longer stepped or read, so the machines keep its last outputs.
 
 A row may be gated like any element with its own `appliesWhen:` (`- {id: FM-X-001, ref: Pkg::Part, appliesWhen: Features::Opt, …}`); it is then absent from products without the feature, so a `ref` to a gated element raises no `W904` there. A fault value may be a feature-parameter placeholder, `value: "{{Features::Grid.nominalHz}}"`; a run with `--config` uses the Configuration's binding, `validate` the parameter's default.
 

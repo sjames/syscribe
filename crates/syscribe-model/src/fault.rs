@@ -19,6 +19,8 @@ pub enum FaultKind {
     Delay { port: String, event: Option<String>, by: f64 },
     /// `field` of the payload of messages through the port is replaced by the value of the expression.
     Corrupt { port: String, event: Option<String>, field: String, value: String },
+    /// A plant parameter takes the value of the expression (GH #340): a changed grid impedance, a drifted gain.
+    Parameter { parameter: String, value: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +53,7 @@ fn text(v: &Y) -> Option<String> {
     }
 }
 
-const KEYS: &[&str] = &["kind", "part", "port", "event", "variable", "field", "value", "by"];
+const KEYS: &[&str] = &["kind", "part", "port", "event", "variable", "field", "value", "by", "parameter"];
 
 fn expression(m: &Mapping, key: &str, at: &str, errs: &mut Vec<String>) -> Option<String> {
     match field(m, key).and_then(text) {
@@ -90,7 +92,7 @@ pub fn parse_injection(v: &Y) -> Result<Vec<FaultSpec>, Vec<String>> {
         };
         for k in m.keys().filter_map(|k| k.as_str()) {
             if !KEYS.contains(&k) {
-                errs.push(format!("{at}: unknown key `{k}` (kind, part, port, event, variable, field, value, by)"));
+                errs.push(format!("{at}: unknown key `{k}` (kind, part, port, event, variable, field, value, by, parameter)"));
             }
         }
         let kind = field(m, "kind").and_then(|k| k.as_str()).unwrap_or("");
@@ -105,6 +107,10 @@ pub fn parse_injection(v: &Y) -> Result<Vec<FaultSpec>, Vec<String>> {
                 variable.zip(by).map(|(variable, by)| FaultKind::Offset { variable, by })
             }
             "silent" => Some(FaultKind::Silent),
+            "parameter" => {
+                let (parameter, value) = (name(m, "parameter", &at, &mut errs), expression(m, "value", &at, &mut errs));
+                parameter.zip(value).map(|(parameter, value)| FaultKind::Parameter { parameter, value })
+            }
             "drop" => name(m, "port", &at, &mut errs).map(|port| FaultKind::Drop { port, event }),
             "delay" => {
                 let port = name(m, "port", &at, &mut errs);
@@ -128,11 +134,11 @@ pub fn parse_injection(v: &Y) -> Result<Vec<FaultSpec>, Vec<String>> {
                 port.zip(f).zip(value).map(|((port, field), value)| FaultKind::Corrupt { port, event, field, value })
             }
             "" => {
-                errs.push(format!("{at}: needs a `kind` (stuck, offset, silent, drop, delay, corrupt)"));
+                errs.push(format!("{at}: needs a `kind` (stuck, offset, silent, parameter, drop, delay, corrupt)"));
                 None
             }
             other => {
-                errs.push(format!("{at}: unknown kind `{other}` (stuck, offset, silent, drop, delay, corrupt)"));
+                errs.push(format!("{at}: unknown kind `{other}` (stuck, offset, silent, parameter, drop, delay, corrupt)"));
                 None
             }
         };

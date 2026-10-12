@@ -548,10 +548,10 @@ fn tok_text(t: &Tok) -> String {
 
 fn check_arity(f: &str, n: usize) -> Result<(), ExprError> {
     let ok = match f {
-        "abs" | "sqrt" | "floor" | "ceil" | "round" => n == 1,
+        "abs" | "sqrt" | "floor" | "ceil" | "round" | "exp" | "ln" | "sin" | "cos" | "tanh" => n == 1,
         "pow" => n == 2,
         "min" | "max" => n >= 1,
-        _ => return Err(ExprError::Parse(format!("unknown function '{f}' (abs, min, max, sqrt, floor, ceil, round, pow)"))),
+        _ => return Err(ExprError::Parse(format!("unknown function '{f}' (abs, min, max, sqrt, floor, ceil, round, pow, exp, ln, sin, cos, tanh)"))),
     };
     if ok {
         Ok(())
@@ -772,6 +772,25 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
                 *o = e / 2;
             }
             Quantity { v: nums[0].v.sqrt(), dim: Dim(d) }
+        }
+        // transcendental functions come from the pure-Rust `libm`, not the platform's, so a result is the same bits on
+        // every machine (GH #340); each takes and gives a dimensionless number (an angle in radians)
+        "exp" | "ln" | "sin" | "cos" | "tanh" => {
+            let x = nums[0];
+            if x.dim != NONE {
+                return Err(ExprError::Dimension(format!("{f} needs a dimensionless argument, got {}", dim_name(&x.dim))));
+            }
+            if f == "ln" && x.v <= 0.0 {
+                return Err(ExprError::Domain("ln of a number that is not positive".to_string()));
+            }
+            let v = match f {
+                "exp" => libm::exp(x.v),
+                "ln" => libm::log(x.v),
+                "sin" => libm::sin(x.v),
+                "cos" => libm::cos(x.v),
+                _ => libm::tanh(x.v),
+            };
+            Quantity { v: finite(v, "result")?, dim: NONE }
         }
         "pow" => {
             let n = nums[1];

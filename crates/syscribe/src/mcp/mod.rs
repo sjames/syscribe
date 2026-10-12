@@ -798,7 +798,7 @@ pub(crate) fn known_type_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = vec![
         "PartDef", "Part", "ItemDef", "Item", "PortDef", "Port", "ConnectionDef",
         "Connection", "InterfaceDef", "Interface", "ActionDef", "Action", "ConstraintDef",
-        "Constraint", "CalculationDef", "Calculation", "StateDef", "State", "FlowDef",
+        "Constraint", "CalculationDef", "Calculation", "StateDef", "State", "PlantDef", "FlowDef",
         "EnumerationDef", "Enumeration", "AttributeDef", "RequirementDef", "UseCaseDef",
         "UseCase", "ViewDef", "View", "ViewpointDef", "MetadataDef", "Metadata",
         "VerificationCaseDef", "VerificationCase", "AnalysisCaseDef", "AnalysisCase",

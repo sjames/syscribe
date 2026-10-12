@@ -84,6 +84,7 @@
 | `Namespace` | Namespace | Root namespace; `_index.md` at model root |
 | `Dependency` | Relationship | Directed client → supplier link; fields: `clients:`, `suppliers:` |
 | `Diagram` | Diagram | SVG diagram with model-element manifest |
+| `PlantDef` | Executable | In-process continuous plant (GH #340): `parameters:`, `inputs:`, `outputs:`, `states:` and `equations:` (`der(x) = …`, `y := …`), integrated with `method: rk4` (default) or `euler`; a part becomes it with `plant:` (a `PlantDef` or a `library:` plant) |
 
 ## Safety/security native types — see `syscribe spec safety`
 

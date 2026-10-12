@@ -38,6 +38,7 @@ pub mod expr;
 pub mod placeholders;
 pub mod plant;
 pub mod plant_cfg;
+pub mod plant_def;
 pub mod plant_checks;
 pub mod system;
 pub mod system_mut;

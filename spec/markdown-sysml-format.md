@@ -2341,6 +2341,34 @@ features:
 ---
 ```
 
+#### 8.8.6 In-process plants — `PlantDef` and `plant:`
+
+A `PlantDef` is a continuous plant written in the expression language (§22.2), so a composite can close its loop around physics without an FMU or any other toolchain (GH #340). A part whose definition (or a definition it specialises) carries `plant:` is a plant part; it runs at the composite's `plantStep:` through the same exchange as an FMU plant (held inputs, outputs read at each communication point, the step cut at the earliest timer or delayed message).
+
+| Field (`PlantDef`) | Shape | Meaning |
+|---|---|---|
+| `parameters:` | list of `{name, value, description?}` | constants; `value` is a constant expression with a unit (`"0.4 SI::ohm"`, `"20 ms"`) |
+| `inputs:` | list of `{name, unit?, value?, description?}` (or bare names) | written by a binding; `value` is the value before the first write (default 0) |
+| `outputs:` | list of `{name, unit?, description?}` | read by a binding; at least one |
+| `states:` | list of `{name, value, description?}` | integrated quantities; `value` is the initial value and fixes the dimension |
+| `equations:` | list of strings | `der(x) = expression` (one per state) and `y := expression` (one per output) |
+| `method:` | `rk4` (default) \| `euler` | fixed-step integration |
+| `maxStep:` | duration | the longest integration sub-step; a communication step is split evenly so that no sub-step exceeds it |
+
+Names are basic names and distinct across the four lists. An expression may use any parameter, input, state and output; outputs are computed in an order in which each needs only earlier ones, and a cycle between outputs is an algebraic loop (`E938`). Every equation is checked for kind and unit dimension with the declared dimensions (`E935`): `der(x)` has the dimension of `x` per second. The functions `exp`, `ln`, `sin`, `cos` and `tanh` (dimensionless argument) join `min`, `max`, `abs`, `sqrt` and `pow`; they are the pure-Rust `libm` implementations, so a model and scenario give the same trace, bit for bit, on every platform.
+
+`plant:` on a `PartDef`/`Part` is a `PlantDef` reference, or a mapping:
+
+```yaml
+plant: Behavior::Plants::GridImpedance          # a PlantDef
+plant: {def: Behavior::Plants::GridImpedance, parameters: {tau: "10 ms"}}
+plant: {library: FirstOrderLag, unit: "SI::V", parameters: {tau: "5 ms"}}
+```
+
+The library plants are `Gain` (`y := k·u`), `FirstOrderLag` (`der(x) = (k·u − x)/tau`, `y := x`), `Integrator` (`der(x) = k·u`, `y := x`; `unit` is the output's), `Saturation` (`y := min(max(u, lo), hi)`), `DelayLine` (`y` is `u` delayed by `delay`, `initial` before), and `ImpedanceDivider` (`v := vSrc − z·i`, no `unit`). `unit:` applies only to a library plant; a parameter override must name a parameter and keep its dimension (`E939`). A part with both `fmu:` and `plant:` is `E930`; a composite with an in-process plant part and no `plantStep:` is `E934`; a binding to a plant must read one of its outputs or write one of its inputs, of the matching dimension (`E933`).
+
+Fault models (`injection:` on an FMEA row or fault-tree event, `E936`) act on plant parts: `stuck` and `offset` may name a plant output (applied to every read from the moment of injection), `silent` freezes the plant (no longer stepped or read; the machines keep its last outputs), and `{kind: parameter, parameter, value}` changes a parameter until the fault is cleared. The composite's evidence hash covers each plant's parameters, equations, method and `maxStep`.
+
 ### 8.9 Calculation Elements
 
 #### 8.9.1 `CalculationDef`
@@ -6743,14 +6771,16 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E887` | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | `E888` | Error | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
 | `E889` | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output or a parameter, names two plants alike, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
-| `E930` | Error | a part of a composite has more than one behaviour (several `exhibitsStates`, or a state machine and an `fmu:`), or its `exhibitsStates` entry does not resolve to a StateDef (needs a composite with an executable machine; GH #297) |
+| `E930` | Error | a part of a composite has more than one behaviour (several `exhibitsStates`, or a state machine and an `fmu:`), or its `exhibitsStates` entry does not resolve to a StateDef (needs a composite with an executable machine; GH #297). An `fmu:` and a `plant:` on one part are two behaviours too (GH #340). |
 | `E931` | Error | a composite `connections:` entry joins ports wrongly: the part or port does not exist, or a message does not go from an out/inout port to an in/inout port (GH #297) |
 | `E932` | Error | an executable machine sends or accepts through a port its part definition does not have, or in the wrong direction (GH #297); or, through a port typed by a `PortDef`, an event the type does not carry, carries the other way (after `isConjugated`), or a payload field its `ItemDef` does not have (GH #331, §8.8.5) |
-| `E933` | Error | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297) |
-| `E934` | Error | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297) |
-| `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272), except a field of an event accepted through a port typed by a `PortDef`, which has its `ItemDef` field's type; a `send` payload value of the wrong kind or dimension for that field is reported too (GH #331, §8.8.5) |
-| `E936` | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306) |
+| `E933` | Error | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297). An in-process plant end must be one of its outputs (read) or inputs (written), of the matching dimension (GH #340). |
+| `E934` | Error | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297). A composite with an in-process plant part (`plant:`) and no `plantStep:` is `E934` too (GH #340). |
+| `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272), except a field of an event accepted through a port typed by a `PortDef`, which has its `ItemDef` field's type; a `send` payload value of the wrong kind or dimension for that field is reported too (GH #331, §8.8.5). The same errors in the `equations:` of a `PlantDef`, and a derivative or output whose dimension differs from the one declared, are `E935` too (GH #340). |
+| `E936` | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306). A `parameter` fault (`parameter`, `value`) changes a parameter of an in-process plant; `stuck`/`offset` may name a plant output and `silent` freezes a plant (GH #340). |
 | `E937` | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
+| `E938` | Error | a `PlantDef` is malformed: an entry of `parameters:`/`inputs:`/`outputs:`/`states:` without a name or with an unknown key, a value that does not evaluate, a duplicate name, no output, an equation that is neither `der(state) = expression` nor `output := expression`, a name the plant does not declare, a state without one `der(…)` or an output without one `:=`, an algebraic loop between outputs, a `method:` other than `rk4`/`euler`, a `maxStep:` that is not a positive duration; or a plant key (`outputs:`, `states:`, `equations:`, `method:`, `maxStep:`, `inputs:` as mappings) on an element that is not a `PlantDef` (GH #340) |
+| `E939` | Error | a `plant:` declaration is wrong: not on a `PartDef`/`Part`, not a `PlantDef` reference or a `{def | library, unit, parameters}` mapping, a `def:` that does not resolve to a `PlantDef` (or names one with errors), an unknown `library:` plant, a `unit:` on a `def:`, or a parameter override that names no parameter or has the wrong dimension (GH #340) |
 | `E990` | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
 | `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |

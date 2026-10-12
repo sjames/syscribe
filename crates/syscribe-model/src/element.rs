@@ -197,6 +197,8 @@ pub enum ElementType {
     RequirementDef,
     CalculationDef,
     StateDef,
+    /// An in-process continuous plant (GH #340): parameters, inputs, outputs, states and equations.
+    PlantDef,
     FlowDef,
     UseCaseDef,
     ViewpointDef,
@@ -320,6 +322,7 @@ impl ElementType {
         ElementType::RequirementDef,
         ElementType::CalculationDef,
         ElementType::StateDef,
+        ElementType::PlantDef,
         ElementType::FlowDef,
         ElementType::UseCaseDef,
         ElementType::ViewpointDef,
@@ -422,6 +425,7 @@ impl ElementType {
             ElementType::RequirementDef => "RequirementDef",
             ElementType::CalculationDef => "CalculationDef",
             ElementType::StateDef => "StateDef",
+            ElementType::PlantDef => "PlantDef",
             ElementType::FlowDef => "FlowDef",
             ElementType::UseCaseDef => "UseCaseDef",
             ElementType::ViewpointDef => "ViewpointDef",
@@ -1108,7 +1112,25 @@ pub struct ColdFrontmatter {
     // §T4 — FaultTree (IEC 61025 / ISO 26262-9)
     pub top_event: Option<String>,              // SafetyGoal ref (YAML: topEvent)
     pub gate_type: Option<String>,              // FaultTreeGate: AND|OR|XOR|NOT|inhibit (YAML: gateType)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub inputs: Option<Vec<String>>,            // FaultTreeGate input refs (YAML: inputs)
+    /// `PlantDef.inputs` as mappings (`{name, unit, value}`, GH #340). The YAML key is `inputs`, shared with the
+    /// fault-tree gates: a list of plain names lands in `inputs`, a list with any mapping here; never both.
+    #[serde(rename = "inputs", skip_serializing_if = "Option::is_none")]
+    pub plant_inputs: Option<Vec<serde_yaml::Value>>,
+    /// `PlantDef.outputs` — `{name, unit}` entries (GH #340).
+    pub outputs: Option<Vec<serde_yaml::Value>>,
+    /// `PlantDef.states` — `{name, value}` entries, the value the initial one (GH #340).
+    pub states: Option<Vec<serde_yaml::Value>>,
+    /// `PlantDef.equations` — `der(x) = expression` and `y := expression` strings (GH #340).
+    pub equations: Option<Vec<serde_yaml::Value>>,
+    /// `PlantDef.method` — `rk4` (default) or `euler` (GH #340).
+    pub method: Option<String>,
+    /// `PlantDef.maxStep` — the longest integration sub-step, a duration (GH #340).
+    pub max_step: Option<serde_yaml::Value>,
+    /// `PartDef`/`Part.plant` — the in-process plant the part is (GH #340): a `PlantDef` reference, or
+    /// `{def | library, unit, parameters}`.
+    pub plant: Option<serde_yaml::Value>,
     pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
     /// REQ-TRS-FTA-002 (issue #148) — FaultTreeEvent → the model element whose
@@ -1805,7 +1827,14 @@ struct ColdWire {
     // §T4 — FaultTree (IEC 61025 / ISO 26262-9)
     pub top_event: Option<String>,              // SafetyGoal ref (YAML: topEvent)
     pub gate_type: Option<String>,              // FaultTreeGate: AND|OR|XOR|NOT|inhibit (YAML: gateType)
-    pub inputs: Option<Vec<String>>,            // FaultTreeGate input refs (YAML: inputs)
+    pub inputs: Option<Vec<serde_yaml::Value>>, // FaultTreeGate input refs, or PlantDef inputs (YAML: inputs)
+    pub outputs: Option<Vec<serde_yaml::Value>>,
+    pub states: Option<Vec<serde_yaml::Value>>,
+    pub equations: Option<Vec<serde_yaml::Value>>,
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub method: Option<String>,
+    pub max_step: Option<serde_yaml::Value>,
+    pub plant: Option<serde_yaml::Value>,
     pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
     /// REQ-TRS-FTA-002 (issue #148) — FaultTreeEvent → the model element whose
@@ -2280,7 +2309,15 @@ impl ColdWire {
             confirms: w.confirms,
             top_event: w.top_event,
             gate_type: w.gate_type,
-            inputs: w.inputs,
+            // a list of plain names is a fault-tree gate's; a list with any mapping is a PlantDef's
+            inputs: w.inputs.as_ref().and_then(|v| v.iter().map(|x| x.as_str().map(String::from)).collect::<Option<Vec<_>>>()),
+            plant_inputs: w.inputs.filter(|v| v.iter().any(|x| x.as_str().is_none())),
+            outputs: w.outputs,
+            states: w.states,
+            equations: w.equations,
+            method: w.method,
+            max_step: w.max_step,
+            plant: w.plant,
             event_kind: w.event_kind,
             failure_rate: w.failure_rate,
             event_ref: w.event_ref,

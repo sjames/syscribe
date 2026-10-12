@@ -65,6 +65,7 @@ nav:
       - Behavioural Models (models:): model-guide/behaviour-models.md
       - Executable Evidence: model-guide/executable-evidence.md
       - FMU Plants (FMI): model-guide/fmi-plants.md
+      - In-process Plants: model-guide/plant-models.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
       - Build System Integration: model-guide/build-export.md

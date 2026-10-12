@@ -20,7 +20,8 @@ long names with prefixes (`mm`, `kHz`, `uV`), `min`, `h`, `L`, `bar`, `rpm`, `de
 
 Operators, loosest first: `if c then a else b`; `or` `||`; `and` `&&`; `not` `!`;
 `== != < <= > >=`; `+ -`; `* / %`; unary `-`. `and`/`or` short-circuit. Functions:
-`abs min max sqrt floor ceil round pow`. `+`, `-`, `%` and comparisons need equal
+`abs min max sqrt floor ceil round pow`, and `exp ln sin cos tanh` over a
+dimensionless argument (radians for `sin`/`cos`; `ln` needs a positive one). `+`, `-`, `%` and comparisons need equal
 dimensions (`1 s + 1 V` is an error); `*` and `/` combine them. `if c then a else b`
 can also be an operand. Equality is tolerant of float noise (relative 1e-9, absolute
 1e-15 in SI base units). Numbers print with up to 15 significant digits.
@@ -35,4 +36,4 @@ error. An unbound `A::b` without a dot is an enumeration literal.
     --json             {expression, type, value, unit, dimension}.
 
 Exit 1 with a message on stderr for a parse, name, dimension, type or domain error
-(division by zero, `sqrt` of a negative, a non-finite result); nothing on stdout.
+(division by zero, `sqrt` of a negative, `ln` of a non-positive, a non-finite result); nothing on stdout.

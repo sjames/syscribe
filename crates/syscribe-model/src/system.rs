@@ -46,7 +46,8 @@ pub struct PortSpec {
 pub enum Behavior {
     /// The qualified name of the `StateDef`/`State` the part exhibits.
     Machine(String),
-    /// The part is an FMU plant (REQ-TRS-FMI-001); the qualified name of the part definition carrying `fmu:`.
+    /// The part is a plant: an FMU (REQ-TRS-FMI-001) or an in-process plant (GH #340); the qualified name of the part
+    /// definition carrying `fmu:` or `plant:`.
     Plant(String),
     Inert,
 }
@@ -336,7 +337,11 @@ pub fn parts_of(elements: &[RawElement], resolver: &Resolver, elem: &RawElement,
             }
         }
         let machine: Vec<String> = ch.iter().find(|d| d.frontmatter.exhibits_states.as_ref().is_some_and(|s| !s.is_empty())).map(|d| d.frontmatter.exhibits_states.clone().unwrap_or_default()).unwrap_or_default();
-        let has_fmu = ch.iter().any(|d| d.frontmatter.fmu.is_some());
+        let has_fmu = ch.iter().any(|d| d.frontmatter.fmu.is_some() || d.frontmatter.plant.is_some());
+        if ch.iter().any(|d| d.frontmatter.fmu.is_some()) && ch.iter().any(|d| d.frontmatter.plant.is_some()) {
+            out.push(("E930", format!("{}: part '{name}' declares both an `fmu:` and a `plant:`; a part carries exactly one behaviour", elem.qualified_name)));
+            continue;
+        }
         let mut targets: Vec<String> = Vec::new();
         for st in &machine {
             match resolver.resolve_ref(elements, st) {
@@ -350,10 +355,10 @@ pub fn parts_of(elements: &[RawElement], resolver: &Resolver, elem: &RawElement,
         }
         let behavior = match (targets.len(), has_fmu) {
             (0, false) => Behavior::Inert,
-            (0, true) => Behavior::Plant(ch.iter().find(|d| d.frontmatter.fmu.is_some()).map(|d| d.qualified_name.clone()).unwrap_or_default()),
+            (0, true) => Behavior::Plant(ch.iter().find(|d| d.frontmatter.fmu.is_some() || d.frontmatter.plant.is_some()).map(|d| d.qualified_name.clone()).unwrap_or_default()),
             (1, false) => Behavior::Machine(targets[0].clone()),
             (n, _) => {
-                out.push(("E930", format!("{}: part '{name}' has {} behaviours ({}); a part carries exactly one of a state machine or an FMU", elem.qualified_name, if has_fmu { n + 1 } else { n }, if has_fmu { "state machine(s) and an fmu".to_string() } else { targets.join(", ") })));
+                out.push(("E930", format!("{}: part '{name}' has {} behaviours ({}); a part carries exactly one of a state machine or a plant", elem.qualified_name, if has_fmu { n + 1 } else { n }, if has_fmu { "state machine(s) and a plant".to_string() } else { targets.join(", ") })));
                 continue;
             }
         };
@@ -440,6 +445,14 @@ pub fn resolve(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) 
         bindings.push(Binding { from: (a, fv.to_string()), to: (b, tv.to_string()) });
     }
     (Some(SystemSpec { composite: q.clone(), instances, links, bindings }), out)
+}
+
+/// The in-process plant of a part (GH #340), compiled with its parameter overrides; `None` for any other part.
+pub fn in_process_plant(elements: &[RawElement], resolver: &Resolver, i: &Instance) -> Option<Result<crate::plant_def::PlantModel, Vec<crate::plant_def::Finding>>> {
+    let Behavior::Plant(def) = &i.behavior else { return None };
+    let d = resolver.resolve_ref(elements, def)?;
+    let decl = d.frontmatter.plant.as_ref()?;
+    Some(crate::plant_def::resolve(elements, resolver, decl))
 }
 
 fn machine_of(elements: &[RawElement], i: &Instance) -> Option<Machine> {
@@ -543,20 +556,38 @@ pub fn check_all(elements: &[RawElement], resolver: &Resolver, elem: &RawElement
             }
         }
     }
-    if crate::plant::backend().is_some() && spec.instances.iter().any(|i| matches!(i.behavior, Behavior::Plant(_))) && composite_view(elements, resolver, elem).plant_step.is_none() {
+    // the in-process plants of the parts, checked (GH #340); an FMU plant's variables are only known from its file
+    let plants: Vec<Option<Result<crate::plant_def::PlantModel, Vec<crate::plant_def::Finding>>>> = spec.instances.iter().map(|i| in_process_plant(elements, resolver, i)).collect();
+    let step_missing = composite_view(elements, resolver, elem).plant_step.is_none();
+    if step_missing && plants.iter().any(|p| p.is_some()) {
+        out.push(("E934", format!("{q}: a composite with in-process plant parts needs a `plantStep:` (the communication step)")));
+    } else if step_missing && crate::plant::backend().is_some() && spec.instances.iter().zip(&plants).any(|(i, p)| matches!(i.behavior, Behavior::Plant(_)) && p.is_none()) {
         out.push(("E888", format!("{q}: a composite with plant parts needs a `plantStep:` (the communication step)")));
     }
+    // a plant declaration's own problems (`E939`) are reported on the definition that carries it
 
     // E933 — bindings join variables of compatible type and dimension.
     for b in &spec.bindings {
         let (fi, ti) = (&spec.instances[b.from.0], &spec.instances[b.to.0]);
-        let var = |idx: usize, name: &str| -> Result<Option<Value>, String> {
-            match (&spec.instances[idx].behavior, &machines[idx]) {
-                (Behavior::Machine(_), Some(m)) => m.variables.iter().find(|v| v.name == name).map(|v| Some(v.value.clone())).ok_or_else(|| format!("'{}' has no variable '{name}'", spec.instances[idx].name)),
-                _ => Ok(None), // a plant's variables are checked against the FMU, a part without a machine has none
+        // `source`: the end the value comes from. An in-process plant end must be an output read or an input written.
+        let var = |idx: usize, name: &str, source: bool| -> Result<Option<Value>, String> {
+            match (&spec.instances[idx].behavior, &machines[idx], &plants[idx]) {
+                (Behavior::Machine(_), Some(m), _) => m.variables.iter().find(|v| v.name == name).map(|v| Some(v.value.clone())).ok_or_else(|| format!("'{}' has no variable '{name}'", spec.instances[idx].name)),
+                (Behavior::Plant(_), _, Some(Ok(p))) => {
+                    let pn = &spec.instances[idx].name;
+                    let found = if source { p.outputs.iter().find(|v| v.name == name) } else { p.inputs.iter().find(|v| v.name == name) };
+                    match found {
+                        Some(v) => Ok(Some(Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim }))),
+                        None if p.inputs.iter().chain(&p.outputs).chain(&p.parameters).chain(&p.states).any(|v| v.name == name) => {
+                            Err(format!("'{pn}.{name}' cannot be {} (a binding reads a plant output and writes a plant input)", if source { "read" } else { "written" }))
+                        }
+                        None => Err(format!("plant '{pn}' has no {} '{name}'", if source { "output" } else { "input" })),
+                    }
+                }
+                _ => Ok(None), // an FMU plant's variables are checked against its file, a part without a behaviour has none
             }
         };
-        let (a, b2) = match (var(b.from.0, &b.from.1), var(b.to.0, &b.to.1)) {
+        let (a, b2) = match (var(b.from.0, &b.from.1, true), var(b.to.0, &b.to.1, false)) {
             (Err(e), _) | (_, Err(e)) => {
                 out.push(("E933", format!("{q}: binding {}.{} → {}.{}: {e}", fi.name, b.from.1, ti.name, b.to.1)));
                 continue;

@@ -134,6 +134,10 @@ pub fn infer(e: &Expr, env: &dyn Fn(&str) -> Ty) -> Result<Ty, String> {
             let ts: Vec<Ty> = args.iter().map(|a| infer(a, env)).collect::<Result<_, _>>()?;
             match f.as_str() {
                 "abs" | "floor" | "ceil" | "round" => Ty::Num(want_num(ts[0], f)?),
+                "exp" | "ln" | "sin" | "cos" | "tanh" => match want_num(ts[0], f)? {
+                    Some(d) if d != NONE => return Err(format!("{f} needs a dimensionless argument, got {}", d.human())),
+                    _ => Ty::Num(Some(NONE)),
+                },
                 "sqrt" => match want_num(ts[0], f)? {
                     Some(d) if d.0.iter().any(|x| x % 2 != 0) => return Err(format!("sqrt needs even dimension exponents, got {}", d.human())),
                     Some(d) => Ty::Num(Some(Dim(d.0.map(|x| x / 2)))),

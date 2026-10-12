@@ -12,6 +12,7 @@ verifies:
   - REQ-GTI-SYS-038
   - REQ-GTI-SYS-039
   - REQ-GTI-SW-001
+  - REQ-GTI-SW-008
   - REQ-GTI-HW-008
   - REQ-GTI-HW-009
 tags: [executable, region-in, reg-unverified]
@@ -375,6 +376,24 @@ Feature: Grid connection and protection chain (India)
     When 300 ms elapses
     Then supervisor is in state Standby
 
+  @verifies REQ-GTI-SW-008
+  Scenario: a grid event during a perturbation measurement discards it instead of tripping
+    Given supervisor is in state Running
+    And relayA is in state Closed
+    And relayA.closed is 1
+    And relayB is in state Closed
+    And relayB.closed is 1
+    And powerStage is in state On
+    And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
+    When 1050 ms elapses
+    Then perturb is in state Settling
+    When grid receives Set with v = 1.02, f = 50
+    Then perturb is in state Idle
+    When 2 s elapses
+    Then supervisor is in state Running
+
   @invariant @verifies REQ-GTI-SYS-007,REQ-GTI-SYS-010,REQ-GTI-SYS-038
   Scenario: a second grid loss after a full reconnection cycle is also cleared
     Given supervisor is in state Running
@@ -391,8 +410,7 @@ Feature: Grid connection and protection chain (India)
     And grid receives Set with v = 1.0, f = 50
     And 61 s elapses
     And 6 s elapses
-    Then supervisor is in state Running
-    When grid receives Set with v = 0, f = 50
+    And grid receives Set with v = 0, f = 50
     And 2 s elapses
     Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
 

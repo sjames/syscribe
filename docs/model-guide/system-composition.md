@@ -129,9 +129,11 @@ A part that belongs to the test set-up rather than the product, such as a grid s
 | `E931` | a connection end is not a port of that part, or the direction is wrong |
 | `E932` | a machine sends or accepts through a port its part does not have; or, through a typed port, an event the type does not carry or carries the other way, or an unknown payload field |
 | `E933` | a binding names an unknown variable or joins different types or dimensions |
-| `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration |
+| `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration, in-process plant parts without `plantStep:` |
 | `E936` | a fault model (`injection:`) is malformed, or does not fit the composite it applies to |
 | `E937` | a `fault … is injected/cleared` step names an unknown fault |
+| `E938` | a `PlantDef` is malformed (structure, equation forms, unknown names, an algebraic loop) |
+| `E939` | a `plant:` declaration does not resolve, or its parameter overrides do not fit |
 | `W936` | an event is sent through a connection but never accepted at the other end, or the reverse |
 
 ## FMU plants as parts
@@ -145,7 +147,11 @@ bindingConnections:
   - {from: ctl.thrust, to: ball.thrust} # machine variable → plant input
 ```
 
-The loop, units and evidence are those of the FMI page: inputs are held over a step, the step is cut at the earliest timer or delayed message, outputs are read at the boundary and the machines then settle; every scenario starts with fresh plants and the verdict lists their provenance. Direction, type and unit dimension of each plant binding are checked before the run. Outputs of one communication point reach the machines together, before any timer due at that instant fires. A variable has at most one source (`E933`), and a binding needs parts that have behaviour. `validate` checks the plant files and `plantStep`; the direction, type and unit dimension of each plant binding are checked when `simulate` builds the system. The evidence hash covers the communication step and every plant's file hash and parameters. A composite with a plant part is refused (exit 1) in a build without the feature.
+The loop, units and evidence are those of the FMI page: inputs are held over a step, the step is cut at the earliest timer or delayed message, outputs are read at the boundary and the machines then settle; every scenario starts with fresh plants and the verdict lists their provenance. Direction, type and unit dimension of each plant binding are checked before the run. Outputs of one communication point reach the machines together, before any timer due at that instant fires. A variable has at most one source (`E933`), and a binding needs parts that have behaviour. `validate` checks the plant files and `plantStep`; the direction, type and unit dimension of each plant binding are checked when `simulate` builds the system. The evidence hash covers the communication step and every plant's file hash and parameters. A composite with an FMU plant part is refused (exit 1) in a build without the feature; an in-process plant needs none.
+
+## In-process plants as parts
+
+A part whose definition carries `plant:` is a plant written in the model itself (a `PlantDef`, or a library plant), with the same step, bindings and evidence as an FMU plant and no build feature; see [In-process plants](plant-models.md).
 
 ## Relating the executable model to the architecture
 

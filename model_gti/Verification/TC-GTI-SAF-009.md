@@ -4,30 +4,61 @@ id: TC-GTI-SAF-009
 name: "Sensing common cause: perturbation-response check"
 status: active
 testLevel: L5
+subject: Behavior::Chain::ProtectionChain
 verifies:
   - REQ-GTI-SYS-045
   - REQ-GTI-SW-008
-  - REQ-GTI-HW-010
-tags: [reg-unverified]
+tags: [executable, reg-unverified]
 ---
+
+Executable scenarios of the perturbation-response check in the protection chain, for either region: run with `syscribe simulate TC-GTI-SAF-009 --config CONF-GTI-US-M3-001` (or an India configuration). The grid's answer to the injected current comes from the in-process plant `Behavior::Plants::GridImpedance`. The island-clearing time of both profiles is 2 s. `Breaker` opens the grid breaker with a balanced local load, so the voltage and frequency the sensors see do not change: the classic case the voltage/frequency window cannot detect. The region-specific case of a grid event during a measurement is in TC-GTI-PROT-US-001 and TC-GTI-PROT-IN-001. The current-sensing path itself (`REQ-GTI-HW-010`) is not modelled, so the check reads the injected current as commanded; TC-GTI-SAF-010 verifies it on the bench.
 
 ```gherkin
 Feature: Both voltage chains stuck at nominal
 
+  Background:
+    Given supervisor is in state Running
+    And relayA is in state Closed
+    And relayA.closed is 1
+    And relayB is in state Closed
+    And relayB.closed is 1
+    And powerStage is in state On
+    And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
+
+  Scenario: an islanded grid is cleared although the voltage and frequency stay inside the window
+    When grid receives Breaker
+    And 2 s elapses
+    Then monitor is in state Normal
+    And supervisor is in state Tripped
+    And powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0
+
   Scenario: grid lost with both sensing chains reading nominal
-    Given the inverter runs at rated power on a grid simulator
-    And both voltage-sensing chains are forced to report nominal
-    When the grid breaker opens
-    Then the perturbation response is missing
-    And the inverter stops energising and opens the relays within the island-clearing time of the profile
+    Given fault FTE-GTI-009 is injected
+    When grid receives Breaker
+    And 2 s elapses
+    Then monitor is in state Normal
+    And hwTrip is in state Armed
+    And supervisor is in state Tripped
+    And powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0
 
   Scenario: healthy grid is not tripped
-    Given the inverter runs at rated power on a grid with the profile's maximum impedance
-    When the perturbation check runs for one hour
-    Then no trip occurs
+    When 60 s elapses
+    Then supervisor is in state Running
+    And perturb sent SampleReq via req
 
   Scenario: weak grid
-    Given the grid impedance is raised above the profile limit
-    When the next perturbation is applied
-    Then the inverter treats the grid as lost
+    When grid receives Impedance with z = 8 SI::ohm
+    And 2 s elapses
+    Then supervisor is in state Tripped
+    And powerStage.pwm == 0 and relayA.closed == 0
+
+  Scenario: an islanded grid is cleared by the check alone when the monitor and the hardware trip are both dead
+    Given fault FTE-GTI-004 is injected
+    And fault FTE-GTI-006 is injected
+    When grid receives Breaker
+    And 2 s elapses
+    Then supervisor is in state Tripped
+    And powerStage.pwm == 0 and relayA.closed == 0
 ```
