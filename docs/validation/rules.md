@@ -298,7 +298,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | E404 | `pumlMode: companion` is set but the element has no `diagramKind:` to derive the PlantUML companion from |
 | E405 | `shapes:`, `edges:` or `layout:` is present but malformed — not a map, an entry missing `ref`/`source`/`target`, an unknown `kind:`, a `parent:` naming no shape, or a `layout:` entry without numeric `x`/`y`; the entry is skipped instead of the diagram rendering empty. Only diagram kinds with an IR are checked — a `Mermaid`/`PlantUML` body has none (REQ-TRS-VIS-002) |
 
-## Diagram warnings (W400–W420, W080)
+## Diagram warnings (W400–W421, W080)
 
 | Code | Condition |
 |---|---|
@@ -323,6 +323,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types — a BDD needs a `Package`/`PartDef`/`ItemDef`, an IBD a `PartDef`/`Part`, a StateMachine a `StateDef`/`State`, an Action an `ActionDef`/`Action`, a Sequence an `ActionDef`/`Action`/`UseCaseDef`, a Requirement a `Package`/`RequirementDef`/`Requirement`, an Allocation a `Package`/`AllocationDef`/`Allocation`, a FaultTree a `FaultTree`/`SafetyGoal` that a fault tree names as `topEvent`, an AttackTree an `AttackTree`/`ThreatScenario` that an attack tree names as `threatRef`, a SafetyCase a `SafetyGoal`/`Argument`/`Package` covering at least one goal, a Traceability a `SafetyGoal`/`HazardousEvent`/`Requirement`/`Package` reaching a goal or hazard, a ZoneConduit a `Package`/`Zone`/`Conduit` reaching a zone, a ThreatGraph a `Package`/`TARASheet`/`ThreatScenario`/`DamageScenario`/`Asset`/`CybersecurityGoal`/`SecurityControl` reaching a chain); the diagram is drawn empty (REQ-TRS-VIS-003) |
 | W419 | A `flowKind:` or `side:` names no flow kind (`power`, `signal`, `command`, `data`, `protection`, `mechanical`) or side, or a `[diagram]` entry in `.syscribe.toml` is malformed; the value is ignored (REQ-TRS-VIS-028) |
 | W420 | `groupBy:` on a derived diagram names no grouping (the only one is `domain`), or is set on a diagram kind other than `IBD`, on a manifest diagram or on an element that is not a `Diagram`; the field is ignored (REQ-TRS-VIS-029) |
+| W421 | the mapping form of `include:` is malformed or not on a derived IBD (an unknown key, a `kinds` entry that is no flow kind, a `domains` entry that is no domain, a `features` entry that is no feature), a `style:` names no `[diagram.style.<name>]` or is set on an element that is not a `Diagram`, or a `layout:` hint is malformed (`flow` other than left-to-right/top-to-bottom, `layers` not a list or an entry matching no part); ignored (REQ-TRS-VIS-031) |
 | W080 | A manifest `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`; never raised on a derived Sequence diagram — `subject:` and neither `shapes:` nor `edges:` — which generates every message itself, REQ-TRS-VIS-021) |
 
 ## State machine warnings (W070–W079, W929, §22.1)

@@ -290,6 +290,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         });
         if i % 3 == 0 {
             g.nodes.push(Node {
@@ -310,6 +311,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
                 feature: None,
                 mark: None,
                 flow: None,
+                faded: false,
             });
         }
     }
@@ -342,6 +344,7 @@ fn synthetic_bdd(blocks: usize, edges: usize) -> DiagramGraph {
             label,
             waypoints: None,
             flow: None,
+            faded: false,
         });
     }
     g

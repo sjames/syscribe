@@ -31,6 +31,11 @@ fn color(c: &str) -> String {
     }
 }
 
+/// A colour drawn faded (GH #338): `#rrggbb` with a quarter alpha; a named colour stays as it is.
+fn faded(c: String) -> String {
+    if c.starts_with('#') && c.len() == 7 { format!("{c}40") } else { c }
+}
+
 /// `text` broken at spaces into lines of at most `max` characters.
 fn wrap(text: &str, max: usize) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
@@ -113,6 +118,12 @@ fn node_line(node: &Node) -> String {
     if node.resolved {
         attrs.push(format!("tooltip=\"{}\"", quote(&node.element_ref)));
     }
+    // outside the view's `include:` (GH #338)
+    if node.faded {
+        attrs[3] = format!("fillcolor=\"{}\"", faded(color(&style.fill)));
+        attrs[4] = format!("color=\"{}\"", faded(color(&style.stroke)));
+        attrs.push(format!("fontcolor=\"{}\"", faded(color(&style.text))));
+    }
     let mut line = format!("  {} [{}];\n", dot_id(&node.id), attrs.join(", "));
     // GSN's undeveloped diamond hangs under the goal.
     if node.kind == NodeKind::UndevelopedGoal {
@@ -146,7 +157,8 @@ fn edge_line(graph: &DiagramGraph, edge: &Edge) -> String {
 /// The attribute list of an edge.
 fn edge_attrs(graph: &DiagramGraph, edge: &Edge) -> String {
     let s = edge_style_in(edge, graph);
-    let mut attrs = vec![format!("color=\"{}\"", color(&s.stroke)), format!("arrowhead={}", arrow(s.arrow_target))];
+    let stroke = if edge.faded { faded(color(&s.stroke)) } else { color(&s.stroke) };
+    let mut attrs = vec![format!("color=\"{stroke}\""), format!("arrowhead={}", arrow(s.arrow_target))];
     if s.arrow_source != ArrowHead::None {
         attrs.push(format!("arrowtail={}", arrow(s.arrow_source)));
         attrs.push("dir=both".to_string());
@@ -280,6 +292,7 @@ mod tests {
             feature: None,
             mark,
             flow: None,
+            faded: false,
         }
     }
 
@@ -288,7 +301,7 @@ mod tests {
         let mut g = DiagramGraph::empty(DiagramKind::FaultTree, "M::FT", "FT", None);
         g.nodes.push(node("top", NodeKind::GateOr, Some(NodeMark { detail: None, status: Some("top event".into()), value: Some("P 1.0e-6".into()), tone: Tone::Warn, badges: vec!["2 MCS".into()], emphasis: true })));
         g.nodes.push(node("a-1", NodeKind::EventBasic, None));
-        g.edges.push(Edge { id: "e".into(), element_ref: None, flow: None, source: "top".into(), target: "a-1".into(), kind: EdgeKind::GateInput, label: None, waypoints: None });
+        g.edges.push(Edge { id: "e".into(), element_ref: None, flow: None, faded: false, source: "top".into(), target: "a-1".into(), kind: EdgeKind::GateInput, label: None, waypoints: None });
         let dot = render_dot(&g);
         assert!(dot.starts_with("digraph \"FT\" {"), "{dot}");
         assert!(dot.contains("top [label=\"OR\\nTOP\\ntop event\\nP 1.0e-6\\n[2 MCS]\", shape=invhouse"), "{dot}");

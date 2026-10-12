@@ -688,3 +688,6 @@ table.fm-mx tr.fm-mx-sel td.fm-mx-name { outline: 2px solid #1d4ed8; outline-off
 #req-graph .rg-colhead { font: bold 11px sans-serif; fill: #2b3550; }
 .req-overview ul { list-style: none; padding-left: 0; max-height: 16em; overflow: auto; }
 .req-overview button { background: none; border: 0; cursor: pointer; text-decoration: underline; color: inherit; font: inherit; padding: 1px 2px; }
+
+/* A node or edge outside a diagram view's `include:` (GH #338): sprotty's `cssClasses`. */
+#sprotty-viewport .faded { opacity: 0.25; }

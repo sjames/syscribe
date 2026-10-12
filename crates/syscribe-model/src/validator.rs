@@ -1117,8 +1117,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // diagram draws as if it were absent.
     if let Some(root) = config.model_root.as_ref() {
         let cfg_file = root.join(".syscribe.toml").display().to_string();
-        for msg in crate::vis::flow::DiagramConfig::load(root).problems {
-            findings.push(warning("W419", &cfg_file, &msg));
+        let dcfg = crate::vis::flow::DiagramConfig::load(root);
+        for msg in &dcfg.problems {
+            findings.push(warning("W419", &cfg_file, msg));
+        }
+        // W421: a `style:` that names no `[diagram.style.<name>]` (GH #338); the diagram draws with `default`
+        for e in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Diagram))) {
+            if let Some(st) = e.frontmatter.style.as_deref().filter(|st| !dcfg.has_style(st)) {
+                let known: Vec<&str> = std::iter::once("default").chain(dcfg.named.keys().map(String::as_str).filter(|k| *k != "default")).collect();
+                findings.push(warning("W421", &e.file_path, &format!("`style` '{st}' is not a style of `[diagram.style]` (the styles are: {}) — `default` is used", known.join(", "))));
+            }
         }
     }
     for (file, msg) in crate::vis::flow::element_problems(elements, &Resolver::new(elements)) {
@@ -3580,6 +3588,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // ── Diagram checks (E4xx / W4xx) ─────────────────────────────────────
 
+        // W421: `style:` is a field of a `Diagram` only (GH #338)
+        if fm.style.is_some() && !matches!(fm.element_type, Some(ElementType::Diagram)) {
+            findings.push(warning("W421", &file, "`style` is a field of a `Diagram` — ignored here"));
+        }
+
         // W420: `groupBy:` is a field of an IBD `Diagram` only (GH #336)
         if fm.group_by.is_some() && !matches!(fm.element_type, Some(ElementType::Diagram)) {
             findings.push(warning("W420", &file, "`groupBy` is a field of a derived IBD `Diagram` — ignored here"));
@@ -3604,7 +3617,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     // whose type is not valid for the diagram kind.
                     match issue.code {
                         "E405" => findings.push(error("E405", &file, &issue.message)),
-                        "W416" | "W417" | "W418" | "W420" => findings.push(warning(issue.code, &file, &issue.message)),
+                        "W416" | "W417" | "W418" | "W420" | "W421" => findings.push(warning(issue.code, &file, &issue.message)),
                         _ => {}
                     }
                 }

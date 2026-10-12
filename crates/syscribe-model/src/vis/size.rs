@@ -547,6 +547,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 
@@ -673,6 +674,7 @@ mod tests {
                 label: label.map(str::to_string),
                 waypoints: None,
                 flow: None,
+                faded: false,
             });
         }
         let s = size_graph(&g, &m);

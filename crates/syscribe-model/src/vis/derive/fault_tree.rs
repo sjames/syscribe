@@ -237,6 +237,7 @@ pub fn generate(
                 feature: None,
                 mark,
                 flow: None,
+                faded: false,
             });
             for &t in &n.inputs {
                 edges.push(Edge {
@@ -248,6 +249,7 @@ pub fn generate(
                     label: None,
                     waypoints: None,
                     flow: None,
+                    faded: false,
                 });
             }
         }

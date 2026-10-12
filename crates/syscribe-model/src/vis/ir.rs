@@ -572,6 +572,10 @@ pub struct Node {
     /// What a port carries (GH #335), for a `[diagram.portSides]` rule; `None` elsewhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flow: Option<FlowKind>,
+    /// Outside the view's `include:` (GH #338): drawn faded as context, or left out under a style with
+    /// `context = "hide"`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub faded: bool,
 }
 
 /// The tone of a [`NodeMark`]: how the node is coloured (`style::node_style`).
@@ -676,6 +680,9 @@ pub struct Edge {
     /// What the edge carries (GH #335); `None` when the model does not say, drawn as today.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flow: Option<FlowKind>,
+    /// Outside the view's `include:` (GH #338), like [`Node::faded`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub faded: bool,
 }
 
 /// What a connection carries (GH #335): it picks the stroke from the style table and, under a `[diagram.portSides]`
@@ -916,6 +923,10 @@ pub struct DiagramGraph {
     /// The project's `[diagram.styles]` (GH #335), layered over the built-in flow-kind styles by the writers.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub flow_styles: std::collections::BTreeMap<FlowKind, FlowStyle>,
+    /// The diagram's `style:` (GH #338), resolved against `[diagram.style.<name>]` when the project's config is
+    /// applied (`vis::flow::apply`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
 }
 
 impl DiagramGraph {
@@ -930,7 +941,33 @@ impl DiagramGraph {
             layout_hints: LayoutHints::for_kind(kind),
             derived: false,
             flow_styles: Default::default(),
+            style: None,
         }
+    }
+
+    /// Reorder the nodes so every parent precedes its children, keeping the order otherwise.
+    pub fn parents_first(&mut self) {
+        let mut placed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut out = Vec::with_capacity(self.nodes.len());
+        let mut rest = std::mem::take(&mut self.nodes);
+        while !rest.is_empty() {
+            let before = rest.len();
+            let mut keep = Vec::new();
+            for n in rest {
+                if n.parent.as_ref().map_or(true, |p| placed.contains(p)) {
+                    placed.insert(n.id.clone());
+                    out.push(n);
+                } else {
+                    keep.push(n);
+                }
+            }
+            if keep.len() == before {
+                out.extend(keep);
+                break;
+            }
+            rest = keep;
+        }
+        self.nodes = out;
     }
 
     pub fn node(&self, id: &str) -> Option<&Node> {
@@ -1095,6 +1132,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         };
         g.nodes.push(mk("a", None, Some(Rect { x: 0.0, y: 0.0, w: None, h: None })));
         g.nodes.push(mk("b", Some("a"), None));
@@ -1117,6 +1155,7 @@ mod tests {
             label: None,
             waypoints: Some(vec![Point { x: 1.0, y: 2.0 }]),
             flow: None,
+            faded: false,
         });
         let json = serde_json::to_string(&g).unwrap();
         let back: DiagramGraph = serde_json::from_str(&json).unwrap();

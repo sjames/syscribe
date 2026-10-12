@@ -223,7 +223,7 @@ Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`
 **Batch 8 — Diagrams**
 Write `Diagram` elements after all model elements are in place.
 
-- **Derived BDD / IBD** — **preferred for those two kinds.** Declare only `diagramKind: BDD` (subject: a Package, PartDef or ItemDef) or `diagramKind: IBD` (subject: a PartDef or Part) and `subject:`; no `shapes:`/`edges:` — the content is derived from the model and follows it. Optional `include:`/`exclude:` narrow the members shown. On an IBD, `depth: 2` draws each part's own parts inside it (deployed software inside the hardware it is allocated to) and `groupBy: domain` frames the parts by `domain:`. Validate: fix W401, W417 (filter entry names no member), W418 (subject type wrong for the kind), W420 (`groupBy:` other than `domain`, or not on a derived IBD).
+- **Derived BDD / IBD** — **preferred for those two kinds.** Declare only `diagramKind: BDD` (subject: a Package, PartDef or ItemDef) or `diagramKind: IBD` (subject: a PartDef or Part) and `subject:`; no `shapes:`/`edges:` — the content is derived from the model and follows it. Optional `include:`/`exclude:` narrow the members shown. On an IBD, `depth: 2` draws each part's own parts inside it (deployed software inside the hardware it is allocated to) and `groupBy: domain` frames the parts by `domain:`. For a view of one concern, give `include:` as a mapping (`{kinds: [power]}`, `domains`, `tags`, `features`): the rest is faded; `style: <name>` picks a `[diagram.style.<name>]` of `.syscribe.toml` (`context = "hide"` leaves the rest out), and `layout: {flow: left-to-right, layers: [power, sensing]}` orders the bands. Validate: fix W401, W417 (filter entry names no member), W418 (subject type wrong for the kind), W420 (`groupBy:` other than `domain`, or not on a derived IBD), W421 (malformed view, style or layout hint).
 - **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
 - **svgMode: companion** (companion SVG) — the `.svg` is saved from the browser (Save companion SVG) or produced by `syscribe -m model/ plantuml render`; there is no CLI command that composes it. Commit both `.md` and the `.svg`.
 - **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion` and `pumlFile: ./<Name>.puml`. Then run:
@@ -884,6 +884,7 @@ SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape 
 | W418 | Derived diagram's `subject:` type is not valid for its `diagramKind:` — drawn empty |
 | W419 | A `flowKind:` or port `side:` that is not known, or set where it is not read |
 | W420 | `groupBy:` other than `domain`, or not on a derived IBD — ignored |
+| W421 | A view (`include:` mapping, `style:`, `layout:` hint) that is malformed or names nothing — ignored |
 
 ---
 

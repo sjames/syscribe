@@ -20,7 +20,7 @@ use crate::resolver::Resolver;
 
 use super::super::ir::{derived_shape_id, DiagramGraph, Edge, EdgeKind, FlowKind, Node, NodeKind, NodeMark, Tone};
 use super::super::manifest::Issue;
-use super::{applies_when_text, block_node, display_name, features_of, map_str, port_node, short_name, w418, w420, yaml_strings, Feature, FeatureRole, Filters};
+use super::{applies_when_text, block_node, display_name, features_of, map_str, port_node, short_name, w418, w420, w421, yaml_strings, Feature, FeatureRole, Filters};
 
 /// One owned part usage of the subject (or, nested, of a usage's definition).
 struct Usage<'a> {
@@ -82,6 +82,10 @@ struct Drawn {
     definition: Option<String>,
     element_ref: String,
     domain: Option<String>,
+    /// `tags:` of the usage element and its definition (GH #338).
+    tags: Vec<String>,
+    /// The features its `appliesWhen:` (inline, usage element or definition) names (GH #338).
+    features: Vec<String>,
 }
 
 struct Ctx<'a, 'b> {
@@ -192,6 +196,12 @@ impl Ctx<'_, '_> {
             definition: u.definition.map(|d| d.qualified_name.clone()),
             element_ref: qn.clone(),
             domain: u.element.and_then(|e| e.frontmatter.domain.clone()).or_else(|| u.definition.and_then(|d| d.frontmatter.domain.clone())),
+            tags: u.element.into_iter().chain(u.definition).flat_map(|e| e.frontmatter.tags.clone().unwrap_or_default()).collect(),
+            features: {
+                let mut exprs: Vec<serde_yaml::Value> = u.applies_when.iter().map(|a| serde_yaml::Value::String(a.clone())).collect();
+                exprs.extend(u.element.into_iter().chain(u.definition).filter_map(|e| e.frontmatter.applies_when.clone()));
+                exprs.iter().filter_map(|v| crate::variability::applies_when_expr(v).ok().flatten()).flat_map(|x| x.operands()).collect()
+            },
         });
 
         // Ports: the usage's own, then its definition's (own wins on a name clash).
@@ -309,7 +319,7 @@ pub fn generate(
     if group_by_domain {
         frame_by_domain(graph, &ctx.drawn, &deployed, &boundary_id, sq);
     }
-    parents_first(graph);
+    parents_first_and_view(graph, &ctx.drawn, filters, elements, issues);
 }
 
 /// Edges from `owner`'s connection lists, its chains read relative to the usage `prefix` (the subject
@@ -381,6 +391,7 @@ fn connect(graph: &mut DiagramGraph, owner: &RawElement, prefix: &str) {
                 label: name,
                 waypoints: None,
                 flow,
+                faded: false,
             });
         }
     }
@@ -524,6 +535,7 @@ fn frame_by_domain(graph: &mut DiagramGraph, drawn: &[Drawn], deployed: &[String
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         });
         for d in drawn.iter().filter(|d| d.domain.as_deref() == Some(dom.as_str())) {
             if let Some(n) = graph.nodes.iter_mut().find(|n| n.id == d.id && n.parent.as_deref() == Some(boundary_id)) {
@@ -541,29 +553,108 @@ fn frame_by_domain(graph: &mut DiagramGraph, drawn: &[Drawn], deployed: &[String
     }
 }
 
-/// Reorder the nodes so every parent precedes its children, keeping the order otherwise.
-fn parents_first(graph: &mut DiagramGraph) {
-    let mut placed: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut out = Vec::with_capacity(graph.nodes.len());
-    let mut rest = std::mem::take(&mut graph.nodes);
-    while !rest.is_empty() {
-        let before = rest.len();
-        let mut keep = Vec::new();
-        for n in rest {
-            if n.parent.as_ref().map_or(true, |p| placed.contains(p)) {
-                placed.insert(n.id.clone());
-                out.push(n);
-            } else {
-                keep.push(n);
+/// Parents before children, then the view (GH #338): with the mapping form of `include:`, the parts outside it, their
+/// ports and the edges outside it are marked faded. A part is in the view when it passes every key given: its
+/// domain is listed, it carries a listed tag, its `appliesWhen:` names a listed feature (or one beneath it), and, with
+/// `kinds:`, an edge of a listed flow kind reaches it or its ports. An edge is in the view when its kind is listed
+/// (with `kinds:`) and its ends are on parts in the view or on the boundary. The parts that contain a part in the view
+/// stay as its frame.
+fn parents_first_and_view(graph: &mut DiagramGraph, drawn: &[Drawn], filters: &Filters, elements: &[RawElement], issues: &mut Vec<Issue>) {
+    graph.parents_first();
+    let Some(view) = filters.view.as_ref() else { return };
+    for k in view.unknown.keys() {
+        issues.push(w421(format!("`include` has an unknown key '{k}' (known: members, kinds, domains, tags, features, depth) — ignored")));
+    }
+    let mut kinds: Option<Vec<FlowKind>> = None;
+    if let Some(ks) = &view.kinds {
+        let mut v = Vec::new();
+        for k in ks {
+            match FlowKind::parse(k) {
+                Some(f) => v.push(f),
+                None => issues.push(w421(format!(
+                    "`include.kinds` entry '{k}' is not a flow kind (the kinds are: {}) — ignored",
+                    FlowKind::ALL.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(", ")
+                ))),
             }
         }
-        if keep.len() == before {
-            out.extend(keep);
-            break;
-        }
-        rest = keep;
+        kinds = Some(v);
     }
-    graph.nodes = out;
+    for d in view.domains.iter().flatten() {
+        if !["system", "hardware", "software"].contains(&d.as_str()) {
+            issues.push(w421(format!("`include.domains` entry '{d}' is not a domain (system, hardware, software)")));
+        }
+    }
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let canon = |f: &str| crate::variability::canon_feature_ref(f, &alias);
+    let wanted: Option<Vec<String>> = view.features.as_ref().map(|fs| fs.iter().map(|f| canon(f)).collect());
+    if let Some(ws) = &wanted {
+        for w in ws {
+            if !elements.iter().any(|e| e.qualified_name == *w && e.frontmatter.element_type == Some(ElementType::FeatureDef)) {
+                issues.push(w421(format!("`include.features` entry '{w}' is not a feature")));
+            }
+        }
+    }
+    let criteria = kinds.is_some() || view.domains.is_some() || view.tags.is_some() || wanted.is_some();
+    if !criteria {
+        return;
+    }
+    // the part (a drawn usage) a node belongs to: itself, or the usage a port sits on
+    let owner = |g: &DiagramGraph, id: &str| -> Option<String> {
+        let n = g.node(id)?;
+        if n.kind == NodeKind::Port { n.parent.clone() } else { Some(n.id.clone()) }
+    };
+    let in_kinds = |e: &Edge| kinds.as_ref().map_or(true, |ks| e.flow.is_some_and(|f| ks.contains(&f)));
+    let mut reached: HashSet<String> = HashSet::new();
+    if kinds.is_some() {
+        for e in graph.edges.iter().filter(|e| in_kinds(e)) {
+            reached.extend(owner(graph, &e.source));
+            reached.extend(owner(graph, &e.target));
+        }
+    }
+    let focused: HashSet<String> = drawn
+        .iter()
+        .filter(|d| view.domains.as_ref().map_or(true, |ds| d.domain.as_ref().is_some_and(|x| ds.contains(x))))
+        .filter(|d| view.tags.as_ref().map_or(true, |ts| d.tags.iter().any(|t| ts.contains(t))))
+        .filter(|d| {
+            wanted.as_ref().map_or(true, |ws| {
+                d.features.iter().map(|f| canon(f)).any(|f| ws.iter().any(|w| f == *w || f.starts_with(&format!("{w}::"))))
+            })
+        })
+        .filter(|d| kinds.is_none() || reached.contains(&d.id))
+        .map(|d| d.id.clone())
+        .collect();
+    // kept: the parts in the view and every node that contains one; the boundary and its ports
+    let mut kept: HashSet<String> = HashSet::new();
+    for id in &focused {
+        let mut cur = Some(id.clone());
+        while let Some(c) = cur {
+            if !kept.insert(c.clone()) {
+                break;
+            }
+            cur = graph.node(&c).and_then(|n| n.parent.clone());
+        }
+    }
+    let boundary: Option<String> = graph.nodes.iter().find(|n| n.kind == NodeKind::Boundary).map(|n| n.id.clone());
+    let fade: HashSet<String> = graph
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.kind, NodeKind::Block | NodeKind::Swimlane) && !kept.contains(&n.id))
+        .map(|n| n.id.clone())
+        .collect();
+    let on_view = |g: &DiagramGraph, id: &str| -> bool {
+        match owner(g, id) {
+            Some(o) => focused.contains(&o) || Some(&o) == boundary.as_ref(),
+            None => false,
+        }
+    };
+    let faded_edges: Vec<bool> = graph.edges.iter().map(|e| !(in_kinds(e) && on_view(graph, &e.source) && on_view(graph, &e.target))).collect();
+    for n in graph.nodes.iter_mut() {
+        let own = if n.kind == NodeKind::Port { n.parent.clone().unwrap_or_default() } else { n.id.clone() };
+        n.faded = fade.contains(&own) || (n.kind == NodeKind::Swimlane && fade.contains(&n.id));
+    }
+    for (e, f) in graph.edges.iter_mut().zip(faded_edges) {
+        e.faded = f;
+    }
 }
 
 #[cfg(test)]

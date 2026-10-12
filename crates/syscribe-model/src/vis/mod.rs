@@ -15,6 +15,7 @@
 
 pub mod derive;
 pub mod dot;
+pub mod variant;
 pub mod ir;
 pub mod layout;
 pub mod manifest;

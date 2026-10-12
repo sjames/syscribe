@@ -215,6 +215,7 @@ pub fn generate(
                 feature: None,
                 mark: Some(mark),
                 flow: None,
+                faded: false,
             });
             for r in e.frontmatter.inputs.iter().flatten() {
                 let Some(t) = resolver.resolve_ref(elements, r).filter(|t| known.contains_key(&t.qualified_name)) else { continue };
@@ -233,6 +234,7 @@ pub fn generate(
                     label: None,
                     waypoints: None,
                     flow: None,
+                    faded: false,
                 });
             }
         }

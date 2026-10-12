@@ -319,6 +319,44 @@ signal = "south"
 side, a malformed `[diagram]` entry, or a `flowKind:`/`side:` where nothing reads it, is W419 and is
 ignored.
 
+### Views: what a diagram is about
+
+On a derived IBD, `include:` may be a mapping that says what the diagram is about rather than which members to keep. The parts it selects, and the edges between them, are drawn as usual; the parts that contain them stay as frames; everything else is faded (spec §8.16.10).
+
+<!-- syscribe-example: skip reason="an excerpt of model_gti; the subject and the named style live there" -->
+```yaml
+type: Diagram
+name: GtiPowerView
+diagramKind: IBD
+subject: System::GridTieInverter
+include: {kinds: [power]}          # also domains:, tags:, features:, depth:, members:
+style: focus                       # a [diagram.style.focus] table of .syscribe.toml
+layout: {flow: left-to-right, layers: [power, sensing]}
+```
+
+| `include:` key | Selects |
+|---|---|
+| `kinds` | parts joined by an edge of that flow kind, and those edges |
+| `domains` | parts whose usage or definition has that `domain:` |
+| `tags` | parts whose usage or definition has that tag |
+| `features` | parts whose `appliesWhen:` names that feature (qname or `FEAT-*` id) or one beneath it |
+
+A named style lives in `.syscribe.toml`:
+
+```toml
+[diagram.style.focus]
+context = "fade"            # or "hide": leave the context out
+
+[diagram.style.safety]
+extends = "focus"
+[diagram.style.safety.flows.protection]
+width = 4
+```
+
+Styles layer as project `[diagram.styles]`, then `[diagram.style.default]`, then the `extends` chain, then the named style; pins apply on top. `layout.flow` sets the layout direction and `layout.layers` orders each container's parts by band (a part name, a flow kind or a domain frame label).
+
+`syscribe diagram export <qname> --config A --config B` draws two products in one diagram: what only `A` has is marked `only A`, what only `B` has `only B`. Parameter values that change no element are not shown; `syscribe diff --config A --config B` reports them.
+
 ### Codes
 
 | Code | Condition |
@@ -327,6 +365,7 @@ ignored.
 | W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`; StateMachine: `StateDef`/`State`/`ExhibitState`; Action: `ActionDef`/`Action`; Requirement: `Package`/`RequirementDef`/`Requirement`; Allocation: `Package`/`AllocationDef`/`Allocation`; Sequence: `ActionDef`/`Action`/`UseCaseDef`/`UseCase`); the diagram is drawn empty |
 | W419 | A `flowKind:` or `side:` names no flow kind or side, or a `[diagram]` entry is malformed; the value is ignored |
 | W420 | `groupBy:` is not `domain`, or is set on a diagram that is not an IBD; ignored |
+| W421 | A view is malformed: an unknown `include:` key, kind, domain or feature, a `style:` that names no style, a bad `layout:` hint; ignored |
 
 An unresolved `subject:` is still W401, and a derived diagram never raises W402/W403 for the
 shapes it generates.

@@ -5,3 +5,15 @@ style_file = "../.plantuml/sysml.iuml"
 [diagram.portSides]
 power = "direction"
 signal = "south"
+
+# Named diagram styles (GH #338), chosen per diagram by `style:`.
+[diagram.style.focus]
+context = "fade"          # what lies outside a view's `include:` stays, faded
+
+[diagram.style.safety]
+extends = "focus"
+[diagram.style.safety.flows.protection]
+width = 4                 # the trip lines, heavier than the project's protection style
+
+[diagram.style.isolate]
+context = "hide"          # only what the view includes

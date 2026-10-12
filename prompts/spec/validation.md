@@ -347,7 +347,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
 | `W080` | A manifest `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry (never raised on a derived Sequence diagram, which generates every message itself) |
 
-## Diagram errors and warnings (E400–E405, W400–W420)
+## Diagram errors and warnings (E400–E405, W400–W421)
 
 | Code | Condition |
 |---|---|
@@ -378,6 +378,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W418` | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types, incl. `FaultTree`/`AttackTree`/`SafetyCase` and `Traceability`/`ZoneConduit`/`ThreatGraph`, GH #223); the diagram is drawn empty (REQ-TRS-VIS-003) |
 | `W419` | A `flowKind:` or `side:` names no flow kind (`power`, `signal`, `command`, `data`, `protection`, `mechanical`) or side, or a `[diagram]` entry in `.syscribe.toml` is malformed; the value is ignored (REQ-TRS-VIS-028) |
 | `W420` | `groupBy:` on a derived diagram names no grouping (the only one is `domain`), or is set on a diagram kind other than `IBD`, on a manifest diagram or on an element that is not a `Diagram`; the field is ignored (REQ-TRS-VIS-029) |
+| `W421` | the mapping form of `include:` is malformed or not on a derived IBD (an unknown key, a `kinds` entry that is no flow kind, a `domains` entry that is no domain, a `features` entry that is no feature), a `style:` names no `[diagram.style.<name>]` or is set on an element that is not a `Diagram`, or a `layout:` hint is malformed (`flow` other than left-to-right/top-to-bottom, `layers` not a list or an entry matching no part); ignored (REQ-TRS-VIS-031) |
 
 ## Build-system integration (E050, W050, §9.9)
 

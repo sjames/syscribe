@@ -3660,6 +3660,7 @@ A conformant parser must:
 11. **Derived-diagram filters and subject** (`REQ-TRS-VIS-003`) — on a derived diagram (a `subject:` and no `shapes:`, §8.16.1), every `include:`/`exclude:` entry must name a member of the subject, by qualified name or by name relative to the subject; an entry that names nothing is warning `W417` (the entry is ignored, the rest of the filter still applies). `include:`/`exclude:` on a manifest diagram is one `W417` and the fields are ignored — the manifest is drawn as listed. A derived diagram's `subject:` must be of a type the kind's generator accepts (the *Valid `subject:` types* of §8.16.8); otherwise it is warning `W418` and the diagram is drawn empty. An unresolved subject stays `W401` (rule 5) and produces no `W418`.
 12. **Flow kinds** (`REQ-TRS-VIS-028`) — a `flowKind:` (§8.16.9) on a `PortDef` or `Port`, a port feature, a `connections:`/`flowConnections:` entry or a manifest `edges:` entry must name a flow kind, a port feature's `side:` must name a side, and neither may appear where nothing reads it; a `[diagram]` table in `.syscribe.toml` must be well formed. Anything else is warning `W419` and the value or entry is ignored, so the edge or port draws as if it were absent.
 13. **IBD grouping** (`REQ-TRS-VIS-029`) — `groupBy:` on a derived IBD must be `domain`; any other value, or `groupBy:` on another diagram kind, on a manifest diagram or on an element that is not a `Diagram`, is warning `W420` and the field is ignored (§8.16.8.2).
+14. **Views** (`REQ-TRS-VIS-031`) — the mapping form of `include:` (§8.16.10) is read only on a derived IBD; on another kind only its `members` apply. An unknown key, a `kinds` entry that is not a flow kind, a `domains` entry that is not a domain, a `features` entry that is not a `FeatureDef`, a `style:` that names no `[diagram.style.<name>]` (or `style:` on an element that is not a `Diagram`), a `layout.flow` that is not `left-to-right`/`top-to-bottom`, a `layout.layers` that is not a list or an entry of it that matches no part: each is warning `W421` and is ignored. A malformed `[diagram.style]` entry or an `extends` that names no style or closes a cycle is `W419`.
 
 ---
 
@@ -4439,6 +4440,61 @@ command = "north"
 ```
 
 A port takes its kind from its own `flowKind:` or its `PortDef`, else from the first edge joining it. Without a `[diagram.portSides]` rule every port is placed by its direction, as before. `stroke` must be `#rgb`, `#rrggbb` or a colour name and `dash` a list of numbers, because every writer copies them as they are. A malformed entry, an unknown kind or side, or a `flowKind:`/`side:` where nothing reads it (on another element type, a non-port feature, a binding or succession, or `side:` on a connection) is `W419` (§8.16.7 rule 12) and is ignored. Two ports of different kinds joined by one connection are not checked; the edge takes the source's.
+
+#### 8.16.10 Views: `include:`, `style:` and `layout:` hints
+
+A view says what a diagram is about, not where things go (`REQ-TRS-VIS-031`, GH #338). On a derived IBD, `include:` may be a mapping instead of a list:
+
+| Key | Meaning |
+|---|---|
+| `kinds` | Flow kinds (§8.16.9): the edges that carry one, and the parts they join (or whose ports they join) |
+| `domains` | `domain:` values of the usage element or its definition |
+| `tags` | `tags:` of the usage element or its definition |
+| `features` | Features, by qname or `FEAT-*` id: parts whose `appliesWhen:` (inline, usage element or definition) names one of them or a feature beneath one |
+| `depth` | As the diagram's `depth:`, which wins when both are set |
+| `members` | The list form's member filter (§8.16.8.2); members outside it are not drawn at all |
+
+A part is in the view when it passes every key given. An edge is in the view when its kind is listed (with `kinds:`) and both ends are on parts in the view or on the boundary. The parts that contain a part in the view stay as its frame. Everything else is marked *faded*: SVG draws it at a quarter opacity with the class `faded`, sprotty gets the `cssClasses` entry `faded`, Mermaid a `faded` class and a link opacity, DOT a quarter alpha, PlantUML pale grey. The list form of `include:` keeps its meaning, a member filter, and fades nothing.
+
+**Named styles.** `style: <name>` selects a `[diagram.style.<name>]` table of `.syscribe.toml`:
+
+```toml
+[diagram.style.focus]
+context = "fade"            # "fade" (the default) or "hide": what lies outside the view
+
+[diagram.style.safety]
+extends = "focus"           # a chain of styles
+[diagram.style.safety.flows.protection]
+width = 4                   # the keys of [diagram.styles.<kind>]
+
+[diagram.style.isolate]
+context = "hide"
+```
+
+A diagram draws with the project's `[diagram.styles]`, then `[diagram.style.default]` when it is defined, then the chain of its `style:` from the root to the named style, the nearest winning key by key. Pins in `layout:` are applied on top of whatever the style gives. Under `context = "hide"` the faded nodes (with what is inside them) and edges are left out. A style is project configuration, not a model element: it changes how a diagram looks, never what the model says.
+
+**Layout hints.** Beside its pins, `layout:` takes two keys a shape id never has:
+
+| Key | Meaning |
+|---|---|
+| `flow` | `left-to-right` or `top-to-bottom`: the direction of the layered layout |
+| `layers` | Bands in order. Each entry is a part's name, a flow kind (of the edges at the part or its ports) or the label of a `groupBy: domain` frame; the parts of each container are ordered by the first band they fall in, unmatched last, and the layered layout keeps that order across the flow |
+
+Pins keep overriding the automatic placement and survive regeneration.
+
+**Variant view.** `syscribe diagram export <qname> --config A --config B` builds the diagram for each product from the model projected onto that `Configuration` and merges the two by node and edge id. A node only `A` has is marked `only A` (tone `bad`), one only `B` has `only B` (tone `ok`), and an edge only one has carries the same words in its label. A feature parameter that differs between the products but changes no element changes nothing here; `diff --config A --config B` reports it.
+
+**Example** (`model_gti/Diagrams/GtiProtectionView.md`):
+
+<!-- syscribe-example: skip reason="an excerpt of model_gti; the subject and styles live there" -->
+```yaml
+type: Diagram
+name: GtiProtectionView
+diagramKind: IBD
+subject: System::GridTieInverter
+include: {kinds: [protection]}
+style: safety
+```
 
 ### 8.17 Architecture Decision Records (ADR)
 
@@ -6127,7 +6183,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
-| `E400`–`E405`, `W400`–`W420` | Diagram elements | §8.16.2, §8.16.7, §8.16.8.2, §8.16.9 |
+| `E400`–`E405`, `W400`–`W421` | Diagram elements | §8.16.2, §8.16.7, §8.16.8.2, §8.16.9, §8.16.10 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
 | `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |

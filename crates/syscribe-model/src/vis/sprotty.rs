@@ -296,6 +296,9 @@ pub struct SNode {
     /// anything beyond that.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mark: Option<super::ir::NodeMark>,
+    /// sprotty's own `cssClasses`, omitted when empty: `faded` outside a view's `include:` (GH #338).
+    #[serde(rename = "cssClasses", skip_serializing_if = "Vec::is_empty")]
+    pub css_classes: Vec<&'static str>,
     pub children: Vec<SNodeChild>,
 }
 
@@ -326,6 +329,9 @@ pub struct SEdge {
     /// The flow kind (GH #335), when the model declares one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flow: Option<&'static str>,
+    /// sprotty's own `cssClasses`, omitted when empty: `faded` outside a view's `include:` (GH #338).
+    #[serde(rename = "cssClasses", skip_serializing_if = "Vec::is_empty")]
+    pub css_classes: Vec<&'static str>,
     /// The `«keyword»` and label as sized `label:edge` children; omitted
     /// when the edge has neither.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -440,6 +446,7 @@ fn build_node(graph: &DiagramGraph, sizes: &Sizes, node: &Node, depth: usize) ->
         banners: if element_type_ == TYPE_NODE { node.banners.clone() } else { Vec::new() },
         feature: if element_type_ == TYPE_NODE { node.feature.clone() } else { None },
         mark: if element_type_ == TYPE_NODE { node.mark.clone() } else { None },
+        css_classes: if node.faded { vec!["faded"] } else { Vec::new() },
         children,
     }
 }
@@ -466,6 +473,7 @@ fn build_edge(graph: &DiagramGraph, edge: &Edge, sizes: &Sizes, overlay_kinds: &
         overlay: overlay_kinds.contains(&edge.kind),
         style: edge_style_in(edge, graph),
         flow: edge.flow.map(|f| f.as_str()),
+        css_classes: if edge.faded { vec!["faded"] } else { Vec::new() },
     }
 }
 
@@ -529,6 +537,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 
@@ -558,6 +567,7 @@ mod tests {
             label: Some("power".into()),
             waypoints: Some(vec![Point { x: 1.0, y: 2.0 }]),
             flow: None,
+            faded: false,
         });
         g
     }
@@ -804,6 +814,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         });
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }
@@ -854,6 +865,7 @@ mod tests {
                 label: None,
                 waypoints: None,
                 flow: None,
+                faded: false,
             });
         }
         let a = serde_json::to_string(&to_sgraph(&g)).unwrap();

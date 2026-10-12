@@ -83,6 +83,11 @@ pub fn render_plantuml_in(element: &RawElement, elements: &[RawElement], cfg: Op
     render_graph(element, graph, cfg)
 }
 
+/// PlantUML of an already-built graph of `element` (a variant view, GH #338); `None` for a kind with no mapping.
+pub fn render_plantuml_graph(element: &RawElement, graph: vis::DiagramGraph, cfg: Option<&PlantumlConfig>) -> Option<String> {
+    render_graph(element, graph, cfg)
+}
+
 fn render_graph(element: &RawElement, graph: vis::DiagramGraph, cfg: Option<&PlantumlConfig>) -> Option<String> {
 
     // @startuml identifier / PlantUML output filename stem — must not contain
@@ -331,9 +336,13 @@ fn render_bdd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
 /// for an optional part), GH #336. PlantUML takes the stereotypes before the link and the colours after it, and the
 /// line colour without `#`. Both empty for an unmarked node, so its output is unchanged.
 fn ibd_mark(node: &Node) -> (String, String) {
+    let stereotypes: String = node.mark.iter().flat_map(|m| m.badges.iter()).map(|b| format!(" <<{b}>>")).collect();
+    // outside the view's `include:` (GH #338): pale, whatever the mark
+    if node.faded {
+        return (stereotypes, format!(" #f7f7f7;line:{};text:{}", FADED_LINE.trim_start_matches('#'), FADED_LINE.trim_start_matches('#')));
+    }
     let Some(m) = node.mark.as_ref().filter(|m| !m.is_detail_only()) else { return (String::new(), String::new()) };
     let st = crate::vis::style::node_style(node);
-    let stereotypes: String = m.badges.iter().map(|b| format!(" <<{b}>>")).collect();
     let mut colours = format!(" {};line:{}", st.fill, st.stroke.trim_start_matches('#'));
     if m.emphasis {
         colours.push_str(";line.bold");
@@ -342,6 +351,9 @@ fn ibd_mark(node: &Node) -> (String, String) {
     }
     (stereotypes, colours)
 }
+
+/// The line and text colour of what lies outside a view (GH #338).
+const FADED_LINE: &str = "#bbbbbb";
 
 fn render_ibd_container(
     node: &Node,
@@ -428,6 +440,9 @@ fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
             continue;
         }
         let connector = match (e.kind, crate::vis::style::flow_override(e, graph)) {
+            // outside the view's `include:` (GH #338)
+            (EdgeKind::Binding, _) if e.faded => format!("-[{FADED_LINE},dashed]->"),
+            _ if e.faded => format!("-[{FADED_LINE}]->"),
             (EdgeKind::Binding, _) => "..>".to_string(),
             // the flow kind's stroke (GH #335); PlantUML takes an integer thickness and a `#` colour
             (_, Some(st)) => {

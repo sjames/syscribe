@@ -1305,6 +1305,10 @@ pub struct ColdFrontmatter2 {
     pub depth: Option<usize>,
     /// On a derived IBD `Diagram`: `domain` frames the parts by their `domain:` (GH #336).
     pub group_by: Option<String>,
+    /// The mapping form of `include:` on a derived IBD `Diagram` (GH #338): what the view is about.
+    pub view: Option<ViewInclude>,
+    /// On a `Diagram`: a named style, `[diagram.style.<name>]` in `.syscribe.toml` (GH #338).
+    pub style: Option<String>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
 
     // §8.10.2 — Constraint usage
@@ -1521,6 +1525,37 @@ pub struct ColdFrontmatter3 {
     /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
     /// port has no architecture counterpart on purpose).
     pub port_map: Option<serde_yaml::Mapping>,
+}
+
+/// `include:`: a list (the members of a derived diagram's subject, or an annotated package's globs), or, on a
+/// derived IBD, a mapping that says what the view is about (GH #338).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum IncludeSpec {
+    List(Vec<String>),
+    View(ViewInclude),
+}
+
+/// The mapping form of `include:` (GH #338). Every key is optional; a part is in the view when it passes every
+/// key given, and what is not in it is drawn faded (or left out under a style with `context = "hide"`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewInclude {
+    /// Members of the subject to draw, as the list form names them.
+    pub members: Option<Vec<String>>,
+    /// Flow kinds (`power`, `protection`, …): the edges carrying them, and the parts they join.
+    pub kinds: Option<Vec<String>>,
+    /// `domain:` values (`system`, `hardware`, `software`).
+    pub domains: Option<Vec<String>>,
+    /// `tags:` values, on the usage element or its definition.
+    pub tags: Option<Vec<String>>,
+    /// Features (qname or `FEAT-*` id): parts whose `appliesWhen:` names one of them or a feature beneath one.
+    pub features: Option<Vec<String>>,
+    /// Same as the diagram's `depth:`, which wins when both are set.
+    pub depth: Option<usize>,
+    /// Any other key, reported as `W421`.
+    #[serde(flatten)]
+    pub unknown: std::collections::BTreeMap<String, serde_yaml::Value>,
 }
 
 /// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`
@@ -1909,7 +1944,7 @@ struct ColdWire {
     /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
     /// On a derived `Diagram` (`REQ-TRS-VIS-003`) the same key lists the
     /// members of the subject to show.
-    pub include: Option<Vec<String>>,
+    pub include: Option<IncludeSpec>,
     /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
     /// derived `Diagram`, members of the subject to drop.
     pub exclude: Option<Vec<String>>,
@@ -1917,6 +1952,8 @@ struct ColdWire {
     pub depth: Option<usize>,
     /// On a derived IBD `Diagram`: `domain` frames the parts by their `domain:` (GH #336).
     pub group_by: Option<String>,
+    /// On a `Diagram`: a named style, `[diagram.style.<name>]` in `.syscribe.toml` (GH #338).
+    pub style: Option<String>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
 
     // §8.10.2 — Constraint usage
@@ -2284,7 +2321,16 @@ impl ColdWire {
                 foreign_format: w.foreign_format,
                 annotation_format: w.annotation_format,
                 marker: w.marker,
-                include: w.include,
+                include: match &w.include {
+                    Some(IncludeSpec::List(v)) => Some(v.clone()),
+                    Some(IncludeSpec::View(v)) => v.members.clone(),
+                    None => None,
+                },
+                view: match w.include {
+                    Some(IncludeSpec::View(v)) => Some(v),
+                    _ => None,
+                },
+                style: w.style,
                 exclude: w.exclude,
                 depth: w.depth,
                 group_by: w.group_by,

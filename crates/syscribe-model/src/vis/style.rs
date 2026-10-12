@@ -349,6 +349,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 

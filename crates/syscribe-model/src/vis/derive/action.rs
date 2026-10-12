@@ -54,6 +54,7 @@ fn node(id: String, qname: &str, kind: NodeKind, label: String, stereotype: Opti
         feature: None,
         mark: None,
         flow: None,
+        faded: false,
     }
 }
 
@@ -145,7 +146,7 @@ fn loop_label(name: &str, m: &serde_yaml::Mapping) -> String {
 }
 
 fn edge(id: String, element_ref: &str, source: &str, target: &str, kind: EdgeKind, label: Option<String>) -> Edge {
-    Edge { id, element_ref: Some(element_ref.to_string()), source: source.to_string(), target: target.to_string(), kind, label, waypoints: None, flow: None }
+    Edge { id, element_ref: Some(element_ref.to_string()), source: source.to_string(), target: target.to_string(), kind, label, waypoints: None, flow: None, faded: false }
 }
 
 /// Successions `a.exit → b.entry` along `steps` in order.

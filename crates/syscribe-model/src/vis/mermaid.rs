@@ -297,16 +297,27 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
     }
     // the flow kind's stroke (GH #335): Mermaid styles a link by its index
     for (i, e) in graph.edges.iter().enumerate() {
+        let mut css: Vec<String> = Vec::new();
         if let Some(st) = super::style::flow_override(e, graph) {
-            let mut css = format!("stroke:{},stroke-width:{}px", st.stroke, st.width);
+            css.push(format!("stroke:{},stroke-width:{}px", st.stroke, st.width));
             if let Some(d) = &st.dash {
-                css.push_str(&format!(",stroke-dasharray:{}", d.replace(',', " ")));
+                css.push(format!("stroke-dasharray:{}", d.replace(',', " ")));
             }
-            out.push_str(&format!("  linkStyle {i} {css}\n"));
+        }
+        // outside the view's `include:` (GH #338)
+        if e.faded {
+            css.push("opacity:0.25".to_string());
+        }
+        if !css.is_empty() {
+            out.push_str(&format!("  linkStyle {i} {}\n", css.join(",")));
         }
     }
     let nodes: Vec<&Node> = drawn.iter().filter_map(|id| graph.node(id)).collect();
     tone_classes(&mut out, &nodes);
+    let faded: Vec<String> = nodes.iter().filter(|n| n.faded).map(|n| mermaid_id(&n.id)).collect();
+    if !faded.is_empty() {
+        out.push_str(&format!("  classDef faded opacity:0.25\n  class {} faded\n", faded.join(",")));
+    }
     click_lines(&mut out, &nodes, links);
     out
 }
@@ -437,6 +448,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 
@@ -450,6 +462,7 @@ mod tests {
             label: label.map(str::to_string),
             waypoints: Some(vec![Point { x: 0.0, y: 0.0 }]),
             flow: None,
+            faded: false,
         }
     }
 

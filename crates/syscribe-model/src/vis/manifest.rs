@@ -214,6 +214,7 @@ fn parse_edge(id: &str, v: &Value, issues: &mut Vec<Issue>) -> Option<Edge> {
         label: str_of(m, KEY_LABEL).map(str::to_string),
         waypoints: None,
         flow: str_of(m, KEY_FLOW_KIND).and_then(super::ir::FlowKind::parse),
+        faded: false,
     })
 }
 
@@ -247,6 +248,11 @@ pub(super) fn apply_layout(graph: &mut DiagramGraph, layout: Option<&Value>, iss
                             continue;
                         }
                     };
+                    // the two hints (GH #338); a shape id never takes these names
+                    if id == KEY_FLOW || id == KEY_LAYERS {
+                        apply_hint(graph, id, entry, issues);
+                        continue;
+                    }
                     let Value::Mapping(em) = entry else {
                         issues.push(e405(format!("`layout` entry `{id}` is not a map")));
                         continue;
@@ -275,6 +281,66 @@ pub(super) fn apply_layout(graph: &mut DiagramGraph, layout: Option<&Value>, iss
 
 }
 
+const KEY_FLOW: &str = "flow";
+const KEY_LAYERS: &str = "layers";
+
+/// A `layout:` hint (GH #338). `flow:` sets the direction of the flow (`left-to-right`, `top-to-bottom`). `layers:`
+/// lists bands in order: each entry is a part's name, a flow kind or a `domain:` value; the parts of each container
+/// are ordered by the first band they fall in (unmatched last), which the layered layout keeps across the flow, so
+/// the bands read in that order. A bad value is `W421`.
+fn apply_hint(graph: &mut DiagramGraph, key: &str, v: &Value, issues: &mut Vec<Issue>) {
+    if key == KEY_FLOW {
+        match v.as_str() {
+            Some("left-to-right" | "right") => graph.layout_hints.direction = super::ir::LayoutDirection::Right,
+            Some("top-to-bottom" | "down") => graph.layout_hints.direction = super::ir::LayoutDirection::Down,
+            _ => issues.push(super::derive::w421(format!("`layout.flow` must be left-to-right or top-to-bottom, not {} — ignored", short(v)))),
+        }
+        return;
+    }
+    let Some(list) = v.as_sequence() else {
+        issues.push(super::derive::w421("`layout.layers` must be a list of part names, flow kinds or domains — ignored".to_string()));
+        return;
+    };
+    let bands: Vec<String> = list.iter().filter_map(|b| b.as_str().map(str::to_string)).collect();
+    // what each block falls under: its name, the flow kinds of the edges at it or its ports, its domain banner
+    let band_of = |g: &DiagramGraph, n: &super::ir::Node| -> usize {
+        let name = n.element_ref.rsplit("::").next().unwrap_or("");
+        let ports: Vec<&str> = g.nodes.iter().filter(|p| p.parent.as_deref() == Some(n.id.as_str())).map(|p| p.id.as_str()).chain([n.id.as_str()]).collect();
+        let flows: Vec<&str> =
+            g.edges.iter().filter(|e| ports.contains(&e.source.as_str()) || ports.contains(&e.target.as_str())).filter_map(|e| e.flow.map(|f| f.as_str())).collect();
+        bands
+            .iter()
+            .position(|b| b == name || flows.contains(&b.as_str()) || n.banners.iter().any(|x| x == b) || n.label == *b)
+            .unwrap_or(bands.len())
+    };
+    let mut unmatched: Vec<&String> = bands.iter().collect();
+    let keys: Vec<(String, usize)> = graph
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.kind, NodeKind::Block | NodeKind::Swimlane))
+        .map(|n| {
+            let b = band_of(graph, n);
+            if b < bands.len() {
+                unmatched.retain(|u| **u != bands[b]);
+            }
+            (n.id.clone(), b)
+        })
+        .collect();
+    for u in unmatched {
+        issues.push(super::derive::w421(format!("`layout.layers` entry '{u}' matches no part (a name, a flow kind or a domain)")));
+    }
+    let rank = |id: &str| keys.iter().find(|(k, _)| k == id).map(|(_, b)| *b).unwrap_or(0);
+    // a stable sort among siblings: the node order is what the layout takes as the order across the flow
+    let mut indexed: Vec<(usize, super::ir::Node)> = std::mem::take(&mut graph.nodes).into_iter().enumerate().collect();
+    indexed.sort_by_key(|(i, n)| (rank(&n.id), *i));
+    graph.nodes = indexed.into_iter().map(|(_, n)| n).collect();
+    graph.parents_first();
+}
+
+fn short(v: &Value) -> String {
+    serde_yaml::to_string(v).map(|s| s.trim().to_string()).unwrap_or_default()
+}
+
 /// Build the IR of a manifest-sourced `Diagram` element.
 ///
 /// `kind` is the diagram kind the caller already determined (see
@@ -292,6 +358,7 @@ pub fn build(
         .clone()
         .unwrap_or_else(|| elem.qualified_name.rsplit("::").next().unwrap_or(&elem.qualified_name).to_string());
     let mut graph = DiagramGraph::empty(kind, &elem.qualified_name, &name, fm.subject.as_deref());
+    graph.style = fm.style.clone();
     let mut issues = Vec::new();
 
     // ── shapes ──────────────────────────────────────────────────────────
@@ -385,6 +452,7 @@ pub fn build(
             mark: None,
             // a port shape carries its port's flow kind (GH #335)
             flow: if s.kind == NodeKind::Port { resolved.and_then(|e| super::derive::port_element_flow(e, elements, resolver)) } else { None },
+            faded: false,
         });
     }
 

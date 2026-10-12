@@ -47,6 +47,10 @@ pub(crate) fn w420(message: String) -> Issue {
     Issue { code: "W420", message }
 }
 
+pub(crate) fn w421(message: String) -> Issue {
+    Issue { code: "W421", message }
+}
+
 /// The `include:`/`exclude:` member filters of a derived diagram.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Filters {
@@ -57,6 +61,8 @@ pub struct Filters {
     pub depth: Option<usize>,
     /// `groupBy:` of an IBD (GH #336): `domain` frames the parts by their `domain:`.
     pub group_by: Option<String>,
+    /// The mapping form of `include:` on an IBD (GH #338): what the view is about.
+    pub view: Option<crate::element::ViewInclude>,
     /// The project's `[cyber]` risk configuration, for the `ThreatGraph` tones
     /// (GH #223); the `simple` default when the caller has none.
     pub cyber: crate::cyber_config::CyberConfig,
@@ -67,8 +73,9 @@ impl Filters {
         Filters {
             include: elem.frontmatter.include.clone().unwrap_or_default(),
             exclude: elem.frontmatter.exclude.clone().unwrap_or_default(),
-            depth: elem.frontmatter.depth,
+            depth: elem.frontmatter.depth.or_else(|| elem.frontmatter.view.as_ref().and_then(|v| v.depth)),
             group_by: elem.frontmatter.group_by.clone(),
+            view: elem.frontmatter.view.clone(),
             cyber: Default::default(),
         }
     }
@@ -125,6 +132,10 @@ pub fn derive_with(
     if filters.group_by.is_some() && kind != DiagramKind::Ibd {
         issues.push(w420(format!("`groupBy` is read only by an IBD; this is a {} diagram — ignored", kind.as_str())));
     }
+    if filters.view.is_some() && kind != DiagramKind::Ibd {
+        issues.push(w421(format!("the mapping form of `include` (kinds, domains, tags, features) is read only by an IBD; this is a {} diagram — only its `members` apply", kind.as_str())));
+    }
+    graph.style = fm.style.clone();
 
     let subject = fm.subject.as_deref().and_then(|s| resolver.resolve_ref(elements, s));
     // An unresolved subject is `W401` (validator); nothing to derive from.
@@ -326,6 +337,7 @@ pub(crate) fn block_node(
         feature: None,
         mark: None,
         flow: None,
+        faded: false,
     }
 }
 
@@ -349,6 +361,7 @@ pub(crate) fn port_node(id: String, owner_qname: &str, f: &Feature, parent: &str
         feature: None,
         mark: None,
         flow: f.flow,
+        faded: false,
     }
 }
 

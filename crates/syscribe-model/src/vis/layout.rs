@@ -924,6 +924,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 
@@ -940,7 +941,7 @@ mod tests {
         let mut q = node("b-in", NodeKind::Port, Some("b"));
         q.direction = Some(PortDirection::In);
         g.nodes.push(q);
-        g.edges.push(Edge { id: "e".into(), element_ref: None, flow: None, source: "a-out".into(), target: "b-in".into(), kind: EdgeKind::Flow, label: Some("power".into()), waypoints: None });
+        g.edges.push(Edge { id: "e".into(), element_ref: None, flow: None, faded: false, source: "a-out".into(), target: "b-in".into(), kind: EdgeKind::Flow, label: Some("power".into()), waypoints: None });
         g
     }
 
@@ -1008,7 +1009,7 @@ mod tests {
         let mut c = node("sub-compartment", NodeKind::Compartment, Some("sub"));
         c.lines = vec!["x : Real".into()];
         g.nodes.push(c);
-        g.edges.push(Edge { id: "inh".into(), element_ref: None, flow: None, source: "sub".into(), target: "base".into(), kind: EdgeKind::Inheritance, label: None, waypoints: None });
+        g.edges.push(Edge { id: "inh".into(), element_ref: None, flow: None, faded: false, source: "sub".into(), target: "base".into(), kind: EdgeKind::Inheritance, label: None, waypoints: None });
         let sizes = size_graph(&g, &ApproxMetrics);
         let input = elk_input(&g, &sizes);
         assert_eq!(input.flipped, vec!["inh"]);

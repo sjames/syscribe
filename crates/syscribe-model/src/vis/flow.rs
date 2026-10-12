@@ -12,6 +12,18 @@
 //! signal = "south"
 //! ```
 //!
+//! Named styles (GH #338) are selected per diagram by `style: <name>`:
+//!
+//! ```toml
+//! [diagram.style.focus]           # every named style starts from `default`, when that is defined
+//! context = "fade"                # what lies outside a view's `include:`: "fade" (default) or "hide"
+//!
+//! [diagram.style.safety]
+//! extends = "focus"               # a chain of styles, nearest last; a cycle is W419
+//! [diagram.style.safety.flows.protection]
+//! width = 4                       # the keys of [diagram.styles.<kind>], over the project's
+//! ```
+//!
 //! Malformed entries are dropped and reported as `W419`. Without the table every diagram draws as before.
 
 use std::collections::BTreeMap;
@@ -30,11 +42,36 @@ pub enum PortSideRule {
     Fixed(Side),
 }
 
+/// What a view draws of what lies outside its `include:` (GH #338).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Context {
+    #[default]
+    Fade,
+    Hide,
+}
+
+/// One `[diagram.style.<name>]` table (GH #338).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NamedStyle {
+    pub extends: Option<String>,
+    pub context: Option<Context>,
+    pub flows: BTreeMap<FlowKind, FlowStyle>,
+}
+
+/// A named style with its `extends` chain (and `default`) folded in.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ResolvedStyle {
+    pub context: Context,
+    pub flows: BTreeMap<FlowKind, FlowStyle>,
+}
+
 /// The `[diagram]` table.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DiagramConfig {
     pub styles: BTreeMap<FlowKind, FlowStyle>,
     pub port_sides: BTreeMap<FlowKind, PortSideRule>,
+    /// `[diagram.style.<name>]` (GH #338).
+    pub named: BTreeMap<String, NamedStyle>,
     /// The `W419` messages.
     pub problems: Vec<String>,
 }
@@ -74,26 +111,125 @@ impl DiagramConfig {
         };
         for (k, v) in d {
             match k.as_str() {
-                "styles" => c.styles_from(v),
+                "styles" => {
+                    let mut flows = BTreeMap::new();
+                    c.flows_from(v, "diagram.styles", &mut flows);
+                    c.styles = flows;
+                }
                 "portSides" | "port_sides" => c.sides_from(v),
-                other => c.problems.push(format!("[diagram] has an unknown key '{other}' (known: styles, portSides) — ignored")),
+                "style" => c.named_from(v),
+                other => c.problems.push(format!("[diagram] has an unknown key '{other}' (known: styles, portSides, style) — ignored")),
             }
         }
+        c.check_chains();
         c
     }
 
-    fn styles_from(&mut self, v: &toml::Value) {
+    fn named_from(&mut self, v: &toml::Value) {
         let Some(t) = v.as_table() else {
-            self.problems.push("[diagram.styles] must be a table of flow kinds — ignored".into());
+            self.problems.push("[diagram.style] must be a table of named styles — ignored".into());
+            return;
+        };
+        for (name, v) in t {
+            let Some(e) = v.as_table() else {
+                self.problems.push(format!("[diagram.style.{name}] must be a table — ignored"));
+                continue;
+            };
+            let mut st = NamedStyle::default();
+            for (key, val) in e {
+                match (key.as_str(), val) {
+                    ("extends", toml::Value::String(s)) => st.extends = Some(s.clone()),
+                    ("context", toml::Value::String(s)) if s == "fade" => st.context = Some(Context::Fade),
+                    ("context", toml::Value::String(s)) if s == "hide" => st.context = Some(Context::Hide),
+                    ("context", _) => self.problems.push(format!("[diagram.style.{name}] context must be \"fade\" or \"hide\" — ignored")),
+                    ("flows", v) => {
+                        let mut flows = BTreeMap::new();
+                        self.flows_from(v, &format!("diagram.style.{name}.flows"), &mut flows);
+                        st.flows = flows;
+                    }
+                    ("extends", _) => self.problems.push(format!("[diagram.style.{name}] extends must be a style name — ignored")),
+                    _ => self.problems.push(format!("[diagram.style.{name}] has an unknown key '{key}' (known: extends, context, flows) — ignored")),
+                }
+            }
+            self.named.insert(name.clone(), st);
+        }
+    }
+
+    /// `extends` naming no style, or a cycle, is `W419`; the link is dropped.
+    fn check_chains(&mut self) {
+        let names: Vec<String> = self.named.keys().cloned().collect();
+        for name in names {
+            let Some(parent) = self.named[&name].extends.clone() else { continue };
+            if !self.named.contains_key(&parent) {
+                self.problems.push(format!("[diagram.style.{name}] extends '{parent}', which is not a style — ignored"));
+                self.named.get_mut(&name).unwrap().extends = None;
+                continue;
+            }
+            let mut seen = vec![name.clone()];
+            let mut cur = Some(parent);
+            while let Some(c) = cur {
+                if seen.contains(&c) {
+                    self.problems.push(format!("[diagram.style.{name}] extends a chain that comes back to '{c}' — the link is ignored"));
+                    self.named.get_mut(&name).unwrap().extends = None;
+                    break;
+                }
+                seen.push(c.clone());
+                cur = self.named.get(&c).and_then(|s| s.extends.clone());
+            }
+        }
+    }
+
+    /// Whether `style:` can name `name`: a defined style, or the built-in `default`.
+    pub fn has_style(&self, name: &str) -> bool {
+        name == "default" || self.named.contains_key(name)
+    }
+
+    /// The style a diagram draws with: `default` (when defined), then the chain of `name` from its root, nearest
+    /// last; the flow looks start from the project's `[diagram.styles]`.
+    pub fn resolve(&self, name: Option<&str>) -> ResolvedStyle {
+        let mut chain: Vec<&NamedStyle> = Vec::new();
+        let mut cur = name.filter(|n| *n != "default").and_then(|n| self.named.get(n));
+        while let Some(st) = cur {
+            if chain.iter().any(|c| std::ptr::eq(*c, st)) {
+                break;
+            }
+            chain.push(st);
+            cur = st.extends.as_deref().filter(|n| *n != "default").and_then(|n| self.named.get(n));
+        }
+        chain.extend(self.named.get("default"));
+        let mut out = ResolvedStyle { context: Context::Fade, flows: self.styles.clone() };
+        for st in chain.iter().rev() {
+            if let Some(c) = st.context {
+                out.context = c;
+            }
+            for (k, f) in &st.flows {
+                let e = out.flows.entry(*k).or_default();
+                if f.stroke.is_some() {
+                    e.stroke = f.stroke.clone();
+                }
+                if f.width.is_some() {
+                    e.width = f.width;
+                }
+                if f.dash.is_some() {
+                    e.dash = f.dash.clone();
+                }
+            }
+        }
+        out
+    }
+
+    fn flows_from(&mut self, v: &toml::Value, at: &str, out: &mut BTreeMap<FlowKind, FlowStyle>) {
+        let Some(t) = v.as_table() else {
+            self.problems.push(format!("[{at}] must be a table of flow kinds — ignored"));
             return;
         };
         for (k, v) in t {
             let Some(kind) = FlowKind::parse(k) else {
-                self.problems.push(format!("[diagram.styles.{k}]: '{k}' is not a flow kind (the kinds are: {}) — ignored", kinds()));
+                self.problems.push(format!("[{at}.{k}]: '{k}' is not a flow kind (the kinds are: {}) — ignored", kinds()));
                 continue;
             };
             let Some(e) = v.as_table() else {
-                self.problems.push(format!("[diagram.styles.{k}] must be a table — ignored"));
+                self.problems.push(format!("[{at}.{k}] must be a table — ignored"));
                 continue;
             };
             let mut st = FlowStyle::default();
@@ -101,21 +237,21 @@ impl DiagramConfig {
                 match (key.as_str(), val) {
                     ("stroke" | "color", toml::Value::String(s)) if is_color(s) => st.stroke = Some(s.clone()),
                     ("stroke" | "color", toml::Value::String(s)) => {
-                        self.problems.push(format!("[diagram.styles.{k}] {key} '{s}' is not a colour (#rgb, #rrggbb or a colour name) — ignored"))
+                        self.problems.push(format!("[{at}.{k}] {key} '{s}' is not a colour (#rgb, #rrggbb or a colour name) — ignored"))
                     }
                     ("dash", toml::Value::String(s)) if !is_dash(s) => {
-                        self.problems.push(format!("[diagram.styles.{k}] dash '{s}' is not a dash pattern (numbers such as \"6,3\", or \"\" for solid) — ignored"))
+                        self.problems.push(format!("[{at}.{k}] dash '{s}' is not a dash pattern (numbers such as \"6,3\", or \"\" for solid) — ignored"))
                     }
                     ("width", toml::Value::Integer(i)) if *i > 0 => st.width = Some(*i as f64),
                     ("width", toml::Value::Float(f)) if *f > 0.0 => st.width = Some(*f),
                     ("dash", toml::Value::String(s)) => st.dash = Some(s.clone()),
                     ("stroke" | "color" | "width" | "dash", _) => {
-                        self.problems.push(format!("[diagram.styles.{k}] {key} has the wrong type (stroke and dash are strings, width a positive number) — ignored"))
+                        self.problems.push(format!("[{at}.{k}] {key} has the wrong type (stroke and dash are strings, width a positive number) — ignored"))
                     }
-                    _ => self.problems.push(format!("[diagram.styles.{k}] has an unknown key '{key}' (known: stroke, width, dash) — ignored")),
+                    _ => self.problems.push(format!("[{at}.{k}] has an unknown key '{key}' (known: stroke, width, dash) — ignored")),
                 }
             }
-            self.styles.insert(kind, st);
+            out.insert(kind, st);
         }
     }
 
@@ -152,7 +288,12 @@ impl DiagramConfig {
 /// side of each port that has none of its own. A port's flow kind is its own (`flowKind:` on the port or its
 /// `PortDef`), else that of the first edge that joins it.
 pub fn apply(graph: &mut DiagramGraph, cfg: &DiagramConfig) {
-    graph.flow_styles = cfg.styles.clone();
+    // the diagram's named style (GH #338): its flow looks, and whether what lies outside the view is drawn
+    let style = cfg.resolve(graph.style.as_deref());
+    graph.flow_styles = style.flows;
+    if style.context == Context::Hide {
+        hide_context(graph);
+    }
     if cfg.port_sides.is_empty() {
         return;
     }
@@ -169,6 +310,21 @@ pub fn apply(graph: &mut DiagramGraph, cfg: &DiagramConfig) {
     for (i, side) in sides {
         graph.nodes[i].side = Some(side);
     }
+}
+
+/// Drop the faded nodes (with everything inside them) and the faded edges, and the edges left without an end.
+pub fn hide_context(graph: &mut DiagramGraph) {
+    let mut gone: std::collections::HashSet<String> = graph.nodes.iter().filter(|n| n.faded).map(|n| n.id.clone()).collect();
+    loop {
+        let more: Vec<String> =
+            graph.nodes.iter().filter(|n| !gone.contains(&n.id) && n.parent.as_ref().is_some_and(|p| gone.contains(p))).map(|n| n.id.clone()).collect();
+        if more.is_empty() {
+            break;
+        }
+        gone.extend(more);
+    }
+    graph.nodes.retain(|n| !gone.contains(&n.id));
+    graph.edges.retain(|e| !e.faded && !gone.contains(&e.source) && !gone.contains(&e.target));
 }
 
 /// `W419` findings on the elements (GH #335): a `flowKind:` or `side:` that names no flow kind or side, or that

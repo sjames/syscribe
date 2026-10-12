@@ -160,6 +160,7 @@ fn state_node(id: String, qname: &str, label: String, parent: Option<String>) ->
         feature: None,
         mark: None,
         flow: None,
+        faded: false,
     }
 }
 
@@ -182,6 +183,7 @@ fn pseudo_node(id: String, qname: &str, kind: NodeKind, parent: Option<String>) 
         feature: None,
         mark: None,
         flow: None,
+        faded: false,
     }
 }
 
@@ -248,6 +250,7 @@ fn emit_region(
                 feature: None,
                 mark: None,
                 flow: None,
+                faded: false,
             });
         }
         if bool_of(m, "isInitial") {
@@ -260,6 +263,7 @@ fn emit_region(
                 label: None,
                 waypoints: None,
                 flow: None,
+                faded: false,
             });
         }
         if bool_of(m, "isFinal") {
@@ -272,6 +276,7 @@ fn emit_region(
                 label: None,
                 waypoints: None,
                 flow: None,
+                faded: false,
             });
         }
         // A substate typed by a machine of its own becomes a container, one level deep.
@@ -390,7 +395,7 @@ pub fn generate(
                 Some(name) => format!("{}::{name}", region.path),
                 None => format!("{}::{src_name}", region.path),
             };
-            edges.push(Edge { id, element_ref: Some(element_ref), source: src, target: tgt, kind: EdgeKind::Transition, label: t.label(), waypoints: None, flow: None });
+            edges.push(Edge { id, element_ref: Some(element_ref), source: src, target: tgt, kind: EdgeKind::Transition, label: t.label(), waypoints: None, flow: None, faded: false });
         }
     }
     graph.edges.extend(edges);

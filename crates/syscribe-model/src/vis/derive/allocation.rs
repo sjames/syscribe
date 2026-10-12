@@ -129,6 +129,7 @@ impl End<'_> {
                 feature: None,
                 mark: None,
                 flow: None,
+                faded: false,
             },
         }
     }
@@ -153,6 +154,7 @@ fn lane(id: String, label: &str, subject: &RawElement) -> Node {
         feature: None,
         mark: None,
         flow: None,
+        faded: false,
     }
 }
 
@@ -254,6 +256,7 @@ pub fn generate(
             label: p.name.clone(),
             waypoints: None,
             flow: None,
+            faded: false,
         });
     }
 }

@@ -355,6 +355,9 @@ fn node_class(node: &Node) -> String {
     if node.is_abstract {
         c.push_str(" abstract");
     }
+    if node.faded {
+        c.push_str(" faded");
+    }
     if !node.resolved {
         c.push_str(" unresolved");
     }
@@ -403,10 +406,11 @@ impl Drawer<'_> {
 
     fn draw_node(&self, node: &Node, r: &Bounds, out: &mut String) {
         out.push_str(&format!(
-            "  <g id=\"{}\" class=\"{}\" sysml:ref=\"{}\">\n",
+            "  <g id=\"{}\" class=\"{}\" sysml:ref=\"{}\"{}>\n",
             escape(&node.id),
             escape(&node_class(node)),
-            escape(&node.element_ref)
+            escape(&node.element_ref),
+            if node.faded { FADED_ATTR } else { "" }
         ));
         let style = node_style(node);
         let dash = if style.dashed { " stroke-dasharray=\"4,3\"" } else { "" };
@@ -739,6 +743,9 @@ impl Drawer<'_> {
                 used.push(m);
             }
         }
+        if edge.faded {
+            out.push_str(&format!("  <g class=\"faded\"{FADED_ATTR}>\n"));
+        }
         out.push_str(&format!(
             "  <path id=\"{}\" class=\"edge {}{}\"{attrs} d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"/>\n",
             escape(&edge.id),
@@ -753,8 +760,14 @@ impl Drawer<'_> {
                 out.push_str(&label_el(&b, &l.text, l.role, &style.stroke, false, false, true));
             }
         }
+        if edge.faded {
+            out.push_str("  </g>\n");
+        }
     }
 }
+
+/// What a node or edge outside a view's `include:` (GH #338) is drawn with.
+const FADED_ATTR: &str = " opacity=\"0.25\"";
 
 /// Depth-first node order: roots in declaration order, each followed by its
 /// children, so a parent is always drawn beneath what it contains.
@@ -963,6 +976,7 @@ mod tests {
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         }
     }
 
@@ -1006,6 +1020,7 @@ mod tests {
             label: Some("power".into()),
             waypoints: None,
             flow: None,
+            faded: false,
         });
         g
     }

@@ -239,6 +239,7 @@ pub fn generate(
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         });
     }
     let tallest = kept.iter().map(header_h).fold(0.0, f64::max);
@@ -322,6 +323,7 @@ pub fn generate(
                             label: Some(label.clone()),
                             waypoints: Some(waypoints),
                             flow: None,
+                            faded: false,
                         });
                     }
                     Step::Fragment { name, operator, condition, children } => {
@@ -349,6 +351,7 @@ pub fn generate(
                                 feature: None,
                                 mark: None,
                                 flow: None,
+                                faded: false,
                             },
                             Rect { x: 0.0, y: top, w: None, h: None },
                         ));
@@ -403,6 +406,7 @@ pub fn generate(
             feature: None,
             mark: None,
             flow: None,
+            faded: false,
         });
     }
 
