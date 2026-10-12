@@ -28,7 +28,7 @@ tags:
 
 Hosted in `crates/syscribe-model/tests/vis_views.rs` (`cargo test -p syscribe-model --test
 vis_views`). The grid-tie acceptance case is `crates/syscribe/tests/views_gti.rs`: `GtiPowerView`,
-`GtiProtectionView`, `GtiFirmwareView`, and `GtiIbd` with `--config CONF-GTI-US-M3-001 --config
+`GtiProtectionView`, `GtiSoftwareView`, and `GtiIbd` with `--config CONF-GTI-US-M3-001 --config
 CONF-GTI-IN-M2-001`.
 
 ```gherkin

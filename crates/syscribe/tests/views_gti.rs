@@ -32,7 +32,7 @@ fn the_power_and_protection_views_fade_what_they_are_not_about() {
 
 #[test]
 fn the_firmware_view_leaves_the_hardware_out() {
-    let mmd = export("Diagrams::GtiFirmwareView", "mermaid", &[]);
+    let mmd = export("Diagrams::GtiSoftwareView", "mermaid", &[]);
     assert!(mmd.contains("firmware"), "{mmd}");
     assert!(mmd.contains("controlboard"), "the board stays as the firmware's frame:\n{mmd}");
     assert!(!mmd.contains("powerStage") && !mmd.contains("faded"), "hidden, not faded:\n{mmd}");
