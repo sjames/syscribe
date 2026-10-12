@@ -57,7 +57,7 @@ the element's documentation. Directory path encodes namespace ownership.
 | `ConfirmationMeasure` | `CM-*` | `CM-BRAKE-001` |
 | `Argument` (GSN) | `ARG-*` | `ARG-BRAKE-001` |
 | `AssumptionOfUse` | `AOU-*` | `AOU-BRAKE-001` |
-| `Configuration` (PLE) | `CONF-*` | `CONF-HEX-001` |
+| `Configuration` (PLE) | `CONF(-[A-Z0-9]{2,12})+` (no numeric suffix required) | `CONF-HEX-001`, `CONF-GTI-US-M3` |
 | `PlanningItem` | `PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `PI-HPLE-001` |
 | `Baseline` | `BL(-[A-Z0-9]{2,12})+` (no numeric suffix required) | `BL-2026-07` |
 
