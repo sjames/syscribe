@@ -27,7 +27,7 @@ features:
   - {name: pvIn, type: Port, direction: in, flowKind: power}
   - {name: gridOut, type: Port, direction: out, flowKind: power}
   - {name: comms, type: Port, direction: inout, flowKind: data}
-  - {name: rsdIn, type: Port, direction: in, flowKind: command}
+  - {name: rsdIn, type: Port, direction: in, flowKind: command, appliesWhen: Features::Protection::RapidShutdown}
 bindingConnections:
   - {left: pvIn, right: dcInput.pvIn}
   - {left: pvIn, right: arcFaultFrontEnd.pvTap}

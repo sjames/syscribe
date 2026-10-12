@@ -464,7 +464,7 @@ Dormant unless some part declares `models:`, except `E992`, which checks every `
 | `E991` | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
 | `W991` | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
-| `W992` | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
+| `W992` | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; a part that is not the product (`role: environment` or `role: external`) is never evidence (GH #330, #332, §12.11) |
 | `E992` | a `role:` on a composite's `features:` entry that is not a known role (`environment`, `external`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
 | `W993` | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 
@@ -483,7 +483,7 @@ Opt-in: only a part that holds a `role: external` usage is checked.
 
 | Code | Condition |
 |---|---|
-| `W996` | in a context composite (a part holding a `role: external` usage), a port of a product part's definition that no connection, flow or binding of the composite reaches (GH #337, §12.13) |
+| `W996` | in a context composite (a part holding a `role: external` usage), a port of a product part (inline or a child `Part` file; ports along its `typedBy:`/`supertype:` chain, child `Port` files included) that no connection, flow or binding of the composite reaches (GH #337, §12.13) |
 
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 

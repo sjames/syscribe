@@ -3,6 +3,7 @@
 //! tree), reporting which sets the design survives.
 
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
@@ -39,6 +40,9 @@ pub struct SetResult {
     /// Every fault of the set is in an environment part (`role: environment`, GH #332): a failure of the verification
     /// set-up, not of the product.
     pub environment: bool,
+    /// The role those parts share (`environment` or `external`), when they share one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<&'static str>,
     /// `survived`, `defeated` (an invariant fails) or `error` (the run could not be made).
     pub status: &'static str,
     pub defeats: Vec<Finding>,
@@ -110,7 +114,9 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
         };
         let parts: Vec<usize> = model.faults.iter().filter(|f| set.ids.contains(&f.id)).flat_map(|f| f.items.iter().map(FaultItem::part)).collect();
         let environment = !parts.is_empty() && parts.iter().all(|p| model.spec.instances.get(*p).is_some_and(|i| i.environment));
-        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, status, defeats, errors });
+        let roles: BTreeSet<&'static str> = parts.iter().filter_map(|p| model.spec.instances.get(*p).and_then(|i| i.role)).collect();
+        let role = if environment && roles.len() == 1 { roles.into_iter().next() } else { None };
+        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, role, status, defeats, errors });
     }
     let environment = model.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.clone()).collect();
     Ok(Campaign { composite: model.spec.composite.clone(), environment, hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })

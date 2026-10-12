@@ -331,11 +331,16 @@ fn render_bdd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
 /// for an optional part), GH #336. PlantUML takes the stereotypes before the link and the colours after it, and the
 /// line colour without `#`. Both empty for an unmarked node, so its output is unchanged.
 fn ibd_mark(node: &Node) -> (String, String) {
-    let Some(m) = node.mark.as_ref().filter(|m| !m.is_detail_only()) else { return (String::new(), String::new()) };
+    // an actor or a part of the test set-up (GH #337)
+    let role = node.stereotype.as_deref().filter(|s| matches!(*s, "actor" | "environment"));
+    let mark = node.mark.as_ref().filter(|m| !m.is_detail_only());
+    if mark.is_none() && role.is_none() {
+        return (String::new(), String::new());
+    }
     let st = crate::vis::style::node_style(node);
-    let stereotypes: String = m.badges.iter().map(|b| format!(" <<{b}>>")).collect();
+    let stereotypes: String = role.into_iter().map(str::to_string).chain(mark.into_iter().flat_map(|m| m.badges.iter().cloned())).map(|b| format!(" <<{b}>>")).collect();
     let mut colours = format!(" {};line:{}", st.fill, st.stroke.trim_start_matches('#'));
-    if m.emphasis {
+    if mark.is_some_and(|m| m.emphasis) {
         colours.push_str(";line.bold");
     } else if st.dashed {
         colours.push_str(";line.dashed");

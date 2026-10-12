@@ -183,6 +183,10 @@ fn render_class(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) ->
 /// (`<br/>`, which Mermaid renders inside a quoted label).
 fn flow_label(node: &Node) -> String {
     let mut label = text(&node.label);
+    // an actor or a part of the test set-up in an IBD (GH #337): its stereotype above the name
+    if let (NodeKind::Block, Some(st @ ("actor" | "environment"))) = (node.kind, node.stereotype.as_deref()) {
+        label = format!("«{st}»<br/>{label}");
+    }
     if let Some(m) = &node.mark {
         let badges = (!m.badges.is_empty()).then(|| m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" "));
         for line in [m.detail.clone(), m.status.clone(), m.value.clone(), badges].into_iter().flatten() {

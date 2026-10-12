@@ -285,7 +285,6 @@ A context is an ordinary `PartDef` holding the system beside the actors it deals
 ---
 type: PartDef
 name: Inverter Context
-domain: system
 features:
   - {name: inverter, typedBy: System::GridTieInverter}
   - {name: pvArray, typedBy: Context::PvArray, role: external}

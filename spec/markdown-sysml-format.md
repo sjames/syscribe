@@ -6696,7 +6696,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
 | `W991` | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
-| `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
+| `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; a part that is not the product (`role: environment` or `role: external`) is never evidence (GH #330, #332, #337, §12.11) |
 | `E992` | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`, `external`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
 | `W993` | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 | `W994` | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
@@ -7332,7 +7332,7 @@ An environment part has no architecture counterpart: its connections are not com
 | `E992` | A `role:` that is not a known role, or that is on a port or on an entry not typed by a `PartDef`/`Part`. Checked whether or not the model uses `models:` |
 | `W993` | A part usage marked `role: environment` carries its own `models:` or `portMap:`, which is ignored |
 
-`role:` is the one mechanism for parts that are not the product; `role: external` (§12.13) marks an actor, and everything said here of an environment part holds for an external one. An environment part may have any behaviour a product part may have: a state machine now, a plant later (#340).
+`role:` is the one mechanism for parts that are not the product; `role: external` (§12.13) marks an actor, and like an environment part it has no architecture counterpart (`W991`), is never evidence (`W992`), ignores a `models:`/`portMap:` of its own (`W993`, naming its role) and is left out of coverage, its reports labelled `[external]`. Unlike an environment part it does not make its composite a verification composite: a context composite is architecture. An environment part may have any behaviour a product part may have: a state machine now, a plant later (#340).
 
 The link is a trace link like the others: `links`, `refs`, `follow <elem> models` / `follow <elem> modeledBy`, `impact` (`modeledBy` downstream), `trace` (a *Behavioural models of the satisfiers* table), `why` (an executable part answers with the requirements its modelled elements satisfy), and suspect-link detection (`traceBaselines:`, `W090`), so a change to the architecture element marks the behaviour for re-review.
 
@@ -7408,11 +7408,11 @@ A system context is an ordinary `PartDef`, a *context composite*, that holds the
 
 | Field | On | YAML type | Description |
 |---|---|---|---|
-| `role: external` | a part usage in a composite's `features:` | string | The part is an actor outside the product. Like an environment part it is no evidence for a requirement (`W992`, §12.12) and has no architecture counterpart (`W991`) |
+| `role: external` | a part usage in a composite's `features:` | string | The part is an actor outside the product. Like an environment part it has no architecture counterpart (`W991`), is no evidence for a requirement (`W992`), ignores its own `models:`/`portMap:` (`W993`) and is left out of coverage (§12.11) |
 
-**Diagrams.** A derived IBD of a context composite draws an external usage with the stereotype «actor» and an environment usage «environment», dashed; a derived BDD draws the definition of an external usage «actor». Actors sit beside the system in the same frame, and the composite's connections join their ports to the system's boundary ports. An `appliesWhen:` on an actor badges it optional and `--config` drops it, as for any part (§8.16.8.2).
+**Diagrams.** A derived IBD of a context composite draws an external usage with the stereotype «actor» and an environment usage «environment», dashed; a derived BDD draws the definition of an external usage «actor». Actors sit beside the system in the same frame, and the composite's connections join their ports to the system's boundary ports. An `appliesWhen:` on an actor badges it optional and `--config` drops it, as for any part (§8.16.8.2). SVG and sprotty dash an environment usage; DOT dashes it too, PlantUML shows the stereotype with a dashed line, and Mermaid writes the stereotype above the name. `role:` is read on an inline `features:` entry only, so an actor is always declared inline, not as a child `Part` file; the parts inside an actor's definition at `depth: 2` are drawn as ordinary parts. A BDD marks a definition «actor» when some drawn block uses it as an actor.
 
-**Boundary check.** In a context composite every port of a product part's definition (a `type: Port` feature, or one typed by a `PortDef`) must be reached by one of the composite's `connections:`, `flowConnections:` or `bindingConnections:` as `<usage>.<port>`; one that is not is `W996`. The check is opt-in by construction: a part with no `role: external` usage is not a context and is never checked. Ports inherited along `supertype:` are not checked. A context composite is the root of its context: nothing has to use it as a type (no `W007`).
+**Boundary check.** In a context composite every port of a product part (an inline usage or a child `Part` file) must be reached by one of the composite's `connections:`, `flowConnections:` or `bindingConnections:` as `<usage>.<port>`; one that is not is `W996`. The ports are those along the part's `typedBy:`/`supertype:` chain: `type: Port` features, features typed by a `PortDef`, and child `Port` files. An entry counts only when each of its ends is on a part of the composite or on the composite's own port, so under `--config` a connection to an actor the variant drops reaches nothing. A port that is an inline feature with its own `appliesWhen:` is judged by the entries written, as in the whole model, because `--config` does not project inline features; gate such a port together with its actor. The check is opt-in by construction: a part with no `role: external` usage is not a context and is never checked. A context composite is the root of its context: nothing has to use it as a type (no `W007`).
 
 | Code | Condition |
 |---|---|
@@ -7425,7 +7425,6 @@ A system context is an ordinary `PartDef`, a *context composite*, that holds the
 ---
 type: PartDef
 name: Inverter Context
-domain: system
 features:
   - {name: inverter, typedBy: System::GridTieInverter}
   - {name: pvArray, typedBy: Context::PvArray, role: external}

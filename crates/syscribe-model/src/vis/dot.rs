@@ -104,7 +104,8 @@ fn node_line(node: &Node) -> String {
     if node.kind == NodeKind::Context {
         attrs[2] = "style=\"filled,rounded\"".to_string();
     }
-    if !node.resolved {
+    // unresolved, optional (GH #336) or a part of the test set-up (GH #337)
+    if style.dashed {
         attrs[2] = "style=\"filled,dashed\"".to_string();
     }
     if let Some(w) = style.stroke_width {

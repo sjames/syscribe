@@ -115,3 +115,66 @@ fn a_context_is_the_root_of_its_context_and_needs_no_user() {
     let w007: Vec<String> = hits(&root, "W007").into_iter().map(|f| f.message).collect();
     assert!(!w007.iter().any(|m| m.contains("'Sys::Context'")), "{w007:?}");
 }
+
+#[test]
+fn w996_finds_inherited_child_and_portdef_ports_and_child_part_usages() {
+    let root = model(BOTH);
+    // an inherited port, a child `Port` file and a port typed by a PortDef on the inverter
+    write(&root, "Sys/Base.md", "---\ntype: PartDef\nname: Base\nfeatures:\n  - {name: earth, type: Port}\n---\n");
+    write(&root, "Sys/Dc.md", "---\ntype: PortDef\nname: Dc\n---\n");
+    write(&root, "Sys/Inverter.md", "---\ntype: PartDef\nname: Inverter\nsupertype: Sys::Base\nfeatures:\n  - {name: pvIn, type: Port, direction: in}\n  - {name: gridOut, type: Port, direction: out}\n  - {name: aux, typedBy: Sys::Dc}\n---\n");
+    write(&root, "Sys/Inverter/extra.md", "---\ntype: Port\nname: extra\n---\n");
+    // a second product part as a child `Part` file of the context
+    write(&root, "Sys/Context/meter.md", "---\ntype: Part\nname: meter\ntypedBy: Sys::Grid\n---\n");
+    let msgs: Vec<String> = hits(&root, "W996").into_iter().map(|f| f.message).collect();
+    for want in ["port 'earth' of 'inverter'", "port 'extra' of 'inverter'", "port 'aux' of 'inverter'", "port 'acIn' of 'meter'"] {
+        assert!(msgs.iter().any(|m| m.contains(want)), "no {want}: {msgs:?}");
+    }
+    assert_eq!(msgs.len(), 4, "{msgs:?}");
+}
+
+#[test]
+fn w996_reads_flows_bindings_ends_and_qualified_chains() {
+    let conns = "  - {from: pv::dcOut, to: inverter::pvIn}\n";
+    let root = model(conns);
+    let ctx = std::fs::read_to_string(root.join("Sys/Context.md")).unwrap();
+    std::fs::write(root.join("Sys/Context.md"), ctx.replacen("connections:\n", "flowConnections:\n  - {from: inverter.gridOut, to: grid.acIn}\nconnections:\n", 1)).unwrap();
+    assert!(hits(&root, "W996").is_empty(), "{:?}", hits(&root, "W996"));
+}
+
+#[test]
+fn a_connection_to_an_actor_that_is_not_there_reaches_nothing() {
+    // as after `--config` drops the PV array: its connection no longer reaches the inverter's PV input
+    let root = model(BOTH);
+    let ctx = std::fs::read_to_string(root.join("Sys/Context.md")).unwrap();
+    std::fs::write(root.join("Sys/Context.md"), ctx.replace("  - {name: pv, typedBy: Sys::PvArray, role: external}\n", "")).unwrap();
+    let msgs: Vec<String> = hits(&root, "W996").into_iter().map(|f| f.message).collect();
+    assert!(msgs.len() == 1 && msgs[0].contains("port 'pvIn' of 'inverter'"), "{msgs:?}");
+}
+
+#[test]
+fn dot_plantuml_and_mermaid_mark_actors_and_dash_the_environment() {
+    let root = model(BOTH);
+    let elements = walk_model(&root).unwrap();
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::Ibd").unwrap();
+    let g = graph(&root, "Diagrams::Ibd");
+    let puml = syscribe_model::plantuml::render_plantuml(d, &elements, None).unwrap();
+    assert!(puml.contains("<<actor>>") && puml.contains("<<environment>>") && puml.contains("line.dashed"), "{puml}");
+    let mmd = syscribe_model::vis::render_mermaid(&g, &|_| None).unwrap();
+    assert!(mmd.contains("«actor»<br/>") && mmd.contains("«environment»<br/>"), "{mmd}");
+    let dot = syscribe_model::vis::render_dot(&g);
+    let bench = dot.lines().find(|l| l.contains("bench") && l.contains("label=")).unwrap();
+    assert!(bench.contains("dashed"), "{bench}");
+    let pv = dot.lines().find(|l| l.contains("label=") && l.contains("pv :")).unwrap();
+    assert!(!pv.contains("dashed"), "{pv}");
+}
+
+#[test]
+fn a_gated_port_is_judged_by_what_is_written() {
+    // the PV input is gated with the PV array: inline features are not projected, so its written connection counts
+    let root = model(BOTH);
+    write(&root, "Sys/Inverter.md", "---\ntype: PartDef\nname: Inverter\ndomain: system\nfeatures:\n  - {name: pvIn, type: Port, direction: in, appliesWhen: Sys::Pv}\n  - {name: gridOut, type: Port, direction: out}\n---\n");
+    let ctx = std::fs::read_to_string(root.join("Sys/Context.md")).unwrap();
+    std::fs::write(root.join("Sys/Context.md"), ctx.replace("  - {name: pv, typedBy: Sys::PvArray, role: external}\n", "")).unwrap();
+    assert!(hits(&root, "W996").is_empty(), "{:?}", hits(&root, "W996"));
+}

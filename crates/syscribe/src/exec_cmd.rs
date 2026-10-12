@@ -719,7 +719,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     }
                     coverage_text.push_str(&format!(
                         "coverage of {label}{} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
-                        if inst.environment { " [environment]" } else { "" },
+                        inst.role.map(|r| format!(" [{r}]")).unwrap_or_default(),
                         &rep.basis.machine_hash[..12], rep.basis.scenarios,
                         rep.states.covered, rep.states.total, rep.states_percent(),
                         rep.transitions.covered, rep.transitions.total, rep.transitions_percent(),
@@ -741,12 +741,12 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     }
                     let mut pj = serde_json::to_value(&rep).expect("serialises");
                     pj["part"] = serde_json::json!(inst.name);
-                    pj["role"] = serde_json::json!(if inst.environment { "environment" } else { "product" });
+                    pj["role"] = serde_json::json!(inst.role.unwrap_or("product"));
                     pj["basis"]["machine"] = serde_json::json!(label);
                     parts_json.push(pj);
                 }
                 let env: Vec<&str> = sm.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.as_str()).collect();
-                let env_note = if env.is_empty() { String::new() } else { format!(" (product parts only; environment parts not counted: {})", env.join(", ")) };
+                let env_note = if env.is_empty() { String::new() } else { format!(" (product parts only; not counted, as not the product: {})", env.join(", ")) };
                 coverage_text.push_str(&format!("aggregate coverage of {mname} (hash {}): states {}/{}, transitions {}/{}, guard conds {}/{}{env_note}\n", &sm.hash[..12], agg_s.0, agg_s.1, agg_t.0, agg_t.1, agg_g.0, agg_g.1));
                 coverage_json.push(serde_json::json!({
                     "composite": mname, "hash": sm.hash, "parts": parts_json, "environment": env,
@@ -1913,10 +1913,10 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
     } else {
         println!("fault campaign on {} (hash {}): {} invariant scenario(s), {} fault set(s)", campaign.composite, &campaign.hash[..12], campaign.invariants, campaign.sets.len());
         if !campaign.environment.is_empty() {
-            println!("  environment parts (not the product): {}; a fault set marked [environment] fails only the verification set-up", campaign.environment.join(", "));
+            println!("  parts that are not the product (environment, external): {}; a fault set marked with their role fails only the set-up around the product", campaign.environment.join(", "));
         }
         for s in &campaign.sets {
-            println!("  {:<9} {}{}   ({})", s.status.to_uppercase(), s.label, if s.environment { " [environment]" } else { "" }, s.origin);
+            println!("  {:<9} {}{}   ({})", s.status.to_uppercase(), s.label, if s.environment { format!(" [{}]", s.role.unwrap_or("not the product")) } else { String::new() }, s.origin);
             for d in &s.defeats {
                 println!("      defeats \"{}\": {}", d.scenario, d.message);
             }
