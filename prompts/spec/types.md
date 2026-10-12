@@ -102,6 +102,7 @@ cybersecurity assessment, with independence level I1–I3 ·
 `AssumptionOfUse` (AOU-*) — safety-related application condition (SRAC)
 `SafetyMechanism` (SM-*) — diagnostic mechanism: `covers`, coverages, `reactionTime`
 `TestEnvironment` (TE-*) — a rig a test runs on; `runsOn:` on TestCase/TestPlan
+`ResidualRisk` (RISK-*) — the decision on a fault set an `inject` campaign defeats: `faultSet`, `status` (proposed | accepted | mitigated | rejected), `goal`, `mitigatedBy`, `approvedBy`, `expires`, `campaignHash`
 `DependentFailureAnalysis` (DFA-*) — ISO 26262-9 clause 7 independence argument (`analyses`, `sharedResources`)
 
 ## Key per-type schemas

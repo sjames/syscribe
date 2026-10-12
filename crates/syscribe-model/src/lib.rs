@@ -49,6 +49,7 @@ pub mod plugins;
 pub mod projection;
 pub mod remote;
 pub mod plantuml;
+pub mod residual_risk;
 pub mod resolver;
 pub mod results;
 pub mod asil;

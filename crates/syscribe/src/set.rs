@@ -42,6 +42,7 @@ fn status_enum_for(et: &ElementType) -> Option<&'static [&'static str]> {
         ElementType::ADR => Some(&["proposed", "accepted", "deprecated", "superseded"]),
         ElementType::PlanningItem => Some(&["todo", "in_progress", "blocked", "done"]),
         ElementType::ReviewRecord => Some(&["open", "closed", "waived"]),
+        ElementType::ResidualRisk => Some(syscribe_model::residual_risk::STATUSES),
         _ => None,
     }
 }

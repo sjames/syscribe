@@ -1,7 +1,7 @@
 # inject — run a composite's safety invariants under injected faults
 
 ## SYNOPSIS
-    syscribe inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--config <C>] [--json]
+    syscribe inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--config <C>] [--record [--run <id>]] [--report <file.json|file.md>] [--json]
 
 ## DESCRIPTION
 The campaign of fault injection (see `syscribe help simulate` for the scenario steps). The scenarios of the
@@ -30,7 +30,20 @@ every fault set rebuilds the system (and re-instantiates plants), so a large ord
     --fmea <FMEASheet>    only the single faults of this sheet's rows (fault-tree events and cut sets are unaffected)
     --report-only         report defeats and errors but exit 0
     --config <C>         run on the model projected onto this Configuration: feature parameters written as {{Features::F.param}} in guards, assignments and durations take its values
+    --record              keep the campaign in `.syscribe/campaigns.json` (one history per subject and Configuration,
+                          latest first); every defeat in the latest record then needs a `ResidualRisk` decision (W940)
+    --run <id>            name the recorded run; a record with the same id is replaced (an unnamed one replaces the
+                          earlier unnamed one)
+    --report <file>       write the campaign with the decisions on each defeat and the failure rates of its faults,
+                          as JSON, or Markdown for a `.md` file
     --json                machine-readable report
+
+## RECORDED CAMPAIGNS (GH #341)
+A recorded campaign is evidence: everything in it but the timestamp is a function of the model, so a second run on the
+same model records the same content. `syscribe results campaigns` lists the histories, `results campaigns diff`
+compares two records. `validate` checks the `ResidualRisk` decisions against the latest record of each campaign:
+W940 a defeat no decision names, W941 a decision the campaign contradicts, W942 a decision taken on another composite
+hash, W943 an expired decision, W944 a record of an older composite. See spec §12.14.
 
 ## EXIT STATUS
 0 every set survived (or `--report-only`) · 1 usage: no composite, no `@invariant` scenario, an unknown fault tree or

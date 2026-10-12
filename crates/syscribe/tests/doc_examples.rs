@@ -94,6 +94,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E503", "unresolved allocatedTo"),
     ("E516", "unresolved subConfigurations entry"),
     ("E632", "unresolved links: target"),
+    ("E943", "unresolved ResidualRisk faultSet/goal/mitigatedBy"),
     ("E601", "unresolved TestPlan testCases entry"),
     ("E603", "unresolved TestPlan demonstrates entry"),
     ("E606", "unresolved TestPlan configurations entry"),

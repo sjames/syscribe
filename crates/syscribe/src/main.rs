@@ -1324,9 +1324,10 @@ fn main() {
             "inject" => {
                 // Fault-injection campaign over a composite's @invariant scenarios (GH #306). Read-only. Exit 0 · 1 usage · 2 defeated.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].clone());
                 let (rest, projected) = with_config_lens(rest, &elems);
                 let elems = projected.as_deref().unwrap_or(&elems);
-                let code = exec_cmd::cmd_inject(elems, &rest, &model_root);
+                let code = exec_cmd::cmd_inject(elems, &rest, &model_root, config.as_deref());
                 if code != 0 {
                     std::process::exit(code);
                 }
@@ -1700,7 +1701,7 @@ fn main() {
                 let sidecar_loaded = results.is_some();
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
-                let code = safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), format, no_implicit, sidecar_loaded);
+                let code = safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), format, no_implicit, sidecar_loaded, Some(model_root.as_ref()), config);
                 if code != 0 {
                     std::process::exit(code);
                 }

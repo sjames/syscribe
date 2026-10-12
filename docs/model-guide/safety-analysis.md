@@ -747,7 +747,50 @@ Scenario: the receiver never sees more than the nominal value
   Then rx.got <= 7
 ```
 
-The invariants must pass without faults first; each fault set is then injected at time 0 and the invariants run unchanged. `survived` / `defeated` / `error` are reported per set with the failing invariant and step; the report also lists the FMEA rows of the composite's parts that were exercised, those with a fault model that were not, and those with none (prose only). Exit status 2 on a defeat unless `--report-only`. See `syscribe help inject` and `docs/design/fault-injection.md`.
+The invariants must pass without faults first; each fault set is then injected at time 0 and the invariants run unchanged. `survived` / `defeated` / `error` are reported per set with the failing invariant and step; the report also lists the FMEA rows of the composite's parts that were exercised, those with a fault model that were not, and those with none (prose only). Exit status 2 on a defeat unless `--report-only`. `--config <C>` runs it on one Configuration, `--record` keeps it as evidence and `--report <file>` writes it for an assessor (see below). See `syscribe help inject` and `docs/design/fault-injection.md`.
+
+### Residual-risk decisions — `ResidualRisk`
+
+A defeated fault set is the most important result of a campaign: a combination of failures under which a stated safety property is violated. Record the campaign and the decision on each defeat in the model, so an assessor can ask "which defeats are accepted, by whom, why and with what rate" and get an answer, and so a new defeat stands out from the known ones (GH #341).
+
+```bash
+syscribe -m model/ inject TC-PROT-001 --ft FT-001 --max-order 3 --record --report-only   # keep the campaign in .syscribe/campaigns.json
+syscribe -m model/ inject TC-PROT-001 --ft FT-001 --record --run rc1 --report campaign.md # a named run, plus a report for the assessor
+syscribe -m model/ results campaigns                                                     # the recorded histories
+syscribe -m model/ results campaigns diff TC-PROT-001                                    # what changed between the two latest
+```
+
+Every defeat in the latest record then needs a decision, one `ResidualRisk` per fault set:
+
+```yaml
+---
+type: ResidualRisk
+id: RISK-BRAKE-001
+name: Both wheel-speed sensors lost together
+status: accepted              # proposed | accepted | mitigated | rejected
+faultSet: [FTE-BRAKE-003, FTE-BRAKE-004]
+goal: SG-BRAKE-001
+rationale: "Independent harnesses; only a connector failure loses both, covered by REQ-BRAKE-077."
+mitigatedBy: [REQ-BRAKE-077]
+approvedBy: jane
+reviewDate: 2026-10-12
+expires: 2027-10-12
+campaignHash: 3f9a1c0be2d4   # the hash `inject` printed
+---
+```
+
+`validate` reads the latest record of each campaign (made without `--config`; `validate --config C` reads those made with `C`):
+
+| Code | When |
+|---|---|
+| `W940` | a defeated set has no proposed, accepted or mitigated decision (on the composite) |
+| `W941` | a decision the campaign contradicts: accepted but the design now survives the set, or mitigated but it still defeats |
+| `W942` | `campaignHash` is not the current hash of the composite: review the decision |
+| `W943` | an accepted or proposed decision past its `expires` |
+| `W944` | the recorded campaign ran on an older composite: record it again |
+| `E942` / `E943` / `E944` | a malformed decision / a `faultSet`, `goal` or `mitigatedBy` that resolves to nothing / one of the wrong kind |
+
+Gate CI on new defeats with `validate --deny W940`. The rate of a set comes from the fault-tree events' `failureRate`, not from the decision; `inject --report` shows it next to the decision. `safety-case` shows a solution node per campaign under the goals the decisions name, and `audit` lists the unexplained defeats. See spec §12.14.
 
 ### Generating a template
 

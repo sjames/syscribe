@@ -58,7 +58,7 @@ pub fn load_results(model_root: &Path) -> Option<syscribe_model::results::Result
     as_of().cloned().or_else(|| syscribe_model::results::ResultsData::load_sidecar(model_root)).map(lensed)
 }
 
-const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results failures [--json] | results diff <runA> <runB> [--json] [--fail-on-regression]";
+const USAGE: &str = "Usage: syscribe --model <root> results runs [--json] | results failures [--json] | results diff <runA> <runB> [--json] [--fail-on-regression] | results campaigns [--json] | results campaigns diff <subject[@config]> [<runA> <runB>] [--json]";
 
 fn v(x: Option<Verdict>) -> &'static str {
     match x {
@@ -161,6 +161,9 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
     if pos.as_slice() == ["failures"] {
         return failures(model_root, json_out);
     }
+    if pos.first() == Some(&"campaigns") {
+        return campaigns(model_root, &pos[1..], json_out);
+    }
     let history = match RunHistory::load(model_root) {
         Ok(h) => h,
         Err(e) => {
@@ -231,6 +234,90 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
             } else {
                 0
             }
+        }
+        _ => {
+            eprintln!("{USAGE}");
+            1
+        }
+    }
+}
+
+/// `results campaigns` / `results campaigns diff`: the fault-injection campaigns `inject --record` kept (GH #341).
+fn campaigns(model_root: &Path, pos: &[&str], json_out: bool) -> i32 {
+    use syscribe_model::residual_risk::{self, CampaignRecord};
+    let all = residual_risk::load(model_root);
+    let label = |r: &CampaignRecord| r.run.clone().unwrap_or_else(|| "(unnamed)".into());
+    match pos {
+        [] => {
+            if json_out {
+                let v: serde_json::Map<String, serde_json::Value> = all
+                    .iter()
+                    .map(|(k, l)| {
+                        (k.clone(), l.iter().map(|r| json!({"run": r.run, "compositeHash": r.composite_hash, "sets": r.sets.len(), "survived": r.count("survived"), "defeated": r.count("defeated"), "errors": r.count("error"), "engine": r.engine, "recordedAtUnix": r.recorded_at_unix})).collect())
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&json!({ "campaigns": v })).unwrap_or_default());
+            } else if all.is_empty() {
+                println!("No campaigns recorded (run `syscribe inject <subject> --record`).");
+            } else {
+                for (k, l) in &all {
+                    println!("{k}");
+                    for r in l {
+                        println!("  {:<14} at {}  hash {}  {} set(s): {} survived, {} defeated, {} could not be run", label(r), r.recorded_at_unix, &r.composite_hash[..12.min(r.composite_hash.len())], r.sets.len(), r.count("survived"), r.count("defeated"), r.count("error"));
+                    }
+                }
+            }
+            0
+        }
+        ["diff", key, rest @ ..] => {
+            let Some(list) = all.get(*key) else {
+                eprintln!("results campaigns diff: no campaign '{key}' is recorded (see `results campaigns`).");
+                return 1;
+            };
+            let find = |run: &str| list.iter().find(|r| r.run.as_deref() == Some(run) || (run == "(unnamed)" && r.run.is_none()));
+            let (a, b) = match rest {
+                [] if list.len() >= 2 => (&list[1], &list[0]),
+                [] => {
+                    eprintln!("results campaigns diff: '{key}' has only one record; name two runs or record another");
+                    return 1;
+                }
+                [x, y] => match (find(x), find(y)) {
+                    (Some(a), Some(b)) => (a, b),
+                    (a, _) => {
+                        eprintln!("results campaigns diff: run '{}' of '{key}' is not retained", if a.is_none() { x } else { y });
+                        return 1;
+                    }
+                },
+                _ => {
+                    eprintln!("{USAGE}");
+                    return 1;
+                }
+            };
+            let d = residual_risk::diff(a, b);
+            if json_out {
+                println!("{}", serde_json::to_string_pretty(&json!({"from": label(a), "to": label(b), "diff": d})).unwrap_or_default());
+            } else {
+                println!("{key}: {} → {}", label(a), label(b));
+                if d.composite_changed {
+                    println!("  the composite changed ({} → {})", &a.composite_hash[..12.min(a.composite_hash.len())], &b.composite_hash[..12.min(b.composite_hash.len())]);
+                }
+                if d.invariants_changed {
+                    println!("  the invariants changed");
+                }
+                for (s, x, y) in &d.changed {
+                    println!("  {s}: {x} → {y}");
+                }
+                for (s, y) in &d.added {
+                    println!("  {s}: new, {y}");
+                }
+                for (s, x) in &d.removed {
+                    println!("  {s}: no longer run (was {x})");
+                }
+                if d.changed.is_empty() && d.added.is_empty() && d.removed.is_empty() {
+                    println!("  no verdict changed");
+                }
+            }
+            0
         }
         _ => {
             eprintln!("{USAGE}");

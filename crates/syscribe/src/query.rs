@@ -4586,6 +4586,23 @@ calibrationDue: 2027-01-01
 The rig a test runs on. Name it from a `TestCase` or `TestPlan` with `runsOn:`; list what
 the test needs with `requiresCapabilities:` (`W891` when the rig lacks one).
 "#,
+        "residualrisk" => r#"---
+type: ResidualRisk
+id: RISK-PREFIX-001
+name: "[Common-cause loss of both sensing chains]"
+status: proposed             # proposed | accepted | mitigated | rejected
+faultSet: [FTE-PREFIX-001, FTE-PREFIX-002]   # FMEA rows / fault-tree events, exactly as `inject` reports the set
+goal: SG-PREFIX-001          # the SafetyGoal the defeated invariant protects
+mitigatedBy: [REQ-PREFIX-001]
+approvedBy: username         # required once accepted
+reviewDate: 2026-01-01
+expires: 2027-01-01          # W943 after this date
+campaignHash: 0123456789ab   # the composite hash `inject` printed when the decision was taken (W942)
+---
+
+What was decided about a fault set the design does not survive in a recorded `inject` campaign, and why.
+The failure rate of the set comes from the fault-tree events; it is not copied here.
+"#,
         "safetymechanism" => r#"---
 type: SafetyMechanism
 id: SM-PREFIX-001
@@ -4735,7 +4752,7 @@ const TEMPLATE_GROUPS: &[&str] = &[
 fn template_group(name: &str) -> &'static str {
     match name {
         "Requirement" | "TestCase" | "TestPlan" | "ADR" | "Baseline" | "PlanningItem"
-        | "ReviewRecord" | "TradeStudy" | "TestEnvironment" => "Native elements",
+        | "ReviewRecord" | "TradeStudy" | "TestEnvironment" | "ResidualRisk" => "Native elements",
         "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"

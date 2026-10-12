@@ -6229,6 +6229,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E990`–`E992`, `W990`–`W993` | Behavioural model trace (`models:`, `role:`) | §12.11 |
 | `W994`–`W995` | Executable evidence: scenario `@verifies` claims | §12.12 |
 | `W996` | System context: unconnected boundary ports (`role: external`) | §12.13 |
+| `E942`–`E944`, `W940`–`W944` | Fault-injection campaigns and residual-risk decisions | §12.14 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6791,6 +6792,14 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `W994` | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
 | `W995` | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
 | `W996` | Warning | in a context composite (a part holding a `role: external` usage), a port of a product part's definition that no connection, flow or binding of the composite reaches (GH #337, §12.13) |
+| `E942` | Error | a malformed `ResidualRisk`: `id` (RISK-*), `name`, `status` or a non-empty `faultSet` missing; `status` not proposed, accepted, mitigated or rejected; `accepted` without `approvedBy`, `mitigated` without `mitigatedBy`; `reviewDate`/`expires` not a YYYY-MM-DD date; `approvedBy` not a username or not in the `[users]` roster; `campaignHash` not at least 12 hex digits (GH #341, §12.14) |
+| `E943` | Error | a `ResidualRisk` `faultSet`, `goal` or `mitigatedBy` entry that resolves to no element (GH #341, §12.14) |
+| `E944` | Error | a `ResidualRisk` reference of the wrong kind: a `faultSet` entry that is not an FMEA row or fault-tree event, a `goal` that is not a SafetyGoal, a `mitigatedBy` that is not a Requirement or SafetyMechanism (GH #341, §12.14) |
+| `W940` | Warning | a fault set defeats an invariant in the latest campaign recorded with `inject --record` and no `ResidualRisk` (proposed, accepted or mitigated) names exactly that set; sets whose faults are all in environment parts are skipped; reported on the composite (GH #341, §12.14) |
+| `W941` | Warning | a `ResidualRisk` the latest recorded campaign contradicts: proposed or accepted, but the design now survives its fault set; or mitigated, but the set still defeats an invariant (GH #341, §12.14) |
+| `W942` | Warning | a `ResidualRisk`'s `campaignHash` matches the current hash of no composite whose recorded campaign ran its fault set: the decision was taken on a different design (GH #341, §12.14) |
+| `W943` | Warning | a proposed or accepted `ResidualRisk` whose `expires` date has passed (GH #341, §12.14) |
+| `W944` | Warning | the latest recorded campaign of a subject ran on a composite hash the composite no longer has: its verdicts may not hold; run `inject --record` again (GH #341, §12.14) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
@@ -7521,6 +7530,44 @@ features:
 connections:
   - {from: pvArray.dcOut, to: inverter.pvIn}
   - {from: inverter.gridOut, to: grid.acIn}
+---
+```
+
+### 12.14 Fault-Injection Campaign Evidence and Residual Risk (`inject --record`, `ResidualRisk`)
+
+A fault-injection campaign (`inject`, §8.18) reports the fault sets a composite's `@invariant` scenarios survive and those that defeat them. `inject <subject> --record [--run <id>] [--config <C>]` keeps the campaign in `<model_root>/.syscribe/campaigns.json`, one history per subject (the TestCase or composite named) and Configuration, latest first, at most 20 records. A record holds the composite and its hash, the invariants (title and a hash of their steps), every set with its origin, verdict and the failing invariant and step, the sets that could not be run, the cut-set order, and the syscribe version. Everything but the timestamp is a function of the model, so two runs on the same model record the same content. A record with a `--run` id replaces an earlier one with that id; an unnamed record replaces the earlier unnamed one. `results campaigns` lists the histories and `results campaigns diff <subject[@config]> [<runA> <runB>]` the verdicts that changed. `inject --report <file>` writes the record as JSON, or Markdown for a `.md` file, with the decisions that name each defeated set and the `failureRate` of its faults, as an attachment for an assessor.
+
+A `ResidualRisk` element (`RISK-*`, id-identified, files `<id>.md`) records what was decided about one fault set:
+
+| Field | Meaning |
+|---|---|
+| `faultSet` | the FMEA rows (`FMEAEntry`) and fault-tree events (`FaultTreeEvent`) whose joint failure the decision is about, by id or qualified name. It names a set exactly as `inject` reports it: `[A, B]` explains the set `A + B`, not `A` alone |
+| `status` | `proposed`, `accepted` (the defeat is accepted as residual risk), `mitigated` (a design change removed it) or `rejected` (the defeat must be fixed) |
+| `goal` | the SafetyGoal(s) the defeated invariant protects |
+| `mitigatedBy` | the Requirement(s) or SafetyMechanism(s) that address it; required when `mitigated` |
+| `approvedBy` | who accepted it, a username (checked against `[users]` when declared); required when `accepted` |
+| `rationale`, `reviewDate`, `expires` | why, when it was decided, and when it must be reviewed again |
+| `campaignHash` | the composite hash `inject` printed when the decision was taken (at least 12 hex digits) |
+
+The failure rate of the set is not copied onto the decision: it comes from the fault-tree events (`failureRate`), whose provenance is the fault tree's concern. ISO 26262 and IEC 61508 call an accepted defeat residual risk; an accepted deviation from a requirement is a different record and stays a `ReviewRecord` or an `ADR`.
+
+The validator ties decisions to the latest record of each campaign: `validate` judges the records made without `--config`, `validate --config C` those made with `C`. A defeated set no proposed, accepted or mitigated decision names is `W940` (on the composite), so a new defeat is loud and a decided one quiet; a set whose faults are all in parts that are not the product (`role: environment`/`external`) is a failure of the verification set-up and is skipped. A decision the campaign contradicts is `W941`: proposed or accepted while the design now survives the set (close it as `mitigated`), or `mitigated` while the set still defeats an invariant. A `campaignHash` that is not the current hash of any composite whose record ran the set is `W942`, and an expired proposed or accepted decision `W943`. A record whose composite hash the composite no longer has is `W944`: re-run the campaign. A malformed decision is `E942`, a reference that resolves to nothing `E943`, one of the wrong kind `E944`.
+
+`safety-case` adds a solution node "fault-injection campaign …: N sets, M survived, K defeated (J explained)" under every goal a decision names, with the decisions as its children (the goal verdicts are not changed), and lists every latest campaign with its unexplained defeats; `audit` counts the decisions and lists the unexplained defeats.
+
+```yaml
+---
+type: ResidualRisk
+id: RISK-GTI-002
+name: Software monitor and perturbation check lost together
+status: accepted
+faultSet: [FTE-GTI-005, FTE-GTI-010]
+goal: SG-GTI-001
+mitigatedBy: [REQ-GTI-HW-008]
+approvedBy: sojan
+reviewDate: 2026-10-12
+expires: 2027-10-12
+campaignHash: 0123456789ab
 ---
 ```
 

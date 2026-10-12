@@ -31,6 +31,7 @@ static ARG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static AOU_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DFA_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static RISK_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -213,6 +214,7 @@ pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
     ("AssumptionOfUse", "AOU", true),
     ("DependentFailureAnalysis", "DFA", true),
     ("TestEnvironment", "TE", true),
+    ("ResidualRisk", "RISK", true),
     ("SafetyMechanism", "SM", true),
     ("FeatureDef", "FEAT", false),
     ("Baseline", "BL", false),
@@ -412,6 +414,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || aou_re().is_match(s)
         || dfa_re().is_match(s)
         || te_re().is_match(s)
+        || risk_re().is_match(s)
         || sm_re().is_match(s)
         || feat_re().is_match(s)
         || bl_re().is_match(s)
@@ -489,6 +492,10 @@ fn te_re() -> &'static regex::Regex {
     TE_RE.get_or_init(|| regex::Regex::new(r"^TE(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
+fn risk_re() -> &'static regex::Regex {
+    RISK_RE.get_or_init(|| regex::Regex::new(r"^RISK(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
 fn dfa_re() -> &'static regex::Regex {
     DFA_RE.get_or_init(|| regex::Regex::new(r"^DFA(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
@@ -503,6 +510,8 @@ pub fn is_arg_id(s: &str) -> bool { arg_re().is_match(s) || extra_matches("ARG",
 pub fn is_sm_id(s: &str) -> bool { sm_re().is_match(s) || extra_matches("SM", s) }
 /// Returns true for TE-* IDs (TestEnvironment).
 pub fn is_te_id(s: &str) -> bool { te_re().is_match(s) || extra_matches("TE", s) }
+/// Returns true for RISK-* IDs (ResidualRisk, GH #341).
+pub fn is_risk_id(s: &str) -> bool { risk_re().is_match(s) || extra_matches("RISK", s) }
 /// Returns true for DFA-* IDs (DependentFailureAnalysis).
 pub fn is_dfa_id(s: &str) -> bool { dfa_re().is_match(s) || extra_matches("DFA", s) }
 /// Returns true for AOU-* IDs (AssumptionOfUse).

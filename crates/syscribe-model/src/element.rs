@@ -100,6 +100,12 @@ mod named_string_or_vec {
     pub fn abstracts<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "abstracts")
     }
+    pub fn fault_set<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "faultSet")
+    }
+    pub fn goal<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "goal")
+    }
 }
 
 /// A 0..1 coverage number that tolerates a quoted number (`"0.99"`) and turns any other text
@@ -284,6 +290,7 @@ pub enum ElementType {
     Argument,         // ARG-* — a GSN node (claim/strategy/solution)
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     DependentFailureAnalysis, // DFA-* — ISO 26262-9 clause 7 independence argument
+    ResidualRisk,     // RISK-* — a recorded decision on a defeated fault set of an `inject` campaign (GH #341)
     TestEnvironment,  // TE-* — a rig a test runs on (HIL, bench, chamber, vehicle)
     SafetyMechanism,  // SM-* — a diagnostic/safety mechanism with coverage and reaction time
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
@@ -399,6 +406,7 @@ impl ElementType {
         ElementType::AssumptionOfUse,
         ElementType::DependentFailureAnalysis,
         ElementType::TestEnvironment,
+        ElementType::ResidualRisk,
         ElementType::SafetyMechanism,
         ElementType::TARASheet,
         ElementType::FeatureModel,
@@ -502,6 +510,7 @@ impl ElementType {
             ElementType::AssumptionOfUse => "AssumptionOfUse",
             ElementType::DependentFailureAnalysis => "DependentFailureAnalysis",
             ElementType::TestEnvironment => "TestEnvironment",
+            ElementType::ResidualRisk => "ResidualRisk",
             ElementType::SafetyMechanism => "SafetyMechanism",
             ElementType::TARASheet => "TARASheet",
             ElementType::FeatureModel => "FeatureModel",
@@ -563,6 +572,7 @@ impl ElementType {
                 | ElementType::AssumptionOfUse
                 | ElementType::DependentFailureAnalysis
                 | ElementType::TestEnvironment
+                | ElementType::ResidualRisk
                 | ElementType::SafetyMechanism
                 | ElementType::Asset
         )
@@ -1547,6 +1557,21 @@ pub struct ColdFrontmatter3 {
     /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
     /// port has no architecture counterpart on purpose).
     pub port_map: Option<serde_yaml::Mapping>,
+    /// `ResidualRisk.faultSet` — the FMEA rows / fault-tree events whose joint failure the decision is about (GH #341).
+    #[serde(default, deserialize_with = "named_string_or_vec::fault_set")]
+    pub fault_set: Option<Vec<String>>,
+    /// `ResidualRisk.goal` — the SafetyGoal(s) the defeated invariant protects.
+    #[serde(default, deserialize_with = "named_string_or_vec::goal")]
+    pub goal: Option<Vec<String>>,
+    /// `ResidualRisk.approvedBy` — who took the decision (a username, like `assignedTo`).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub approved_by: Option<String>,
+    /// `ResidualRisk.expires` (`YYYY-MM-DD`) — when the decision must be reviewed again (W943).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub expires: Option<String>,
+    /// `ResidualRisk.campaignHash` — the composite hash of the campaign the decision was taken on (W942).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub campaign_hash: Option<String>,
 }
 
 /// `include:`: a list (the members of a derived diagram's subject, or an annotated package's globs), or, on a
@@ -2233,6 +2258,21 @@ struct ColdWire {
     /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
     /// port has no architecture counterpart on purpose).
     pub port_map: Option<serde_yaml::Mapping>,
+    /// `ResidualRisk.faultSet` — the FMEA rows / fault-tree events whose joint failure the decision is about (GH #341).
+    #[serde(default, deserialize_with = "named_string_or_vec::fault_set")]
+    pub fault_set: Option<Vec<String>>,
+    /// `ResidualRisk.goal` — the SafetyGoal(s) the defeated invariant protects.
+    #[serde(default, deserialize_with = "named_string_or_vec::goal")]
+    pub goal: Option<Vec<String>>,
+    /// `ResidualRisk.approvedBy` — who took the decision (a username, like `assignedTo`).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub approved_by: Option<String>,
+    /// `ResidualRisk.expires` (`YYYY-MM-DD`) — when the decision must be reviewed again (W943).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub expires: Option<String>,
+    /// `ResidualRisk.campaignHash` — the composite hash of the campaign the decision was taken on (W942).
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub campaign_hash: Option<String>,
 }
 
 impl ColdWire {
@@ -2516,6 +2556,11 @@ impl ColdWire {
                     fidelity: w.fidelity,
                     flow_kind: w.flow_kind,
                     port_map: w.port_map,
+                    fault_set: w.fault_set,
+                    goal: w.goal,
+                    approved_by: w.approved_by,
+                    expires: w.expires,
+                    campaign_hash: w.campaign_hash,
                 }),
             }),
         }

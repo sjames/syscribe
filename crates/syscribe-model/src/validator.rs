@@ -6768,6 +6768,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // E942–E944 / W940–W944: residual-risk decisions and the recorded fault-injection campaigns (GH #341).
+    let today = crate::residual_risk::today();
+    for risk in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::ResidualRisk))) {
+        for (code, msg) in crate::residual_risk::element_findings(elements, &resolver, risk, &config.users, &today) {
+            findings.push(if code.starts_with('E') { error(code, &risk.file_path, &msg) } else { warning(code, &risk.file_path, &msg) });
+        }
+    }
+    if let Some(root) = &config.model_root {
+        let config_id = machine_cfg.map(|c| c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone()));
+        for (code, file, msg) in crate::residual_risk::campaign_findings(elements, &resolver, root, config_id.as_deref()) {
+            findings.push(warning(code, &file, &msg));
+        }
+    }
+
     // ── Tier 2 cross-reference checks (E825-E830) ────────────────────────────
 
     // Build reverse index: csg_implemented_by[csg_id_or_qn] — used for W802

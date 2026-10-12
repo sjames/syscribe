@@ -13,8 +13,9 @@ use syscribe_model::{
     resolver::Resolver,
     results::ResultsData,
     safety_case::{
-        self, BuildOptions, Completeness, GoalTree, NodeKind, SafetyCase, SafetyCaseNode, Verdict,
+        self, BuildOptions, Completeness, GoalTree, NodeKind, NodeStatus, SafetyCase, SafetyCaseNode, Verdict,
     },
+    residual_risk::{CampaignSummary, Summary},
 };
 
 use crate::query::{tc_verdict, TcVerdict};
@@ -35,6 +36,8 @@ pub fn cmd_safety_case(
     format: Format,
     no_implicit: bool,
     sidecar_loaded: bool,
+    model_root: Option<&std::path::Path>,
+    config: Option<&str>,
 ) -> i32 {
     // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
     // verifies/derivedFrom counts as that base link in the argument tree
@@ -47,13 +50,16 @@ pub fn cmd_safety_case(
         TcVerdict::Fail => Verdict::Fail,
         TcVerdict::Unknown => Verdict::Unknown,
     };
-    let case = safety_case::build(
+    let mut case = safety_case::build(
         elements,
         resolver,
         goal_filter,
         BuildOptions { include_implicit: !no_implicit },
         &verdict_of,
     );
+    // The recorded fault-injection campaigns (GH #341): a solution node under each goal a decision names.
+    let campaigns = model_root.map(|r| syscribe_model::residual_risk::summary(elements, resolver, r, config)).unwrap_or_default();
+    attach_campaigns(&mut case, &campaigns, elements, resolver);
 
     if case.goals.is_empty() {
         if goal_filter.is_empty() {
@@ -79,8 +85,8 @@ pub fn cmd_safety_case(
         });
     }
     match format {
-        Format::Json => render_json(&case, sidecar_loaded, &failure_details),
-        Format::Text => render_text(&case, sidecar_loaded, &failure_details),
+        Format::Json => render_json(&case, sidecar_loaded, &failure_details, &campaigns),
+        Format::Text => render_text(&case, sidecar_loaded, &failure_details, &campaigns),
         // GH #223: the same tree as a GSN diagram (the node shapes, status
         // tones, undeveloped diamonds and test verdicts of the web view).
         Format::Dot | Format::Mermaid => {
@@ -167,7 +173,70 @@ fn print_children(children: &[SafetyCaseNode], indent: &str, expanded: &mut std:
     }
 }
 
-fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)]) {
+/// One line per recorded campaign: `fault-injection campaign TC-X: N sets, M survived, K defeated (J explained)`.
+fn campaign_title(c: &CampaignSummary) -> String {
+    format!(
+        "fault-injection campaign {}{}: {} sets, {} survived, {} defeated ({} explained){}",
+        c.subject,
+        c.config.as_deref().map(|x| format!(" on {x}")).unwrap_or_default(),
+        c.sets,
+        c.survived,
+        c.defeated,
+        c.explained.len(),
+        if c.errors > 0 { format!(", {} could not be run", c.errors) } else { String::new() }
+    )
+}
+
+/// Add a solution node per recorded campaign under every goal one of its decisions names (`ResidualRisk.goal`),
+/// with the decisions as its children. The goal verdicts are not changed: the campaign is reported, not rolled up.
+fn attach_campaigns(case: &mut SafetyCase, campaigns: &Summary, elements: &[RawElement], resolver: &Resolver) {
+    let risk = |id: &str| resolver.get_by_id(elements, id).or_else(|| resolver.get(elements, id));
+    for g in &mut case.goals {
+        let Some(goal_q) = g.root.qualified_name.clone() else { continue };
+        for c in &campaigns.campaigns {
+            let ids: Vec<&String> = c.explained.iter().flat_map(|(_, ids)| ids).collect();
+            let mut children: Vec<SafetyCaseNode> = Vec::new();
+            for id in ids {
+                let Some(e) = risk(id) else { continue };
+                let names_goal = e.frontmatter.goal.iter().flatten().any(|r| resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == goal_q));
+                if names_goal && !children.iter().any(|n| &n.id == id) {
+                    let st = e.frontmatter.status.as_deref().unwrap_or("");
+                    children.push(SafetyCaseNode {
+                        kind: NodeKind::Other("ResidualRisk".into()),
+                        id: id.clone(),
+                        qualified_name: Some(e.qualified_name.clone()),
+                        title: format!("{} [{st}]", e.frontmatter.name.as_deref().unwrap_or("")),
+                        status: if st == "proposed" { NodeStatus::Unverified } else { NodeStatus::Supported },
+                        undeveloped: false,
+                        verdict: None,
+                        decomposition_kind: None,
+                        implicit: false,
+                        cycle: false,
+                        children: Vec::new(),
+                    });
+                }
+            }
+            if children.is_empty() {
+                continue;
+            }
+            g.root.children.push(SafetyCaseNode {
+                kind: NodeKind::Solution,
+                id: format!("campaign:{}", syscribe_model::residual_risk::key(&c.subject, c.config.as_deref())),
+                qualified_name: None,
+                title: campaign_title(c),
+                status: if c.unexplained.is_empty() && c.errors == 0 { NodeStatus::Supported } else { NodeStatus::Undeveloped },
+                undeveloped: false,
+                verdict: None,
+                decomposition_kind: None,
+                implicit: false,
+                cycle: false,
+                children,
+            });
+        }
+    }
+}
+
+fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)], campaigns: &Summary) {
     for g in &case.goals {
         println!(
             "[SafetyGoal] {} — {} [{}]{}",
@@ -180,6 +249,18 @@ fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(Stri
         println!();
     }
     print_completeness(&case.completeness);
+    if !campaigns.campaigns.is_empty() {
+        println!("Fault-injection campaigns (recorded with `inject --record`):");
+        for c in &campaigns.campaigns {
+            println!("  {}", campaign_title(c));
+            for (set, ids) in &c.explained {
+                println!("    explained: {set} by {}", ids.join(", "));
+            }
+            for set in &c.unexplained {
+                println!("    UNEXPLAINED: {set}");
+            }
+        }
+    }
     if !failure_details.is_empty() {
         println!("Failure details:");
         for (tc, n) in failure_details {
@@ -305,13 +386,16 @@ fn goal_json(g: &GoalTree) -> serde_json::Value {
     v
 }
 
-fn render_json(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)]) {
+fn render_json(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(String, syscribe_model::results::FailureNote)], campaigns: &Summary) {
     let goals: Vec<serde_json::Value> = case.goals.iter().map(goal_json).collect();
     let mut doc = serde_json::json!({
         "goals": goals,
         "completeness": completeness_json(&case.completeness),
         "failureDetails": failure_details.iter().map(|(tc, n)| serde_json::json!({"testCase": tc, "function": n.function, "message": n.message, "time": n.time})).collect::<Vec<_>>(),
     });
+    if !campaigns.campaigns.is_empty() {
+        doc.as_object_mut().unwrap().insert("campaigns".into(), serde_json::to_value(&campaigns.campaigns).unwrap());
+    }
     if case.any_unknown() && !sidecar_loaded {
         doc.as_object_mut().unwrap().insert("verdictsUnknown".into(), serde_json::json!(true));
     }

@@ -914,6 +914,15 @@ fn safety_section(
         "metrics": metrics,
         "metricsFailing": failing,
         "ffiGaps": count_code(findings, "W034"),
+        // GH #341: the recorded fault-injection campaigns and the decisions on their defeats
+        "faultCampaigns": {
+            "decisions": of(ElementType::ResidualRisk),
+            "unexplainedDefeats": findings.iter().filter(|f| f.code == "W940").map(|f| f.message.clone()).collect::<Vec<_>>(),
+            "contradictedDecisions": count_code(findings, "W941"),
+            "staleDecisions": count_code(findings, "W942"),
+            "expiredDecisions": count_code(findings, "W943"),
+            "staleCampaigns": count_code(findings, "W944"),
+        },
     })
 }
 
@@ -985,6 +994,15 @@ fn print_safety(s: &serde_json::Value) {
         "FMEA: {} sheet(s), {} row(s), max RPN {}; rows missing S/O/D (W931): {}; RPN>100 without action (W903): {}; severity>=9 without action (W932): {}",
         f["sheets"], f["entries"], f["maxRpn"].as_u64().map_or("n/a".to_string(), |v| v.to_string()), f["rowsMissingSOD"], f["highRpnWithoutAction"], f["severityPriorityGaps"]
     );
+    let c = &s["faultCampaigns"];
+    let unexplained = c["unexplainedDefeats"].as_array().cloned().unwrap_or_default();
+    println!(
+        "Fault-injection campaigns: {} residual-risk decision(s); {} unexplained defeat(s) (W940); decisions contradicted by the campaign (W941): {}, stale (W942): {}, expired (W943): {}; campaigns recorded on an older composite (W944): {}",
+        c["decisions"], unexplained.len(), c["contradictedDecisions"], c["staleDecisions"], c["expiredDecisions"], c["staleCampaigns"]
+    );
+    for m in unexplained.iter().filter_map(|m| m.as_str()) {
+        println!("  - {m}");
+    }
     println!("Hardware metrics ({} failing):", s["metricsFailing"]);
     let rows = s["metrics"].as_array().cloned().unwrap_or_default();
     if rows.is_empty() {

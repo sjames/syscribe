@@ -400,6 +400,22 @@ Scenario-level `@verifies` claims, checked against the TestCase's `verifies:`. `
 | W994 | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
 | W995 | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
 
+
+## Fault-injection campaigns and residual risk (E942–E944, W940–W944, §12.14)
+
+Decisions on the defeats of recorded `inject` campaigns (GH #341). See [Safety analysis](../model-guide/safety-analysis.md#residual-risk-decisions--residualrisk).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E942 | Error | a malformed `ResidualRisk`: `id` (RISK-*), `name`, `status` or a non-empty `faultSet` missing; `status` not proposed, accepted, mitigated or rejected; `accepted` without `approvedBy`, `mitigated` without `mitigatedBy`; `reviewDate`/`expires` not a YYYY-MM-DD date; `approvedBy` not a username or not in the `[users]` roster; `campaignHash` not at least 12 hex digits (GH #341, §12.14) |
+| E943 | Error | a `ResidualRisk` `faultSet`, `goal` or `mitigatedBy` entry that resolves to no element (GH #341, §12.14) |
+| E944 | Error | a `ResidualRisk` reference of the wrong kind: a `faultSet` entry that is not an FMEA row or fault-tree event, a `goal` that is not a SafetyGoal, a `mitigatedBy` that is not a Requirement or SafetyMechanism (GH #341, §12.14) |
+| W940 | Warning | a fault set defeats an invariant in the latest campaign recorded with `inject --record` and no `ResidualRisk` (proposed, accepted or mitigated) names exactly that set; sets whose faults are all in environment parts are skipped; reported on the composite (GH #341, §12.14) |
+| W941 | Warning | a `ResidualRisk` the latest recorded campaign contradicts: proposed or accepted, but the design now survives its fault set; or mitigated, but the set still defeats an invariant (GH #341, §12.14) |
+| W942 | Warning | a `ResidualRisk`'s `campaignHash` matches the current hash of no composite whose recorded campaign ran its fault set: the decision was taken on a different design (GH #341, §12.14) |
+| W943 | Warning | a proposed or accepted `ResidualRisk` whose `expires` date has passed (GH #341, §12.14) |
+| W944 | Warning | the latest recorded campaign of a subject ran on a composite hash the composite no longer has: its verdicts may not hold; run `inject --record` again (GH #341, §12.14) |
+
 ## System context (W996, §12.13)
 
 Opt-in: only a part that holds a `role: external` usage is checked.

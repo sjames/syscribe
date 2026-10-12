@@ -1740,15 +1740,15 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
 /// `inject <composite|TestCase> [--ft <FT>] [--max-order N] [--fmea <sheet>] [--report-only] [--json]` (REQ-TRS-FAULT-002):
 /// run the `@invariant` scenarios of a composite under every single fault and every minimal cut set. Exit 0 every set
 /// survived · 1 usage · 2 a set defeated an invariant or could not be run (`--report-only` makes defeats exit 0).
-pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path::Path) -> i32 {
+pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path::Path, config: Option<&str>) -> i32 {
     use syscribe_model::element::ElementType;
     use syscribe_model::fault_campaign::{self, FaultSet, NotInjectable};
     use syscribe_model::sm_scen::{extract_scenarios, subject_of};
     let flag = |f: &str| args.iter().any(|a| a == f);
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
-    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| matches!(a.as_str(), "--ft" | "--max-order" | "--fmea")).map(|(i, _)| i + 1).collect();
+    let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| matches!(a.as_str(), "--ft" | "--max-order" | "--fmea" | "--run" | "--report")).map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
-        eprintln!("Usage: syscribe --model <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--report-only] [--json]");
+        eprintln!("Usage: syscribe --model <root> inject <composite|TestCase> [--ft <FaultTree>] [--max-order <N>] [--fmea <FMEASheet>] [--config <C>] [--record [--run <id>]] [--report <file.json|file.md>] [--report-only] [--json]");
         return 1;
     };
     let max_order = match value("--max-order").map(|v| v.parse::<usize>()) {
@@ -1939,8 +1939,136 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
         println!("summary: {survived} survived, {defeated} defeated, {errored} could not be run");
     }
+    if flag("--record") || value("--report").is_some() {
+        // the Configuration id the campaign ran on (GH #341): the same key `results` and the validator use
+        let config_id = match config {
+            None => None,
+            Some(c) => match elems.iter().find(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)) && (e.frontmatter.id.as_deref() == Some(c) || e.qualified_name == c)) {
+                Some(e) => Some(e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())),
+                None => {
+                    eprintln!("error: --config '{c}' is not a Configuration of this model; nothing was recorded");
+                    return 1;
+                }
+            },
+        };
+        let subject = target.frontmatter.id.clone().unwrap_or_else(|| target.qualified_name.clone());
+        let rec = syscribe_model::residual_risk::CampaignRecord::from_campaign(&subject, value("--run").as_deref(), config_id.as_deref(), &campaign, &invariants, now_unix());
+        if flag("--record") {
+            match syscribe_model::residual_risk::record(model_root, rec.clone()) {
+                Ok(path) if !flag("--json") => println!("recorded the campaign of {} in {}", rec.key(), path.display()),
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("error: could not record the campaign: {e}");
+                    return 1;
+                }
+            }
+        }
+        if let Some(file) = value("--report") {
+            let text = if file.ends_with(".md") { campaign_report_md(elems, &resolver, &rec) } else { serde_json::to_string_pretty(&campaign_report_json(elems, &resolver, &rec)).expect("serialises") + "\n" };
+            if let Err(e) = std::fs::write(&file, text) {
+                eprintln!("error: cannot write the report {file}: {e}");
+                return 1;
+            }
+            if !flag("--json") {
+                println!("wrote the campaign report to {file}");
+            }
+        }
+    }
     if (defeated > 0 || errored > 0) && !flag("--report-only") {
         return 2;
     }
     0
+}
+
+/// The decisions (`ResidualRisk`) that name a fault set, as `(id, status, file)`.
+fn decisions_for(elems: &[RawElement], resolver: &syscribe_model::resolver::Resolver, faults: &[String]) -> Vec<(String, String)> {
+    let mut set = faults.to_vec();
+    set.sort();
+    set.dedup();
+    elems
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(syscribe_model::element::ElementType::ResidualRisk)))
+        .filter(|e| syscribe_model::residual_risk::fault_set_of(elems, resolver, e) == set)
+        .map(|e| (e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()), e.frontmatter.status.clone().unwrap_or_default()))
+        .collect()
+}
+
+/// The failure rate of each fault of a set, from the fault-tree events (`failureRate`; #343 owns its provenance).
+fn rates_for(elems: &[RawElement], resolver: &syscribe_model::resolver::Resolver, faults: &[String]) -> Vec<(String, Option<f64>)> {
+    faults.iter().map(|f| (f.clone(), resolver.resolve_ref(elems, f).and_then(|e| e.frontmatter.failure_rate))).collect()
+}
+
+/// `inject --report x.json`: the recorded campaign with, per defeated set, the decisions that name it and the rates
+/// of its faults — an attachment for an assessor (GH #341).
+fn campaign_report_json(elems: &[RawElement], resolver: &syscribe_model::resolver::Resolver, rec: &syscribe_model::residual_risk::CampaignRecord) -> serde_json::Value {
+    let sets: Vec<serde_json::Value> = rec
+        .sets
+        .iter()
+        .map(|s| {
+            let mut v = serde_json::to_value(s).expect("serialises");
+            if s.status == "defeated" {
+                v["decisions"] = decisions_for(elems, resolver, &s.faults).into_iter().map(|(id, st)| serde_json::json!({"id": id, "status": st})).collect();
+                v["failureRates"] = rates_for(elems, resolver, &s.faults).into_iter().map(|(f, r)| (f, serde_json::json!(r))).collect::<serde_json::Map<_, _>>().into();
+            }
+            v
+        })
+        .collect();
+    let mut v = serde_json::to_value(rec).expect("serialises");
+    v["sets"] = sets.into();
+    v
+}
+
+/// `inject --report x.md`: the same as Markdown.
+fn campaign_report_md(elems: &[RawElement], resolver: &syscribe_model::resolver::Resolver, rec: &syscribe_model::residual_risk::CampaignRecord) -> String {
+    use std::fmt::Write;
+    let mut o = String::new();
+    let _ = writeln!(o, "# Fault-injection campaign: {}\n", rec.subject);
+    let _ = writeln!(o, "| | |\n|---|---|");
+    let _ = writeln!(o, "| Composite | `{}` |", rec.composite);
+    let _ = writeln!(o, "| Composite hash | `{}` |", rec.composite_hash);
+    if let Some(c) = &rec.config {
+        let _ = writeln!(o, "| Configuration | {c} |");
+    }
+    if let Some(r) = &rec.run {
+        let _ = writeln!(o, "| Run | {r} |");
+    }
+    let _ = writeln!(o, "| Engine | syscribe {} |", rec.engine);
+    let _ = writeln!(o, "| Fault sets | {} ({} survived, {} defeated, {} could not be run) |", rec.sets.len(), rec.count("survived"), rec.count("defeated"), rec.count("error"));
+    if let Some(n) = rec.cut_set_order {
+        let _ = writeln!(o, "| Cut sets | up to order {n}{} |", if rec.cut_sets_truncated { "; higher orders exist and were not run" } else { "" });
+    }
+    let _ = writeln!(o, "\n## Invariants\n");
+    for i in &rec.invariants {
+        let _ = writeln!(o, "- {} (`{}`)", i.scenario, &i.hash[..12]);
+    }
+    let _ = writeln!(o, "\n## Fault sets\n\n| Set | Origin | Verdict | Decision | Failure rates |\n|---|---|---|---|---|");
+    for s in &rec.sets {
+        let (decision, rates) = if s.status == "defeated" {
+            let d = decisions_for(elems, resolver, &s.faults);
+            let r = rates_for(elems, resolver, &s.faults);
+            (
+                if d.is_empty() { "**none**".to_string() } else { d.iter().map(|(id, st)| format!("{id} ({st})")).collect::<Vec<_>>().join(", ") },
+                r.iter().map(|(f, r)| format!("{f}: {}", r.map(|x| format!("{x:e}/h")).unwrap_or_else(|| "—".into()))).collect::<Vec<_>>().join("; "),
+            )
+        } else {
+            (String::new(), String::new())
+        };
+        let _ = writeln!(o, "| {}{} | {} | {} | {decision} | {rates} |", s.label, if s.environment { " (not the product)" } else { "" }, s.origin, s.status);
+    }
+    let defeats: Vec<_> = rec.sets.iter().filter(|s| !s.defeats.is_empty()).collect();
+    if !defeats.is_empty() {
+        let _ = writeln!(o, "\n## Defeats\n");
+        for s in defeats {
+            for d in &s.defeats {
+                let _ = writeln!(o, "- **{}** defeats \"{}\": {}", s.label, d.scenario, d.message);
+            }
+        }
+    }
+    if !rec.not_run.is_empty() {
+        let _ = writeln!(o, "\n## Not run\n");
+        for n in &rec.not_run {
+            let _ = writeln!(o, "- {} ({}): {}", n.events.join(", "), n.origin, n.reason);
+        }
+    }
+    o
 }

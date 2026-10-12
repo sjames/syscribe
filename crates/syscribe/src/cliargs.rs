@@ -118,7 +118,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "ingest-results" => &[("--format", Value), ("--run", Value), LENS],
         "import-reqif" => &[("--into", Value), ("--id-prefix", Value), ("--class", Value), ("--domain", Value), ("--update", Switch), ("--dry-run", Switch)],
         "simulate" => &[("--json", Switch), ("--strict", Switch), ("--do", Value), ("--crosscheck", Value), ("--scenario", Value), ("--trace", Switch), ("--record", Switch), ("--run", Value), ("--config", Value), ("--all", Switch), ("--coverage", Switch), ("--min-states", Value), ("--min-transitions", Value), ("--min-guards", Value), ("--min-nodes", Value), ("--min-edges", Value)],
-        "inject" => &[("--json", Switch), ("--report-only", Switch), ("--ft", Value), ("--max-order", Value), ("--fmea", Value), ("--config", Value)],
+        "inject" => &[("--json", Switch), ("--report-only", Switch), ("--ft", Value), ("--max-order", Value), ("--fmea", Value), ("--config", Value), ("--record", Switch), ("--run", Value), ("--report", Value)],
         "mutate" => &[("--json", Switch), ("--min-score", Value), ("--part", Value), ("--config", Value), ("--record", Switch)],
         "requirement-coverage" => &[("--json", Switch), ("--config", Value), ("--min-executable", Value), ("--require", Value), ("--min-states", Value), ("--min-transitions", Value), ("--min-guards", Value), ("--min-score", Value), ("--mutate", Switch)],
         "exec-coverage" => &[("--json", Switch), ("--config", Value), ("--min-modelled", Value), ("--require", Value), ("--min-states", Value), ("--min-transitions", Value), ("--min-guards", Value), ("--min-score", Value), ("--mutate", Switch)],
