@@ -227,6 +227,7 @@ pub fn trace_links_with(fm: &RawFrontmatter, link_types: &LinkTypeRegistry) -> V
     push_list("satisfies", &fm.satisfies);
     push_list("satisfiedBy", &fm.satisfied_by);
     push_list("refines", &fm.refines);
+    push_list("models", &fm.models);
     push_list("implementedBy", &fm.implemented_by);
     push_list("subsets", &fm.subsets);
     push_list("hazardRef", &fm.hazard_ref);

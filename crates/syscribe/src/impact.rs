@@ -49,6 +49,7 @@ fn upstream_targets<'a>(
     add(fm.verifies.as_deref().unwrap_or(&[]), "verifies", "verifies", "verifiedBy", &mut out);
     add(fm.satisfies.as_deref().unwrap_or(&[]), "satisfies", "satisfies", "satisfiedBy", &mut out);
     add(fm.refines.as_deref().unwrap_or(&[]), "refines", "refines", "refinedBy", &mut out);
+    add(fm.models.as_deref().unwrap_or(&[]), "models", "models", "modeledBy", &mut out);
     add(fm.allocated_to.as_deref().unwrap_or(&[]), "allocatedTo", "allocatedTo", "allocatedFrom", &mut out);
     if let Some(sg) = &fm.derived_from_safety_goal {
         add(std::slice::from_ref(sg), "derivedFromSafetyGoal", "derivedFromSafetyGoal", "safetyGoalChildren", &mut out);
@@ -114,6 +115,7 @@ const BUILTIN_BASES: &[&str] = &[
     "verifies",
     "satisfies",
     "refines",
+    "models",
     "allocatedTo",
     "derivedFromSafetyGoal",
     "appliesWhen",

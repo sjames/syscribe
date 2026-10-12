@@ -1070,6 +1070,7 @@ enum BuiltinField {
     Supertype,
     TypedBy,
     AllocatedTo,
+    Models,
 }
 
 /// Built-in forward names and their reverse-index names (`typedBy` has none).
@@ -1081,6 +1082,7 @@ const BUILTIN_FOLLOW: &[(&str, Option<&str>, BuiltinField)] = &[
     ("supertype", Some("specializedBy"), BuiltinField::Supertype),
     ("typedBy", None, BuiltinField::TypedBy),
     ("allocatedTo", Some("allocatedFrom"), BuiltinField::AllocatedTo),
+    ("models", Some("modeledBy"), BuiltinField::Models),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -1163,6 +1165,7 @@ fn forward_targets(
                 .collect();
         }
         LinkSelector::Builtin(BuiltinField::AllocatedTo) => fm.allocated_to.clone().unwrap_or_default(),
+        LinkSelector::Builtin(BuiltinField::Models) => fm.models.clone().unwrap_or_default(),
     };
     refs.iter()
         .filter_map(|r| resolver.resolve_ref(elements, r))

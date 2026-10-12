@@ -94,6 +94,12 @@ mod named_string_or_vec {
     pub fn covers<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "covers")
     }
+    pub fn models<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "models")
+    }
+    pub fn abstracts<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "abstracts")
+    }
 }
 
 /// A 0..1 coverage number that tolerates a quoted number (`"0.99"`) and turns any other text
@@ -1495,6 +1501,20 @@ pub struct ColdFrontmatter3 {
     pub cvss_severity: Option<String>,
     /// VulnerabilityReport fixed-in version (YAML: fixedIn)
     pub fixed_in: Option<String>,
+    /// `PartDef`/`Part.models` — the architecture element(s) this executable part is a
+    /// behavioural model of (GH #330). An upstream trace link like `satisfies:`.
+    #[serde(default, deserialize_with = "named_string_or_vec::models")]
+    pub models: Option<Vec<String>>,
+    /// `PartDef`/`Part.abstracts` — free names of what the model leaves out; an
+    /// architecture port named here needs no executable counterpart (W991).
+    #[serde(default, deserialize_with = "named_string_or_vec::abstracts")]
+    pub abstracts: Option<Vec<String>>,
+    /// `PartDef`/`Part.fidelity` — prose on what the model covers.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub fidelity: Option<String>,
+    /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
+    /// port has no architecture counterpart on purpose).
+    pub port_map: Option<serde_yaml::Mapping>,
 }
 
 /// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`
@@ -2079,6 +2099,20 @@ struct ColdWire {
     pub cvss_severity: Option<String>,
     /// VulnerabilityReport fixed-in version (YAML: fixedIn)
     pub fixed_in: Option<String>,
+    /// `PartDef`/`Part.models` — the architecture element(s) this executable part is a
+    /// behavioural model of (GH #330). An upstream trace link like `satisfies:`.
+    #[serde(default, deserialize_with = "named_string_or_vec::models")]
+    pub models: Option<Vec<String>>,
+    /// `PartDef`/`Part.abstracts` — free names of what the model leaves out; an
+    /// architecture port named here needs no executable counterpart (W991).
+    #[serde(default, deserialize_with = "named_string_or_vec::abstracts")]
+    pub abstracts: Option<Vec<String>>,
+    /// `PartDef`/`Part.fidelity` — prose on what the model covers.
+    #[serde(default, deserialize_with = "lenient_string::deserialize")]
+    pub fidelity: Option<String>,
+    /// `PartDef`/`Part.portMap` — executable port → architecture port (`null`: the
+    /// port has no architecture counterpart on purpose).
+    pub port_map: Option<serde_yaml::Mapping>,
 }
 
 impl ColdWire {
@@ -2339,6 +2373,10 @@ impl ColdWire {
                     cvss_vector: w.cvss_vector,
                     cvss_severity: w.cvss_severity,
                     fixed_in: w.fixed_in,
+                    models: w.models,
+                    abstracts: w.abstracts,
+                    fidelity: w.fidelity,
+                    port_map: w.port_map,
                 }),
             }),
         }

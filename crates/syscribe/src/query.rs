@@ -446,6 +446,8 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref sat) = fm.satisfies {
         for s in sat { out.push(("satisfies".into(), s.clone())); }
     }
+    // GH #330: an executable part's behavioural-model trace link.
+    for s in fm.models.iter().flatten() { out.push(("models".into(), s.clone())); }
     // Feature-parameter placeholders in the body or name (GH #267).
     for ph in syscribe_model::placeholders::of_element(elem) {
         if !out.iter().any(|(l, t)| l == "placeholder" && t == &ph.feature) {
@@ -1867,6 +1869,22 @@ pub fn cmd_trace(
             println!("| {}{} | {} | {} |", e.qualified_name, via, type_str, dom);
         }
         println!();
+        // GH #330: the executable parts that are a behavioural model of a satisfier.
+        let modelled = syscribe_model::models::modelled_by(elements, resolver);
+        let rows: Vec<(String, String)> = satisfying
+            .iter()
+            .flat_map(|e| modelled.get(&e.qualified_name).into_iter().flatten().map(move |m| (e.qualified_name.clone(), m.clone())))
+            .collect();
+        if !rows.is_empty() {
+            println!("## Behavioural models of the satisfiers");
+            println!();
+            println!("| Satisfier | Modelled by |");
+            println!("|---|---|");
+            for (s, m) in &rows {
+                println!("| {s} | {m} |");
+            }
+            println!();
+        }
     }
 
     // ── Verified by ──────────────────────────────────────────────────────
@@ -2095,8 +2113,22 @@ pub fn cmd_why(
     // satisfies counts here too (reporting view; labelled `(via <type>)` below).
     let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
     let cov_elem = resolver.by_qname.get(&elem.qualified_name).and_then(|&i| cov.get(i)).unwrap_or(elem);
+    // GH #330: an executable part exists because of what the architecture elements it
+    // models satisfy.
+    let modelled: Vec<&RawElement> = elem.frontmatter.models.iter().flatten().filter_map(|r| resolve(elements, resolver, r)).collect();
     let satisfies = match &cov_elem.frontmatter.satisfies {
         Some(v) if !v.is_empty() => v.clone(),
+        _ if !modelled.is_empty() => {
+            let mut v: Vec<String> = Vec::new();
+            for m in &modelled {
+                for r in m.frontmatter.satisfies.iter().flatten() {
+                    if !v.contains(r) {
+                        v.push(r.clone());
+                    }
+                }
+            }
+            v
+        }
         _ => {
             println!("# Why: {}", elem.qualified_name);
             println!();
@@ -2112,6 +2144,16 @@ pub fn cmd_why(
         elem.frontmatter.domain.as_deref().unwrap_or("—"));
     println!();
 
+    if !modelled.is_empty() && cov_elem.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty()) {
+        println!("## Models");
+        println!();
+        for m in &modelled {
+            println!("- {} ({})", m.qualified_name, tl(m.frontmatter.element_type.as_ref()));
+        }
+        println!();
+        println!("The requirements below are satisfied by the modelled architecture elements.");
+        println!();
+    }
     println!("## Satisfied requirements");
     println!();
     println!("| ID | Title | Status | reqDomain | SIL | ASIL |");

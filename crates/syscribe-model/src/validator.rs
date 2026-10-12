@@ -6657,6 +6657,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(if is_error { error(code, &file, &msg) } else { warning(code, &file, &msg) });
     }
 
+    // E990–E991 / W990–W992: `models:` correspondence between executable parts and the
+    // architecture (GH #330). Dormant unless some part declares `models:`.
+    for (code, file, msg) in crate::models::findings(elements, &resolver) {
+        findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
+    }
+
     // ── Tier 2 cross-reference checks (E825-E830) ────────────────────────────
 
     // Build reverse index: csg_implemented_by[csg_id_or_qn] — used for W802
