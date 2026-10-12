@@ -57,6 +57,17 @@ pub struct Instance {
     pub def: String,
     pub behavior: Behavior,
     pub ports: Vec<PortSpec>,
+    /// Marked `role: environment`: part of the verification set-up, not of the product (GH #332).
+    pub environment: bool,
+}
+
+/// The values a part usage's `role:` may take (GH #332). `environment`: a part of the verification set-up (a grid
+/// source, a stimulus), not of the product.
+pub const ROLES: &[&str] = &["environment"];
+
+/// Whether a part usage (a composite's `features:` entry) is marked `role: environment`.
+pub fn is_environment(usage: &Mapping) -> bool {
+    field(usage, "role").and_then(|v| v.as_str()) == Some("environment")
 }
 
 #[derive(Debug, Clone)]
@@ -181,7 +192,7 @@ pub fn composite_view(elements: &[RawElement], resolver: &Resolver, elem: &RawEl
 /// Every port of a part definition: inline `type: Port` features and child `Port`
 /// elements along its definition chain, nearest first (GH #330).
 pub fn def_ports(elements: &[RawElement], resolver: &Resolver, def: &RawElement) -> Vec<PortSpec> {
-    let mut inst = [Instance { name: String::new(), def: def.qualified_name.clone(), behavior: Behavior::Inert, ports: Vec::new() }];
+    let mut inst = [Instance { name: String::new(), def: def.qualified_name.clone(), behavior: Behavior::Inert, ports: Vec::new(), environment: false }];
     for d in chain(elements, resolver, def) {
         for p in inline_ports(d) {
             if !inst[0].ports.iter().any(|x| x.name == p.name) {
@@ -315,7 +326,7 @@ pub fn parts_of(elements: &[RawElement], resolver: &Resolver, elem: &RawElement,
                 continue;
             }
         };
-        instances.push(Instance { name: name.to_string(), def: def.qualified_name.clone(), behavior, ports });
+        instances.push(Instance { name: name.to_string(), def: def.qualified_name.clone(), behavior, ports, environment: is_environment(m) });
     }
     instances
 }

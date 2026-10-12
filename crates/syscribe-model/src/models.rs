@@ -274,6 +274,11 @@ fn bindings<'a>(
             }
             let name = field(m, "name").and_then(|n| n.as_str()).unwrap_or("?");
             let holder = format!("part '{name}' of '{}'", e.qualified_name);
+            // GH #332: an environment part is not the product, so it models nothing
+            if system::is_environment(m) {
+                out.push(("W993", e.file_path.clone(), format!("{holder}: is `role: environment`, so its `models:`/`portMap:` is ignored; an environment part is not the product and has no architecture counterpart")));
+                continue;
+            }
             let Some(def) = field(m, "typedBy")
                 .and_then(|t| t.as_str())
                 .and_then(|t| resolver.resolve_ref(elements, t))
@@ -453,6 +458,10 @@ pub fn exercised_by(
             if field(m, "type").and_then(|t| t.as_str()) == Some("Port") {
                 continue;
             }
+            // an environment part (GH #332) exercises nothing of the product
+            if system::is_environment(m) {
+                continue;
+            }
             if let Some(d) = field(m, "typedBy")
                 .and_then(|t| t.as_str())
                 .and_then(|t| resolver.resolve_ref(elements, t))
@@ -477,6 +486,25 @@ struct ArchEdge {
     composite: String,
 }
 
+/// Whether composite `c` is architecture: an architecture element itself, or a composite all of whose parts are. A
+/// composite that also holds executable models or environment parts (a verification composite, GH #332) is not, even
+/// where some of its parts are architecture elements used directly.
+fn is_architecture_composite(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    c: &RawElement,
+    features: &[Y],
+) -> bool {
+    is_architecture(elements, resolver, c)
+        || features.iter().filter_map(|f| f.as_mapping()).all(|m| {
+            field(m, "type").and_then(|t| t.as_str()) == Some("Port")
+                || field(m, "typedBy")
+                    .and_then(|t| t.as_str())
+                    .and_then(|t| resolver.resolve_ref(elements, t))
+                    .is_none_or(|d| !is_part(d) || is_architecture(elements, resolver, d))
+        })
+}
+
 fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
     let mut v = Vec::new();
     for c in elements.iter().filter(|e| {
@@ -496,6 +524,10 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
                 .and_then(|t| t.as_str())
                 .and_then(|t| resolver.resolve_ref(elements, t))
         };
+        let architecture = is_architecture_composite(elements, resolver, c, &view.features);
+        if !architecture {
+            continue;
+        }
         for conn in &view.connections {
             let Some(m) = conn.as_mapping() else { continue };
             let (Some(from), Some(to)) = (
@@ -529,7 +561,7 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
 
 /// Every `models:` finding (E990, E991, W990, W991, W992). Empty unless some part declares `models:`.
 pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
-    let mut out = Vec::new();
+    let mut out = role_findings(elements, resolver);
     if !active(elements) {
         return out;
     }
@@ -733,6 +765,9 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             && !(e.frontmatter.supertype.is_some() && e.frontmatter.features.is_none() && e.frontmatter.connections.is_none())
     }) {
         let view = system::composite_view(elements, resolver, c);
+        if is_architecture_composite(elements, resolver, c, &view.features) {
+            continue;
+        }
         // part name → (keys of everything it models, its port map)
         #[allow(clippy::type_complexity)]
         let mut parts: BTreeMap<
@@ -756,12 +791,20 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             ) else {
                 continue;
             };
+            if system::is_environment(m) {
+                continue; // GH #332: not the product, so no architecture counterpart
+            }
             let (models, pm, _) = usage_binding(elements, resolver, def, m);
-            let ts: Vec<&RawElement> = models
-                .iter()
-                .filter_map(|r| resolver.resolve_ref(elements, r))
-                .filter(|t| is_architecture(elements, resolver, t))
-                .collect();
+            // GH #332: an architecture element used directly is its own counterpart
+            let ts: Vec<&RawElement> = if is_architecture(elements, resolver, def) {
+                vec![def]
+            } else {
+                models
+                    .iter()
+                    .filter_map(|r| resolver.resolve_ref(elements, r))
+                    .filter(|t| is_architecture(elements, resolver, t))
+                    .collect()
+            };
             let ks: BTreeSet<String> = ts.iter().flat_map(|t| tkeys(t)).collect();
             if !ks.is_empty() {
                 let doms: BTreeSet<String> = ts
@@ -946,6 +989,33 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
 }
 
 /// The nearest `domain:` along an element's definition chain.
+/// E992 (GH #332): a `role:` on a composite's `features:` entry that is not a known role, or that is not on a part usage.
+fn role_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for e in elements.iter().filter(|e| is_part(e)) {
+        for f in e.frontmatter.features.iter().flatten() {
+            let Some(m) = f.as_mapping() else { continue };
+            let Some(role) = field(m, "role") else { continue };
+            let name = field(m, "name").and_then(|n| n.as_str()).unwrap_or("?");
+            let known = system::ROLES.join(", ");
+            match role.as_str() {
+                Some(r) if system::ROLES.contains(&r) => {}
+                Some(r) => out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has `role: {r}`, which is not a role (the roles are: {known})", e.qualified_name))),
+                None => out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has a `role:` that is not a string (the roles are: {known})", e.qualified_name))),
+            }
+            let part_usage = field(m, "type").and_then(|t| t.as_str()) != Some("Port")
+                && field(m, "typedBy")
+                    .and_then(|t| t.as_str())
+                    .and_then(|t| resolver.resolve_ref(elements, t))
+                    .is_some_and(is_part);
+            if !part_usage {
+                out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has `role:`, which is recognised on a part usage only (a feature typed by a PartDef or Part)", e.qualified_name)));
+            }
+        }
+    }
+    out
+}
+
 fn domain_of(elements: &[RawElement], resolver: &Resolver, e: &RawElement) -> Option<String> {
     system::chain(elements, resolver, e)
         .iter()

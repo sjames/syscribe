@@ -25,7 +25,7 @@ entries:
     recommendedAction: "Supervisor timeout on monitor heartbeat"
     injection: [{kind: drop, port: out, part: monitor}]
   - id: FM-GTI-003
-    ref: Behavior::Parts::SupervisorPart
+    ref: System::Software::Supervisor
     failureMode: "Supervisor fails silent — relays and gates are not commanded"
     effect: "Relay A stays closed and the bridge keeps switching unless the hardware trip acts"
     cause: "Firmware hang"
@@ -35,7 +35,7 @@ entries:
     recommendedAction: "Hardware trip opens relay B and disables the gates"
     injection: [{kind: silent, part: supervisor}]
   - id: FM-GTI-004
-    ref: Behavior::Parts::SupervisorPart
+    ref: System::Software::Supervisor
     failureMode: "Relay commands lost between supervisor and relay drivers"
     effect: "Relays are not opened by software"
     cause: "Driver or bus fault"

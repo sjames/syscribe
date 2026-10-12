@@ -71,7 +71,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit fields, IDs, status (E926), SL range (E925), resolution, Security-Level gaps |
 | W934 | Audit policy (`[audit]`) | Malformed `[audit]` entries in `.syscribe.toml` |
 | E980–E984, W980–W987 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W985–W986 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
-| E990–E991, W990–W992 | Behavioural model trace (`models:`, §12.11) | Unresolved or non-architecture `models:` targets, port correspondence and direction, uncovered architecture ports, connection correspondence, TestCase subjects that cannot evidence a requirement |
+| E990–E992, W990–W993 | Behavioural model trace (`models:`, `role:`, §12.11) | Unresolved or non-architecture `models:` targets, port correspondence and direction, uncovered architecture ports, connection correspondence, TestCase subjects that cannot evidence a requirement, unknown `role:` values, `models:` on an environment part |
 | E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
 | E960–E967, W960–W979 | Security-analysis completeness | TARA row integrity, risk inputs and treatment, attack-tree shape, zone/conduit consistency, `VulnerabilityReport` hygiene |
 

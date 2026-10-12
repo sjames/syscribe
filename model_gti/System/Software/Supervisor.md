@@ -2,6 +2,7 @@
 type: PartDef
 name: Supervisor
 domain: software
+exhibitsStates: [Behavior::Machines::Supervisor]
 silLevel: 1
 satisfies:
   - REQ-GTI-SYS-010

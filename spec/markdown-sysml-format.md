@@ -6082,7 +6082,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`, `W931`, `W932` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
 | `E980`–`E984`, `W980`–`W984`, `W987` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
 | `E960`–`E967`, `W960`–`W979` | Security-analysis completeness: TARA rows, risk inputs, attack-tree shape, zones/conduits, `VulnerabilityReport` | §13.6 |
-| `E990`–`E991`, `W990`–`W992` | Behavioural model trace (`models:`) | §12.11 |
+| `E990`–`E992`, `W990`–`W993` | Behavioural model trace (`models:`, `role:`) | §12.11 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6636,8 +6636,10 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E990` | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
 | `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
-| `W991` | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
-| `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
+| `W991` | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
+| `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
+| `E992` | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
+| `W993` | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
@@ -7254,6 +7256,21 @@ Because the vocabulary is per-project, the generic authoring prompt cannot enume
 | `W992` | A `TestCase` whose `subject:` is a part `verifies:` a requirement satisfied by architecture elements, and no part reachable from the subject models one of them without naming the requirement in `abstracts:`: its scenarios cannot be evidence for it |
 
 `W991` matches direct architecture connections only, not paths through delegated ports. A usage-level `models:` takes part in the checks but not in the query commands below, which read a definition's `models:`.
+
+**Verification composites and environment parts (GH #332).** Where an executable part and an architecture element coincide, the architecture `PartDef` itself carries `exhibitsStates:` and needs no `models:`; `models:` stays for the cases where granularity or fidelity differs. The `subject:` of a scenario TestCase is then a *verification composite*: an ordinary `PartDef`, not an element type of its own, that holds the system under test (architecture elements used directly, executable parts that model one) and the parts of the verification set-up, such as a grid source or a sensor stimulus. Those are marked on the part usage:
+
+| Field | On | YAML type | Description |
+|---|---|---|---|
+| `role` | a part usage in a composite's `features:` | string | `environment`: the part belongs to the verification set-up, not to the product |
+
+An environment part has no architecture counterpart: its connections are not compared (`W991`), it is no evidence for a requirement (`W992`), and its own `models:`/`portMap:` is ignored (`W993`). The simulate coverage report lists it apart and leaves it out of the aggregate, and the fault campaign (`inject`) lists the environment parts and marks a fault set that touches only them `[environment]`. A part usage whose type is an architecture element is its own counterpart in `W991` and exercises its requirements for `W992`. A composite counts as architecture, and so contributes architecture connections, only when it is an architecture element or all of its parts are; a verification composite is neither.
+
+| Code | Condition |
+|---|---|
+| `E992` | A `role:` that is not a known role, or that is on a port or on an entry not typed by a `PartDef`/`Part`. Checked whether or not the model uses `models:` |
+| `W993` | A part usage marked `role: environment` carries its own `models:` or `portMap:`, which is ignored |
+
+`role:` is the one mechanism for parts that are not the product; external actors (#337) extend it. An environment part may have any behaviour a product part may have: a state machine now, a plant later (#340).
 
 The link is a trace link like the others: `links`, `refs`, `follow <elem> models` / `follow <elem> modeledBy`, `impact` (`modeledBy` downstream), `trace` (a *Behavioural models of the satisfiers* table), `why` (an executable part answers with the requirements its modelled elements satisfy), and suspect-link detection (`traceBaselines:`, `W090`), so a change to the architecture element marks the behaviour for re-review.
 

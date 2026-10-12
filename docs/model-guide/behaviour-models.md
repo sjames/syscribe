@@ -50,8 +50,28 @@ features:
 | `W990` | An architecture port has no counterpart in any part that models it | Add or map a port, or name it in `abstracts:` |
 | `W991` | A connection of the executable composite has no architecture counterpart, or the reverse | Add the missing connection on the side that lacks it. Connections between a software and a hardware element are not checked, since the architecture joins those through allocation (§12.6) |
 | `W992` | A TestCase verifies a requirement that no part of its subject models | Remove the requirement from `verifies:`, or model the element that satisfies it |
+| `E992` | A `role:` is not `environment`, or is on a port | Fix the value, or move it to the part usage |
+| `W993` | An environment part's usage carries `models:` or `portMap:` | Remove it, or drop `role: environment` if the part is the product |
 
 `W992` is the check that would have caught the grid-tie inverter's protection TestCase listing `REQ-GTI-SYS-037` (10 µs overcurrent trip) and `REQ-GTI-HW-002` (relay weld detection): the power stage and relay parts model those components, but name those two requirements in `abstracts:`, so the scenarios are not evidence for them.
+
+## Verification composites and environment parts
+
+Where the executable part and the architecture element are the same thing, put `exhibitsStates:` on the architecture `PartDef` and use it directly; `models:` is for the cases where granularity or fidelity differs. The TestCase's `subject:` is then a *verification composite*: an ordinary `PartDef` holding the system under test and the parts of the test set-up. Mark the set-up parts `role: environment` (GH #332):
+
+<!-- syscribe-example: skip reason="an excerpt of model_gti/Behavior/Chain/ProtectionChain.md" -->
+```yaml
+---
+type: PartDef
+name: ProtectionChain
+features:
+  - {name: grid, typedBy: Behavior::Parts::GridSourcePart, role: environment}   # the test set-up
+  - {name: monitor, typedBy: Behavior::Parts::GridMonitorPart}                 # models ProtectionManager
+  - {name: supervisor, typedBy: System::Software::Supervisor}                  # the architecture element itself
+---
+```
+
+An environment part is not the product. Its connections are not compared with the architecture (`W991`), it is never evidence for a requirement (`W992`), and a `models:` or `portMap:` written on its usage is ignored with `W993`. `simulate --coverage` lists it with `[environment]` and leaves it out of the aggregate; `inject` lists the environment parts and marks a fault set that touches only them `[environment]`, since that fault breaks the test set-up rather than the product. An architecture element used directly is its own counterpart: `mon.out → supervisor.trip` is checked against the architecture connection into `Supervisor.trip`, and the requirements `Supervisor` satisfies are exercised. A `role:` other than `environment`, or on a port, is `E992`.
 
 ## Queries
 

@@ -452,17 +452,19 @@ write path. Every other PlanningItem field is still queried via `list`/`show`/`l
 and written via the generic MCP element tools; no dedicated CLI subcommand or MCP tool for
 those yet.
 
-## Behavioural model trace (E990–E991, W990–W992, §12.11)
+## Behavioural model trace (E990–E992, W990–W993, §12.11)
 
-Dormant unless some part declares `models:`. See spec §12.11 and `docs/model-guide/behaviour-models.md`.
+Dormant unless some part declares `models:`, except `E992`, which checks every `role:`. See spec §12.11 and `docs/model-guide/behaviour-models.md`.
 
 | Code | Condition |
 |---|---|
 | `E990` | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
 | `E991` | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
-| `W991` | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
-| `W992` | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
+| `W991` | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
+| `W992` | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
+| `E992` | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
+| `W993` | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 
 
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)

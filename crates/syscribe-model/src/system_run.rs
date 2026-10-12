@@ -44,6 +44,15 @@ pub enum FaultItem {
     Corrupt { part: usize, port: String, event: Option<String>, field: String, value: Value },
 }
 
+impl FaultItem {
+    /// The index of the part the fault applies to.
+    pub fn part(&self) -> usize {
+        match self {
+            FaultItem::Stuck { part, .. } | FaultItem::Offset { part, .. } | FaultItem::Silent { part } | FaultItem::Drop { part, .. } | FaultItem::Delay { part, .. } | FaultItem::Corrupt { part, .. } => *part,
+        }
+    }
+}
+
 /// The faults of one analysis element that apply to the composite.
 #[derive(Clone, Debug)]
 pub struct ResolvedFault {

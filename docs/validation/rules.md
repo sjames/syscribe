@@ -374,17 +374,19 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
-## Behavioural model trace (E990–E991, W990–W992, §12.11)
+## Behavioural model trace (E990–E992, W990–W993, §12.11)
 
-Dormant unless some part declares `models:`. See spec §12.11 and `docs/model-guide/behaviour-models.md`.
+Dormant unless some part declares `models:`, except `E992`, which checks every `role:`. See spec §12.11 and `docs/model-guide/behaviour-models.md`.
 
 | Code | Severity | Condition |
 |---|---|---|
 | E990 | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
 | E991 | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | W990 | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
-| W991 | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
-| W992 | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
+| W991 | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
+| W992 | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
+| E992 | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
+| W993 | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 
 
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)

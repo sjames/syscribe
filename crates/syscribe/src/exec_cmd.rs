@@ -701,7 +701,7 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                         }
                     }
                     let rep = syscribe_model::sm_cov::report(m, &cov, mine.len(), config.clone(), &reqs);
-                    let label = format!("{}.{} ({})", mname, inst.name, m.machine);
+                    let label = format!("{}.{} ({}){}", mname, inst.name, m.machine, if inst.environment { " [environment]" } else { "" });
                     for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)] {
                         if let Some(min) = min {
                             if got + 1e-9 < min {
@@ -710,9 +710,12 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                             }
                         }
                     }
-                    agg_s = (agg_s.0 + rep.states.covered, agg_s.1 + rep.states.total);
-                    agg_t = (agg_t.0 + rep.transitions.covered, agg_t.1 + rep.transitions.total);
-                    agg_g = (agg_g.0 + rep.guards.covered, agg_g.1 + rep.guards.total);
+                    // GH #332: an environment part is not the product, so it is not in the aggregate
+                    if !inst.environment {
+                        agg_s = (agg_s.0 + rep.states.covered, agg_s.1 + rep.states.total);
+                        agg_t = (agg_t.0 + rep.transitions.covered, agg_t.1 + rep.transitions.total);
+                        agg_g = (agg_g.0 + rep.guards.covered, agg_g.1 + rep.guards.total);
+                    }
                     coverage_text.push_str(&format!(
                         "coverage of {label} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
                         &rep.basis.machine_hash[..12], rep.basis.scenarios,
@@ -736,12 +739,15 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                     }
                     let mut pj = serde_json::to_value(&rep).expect("serialises");
                     pj["part"] = serde_json::json!(inst.name);
+                    pj["role"] = serde_json::json!(if inst.environment { "environment" } else { "product" });
                     pj["basis"]["machine"] = serde_json::json!(label);
                     parts_json.push(pj);
                 }
-                coverage_text.push_str(&format!("aggregate coverage of {mname} (hash {}): states {}/{}, transitions {}/{}, guard conds {}/{}\n", &sm.hash[..12], agg_s.0, agg_s.1, agg_t.0, agg_t.1, agg_g.0, agg_g.1));
+                let env: Vec<&str> = sm.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.as_str()).collect();
+                let env_note = if env.is_empty() { String::new() } else { format!(" (product parts only; environment parts not counted: {})", env.join(", ")) };
+                coverage_text.push_str(&format!("aggregate coverage of {mname} (hash {}): states {}/{}, transitions {}/{}, guard conds {}/{}{env_note}\n", &sm.hash[..12], agg_s.0, agg_s.1, agg_t.0, agg_t.1, agg_g.0, agg_g.1));
                 coverage_json.push(serde_json::json!({
-                    "composite": mname, "hash": sm.hash, "parts": parts_json,
+                    "composite": mname, "hash": sm.hash, "parts": parts_json, "environment": env,
                     "aggregate": {
                         "states": {"covered": agg_s.0, "total": agg_s.1},
                         "transitions": {"covered": agg_t.0, "total": agg_t.1},
@@ -1860,8 +1866,11 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         println!("{}", serde_json::to_string_pretty(&campaign).expect("serialises"));
     } else {
         println!("fault campaign on {} (hash {}): {} invariant scenario(s), {} fault set(s)", campaign.composite, &campaign.hash[..12], campaign.invariants, campaign.sets.len());
+        if !campaign.environment.is_empty() {
+            println!("  environment parts (not the product): {}; a fault set marked [environment] fails only the verification set-up", campaign.environment.join(", "));
+        }
         for s in &campaign.sets {
-            println!("  {:<9} {}   ({})", s.status.to_uppercase(), s.label, s.origin);
+            println!("  {:<9} {}{}   ({})", s.status.to_uppercase(), s.label, if s.environment { " [environment]" } else { "" }, s.origin);
             for d in &s.defeats {
                 println!("      defeats \"{}\": {}", d.scenario, d.message);
             }

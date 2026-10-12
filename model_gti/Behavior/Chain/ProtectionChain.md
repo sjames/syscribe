@@ -2,12 +2,12 @@
 type: PartDef
 name: ProtectionChain
 features:
-  - {name: grid, typedBy: Behavior::Parts::GridSourcePart}
+  - {name: grid, typedBy: Behavior::Parts::GridSourcePart, role: environment}
   - {name: sensorSw, typedBy: Behavior::Parts::SensorPart}
   - {name: sensorHw, typedBy: Behavior::Parts::SensorPart, portMap: {out: hwVoltage}}
   - {name: monitor, typedBy: Behavior::Parts::GridMonitorPart}
   - {name: hwTrip, typedBy: Behavior::Parts::HwTripPart}
-  - {name: supervisor, typedBy: Behavior::Parts::SupervisorPart}
+  - {name: supervisor, typedBy: System::Software::Supervisor}
   - {name: relayA, typedBy: Behavior::Parts::RelayPart}
   - {name: relayB, typedBy: Behavior::Parts::RelayPart}
   - {name: powerStage, typedBy: Behavior::Parts::PowerStagePart}
@@ -16,10 +16,10 @@ connections:
   - {from: grid.out, to: sensorHw.inp}
   - {from: sensorSw.out, to: monitor.samples}
   - {from: sensorHw.out, to: hwTrip.samples}
-  - {from: monitor.out, to: supervisor.grid}
+  - {from: monitor.out, to: supervisor.trip}
   - {from: supervisor.relayCmd, to: relayA.cmd}
   - {from: supervisor.relayCmd, to: relayB.cmd}
-  - {from: supervisor.drive, to: powerStage.cmd}
+  - {from: supervisor.gridCtl, to: powerStage.cmd}
   - {from: hwTrip.out, to: relayB.trip}
   - {from: hwTrip.out, to: powerStage.hw}
 ---

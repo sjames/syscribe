@@ -433,6 +433,7 @@ Key fields that apply to most element types:
 | `satisfies` | List of `REQ-*` IDs this element satisfies |
 | `implementedBy` | Path(s) to the source artifact realising this Part/PartDef/Interface/InterfaceDef (string or list); missing local paths warn W023 |
 | `models` | On an executable Part/PartDef (no `domain:`): the architecture element(s) it is a behavioural model of; with `portMap:` (exec port → arch port, a list, or `null`), `abstracts:` (arch ports or requirement ids it leaves out) and `fidelity:` (prose). Checked by E990–E991, W990–W992 (§12.11) |
+| `role` | On a part usage in a composite's `features:` (GH #332): `environment` marks a part of the test set-up (a grid source, a stimulus), not the product: no architecture counterpart, never evidence for a requirement. Where the executable part and the architecture element coincide, put `exhibitsStates:` on the architecture `PartDef` and use it directly instead of a separate part with `models:` |
 | port `typedBy` / `isConjugated` | On a `type: Port` feature or `Port` element: the `PortDef` whose `ItemDef` items are the events it carries (item `direction:` seen unconjugated). A machine's send/accept and payload fields are checked against them (E932/E935, §8.8.5) |
 | `links` | Project-defined relationships: map of declared link-type name → ref or list of refs (see §12.10 in Part 10). Never invent a type — discover them with `link-types` |
 | `custom_fields` | Optional freeform user metadata (see below) |

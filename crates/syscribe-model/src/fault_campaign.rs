@@ -8,7 +8,7 @@ use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
 use crate::sm_run::Options;
 use crate::sm_scen::{Scenario, Status};
-use crate::system_run::SystemModel;
+use crate::system_run::{FaultItem, SystemModel};
 use crate::system_scen::{run_system_scenario, run_system_scenario_faulted};
 
 /// A set of faults injected together before the invariants run.
@@ -36,6 +36,9 @@ pub struct SetResult {
     pub label: String,
     pub origin: String,
     pub faults: Vec<String>,
+    /// Every fault of the set is in an environment part (`role: environment`, GH #332): a failure of the verification
+    /// set-up, not of the product.
+    pub environment: bool,
     /// `survived`, `defeated` (an invariant fails) or `error` (the run could not be made).
     pub status: &'static str,
     pub defeats: Vec<Finding>,
@@ -53,6 +56,8 @@ pub struct NotInjectable {
 #[serde(rename_all = "camelCase")]
 pub struct Campaign {
     pub composite: String,
+    /// The composite's environment parts (`role: environment`, GH #332), listed apart from the product.
+    pub environment: Vec<String>,
     pub hash: String,
     pub invariants: usize,
     pub sets: Vec<SetResult>,
@@ -103,9 +108,12 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
         } else {
             "survived"
         };
-        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), status, defeats, errors });
+        let parts: Vec<usize> = model.faults.iter().filter(|f| set.ids.contains(&f.id)).flat_map(|f| f.items.iter().map(FaultItem::part)).collect();
+        let environment = !parts.is_empty() && parts.iter().all(|p| model.spec.instances.get(*p).is_some_and(|i| i.environment));
+        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, status, defeats, errors });
     }
-    Ok(Campaign { composite: model.spec.composite.clone(), hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })
+    let environment = model.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.clone()).collect();
+    Ok(Campaign { composite: model.spec.composite.clone(), environment, hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })
 }
 
 /// The FMEA rows and fault-tree events whose `ref` is, or specialises into, a definition of a part of the composite:
