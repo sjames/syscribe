@@ -5405,7 +5405,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E209` | `appliesWhen:` is malformed, or an operand references a qualified name that does not resolve to a `FeatureDef` |
 | `E210` | *Not yet implemented* — a selected system feature has no component `Configuration` in some package satisfying it |
 | `E211` | *Not yet implemented* — a selected system feature is satisfied by more than one component `Configuration` in the same package |
-| `E212` | A `FeatureDef.requires:` or `excludes:` entry does not resolve to another `FeatureDef` |
+| `E212` | A `FeatureDef.requires:` or `excludes:` entry does not resolve to another `FeatureDef` (on a `featureTree:` entry, a dotted path relative to the sheet resolves as in `crossTreeConstraints:`) |
 | `E213` | A cross-feature `parameterConstraints` expression references a parameter path that does not resolve |
 | `E214` | *Not yet implemented* — a `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` in a system feature model |
 | `E215` | A `Configuration.derivedFrom:` base configuration is not in `approved` or `released` status |
@@ -5427,7 +5427,8 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E232` | (§9.6a) Two `featureTree:` entries resolve to the same qualified name. |
 | `E233` | (§9.6a) A `crossTreeConstraints:` entry is malformed, or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:`. |
 | `E240` | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| `E241` | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
+| `E239` | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` |
+| `E241` | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}` |
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |

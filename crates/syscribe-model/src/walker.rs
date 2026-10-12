@@ -956,6 +956,24 @@ fn explode_feature_entry(
     }
 
     map.insert("name".into(), leaf_name.into());
+    // GH #325: inside the sheet a feature is *named* by its dotted tree path, so
+    // an inline `requires:`/`excludes:` resolves exactly like a
+    // `crossTreeConstraints:` value: a qname or `FEAT-` id as written, anything
+    // else as a path relative to the sheet (`Protection.Afci`).
+    for key in ["requires", "excludes"] {
+        let to_qname = |v: &mut serde_yaml::Value| {
+            if let serde_yaml::Value::String(r) = v {
+                if let Some(q) = resolve_feature_ref(r, sheet_qname) {
+                    *r = q;
+                }
+            }
+        };
+        match map.get_mut(key) {
+            Some(serde_yaml::Value::Sequence(seq)) => seq.iter_mut().for_each(to_qname),
+            Some(v) => to_qname(v),
+            None => {}
+        }
+    }
     // A type-mismatched field anywhere in the entry (e.g. `mandatory: "yes"`)
     // fails the *whole* deserialize — `unwrap_or_default()` would silently
     // discard every other field (id, groupKind, requires, ...) with no

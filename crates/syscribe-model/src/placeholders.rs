@@ -103,6 +103,26 @@ fn in_code(ranges: &[(usize, usize)], at: usize) -> bool {
     ranges.iter().any(|&(a, b)| at >= a && at < b)
 }
 
+/// `{{…}}` spans that look like a feature-parameter reference (a `::` path or a
+/// `FEAT-` id, with a `.`) but do not parse as one, e.g. the dotted
+/// `{{Features::Mppt.GlobalScan.scanPeriodS}}`. Such text would otherwise stay
+/// in the document unexpanded and unreported (GH #325).
+fn malformed(text: &str) -> Vec<String> {
+    static LOOSE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let loose = LOOSE.get_or_init(|| Regex::new(r"\{\{\s*([A-Za-z_][A-Za-z0-9_\-:.]*)\s*(\|\s*unit)?\s*\}\}").unwrap());
+    if !text.contains("{{") {
+        return Vec::new();
+    }
+    let code = code_ranges(text);
+    loose
+        .captures_iter(text)
+        .filter(|c| !in_code(&code, c.get(0).map(|m| m.start()).unwrap_or(0)))
+        .filter(|c| (c[1].contains("::") || c[1].starts_with("FEAT-")) && c[1].contains('.'))
+        .filter(|c| !re().is_match(&c[0]))
+        .map(|c| c[0].to_string())
+        .collect()
+}
+
 /// Every placeholder in `text` (outside code spans and fences), in order.
 pub fn find(text: &str) -> Vec<Placeholder> {
     let code = code_ranges(text);
@@ -343,7 +363,13 @@ struct Decl<'a> {
 
 fn decl<'a>(elements: &'a [RawElement], resolver: &Resolver, feature: &str, param: &str) -> Result<Decl<'a>, String> {
     let Some(fd) = resolver.resolve_ref(elements, feature).filter(|f| f.frontmatter.element_type == Some(ElementType::FeatureDef)) else {
-        return Err(format!("'{feature}' does not resolve to a FeatureDef"));
+        return Err(format!(
+            "'{feature}' does not resolve to a FeatureDef ({}){}",
+            crate::variability::FORMS_PLACEHOLDER,
+            crate::variability::closest_feature(feature, elements)
+                .map(|q| format!("; did you mean '{{{{{q}.{param}}}}}'?"))
+                .unwrap_or_default()
+        ));
     };
     for p in fd.frontmatter.parameters.iter().flatten() {
         if let serde_yaml::Value::Mapping(m) = p {
@@ -352,7 +378,9 @@ fn decl<'a>(elements: &'a [RawElement], resolver: &Resolver, feature: &str, para
             }
         }
     }
-    Err(format!("feature '{}' declares no parameter '{param}'", fd.qualified_name))
+    let names = fd.frontmatter.parameters.iter().flatten().filter_map(|p| p.get("name").and_then(|v| v.as_str()));
+    let hint = crate::variability::closest_name(param, names).map(|n| format!("; did you mean '{n}'?")).unwrap_or_default();
+    Err(format!("feature '{}' declares no parameter '{param}'{hint}", fd.qualified_name))
 }
 
 fn scalar(v: &serde_yaml::Value) -> Option<String> {
@@ -491,10 +519,32 @@ pub fn machines_at_defaults(elements: &[RawElement]) -> Option<Vec<RawElement>> 
 pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'static str, String, String)> {
     use crate::variability;
     let mut out = Vec::new();
+    let has_features = elements.iter().any(|e| e.frontmatter.element_type == Some(ElementType::FeatureDef));
+    if has_features {
+        for e in elements {
+            let mut seen: Vec<String> = Vec::new();
+            for raw in texts(e).iter().flat_map(|t| malformed(t)) {
+                if seen.contains(&raw) {
+                    continue;
+                }
+                let inner = raw.trim_start_matches('{').trim_end_matches('}').split('|').next().unwrap_or("").trim();
+                let hint = inner
+                    .rsplit_once('.')
+                    .and_then(|(f, p)| variability::closest_feature(f, elements).map(|q| format!("; did you mean '{{{{{q}.{p}}}}}'?")))
+                    .unwrap_or_default();
+                out.push((
+                    true,
+                    "E241",
+                    e.file_path.clone(),
+                    format!("placeholder '{raw}' is not a feature-parameter reference ({}){hint}", variability::FORMS_PLACEHOLDER),
+                ));
+                seen.push(raw);
+            }
+        }
+    }
     if !any(elements) {
         return out;
     }
-    let has_features = elements.iter().any(|e| e.frontmatter.element_type == Some(ElementType::FeatureDef));
     let configs: Vec<&RawElement> =
         elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)).collect();
     let pkg = variability::package_conditions(elements);

@@ -287,6 +287,89 @@ pub fn applies_when_expr(v: &serde_yaml::Value) -> Result<Option<FeatureExpr>, S
     }
 }
 
+// ── Unresolved feature references: accepted forms and closest match (GH #325) ──
+
+/// How each field that names a feature expects it to be written. Every
+/// unresolved-reference message says which form the field takes, so an author
+/// who guessed the wrong one sees the right one in the finding.
+pub const FORMS_FEATURE_REF: &str =
+    "write the feature's qualified name (`Features::Group::Leaf`) or its `FEAT-` id";
+pub const FORMS_TREE_REF: &str =
+    "write the feature's qualified name (`Features::Group::Leaf`), its `FEAT-` id, or, inside the same `featureTree:` sheet, its dotted tree path (`Group.Leaf`)";
+pub const FORMS_PARAM_REF: &str =
+    "write `<FeatureDef qualified name>.<parameter>` (`Features::Group::Leaf.param`): `::` between feature path segments, `.` only before the parameter";
+pub const FORMS_PLACEHOLDER: &str =
+    "write `{{<FeatureDef qualified name or FEAT- id>.<parameter>}}` (`{{Features::Group::Leaf.param}}`): `::` between feature path segments, `.` only before the parameter";
+
+fn edit_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.iter().enumerate() {
+        let mut cur = vec![i + 1; b.len() + 1];
+        for (j, cb) in b.iter().enumerate() {
+            cur[j + 1] = (prev[j] + usize::from(ca != cb)).min(prev[j + 1] + 1).min(cur[j] + 1);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
+/// The FeatureDef an unresolved reference most likely meant, written in the
+/// canonical (qualified-name) form. A reference in the wrong *form* — a dotted
+/// tree path `Protection.Afci`, or `Features::Mppt.GlobalScan` with a `.` where
+/// a `::` belongs — maps to the feature it spells; otherwise the nearest
+/// qualified name or `FEAT-` id by edit distance, if one is close enough.
+pub fn closest_feature(raw: &str, elements: &[RawElement]) -> Option<String> {
+    let fdefs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)))
+        .collect();
+    let as_path = raw.replace('.', "::");
+    if as_path != raw {
+        if let Some(e) = fdefs.iter().find(|e| e.qualified_name == as_path) {
+            return Some(e.qualified_name.clone());
+        }
+        let suffix = format!("::{as_path}");
+        let hits: Vec<&&RawElement> = fdefs.iter().filter(|e| e.qualified_name.ends_with(&suffix)).collect();
+        if hits.len() == 1 {
+            return Some(hits[0].qualified_name.clone());
+        }
+    }
+    let lower = raw.to_lowercase();
+    let mut best: Option<(usize, String)> = None;
+    for e in &fdefs {
+        let mut cands = vec![e.qualified_name.as_str()];
+        cands.extend(e.frontmatter.id.as_deref());
+        for c in cands {
+            let d = edit_distance(&lower, &c.to_lowercase());
+            if best.as_ref().is_none_or(|b| d < b.0) {
+                best = Some((d, e.qualified_name.clone()));
+            }
+        }
+    }
+    // Qualified names share long prefixes, so a whole-string limit must stay
+    // small or an unrelated sibling (`…::Nope` → `…::Afci`) would be offered.
+    let limit = (raw.chars().count() / 8).clamp(1, 3);
+    best.filter(|(d, _)| *d <= limit).map(|(_, q)| q)
+}
+
+/// `"; did you mean '<q>'?"` for [`closest_feature`], or nothing.
+pub fn did_you_mean_feature(raw: &str, elements: &[RawElement]) -> String {
+    closest_feature(raw, elements).map(|q| format!("; did you mean '{q}'?")).unwrap_or_default()
+}
+
+/// The nearest of `names` to `raw` by edit distance, if one is close enough.
+pub fn closest_name<'a>(raw: &str, names: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
+    let limit = (raw.chars().count() / 3).max(2);
+    names
+        .into_iter()
+        .map(|n| (edit_distance(&raw.to_lowercase(), &n.to_lowercase()), n))
+        .filter(|(d, _)| *d <= limit)
+        .min_by_key(|(d, _)| *d)
+        .map(|(_, n)| n)
+}
+
 // ── Feature-reference canonicalization (REQ-TRS-ID-006) ─────────────────────────
 
 /// Map of `FeatureDef` stable `id` (FEAT-*) → its qualified name, for every

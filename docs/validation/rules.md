@@ -126,14 +126,15 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E205 | A bound parameter value is outside the parameter's `range:` |
 | E206 | A bound parameter value is not in the parameter's `enumValues:` |
 | E215 | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
-| E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
-| E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter) |
+| E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
+| E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E230 | A parameter declares a `bindingTime:` value other than `compile`/`load`/`runtime` (§9.7) |
 | E231 | (single-file feature model, REQ-TRS-FM-005) A `type: FeatureModel` sheet's `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
 | E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
 | E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
 | E240 | A `{{Feature.param}}` placeholder is used but the model has no `FeatureDef` or no `Configuration` |
-| E241 | A placeholder names no `FeatureDef`, or the feature declares no such parameter |
+| E239 | A `Configuration`'s `features:` key does not resolve to a `FeatureDef` (it would select nothing). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
+| E241 | A placeholder names no `FeatureDef`, the feature declares no such parameter, or a feature-shaped `{{…}}` does not parse as `{{<feature>.<param>}}` (e.g. `{{Features::Mppt.GlobalScan.scanPeriodS}}`). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E242 | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | E243 | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | E247 | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
@@ -164,7 +165,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 
 | Code | Condition |
 |---|---|
-| E212 | A `FeatureDef.requires:`/`excludes:` entry does not resolve to a `FeatureDef` |
+| E212 | A `FeatureDef.requires:`/`excludes:` entry does not resolve to a `FeatureDef`. On a `featureTree:` entry a dotted tree path (`Group.Leaf`) is accepted, as in `crossTreeConstraints:`. The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E219 | In some `Configuration`, a selected feature's `requires:` target is not selected |
 | E220 | In some `Configuration`, a selected feature's `excludes:` target is also selected |
 | E207 | Circular `derivedFrom:` dependency among parameters of the same `FeatureDef` |

@@ -386,7 +386,9 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         for r in requires.iter().chain(excludes.iter()) {
             if !fnames.contains(r.as_str()) {
                 f.push(err("E212", &fd.file_path,
-                    format!("requires/excludes entry '{}' does not resolve to a FeatureDef", r)));
+                    format!("requires/excludes entry '{}' on '{}' does not resolve to a FeatureDef ({}){}",
+                        r, fd.qualified_name, crate::variability::FORMS_TREE_REF,
+                        crate::variability::did_you_mean_feature(r, elements))));
             }
         }
         req.insert(fd.qualified_name.as_str(), requires);
