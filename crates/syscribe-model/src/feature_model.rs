@@ -451,12 +451,17 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             if fd.frontmatter.is_abstract == Some(true) {
                 continue;
             }
+            // `groupKind` groups the children; membership is `mandatory:` (REQ-TRS-FM-004).
+            // A mandatory group with optional children is meant to be in every product,
+            // so "always selected" is expected, not a hint to change it (REQ-TRS-FM-007).
+            let is_mandatory = fd.frontmatter.mandatory == Some(true);
             let q = fd.qualified_name.as_str();
             match sel_count.get(q).copied().unwrap_or(0) {
                 0 => f.push(warn("W011", &fd.file_path,
-                    format!("optional feature '{}' is selected in no Configuration (possible dead feature)", q))),
-                n if n == configs.len() => f.push(warn("W012", &fd.file_path,
-                    format!("optional feature '{}' is selected in every Configuration (consider groupKind: mandatory)", q))),
+                    format!("{} '{}' is selected in no Configuration (possible dead feature)",
+                        if is_mandatory { "feature" } else { "optional feature" }, q))),
+                n if n == configs.len() && !is_mandatory => f.push(warn("W012", &fd.file_path,
+                    format!("optional feature '{}' is selected in every Configuration (consider mandatory: true)", q))),
                 _ => {}
             }
         }
@@ -2396,5 +2401,43 @@ mod analysis_json_tests {
         assert_eq!(j["void"], true, "{j}");
         assert!(!j["conflicts"].as_array().unwrap().is_empty(), "{j}");
         assert!(!j["diagnoses"].as_array().unwrap().is_empty(), "{j}");
+    }
+
+    fn w012_files(feature: &str) -> Vec<(&'static str, String)> {
+        let conf = |id: &str| format!(
+            "---\ntype: Configuration\nid: {id}\nname: C\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Prot: true\n---\n");
+        vec![
+            ("F/Root.md", ROOT.to_string()),
+            ("F/Root/Prot.md", feature.to_string()),
+            ("C/A.md", conf("CONF-AAA-001")),
+            ("C/B.md", conf("CONF-BBB-001")),
+        ]
+    }
+
+    fn codes_for(files: &[(&'static str, String)], code: &str) -> Vec<Finding> {
+        let refs: Vec<(&str, &str)> = files.iter().map(|(p, c)| (*p, c.as_str())).collect();
+        check_feature_model(&els(&refs)).into_iter().filter(|f| f.code == code).collect()
+    }
+
+    #[test]
+    fn mandatory_group_with_optional_children_selected_everywhere_is_not_w012() {
+        // REQ-TRS-FM-007 / GH #326: `mandatory: true` is membership, `groupKind: optional`
+        // groups the children; being in every product is what mandatory means.
+        let fs = w012_files("---\ntype: FeatureDef\nid: FEAT-PROT\nname: Prot\nmandatory: true\ngroupKind: optional\n---\n");
+        assert!(codes_for(&fs, "W012").is_empty());
+    }
+
+    #[test]
+    fn optional_feature_selected_everywhere_is_still_w012() {
+        let fs = w012_files("---\ntype: FeatureDef\nid: FEAT-PROT\nname: Prot\ngroupKind: optional\n---\n");
+        let w = codes_for(&fs, "W012");
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(w[0].message.contains("mandatory: true"), "{}", w[0].message);
+    }
+
+    #[test]
+    fn mandatory_false_is_an_optional_member_for_w012() {
+        let fs = w012_files("---\ntype: FeatureDef\nid: FEAT-PROT\nname: Prot\nmandatory: false\ngroupKind: optional\n---\n");
+        assert_eq!(codes_for(&fs, "W012").len(), 1);
     }
 }

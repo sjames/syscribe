@@ -173,7 +173,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E213 | A `parameterConstraints` expression references an unresolved parameter path, **or** uses the legacy `::`-member form (`Features::F::param`) instead of the canonical dotted `Features::F.param` — the constraint is flagged, never silently dropped |
 | E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
-| W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
+| W012 | An `optional` `FeatureDef` (not `mandatory: true`) is selected in every `Configuration` (consider `mandatory: true`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
 | W238 | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | W239 | (`feature-check`) an **abstract** feature with no children: it groups nothing. Drop `isAbstract:` or add the features it groups |

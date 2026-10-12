@@ -29,7 +29,8 @@ featureTree:
     groupKind: optional
   - name: Mppt
     id: FEAT-GTI-MPPT
-    groupKind: mandatory
+    mandatory: true
+    groupKind: optional
     doc: "Tracking behaviour common to all variants."
   - name: Mppt.GlobalScan
     id: FEAT-GTI-GSCAN
@@ -48,7 +49,8 @@ featureTree:
     doc: "Per-string current monitoring and under-performance detection."
   - name: Protection
     id: FEAT-GTI-PROT
-    groupKind: mandatory
+    mandatory: true
+    groupKind: optional
   - name: Protection.Afci
     id: FEAT-GTI-AFCI
     groupKind: optional
@@ -70,7 +72,8 @@ featureTree:
     doc: "IEEE 2030.5 (SEP 2.0) utility communications, California Rule 21."
   - name: GridSupport
     id: FEAT-GTI-GSUP
-    groupKind: mandatory
+    mandatory: true
+    groupKind: optional
     doc: "Grid-support functions beyond trip limits."
   - name: GridSupport.VoltVar
     id: FEAT-GTI-VVAR

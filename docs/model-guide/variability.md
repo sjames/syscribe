@@ -41,6 +41,8 @@ Two orthogonal axes (`ADR-FM-003`):
 - **`groupKind`** describes how a feature's **children** are grouped: `optional` · `alternative` (XOR) · `or`.
 - **`mandatory: true`** describes the feature's **membership** relative to its parent — selected whenever the parent is (or always, at top level). It is independent of `groupKind`, so a node can be a *mandatory XOR group* as above. (The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a leaf.)
 
+  A **mandatory group with optional children** (a `Protection` node that is in every product, whose `Afci` and `RapidShutdown` children are each optional) is spelled `mandatory: true` with `groupKind: optional`. Being selected in every `Configuration` is what `mandatory` means, so it does not raise `W012`; only an optional member that every `Configuration` happens to select does.
+
 **Abstract features.** `isAbstract: true` marks a feature that only groups: it has no realisation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It behaves as an abstract feature does in a proper feature model:
 
 - it is a feature of the model like any other in the formula (it can be selected, and constraints can name it), but it **does not distinguish products**: a product is its set of *concrete* features, so the product count, `feature-check --enumerate` and the configurator count and list variants over concrete features only, and two models that differ only in abstract features are one product;
@@ -251,7 +253,7 @@ syscribe -m model/ feature-check
 |---|---|
 | `E212` | `requires`/`excludes` target is not a `FeatureDef` |
 | `E219` / `E220` | a selected feature's `requires` unmet / `excludes` violated in a `Configuration` |
-| `W011` / `W012` | optional feature selected in no / every `Configuration` |
+| `W011` / `W012` | feature selected in no `Configuration` / optional (not `mandatory: true`) feature selected in every `Configuration` |
 | `E207` | circular `derivedFrom:` among a feature's parameters |
 | `E202` | a `bindTo:`-propagated value is outside the component parameter's `range:` |
 | `E229` | a parameter's `bindingTime:` is earlier than a `derivedFrom`/`bindTo` source it depends on |

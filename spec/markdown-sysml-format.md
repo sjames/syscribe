@@ -5443,7 +5443,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | Code | Condition |
 |---|---|
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in zero `Configuration` files (possibly dead feature) |
-| `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
+| `W012` | A `FeatureDef` with `groupKind: optional` and no `mandatory: true` is selected in every `Configuration` (should be `mandatory: true`) |
 | `W013` | *Not yet implemented* — a component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Reported **once per requirement**, listing every such configuration; in the `--config` lens only the selected configuration is judged. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. For a parent requirement the message adds whether the live leaves below it are all verified in those configurations (covered through its children only — it still needs a direct test), not all verified, or none is active there. |
