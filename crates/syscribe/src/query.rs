@@ -3001,6 +3001,7 @@ pub fn cmd_validate_all_configs(
         } else {
             config
         };
+        syscribe_model::projection::set_current_config(Some(cfg.qualified_name.clone()));
         let all = syscribe_model::projection::validate_projected(elements, config, &sel);
         let findings = filter_by_file(&all, file_filter);
         let eval = evaluate_gate(&findings, gate, profile, elements);

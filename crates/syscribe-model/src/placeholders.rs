@@ -502,7 +502,7 @@ pub fn substitute(view: &mut [RawElement], full: &[RawElement], sel: &crate::pro
 
 /// The model with every placeholder in a state machine replaced by its parameter's fixed or default value, so the
 /// symbolic base model can be checked like any other (GH #311). `None` when no machine uses a placeholder.
-pub fn machines_at_defaults(elements: &[RawElement]) -> Option<MachinesAtDefaults> {
+pub fn machines_at_defaults(elements: &[RawElement], cfg: Option<&RawElement>) -> Option<MachinesAtDefaults> {
     if !elements.iter().any(machine_has_placeholder) {
         return None;
     }
@@ -516,16 +516,25 @@ pub fn machines_at_defaults(elements: &[RawElement]) -> Option<MachinesAtDefault
         Default::default();
     let current: std::cell::RefCell<String> = Default::default();
     let f = |ph: &Placeholder| {
-        value_for(elements, &resolver, None, ph).or_else(|| {
+        value_for(elements, &resolver, cfg, ph).or_else(|| {
             let d = decl(elements, &resolver, &ph.feature, &ph.param).ok()?;
-            let file = resolver.resolve_ref(elements, &d.feature_qname).map(|e| e.file_path.clone()).unwrap_or_default();
-            no_default
-                .borrow_mut()
-                .entry((d.feature_qname.clone(), ph.param.clone()))
-                .or_insert_with(|| (file, Default::default()))
-                .1
-                .insert(current.borrow().clone());
-            Some(stand_in(&d))
+            // W248 is the base model's finding: in the `--config` lens an unbound required parameter is already W017;
+            // a runtime parameter cannot be bound (W027), and a derived/`bindTo:` one takes its value elsewhere.
+            let runtime = d.entry.get("bindingTime").and_then(|v| v.as_str()) == Some("runtime");
+            if cfg.is_none() && !runtime && !is_derived(elements, &resolver, &d.feature_qname, &ph.param) {
+                let file = resolver.resolve_ref(elements, &d.feature_qname).map(|e| e.file_path.clone()).unwrap_or_default();
+                no_default
+                    .borrow_mut()
+                    .entry((d.feature_qname.clone(), ph.param.clone()))
+                    .or_insert_with(|| (file, Default::default()))
+                    .1
+                    .insert(current.borrow().clone());
+            }
+            let v = stand_in(&d);
+            Some(match (ph.unit, unit_of(&d)) {
+                (true, Some(u)) => format!("{v} {u}"),
+                _ => v,
+            })
         })
     };
     let mut out = elements.to_vec();
@@ -558,8 +567,9 @@ pub struct NoDefault {
     pub machines: Vec<String>,
 }
 
-/// A literal of the parameter's type that stands in for a missing default: the
-/// first `enumValues` entry, `false` for a Boolean, `""` for a String, else `0`.
+/// A value of the parameter's type that stands in for a missing default, substituted the way a bound value is (raw,
+/// so a string or enum placeholder is quoted by the author, as for a binding): the first `enumValues` entry, `false`
+/// for a Boolean, the empty string for a String, else the lower bound of `range:` or `0`.
 fn stand_in(d: &Decl) -> String {
     if let Some(serde_yaml::Value::Sequence(vs)) = d.entry.get("enumValues") {
         if let Some(v) = vs.first().and_then(scalar) {
@@ -569,22 +579,14 @@ fn stand_in(d: &Decl) -> String {
     let ty = d.entry.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match ty.rsplit("::").next().unwrap_or(ty) {
         "Boolean" => "false".into(),
-        "String" => "\"\"".into(),
-        _ => "0".into(),
-    }
-}
-
-/// The machines of `view` with their placeholders taken from `cfg`'s bindings,
-/// falling back to `value:`/`default:` (GH #328: `validate --config` checks a
-/// machine at the variant's values, not the base model's).
-pub fn substitute_machines(view: &mut [RawElement], full: &[RawElement], cfg: Option<&RawElement>) {
-    if !view.iter().any(machine_has_placeholder) {
-        return;
-    }
-    let resolver = Resolver::new(full);
-    let f = |ph: &Placeholder| value_for(full, &resolver, cfg, ph);
-    for e in view.iter_mut().filter(|e| machine_has_placeholder(e)) {
-        substitute_machine(&mut e.frontmatter, &f);
+        "String" => String::new(),
+        _ => d
+            .entry
+            .get("range")
+            .and_then(scalar)
+            .and_then(|r| r.split_once("..").map(|(lo, _)| lo.trim().to_string()))
+            .filter(|lo| lo.parse::<f64>().is_ok())
+            .unwrap_or_else(|| "0".into()),
     }
 }
 

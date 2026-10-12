@@ -904,7 +904,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     }
     let mut findings: Vec<Finding> = Vec::new();
     // machines that use feature-parameter placeholders are checked at the parameters' default values (GH #311)
-    let at_defaults = crate::placeholders::machines_at_defaults(elements);
+    let machine_cfg = config
+        .machine_config
+        .as_deref()
+        .and_then(|q| elements.iter().find(|e| e.frontmatter.element_type == Some(ElementType::Configuration) && e.qualified_name == q));
+    let at_defaults = crate::placeholders::machines_at_defaults(elements, machine_cfg);
     let machine_view: &[RawElement] = at_defaults.as_ref().map(|m| m.elements.as_slice()).unwrap_or(elements);
     let machine_fm = |q: &str| at_defaults.as_ref().and_then(|m| m.elements.iter().find(|e| e.qualified_name == q)).map(|e| &e.frontmatter);
     // W248 (GH #328): a parameter a machine uses has no default, so its expressions

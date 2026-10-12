@@ -19,6 +19,10 @@ Feature: machine parameters without a default
     Given a configuration that binds limit to a value that is not an expression operand
     When the tool runs `validate --config` on it
     Then W933 names the bound value
+  Scenario: each configuration at its own bindings
+    Given two configurations that select the same features, one binding a value that is not an expression operand
+    When the tool runs `validate --all-configs`
+    Then only that configuration's row counts the W933 findings
   Scenario: parameter with a default
     Given the same machines and a default on limit
     When the tool runs `validate`

@@ -5460,7 +5460,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W245` | As `E243`, for a draft or review element |
 | `W246` | A placeholder references a `bindingTime: runtime` parameter (no value at projection time) |
-| `W248` | A feature parameter used in a state-machine expression has no `value:` or `default:`, so `validate` checks those expressions in the base model with a stand-in of the parameter's type; one finding per parameter, on its FeatureDef, naming the machines. `validate --config` checks them at the bound value |
+| `W248` | A feature parameter used in a state-machine expression has no `value:` or `default:`, so `validate` checks those expressions in the base model with a stand-in of the parameter's type; one finding per parameter, on its FeatureDef, naming the machines (not for a `runtime` or derived/`bindTo:` parameter, nor in the `--config` lens, where `W017` covers it). `validate --config` checks them at the bound value |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
 | `W238` | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | `W239` | (§9) an abstract feature has no children: it groups nothing |

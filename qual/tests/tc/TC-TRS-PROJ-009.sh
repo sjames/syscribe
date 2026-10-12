@@ -19,6 +19,11 @@ tc_TRS_PROJ_009() {
     assert_has_code "W933"
     assert_output_contains "uses 'ten'"
 
+    SCENARIO_NAME="--all-configs checks each Configuration at its own bindings"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/twoconfigs" validate --all-configs 2>/dev/null || true)
+    assert_output_contains "| CONF-P9-AA-001 | 0 | 2 | pass |"
+    assert_output_contains "| CONF-P9-BB-001 | 0 | 4 | pass |"
+
     SCENARIO_NAME="a parameter with a default keeps today's behaviour"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/default" validate 2>/dev/null || true)
     assert_no_code "W248"
