@@ -250,11 +250,13 @@ pub fn cmd_exec_coverage(elems: &[RawElement], args: &[String], lens: &dyn Fn(Op
             };
             let r = &e.requirements;
             println!(
-                "{} [{}]  {how}; {} scenario(s); requirements: {} executable, {} descriptive-only, {} unverified",
+                "{} [{}]  {how}; {} scenario(s){}; requirements: {} executable{}, {} descriptive-only, {} unverified",
                 e.qualified_name,
                 e.domain,
                 e.scenarios,
+                if e.passing < e.scenarios { format!(" ({} passing)", e.passing) } else { String::new() },
                 r.executable.len(),
+                if r.executable_elsewhere.is_empty() { String::new() } else { format!(" (+{} through another element)", r.executable_elsewhere.len()) },
                 r.descriptive_only.len(),
                 r.unverified.len()
             );
@@ -265,7 +267,7 @@ pub fn cmd_exec_coverage(elems: &[RawElement], args: &[String], lens: &dyn Fn(Op
                 println!("    {c}");
             }
             if !a.positional.is_empty() {
-                for (what, l) in [("executable", &r.executable), ("descriptive-only", &r.descriptive_only), ("unverified", &r.unverified), ("not applicable", &r.not_applicable)] {
+                for (what, l) in [("executable", &r.executable), ("executable through another element", &r.executable_elsewhere), ("descriptive-only", &r.descriptive_only), ("unverified", &r.unverified), ("not applicable", &r.not_applicable)] {
                     if !l.is_empty() {
                         println!("    {what}: {}", l.join(", "));
                     }
@@ -286,8 +288,8 @@ pub fn cmd_exec_coverage(elems: &[RawElement], args: &[String], lens: &dyn Fn(Op
     }
     for n in &a.require {
         let e = find(n).expect("checked above");
-        if !e.modelled() || e.scenarios == 0 {
-            eprintln!("exec-coverage gate: {} is {}", e.qualified_name, if e.modelled() { "modelled but no executable scenario exercises it" } else { "not modelled" });
+        if !e.modelled() || e.passing == 0 {
+            eprintln!("exec-coverage gate: {} is {}", e.qualified_name, if e.modelled() { "modelled but no passing executable scenario exercises it" } else { "not modelled" });
             exit = 2;
         }
     }

@@ -177,9 +177,11 @@ fn requirement_coverage_text_shows_detail_for_named_requirements() {
 #[test]
 fn unknown_verifies_tags_and_unclaimed_requirements_warn() {
     let mut f = base();
-    edit(&mut f, "TC-EC-001.md", "@verifies REQ-EC-001\n", "@verifies REQ-EC-004\n");
+    edit(&mut f, "TC-EC-001.md", "@verifies REQ-EC-001\n", "@verifies REQ-EC-002, REQ-EC-004 # the run case\n");
     let (_, out) = run(&f, &[]);
     assert!(lines(&out, "W994").iter().any(|l| l.contains("TC-EC-001: scenario 'go runs' claims REQ-EC-004")), "{out}");
+    // the trailing comment is not a reference
+    assert_eq!(lines(&out, "W994").len(), 1, "{out}");
     // every scenario is tagged and none claims REQ-EC-001
     assert!(lines(&out, "W995").iter().any(|l| l.contains("TC-EC-001 verifies REQ-EC-001, but every scenario is tagged and none claims it")), "{out}");
     // the base model is clean
@@ -190,6 +192,72 @@ fn unknown_verifies_tags_and_unclaimed_requirements_warn() {
     edit(&mut f, "TC-EC-001.md", "  @verifies REQ-EC-002, REQ-EC-006\n", "");
     let (_, out) = run(&f, &[]);
     assert!(lines(&out, "W995").is_empty(), "{out}");
+    // a scenario whose only claim is invalid is ignored as a claim, so it verifies every requirement: no W995
+    let mut f = base();
+    edit(&mut f, "TC-EC-001.md", "@verifies REQ-EC-001\n", "@verifies REQ-EC-004\n");
+    let (_, out) = run(&f, &[]);
+    assert_eq!(lines(&out, "W994").len(), 1, "{out}");
+    assert!(lines(&out, "W995").is_empty(), "{out}");
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-001")["scenarios"][0]["scenario"], "go runs", "{v}");
+    // the tag is case-insensitive, for the checks as for the engine
+    let mut f = base();
+    edit(&mut f, "TC-EC-001.md", "@verifies REQ-EC-001\n", "@Verifies REQ-EC-009\n");
+    edit(&mut f, "TC-EC-001.md", "@verifies REQ-EC-002, REQ-EC-006\n", "@Verifies REQ-EC-002\n");
+    let (_, out) = run(&f, &[]);
+    assert_eq!(lines(&out, "W994").len(), 1, "{out}");
+    // `go runs` has no valid claim, so it verifies every requirement: nothing is unclaimed
+    assert!(lines(&out, "W995").is_empty(), "{out}");
+}
+
+#[test]
+fn verifies_comments_and_examples_tags_attach_where_written() {
+    // a trailing comment after a scenario's last step does not carry into the next scenario
+    let mut f = base();
+    edit(&mut f, "TC-EC-001.md", "    Then CtlM is in state Run\n", "    Then CtlM is in state Run\n    # verifies: REQ-EC-001\n");
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-002")["scenarios"][0]["scenario"], "stop idles", "{v}");
+    // a comment in Background applies to every scenario
+    let mut f = base();
+    edit(&mut f, "TC-EC-001.md", "  @verifies REQ-EC-001\n", "");
+    edit(&mut f, "TC-EC-001.md", "  @verifies REQ-EC-002, REQ-EC-006\n", "");
+    edit(&mut f, "TC-EC-001.md", "Feature: controller\n", "Feature: controller\n\n  Background:\n    # verifies: REQ-EC-001\n    Given CtlM is in state Idle\n");
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-001")["scenarios"].as_array().unwrap().len(), 2, "{v}");
+    assert_eq!(req(&v, "REQ-EC-002")["verdict"], "unverified", "{v}");
+    // tags on an Examples table narrow its rows
+    let mut f = base();
+    f.insert(
+        "TC-EC-003.md",
+        "---\ntype: TestCase\nid: TC-EC-003\nname: outline\nstatus: active\ntestLevel: L2\nsubject: Exec::CtlM\nverifies: [REQ-EC-001, REQ-EC-002]\n---\n\n```gherkin\nFeature: outline\n\n  Scenario Outline: run then <ev>\n    When Go is injected\n    And <ev> is injected\n    Then CtlM is in state <st>\n\n    @verifies REQ-EC-001\n    Examples:\n      | ev | st |\n      | Go | Run |\n\n    @verifies REQ-EC-002\n    Examples:\n      | ev | st |\n      | Stop | Idle |\n```\n".to_string(),
+    );
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    let of = |id: &str| req(&v, id)["scenarios"].as_array().unwrap().iter().filter(|s| s["testCase"] == "TC-EC-003").map(|s| s["scenario"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!(of("REQ-EC-001"), vec!["run then <ev> [row 1]"], "{v}");
+    assert_eq!(of("REQ-EC-002"), vec!["run then <ev> [row 2]"], "{v}");
+}
+
+#[test]
+fn a_descriptive_testcase_with_a_plain_part_subject_is_not_executable() {
+    let mut f = base();
+    edit(&mut f, "TC-EC-002.md", "verifies: [REQ-EC-003]\n---\n\nMeasure it on the bench.\n", "subject: Arch::Other\nverifies: [REQ-EC-003]\n---\n\n```gherkin\nFeature: bench\n  Scenario: measure\n    Given the unit is powered on the bench\n    Then it reads right\n```\n");
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-003")["verdict"], "descriptive-only", "{v}");
+    assert!(v["errors"].as_array().unwrap().is_empty(), "{v}");
+}
+
+#[test]
+fn a_parent_needs_no_evidence_only_when_its_children_have_it() {
+    let mut f = base();
+    edit(&mut f, "Reqs/REQ-EC-001.md", "reqDomain: software\n", "reqDomain: software\nderivedFrom: [REQ-EC-004]\nbreakdownAdr: ADR-EC-001\n");
+    f.insert("ADR-EC-001.md", "---\ntype: ADR\nid: ADR-EC-001\nname: split\nstatus: accepted\n---\n\nSplit.\n".to_string());
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-004")["verdict"], "not-applicable", "{v}");
+    // a child with only descriptive evidence leaves the parent without executable evidence
+    edit(&mut f, "Reqs/REQ-EC-003.md", "reqDomain: software\n", "reqDomain: software\nderivedFrom: [REQ-EC-004]\nbreakdownAdr: ADR-EC-001\n");
+    let v = json_of(&f, &["requirement-coverage", "--json"]);
+    assert_eq!(req(&v, "REQ-EC-004")["verdict"], "unverified", "{v}");
+    assert!(req(&v, "REQ-EC-004")["reasons"][0].as_str().unwrap().contains("REQ-EC-003 (descriptive-only)"), "{v}");
 }
 
 #[test]
@@ -226,6 +294,67 @@ fn an_executable_part_that_models_an_element_covers_it() {
     assert_eq!(other["scenarios"], 2, "{v}");
     let v = json_of(&f, &["requirement-coverage", "--json"]);
     assert_eq!(req(&v, "REQ-EC-006")["verdict"], "executable", "{v}");
+}
+
+#[test]
+fn an_element_shows_evidence_that_exercised_another_element_apart() {
+    let mut f = base();
+    edit(&mut f, "Arch/Other.md", "satisfies: [REQ-EC-003, REQ-EC-006]", "satisfies: [REQ-EC-001, REQ-EC-003, REQ-EC-006]");
+    let v = json_of(&f, &["exec-coverage", "--json"]);
+    let other = elem(&v, "Arch::Other");
+    assert_eq!(other["requirements"]["executable"], json!([]), "{v}");
+    assert_eq!(other["requirements"]["executableElsewhere"], json!(["REQ-EC-001"]), "{v}");
+}
+
+#[test]
+fn exec_coverage_require_needs_a_passing_scenario() {
+    let mut f = base();
+    edit(&mut f, "TC-EC-001.md", "Then CtlM is in state Run", "Then CtlM is in state Fault");
+    edit(&mut f, "TC-EC-001.md", "Then CtlM is in state Idle", "Then CtlM is in state Fault");
+    let (code, out) = run(&f, &["exec-coverage", "--require", "Arch::Ctl"]);
+    assert_eq!(code, 2, "{out}");
+    assert!(out.contains("no passing executable scenario exercises it"), "{out}");
+}
+
+/// Two parts of one machine, the second modelling another element on its usage.
+fn chain() -> BTreeMap<&'static str, String> {
+    let mut f = base();
+    // a variable makes the machine executable inside a composite
+    edit(&mut f, "Exec/CtlM.md", "name: CtlM\n", "name: CtlM\nvariables:\n  - {name: n, value: 0}\n");
+    f.insert("Exec/Sim.md", "---\ntype: PartDef\nname: Sim\nmodels: [Arch::Ctl]\nexhibitsStates: [Exec::CtlM]\n---\n".to_string());
+    f.insert("Exec/Chain.md", "---\ntype: PartDef\nname: Chain\nfeatures:\n  - {name: a, typedBy: Exec::Sim}\n  - {name: b, typedBy: Exec::Sim, models: [Arch::Other]}\n---\n".to_string());
+    f.insert(
+        "TC-EC-004.md",
+        "---\ntype: TestCase\nid: TC-EC-004\nname: chain\nstatus: active\ntestLevel: L3\nsubject: Exec::Chain\nverifies: [REQ-EC-001, REQ-EC-006]\n---\n\n```gherkin\nFeature: chain\n\n  @verifies REQ-EC-001\n  Scenario: a runs\n    When a receives Go\n    Then a is in state Run\n\n  @verifies REQ-EC-006\n  Scenario: b runs and stops\n    When b receives Go\n    And b receives Stop\n    Then b is in state Idle\n```\n".to_string(),
+    );
+    f
+}
+
+#[test]
+fn composite_coverage_follows_usage_level_models() {
+    let v = json_of(&chain(), &["requirement-coverage", "--json"]);
+    let parts = |id: &str| req(&v, id)["coverage"].as_array().unwrap().iter().filter(|c| c["subject"] == "Exec::Chain").map(|c| c["part"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!(parts("REQ-EC-001"), vec!["a"], "{v}");
+    assert_eq!(parts("REQ-EC-006"), vec!["b"], "{v}");
+    // the thresholds reach the part that carries it
+    let v = json_of(&chain(), &["requirement-coverage", "--json", "--min-states", "100"]);
+    assert_eq!(req(&v, "REQ-EC-006")["verdict"], "executable-weak", "{v}");
+}
+
+#[test]
+fn a_machine_used_by_two_parts_has_one_score_recorded_or_computed() {
+    let root = write(&chain());
+    let (code, out) = cli(&root, &["mutate", "Exec::Chain", "--record"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("recorded 1 mutation score(s)"), "{out}");
+    let rec = |args: &[&str]| -> Value {
+        let (_, out) = cli(&root, args);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        let m = req(&v, "REQ-EC-006")["mutation"][0].clone();
+        json!([m["killed"], m["survived"]])
+    };
+    assert_eq!(rec(&["requirement-coverage", "--json"]), rec(&["requirement-coverage", "--json", "--mutate"]));
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]

@@ -11,7 +11,7 @@ verifies: [REQ-EC-001, REQ-EC-002]
 ```gherkin
 Feature: controller
 
-  @verifies REQ-EC-004
+  @verifies REQ-EC-002, REQ-EC-004
   Scenario: go runs
     When Go is injected
     Then CtlM is in state Run

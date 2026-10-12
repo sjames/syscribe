@@ -13,20 +13,22 @@ executable action or a composite part (see `syscribe help simulate`), and grades
   requirement, or those machines' mutation score, is below a threshold;
 * **descriptive-only**: only TestCases with no executable subject or no scenarios verify it;
 * **unverified**: nothing verifies it;
-* **not-applicable**: its `verificationMethod:` is `inspection` or `analysis`, or it is a parent requirement (its
-  children carry the evidence), and no executable scenario verifies it.
+* **not-applicable**: its `verificationMethod:` is `inspection` or `analysis`, or it is a parent requirement all of
+  whose children are executable or not applicable, and no executable scenario verifies it.
 
 A scenario verifies the requirements of its TestCase's `verifies:`. When it is tagged `@verifies REQ-A,REQ-B` (or
 `@verifies(REQ-A)`; a tag before `Feature:` applies to every scenario), or has a `# verifies: REQ-A` comment line
-before a step, it verifies just those of them. A scenario whose subject exercises nothing that satisfies the
-requirement is listed as *claimed but not exercised* and is not evidence.
+before a step, it verifies just those of them. A scenario whose claims are all invalid verifies every requirement of its
+TestCase. A scenario whose subject exercises nothing that satisfies the requirement is listed as *claimed but not
+exercised* and is not evidence.
 
 Coverage is the states, transitions and guard conditions (MC/DC) of the machines that carry the requirement (the
 machine of a machine subject; the parts of a composite whose definition satisfies the requirement or models an
 element that does), merged over the scenarios that verify it. Environment parts (`role: environment`) never count.
-The mutation score is the one `mutate --record` kept for the machine (shown as stale when the machine changed since),
-or with `--mutate` it is computed now over all the subject's scenarios. A requirement with no score is weak only when
-`--min-score` is given.
+The mutation score is the one `mutate <subject> --record` kept for the machine and subject (shown as stale when the
+machine changed since), or with `--mutate` it is computed now over all the subject's scenarios; a machine used by
+several parts has one score summed over them. A requirement with no score is weak only when `--min-score` is given,
+and one with no state-machine coverage (an action subject) is weak under any threshold.
 
 Without arguments every requirement is listed, with the reasons for each that is not executable; with requirement ids,
 those are shown in detail (their scenarios, coverage, mutation scores, satisfiers and descriptive tests). Scenarios that

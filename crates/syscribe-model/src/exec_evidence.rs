@@ -59,6 +59,9 @@ pub struct MachineCoverage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationScore {
+    /// The subject whose scenarios judged the mutants.
+    #[serde(default)]
+    pub subject: String,
     pub machine: String,
     pub machine_hash: String,
     pub score: f64,
@@ -94,6 +97,7 @@ pub struct ScenarioRef {
     pub test_case: String,
     pub scenario: String,
     pub status: String,
+    pub subject: String,
 }
 
 /// A descriptive (non-executable) TestCase.
@@ -165,7 +169,10 @@ pub struct RequirementEvidence {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequirementSplit {
+    /// Executable evidence that exercises this element.
     pub executable: Vec<String>,
+    /// Executable evidence that exercises another element satisfying it, not this one.
+    pub executable_elsewhere: Vec<String>,
     pub descriptive_only: Vec<String>,
     pub unverified: Vec<String>,
     pub not_applicable: Vec<String>,
@@ -185,6 +192,8 @@ pub struct ElementEvidence {
     pub correspondence: Vec<String>,
     /// The executable scenarios whose subject exercises it.
     pub scenarios: usize,
+    /// Those of them that passed.
+    pub passing: usize,
     pub mutation: Vec<MutationScore>,
     pub requirements: RequirementSplit,
 }
@@ -255,7 +264,8 @@ fn is_machine(e: &RawElement) -> bool {
 /// `satisfies:` is left out on purpose: a descriptive TestCase would otherwise count as executable.
 pub fn executable_subject<'a>(elements: &'a [RawElement], resolver: &Resolver, tc: &RawElement) -> Option<&'a RawElement> {
     let s = tc.frontmatter.subject.as_deref()?;
-    resolver.resolve_ref(elements, s).filter(|e| is_machine(e) || is_action(e) || is_part(e))
+    // a part counts only when it is a composite with an executable part; a plain architecture part is not
+    resolver.resolve_ref(elements, s).filter(|e| is_machine(e) || is_action(e) || (is_part(e) && crate::system::resolve(elements, resolver, e).0.is_some()))
 }
 
 fn is_active(e: &RawElement) -> bool {
@@ -276,19 +286,36 @@ fn verified(elements: &[RawElement], resolver: &Resolver, tc: &RawElement) -> Ve
 }
 
 /// The requirements a scenario verifies: its claims that are among the TestCase's, or all of the TestCase's.
-fn scenario_verifies(elements: &[RawElement], resolver: &Resolver, sc: &Scenario, tc_reqs: &[String]) -> Vec<String> {
-    let claims: Vec<String> = sc.claimed().iter().filter_map(|r| resolver.resolve_ref(elements, r)).map(|e| e.qualified_name.clone()).filter(|q| tc_reqs.contains(q)).collect();
-    if sc.claimed().is_empty() {
-        tc_reqs.to_vec()
-    } else {
+/// The requirements a scenario verifies: its claims that are among the TestCase's `verifies:`; all of the TestCase's
+/// when it claims none of them (an invalid claim is ignored, `W994`). A claim of a requirement the TestCase lists that
+/// is not in the model (left out of this Configuration) still narrows the scenario.
+fn scenario_verifies(elements: &[RawElement], resolver: &Resolver, tc: &RawElement, sc: &Scenario, tc_reqs: &[String]) -> Vec<String> {
+    let listed = |r: &str| tc.frontmatter.verifies.iter().flatten().any(|v| v == r);
+    let mut narrowed = false;
+    let mut claims: Vec<String> = Vec::new();
+    for r in sc.claimed() {
+        match resolver.resolve_ref(elements, &r).map(|e| e.qualified_name.clone()).filter(|q| tc_reqs.contains(q)) {
+            Some(q) => {
+                narrowed = true;
+                if !claims.contains(&q) {
+                    claims.push(q);
+                }
+            }
+            None if listed(&r) && resolver.resolve_ref(elements, &r).is_none() => narrowed = true,
+            None => {}
+        }
+    }
+    if narrowed {
         claims
+    } else {
+        tc_reqs.to_vec()
     }
 }
 
 /// `W994`/`W995` for one TestCase's `@verifies` tags and `# verifies:` comments (GH #344).
 pub fn tag_findings(elements: &[RawElement], resolver: &Resolver, tc: &RawElement) -> Vec<(&'static str, String)> {
     let mut out = Vec::new();
-    if !tc.doc.contains("verifies") {
+    if !tc.doc.to_ascii_lowercase().contains("verifies") {
         return out;
     }
     let scenarios = extract_scenarios(&tc.doc);
@@ -300,14 +327,16 @@ pub fn tag_findings(elements: &[RawElement], resolver: &Resolver, tc: &RawElemen
     let mut reported: BTreeSet<String> = BTreeSet::new();
     for sc in &scenarios {
         for r in sc.claimed() {
-            let ok = resolver.resolve_ref(elements, &r).filter(|e| is_requirement(e)).is_some_and(|e| reqs.contains(&e.qualified_name));
+            let ok = resolver.resolve_ref(elements, &r).filter(|e| is_requirement(e)).is_some_and(|e| reqs.contains(&e.qualified_name))
+                // listed but not in the model (inactive in this Configuration): W019's business, not a bad claim
+                || (resolver.resolve_ref(elements, &r).is_none() && tc.frontmatter.verifies.iter().flatten().any(|v| *v == r));
             if !ok && reported.insert(r.clone()) {
-                out.push(("W994", format!("{id}: scenario '{}' claims {r} (by `@verifies` or `# verifies:`), which is not a requirement this TestCase `verifies:`; the claim is ignored", sc.outline.as_deref().unwrap_or(&sc.title))));
+                out.push(("W994", format!("{id}: scenario '{}' claims {r} (by `@verifies` or `# verifies:`), which is not a requirement this TestCase `verifies:`; the claim is ignored (a scenario with no other claim verifies all of them)", sc.outline.as_deref().unwrap_or(&sc.title))));
             }
         }
     }
     if scenarios.iter().all(|s| !s.claimed().is_empty()) {
-        let claimed: BTreeSet<String> = scenarios.iter().flat_map(|s| scenario_verifies(elements, resolver, s, &reqs)).collect();
+        let claimed: BTreeSet<String> = scenarios.iter().flat_map(|s| scenario_verifies(elements, resolver, tc, s, &reqs)).collect();
         for q in reqs.iter().filter(|q| !claimed.contains(*q)) {
             let r = resolver.get(elements, q).map(req_id).unwrap_or_else(|| q.clone());
             out.push(("W995", format!("{id} verifies {r}, but every scenario is tagged and none claims it: no scenario is evidence for it")));
@@ -320,6 +349,9 @@ pub fn tag_findings(elements: &[RawElement], resolver: &Resolver, tc: &RawElemen
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationRecord {
+    /// The subject `mutate` ran on (a machine, a composite or an action).
+    #[serde(default)]
+    pub subject: String,
     pub machine: String,
     pub machine_hash: String,
     pub score: f64,
@@ -333,16 +365,19 @@ pub fn mutation_sidecar(model_root: &Path) -> PathBuf {
     model_root.join(".syscribe").join("mutation.json")
 }
 
-/// The recorded scores, by machine.
-pub fn load_mutation(model_root: &Path) -> BTreeMap<String, MutationRecord> {
+/// The recorded scores, by machine: one per machine hash (a machine projected onto two Configurations hashes
+/// differently, so each keeps its own), the latest first.
+pub fn load_mutation(model_root: &Path) -> BTreeMap<String, Vec<MutationRecord>> {
     std::fs::read_to_string(mutation_sidecar(model_root)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
 }
 
-/// Record scores, replacing each machine's earlier one.
+/// Record scores, replacing the earlier one of the same machine, subject and hash.
 pub fn record_mutation(model_root: &Path, records: Vec<MutationRecord>) -> std::io::Result<PathBuf> {
     let mut all = load_mutation(model_root);
     for r in records {
-        all.insert(r.machine.clone(), r);
+        let list = all.entry(r.machine.clone()).or_default();
+        list.retain(|x| x.machine_hash != r.machine_hash || x.subject != r.subject);
+        list.insert(0, r);
     }
     let path = mutation_sidecar(model_root);
     if let Some(dir) = path.parent() {
@@ -350,6 +385,27 @@ pub fn record_mutation(model_root: &Path, records: Vec<MutationRecord>) -> std::
     }
     std::fs::write(&path, serde_json::to_string_pretty(&all).expect("serialises"))?;
     Ok(path)
+}
+
+/// Sum the per-part results of one machine (a machine used by several parts, as two relays) into one score, so
+/// `mutate --record` and `--mutate` agree. `(machine, hash, killed, survived)`; environment parts are left out.
+pub fn aggregate_parts(parts: impl IntoIterator<Item = (String, String, usize, usize)>) -> Vec<(String, String, usize, usize)> {
+    let mut by: BTreeMap<String, (String, usize, usize)> = BTreeMap::new();
+    for (m, h, k, s) in parts {
+        let e = by.entry(m).or_insert((h, 0, 0));
+        e.1 += k;
+        e.2 += s;
+    }
+    by.into_iter().filter(|(_, (_, k, s))| k + s > 0).map(|(m, (h, k, s))| (m, h, k, s)).collect()
+}
+
+/// A score in percent.
+pub fn score_of(killed: usize, survived: usize) -> f64 {
+    if killed + survived == 0 {
+        100.0
+    } else {
+        100.0 * killed as f64 / (killed + survived) as f64
+    }
 }
 
 /// One executable subject, built once.
@@ -413,6 +469,8 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
     let mut errors: Vec<String> = Vec::new();
     // the scenarios of each subject, for `--mutate`
     let mut by_subject: BTreeMap<String, Vec<Scenario>> = BTreeMap::new();
+    // the part usages (`features:` entries) of each composite subject, by name
+    let mut usages: HashMap<String, HashMap<String, serde_yaml::Mapping>> = HashMap::new();
 
     for tc in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase)) && is_active(e)) {
         let reqs = verified(elements, &resolver, tc);
@@ -453,6 +511,11 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             built.insert(sq.clone(), b);
             let r = if is_part(subject) { models::exercised_by(elements, &resolver, subject) } else { models::exercised_by_machine(elements, &resolver, subject) };
             reach.insert(sq.clone(), r);
+            if is_part(subject) {
+                let view = crate::system::composite_view(elements, &resolver, subject);
+                let named = view.features.iter().filter_map(|f| f.as_mapping()).filter_map(|m| Some((m.get("name")?.as_str()?.to_string(), m.clone()))).collect();
+                usages.insert(sq.clone(), named);
+            }
         }
         let b = &built[&sq];
         let r = &reach[&sq];
@@ -476,7 +539,7 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
                 (None, Built::Failed(why)) => ("error", Some(why.clone())),
                 (None, _) => ("not-run", Some("the scenario uses plants, which this report does not co-simulate".to_string())),
             };
-            let sv = scenario_verifies(elements, &resolver, sc, &reqs);
+            let sv = scenario_verifies(elements, &resolver, tc, sc, &reqs);
             let idx = runs.len();
             runs.push(ScenarioRun {
                 test_case: tc_id(tc),
@@ -492,7 +555,7 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             for q in &sv {
                 let sat = satisfiers.get(q).cloned().unwrap_or_default();
                 if !models::evidences(elements, &resolver, r, q, &sat) {
-                    not_exercised.entry(q.clone()).or_default().push(ScenarioRef { test_case: tc_id(tc), scenario: sc.title.clone(), status: status.to_string() });
+                    not_exercised.entry(q.clone()).or_default().push(ScenarioRef { test_case: tc_id(tc), scenario: sc.title.clone(), status: status.to_string(), subject: sq.clone() });
                     continue;
                 }
                 exercising.entry(q.clone()).or_default().push((idx, status.to_string()));
@@ -504,12 +567,16 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
                         e.scenarios += 1;
                     }
                     Built::Composite(sm) => {
+                        let whole = sat.is_empty() || models::carries(elements, &resolver, subject, None, &sat);
                         for (i, inst) in sm.spec.instances.iter().enumerate() {
                             let Some(m) = sm.machines[i].as_ref() else { continue };
                             if inst.environment {
                                 continue;
                             }
-                            let carries = sat.is_empty() || resolver.get(elements, &inst.def).is_some_and(|d| models::carries(elements, &resolver, d, None, &sat));
+                            // a part carries the requirement by what its usage (else its definition) is or models; every
+                            // product part does when the subject itself satisfies it
+                            let usage = usages.get(&sq).and_then(|u| u.get(&inst.name));
+                            let carries = whole || resolver.get(elements, &inst.def).is_some_and(|d| models::carries(elements, &resolver, d, usage, &sat));
                             if !carries {
                                 continue;
                             }
@@ -525,21 +592,37 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
         }
     }
 
-    // mutation scores: computed now, or recorded and checked against the machine's current hash
-    let mut scores: BTreeMap<String, MutationScore> = BTreeMap::new();
+    // mutation scores, by (subject, machine): a score depends on the scenarios it was judged by, so one machine run
+    // as a machine subject and as a part of a composite has a score for each; computed now, or recorded and checked
+    // against the machine's current hash
+    let mut scores: BTreeMap<(String, String), MutationScore> = BTreeMap::new();
+    let score = |subject: &str, machine: String, hash: String, killed: usize, survived: usize, stale: bool, source: &str| MutationScore {
+        subject: subject.to_string(),
+        machine,
+        machine_hash: hash,
+        score: score_of(killed, survived),
+        killed,
+        survived,
+        stale,
+        source: source.into(),
+    };
     if req.mutate {
         for (sq, scs) in &by_subject {
             match &built[sq] {
                 Built::Machine(m) => {
                     if let Ok(rep) = crate::sm_mut::analyse(m, scs, &opts).map_err(|_| ()).and_then(|r| if r.killed + r.survived > 0 { Ok(r) } else { Err(()) }) {
-                        scores.insert(m.machine.clone(), MutationScore { machine: m.machine.clone(), machine_hash: rep.machine_hash, score: rep.score, killed: rep.killed, survived: rep.survived, stale: false, source: "computed".into() });
+                        scores.insert((sq.clone(), m.machine.clone()), score(sq, m.machine.clone(), rep.machine_hash, rep.killed, rep.survived, false, "computed"));
                     }
                 }
                 Built::Composite(sm) => {
                     if let Ok(rep) = crate::system_mut::analyse(sm, scs, &opts, None) {
-                        for p in rep.parts.iter().filter(|p| p.killed + p.survived > 0) {
-                            let Some(m) = sm.spec.instance(&p.part).and_then(|i| sm.machines[i].as_ref()) else { continue };
-                            scores.entry(m.machine.clone()).or_insert(MutationScore { machine: m.machine.clone(), machine_hash: p.machine_hash.clone(), score: p.score, killed: p.killed, survived: p.survived, stale: false, source: "computed".into() });
+                        let parts = rep.parts.iter().filter_map(|p| {
+                            let i = sm.spec.instance(&p.part)?;
+                            let m = sm.machines[i].as_ref().filter(|_| !sm.spec.instances[i].environment)?;
+                            Some((m.machine.clone(), p.machine_hash.clone(), p.killed, p.survived))
+                        });
+                        for (m, h, k, sv) in aggregate_parts(parts) {
+                            scores.insert((sq.clone(), m.clone()), score(sq, m, h, k, sv, false, "computed"));
                         }
                     }
                 }
@@ -547,21 +630,22 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             }
         }
     } else {
-        for (machine, rec) in load_mutation(req.model_root) {
+        for (machine, recs) in load_mutation(req.model_root) {
+            // per subject, the record of the machine as it is now; else the latest one, stale (or unchecked: it does
+            // not lower)
             let current = crate::ir::lower(elements, &machine).ok().map(|m| m.hash);
-            scores.insert(machine.clone(), MutationScore { machine, machine_hash: rec.machine_hash.clone(), score: rec.score, killed: rec.killed, survived: rec.survived, stale: current.is_some_and(|h| h != rec.machine_hash), source: "recorded".into() });
-        }
-    }
-
-    // requirements
-    let mut parents: BTreeSet<String> = BTreeSet::new();
-    for r in elements.iter().filter(|e| is_requirement(e)) {
-        for p in r.frontmatter.derived_from.iter().flatten() {
-            if let Some(pe) = resolver.resolve_ref(elements, p) {
-                parents.insert(pe.qualified_name.clone());
+            let subjects: BTreeSet<String> = recs.iter().map(|r| r.subject.clone()).collect();
+            for subject in subjects {
+                let mine: Vec<&MutationRecord> = recs.iter().filter(|r| r.subject == subject).collect();
+                let Some(rec) = current.as_ref().and_then(|h| mine.iter().find(|r| &r.machine_hash == h)).or(mine.first()) else { continue };
+                let stale = current.as_ref() != Some(&rec.machine_hash);
+                scores.insert((subject.clone(), machine.clone()), score(&subject, machine.clone(), rec.machine_hash.clone(), rec.killed, rec.survived, stale, "recorded"));
             }
         }
     }
+    let score_for = |subject: &str, machine: &str| scores.get(&(subject.to_string(), machine.to_string()));
+
+    // requirements
     let th = &req.thresholds;
     let mut requirements: Vec<RequirementEvidence> = Vec::new();
     for r in elements.iter().filter(|e| is_requirement(e)) {
@@ -572,14 +656,11 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             .take_while(|((rq, ..), _)| rq == q)
             .filter_map(|((_, s, p), m)| coverage_of(&built[s], p.as_deref(), m, s))
             .collect();
-        let mutation: Vec<MutationScore> = coverage.iter().filter_map(|c| scores.get(&c.machine).map(|m| (m.machine.clone(), m.clone()))).collect::<BTreeMap<String, MutationScore>>().into_values().collect();
+        let mutation: Vec<MutationScore> = coverage.iter().filter_map(|c| score_for(&c.subject, &c.machine).map(|m| ((m.subject.clone(), m.machine.clone()), m.clone()))).collect::<BTreeMap<(String, String), MutationScore>>().into_values().collect();
         let vm = r.frontmatter.verification_method.clone();
         let mut reasons: Vec<String> = Vec::new();
         let verdict = if matches!(vm.as_deref(), Some("inspection") | Some("analysis")) && ex.is_empty() {
             reasons.push(format!("verified by {}", vm.as_deref().unwrap_or_default()));
-            ReqVerdict::NotApplicable
-        } else if parents.contains(q) && ex.is_empty() {
-            reasons.push("a parent requirement: its children carry the evidence".into());
             ReqVerdict::NotApplicable
         } else if !ex.is_empty() {
             for (i, st) in &ex {
@@ -604,14 +685,22 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
                     }
                 }
             }
+            let coverage_gate = th.min_states.is_some() || th.min_transitions.is_some() || th.min_guards.is_some();
+            if coverage.is_empty() && (coverage_gate || th.min_score.is_some()) {
+                // an action subject, or no part of a composite carries it: a threshold cannot be checked, so it is not met
+                reasons.push("no state-machine coverage was measured for it, so the thresholds cannot be checked".into());
+            }
             if let Some(min) = th.min_score {
                 for m in &mutation {
                     if m.score + 1e-9 < min {
                         reasons.push(format!("{}: mutation score {:.0}% < {min}%", m.machine, m.score));
                     }
                 }
-                for c in coverage.iter().filter(|c| !scores.contains_key(&c.machine)) {
-                    reasons.push(format!("{}: no mutation score (run `mutate --record` or use --mutate)", c.machine));
+                for c in coverage.iter().filter(|c| score_for(&c.subject, &c.machine).is_none()) {
+                    let why = format!("{}: no mutation score from the scenarios of {} (run `mutate {} --record` or use --mutate)", c.machine, c.subject, c.subject);
+                    if !reasons.contains(&why) {
+                        reasons.push(why);
+                    }
                 }
             }
             if reasons.is_empty() {
@@ -637,12 +726,48 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             verdict,
             reasons,
             descriptive: descriptive.get(q).cloned().unwrap_or_default(),
-            scenarios: ex.iter().map(|(i, st)| ScenarioRef { test_case: runs[*i].test_case.clone(), scenario: runs[*i].scenario.clone(), status: st.clone() }).collect(),
+            scenarios: ex.iter().map(|(i, st)| ScenarioRef { test_case: runs[*i].test_case.clone(), scenario: runs[*i].scenario.clone(), status: st.clone(), subject: runs[*i].subject.clone() }).collect(),
             claimed_not_exercised: not_exercised.get(q).cloned().unwrap_or_default(),
             satisfiers: satisfiers.get(q).cloned().unwrap_or_default(),
             coverage,
             mutation,
         });
+    }
+    // a parent with no executable evidence of its own needs none when every child has it or needs none (GH #344)
+    let mut children: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, r) in requirements.iter().enumerate() {
+        let Some(e) = resolver.get(elements, &r.qualified_name) else { continue };
+        for p in e.frontmatter.derived_from.iter().flatten() {
+            if let Some(pe) = resolver.resolve_ref(elements, p).filter(|x| is_requirement(x)) {
+                children.entry(pe.qualified_name.clone()).or_default().push(i);
+            }
+        }
+    }
+    loop {
+        let mut changed = false;
+        for i in 0..requirements.len() {
+            let r = &requirements[i];
+            if !matches!(r.verdict, ReqVerdict::DescriptiveOnly | ReqVerdict::Unverified) {
+                continue;
+            }
+            let Some(ch) = children.get(&r.qualified_name) else { continue };
+            if ch.iter().all(|c| matches!(requirements[*c].verdict, ReqVerdict::Executable | ReqVerdict::NotApplicable)) {
+                requirements[i].verdict = ReqVerdict::NotApplicable;
+                requirements[i].reasons = vec!["a parent requirement: every child has executable evidence or needs none".into()];
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for i in 0..requirements.len() {
+        if !matches!(requirements[i].verdict, ReqVerdict::DescriptiveOnly | ReqVerdict::Unverified) {
+            continue;
+        }
+        let Some(ch) = children.get(&requirements[i].qualified_name) else { continue };
+        let short: Vec<String> = ch.iter().map(|c| &requirements[*c]).filter(|c| !matches!(c.verdict, ReqVerdict::Executable | ReqVerdict::NotApplicable)).map(|c| format!("{} ({})", c.id, c.verdict.label())).collect();
+        requirements[i].reasons.push(format!("a parent requirement whose children lack executable evidence: {}", short.join(", ")));
     }
     requirements.sort_by(|a, b| a.id.cmp(&b.id));
 
@@ -658,7 +783,9 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
         let named = |msg: &str| msg.contains(&format!("'{q}'")) || msg.contains(&format!("'{q}.")) || msg.contains(&format!("of '{q}'"));
         let correspondence: Vec<String> = findings.iter().filter(|(c, _, m)| matches!(*c, "E991" | "W990" | "W991") && named(m)).map(|(c, _, m)| format!("{c}: {m}")).collect();
         let keys: Vec<String> = std::iter::once(q.clone()).collect();
-        let scenarios = runs.iter().filter(|s| reach.get(&s.subject).is_some_and(|r| keys.iter().any(|k| r.reaches(k)))).count();
+        let reaches = |subject: &str| reach.get(subject).is_some_and(|r| keys.iter().any(|k| r.reaches(k)));
+        let scenarios = runs.iter().filter(|s| reaches(&s.subject)).count();
+        let passing = runs.iter().filter(|s| s.status == "pass" && reaches(&s.subject)).count();
         let mut carriers: Vec<String> = machines_of(elements, &resolver, e);
         for p in modelled_by.get(q).into_iter().flatten() {
             if let Some(pe) = resolver.get(elements, p) {
@@ -667,12 +794,15 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
         }
         carriers.sort();
         carriers.dedup();
-        let mutation: Vec<MutationScore> = carriers.iter().filter_map(|m| scores.get(m).cloned()).collect();
+        let mutation: Vec<MutationScore> = scores.values().filter(|m| carriers.contains(&m.machine)).cloned().collect();
         let mut split = RequirementSplit::default();
         for rq in e.frontmatter.satisfies.iter().flatten().filter_map(|r| resolver.resolve_ref(elements, r)) {
             let Some(ev) = by_req.get(rq.qualified_name.as_str()) else { continue };
+            let here = ev.scenarios.iter().any(|s| reaches(&s.subject));
             let list = match ev.verdict {
-                ReqVerdict::Executable | ReqVerdict::ExecutableWeak => &mut split.executable,
+                ReqVerdict::Executable | ReqVerdict::ExecutableWeak if here => &mut split.executable,
+                // the evidence exercises another element that satisfies it, not this one
+                ReqVerdict::Executable | ReqVerdict::ExecutableWeak => &mut split.executable_elsewhere,
                 ReqVerdict::DescriptiveOnly => &mut split.descriptive_only,
                 ReqVerdict::Unverified => &mut split.unverified,
                 ReqVerdict::NotApplicable => &mut split.not_applicable,
@@ -688,6 +818,7 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             modelled_by: modelled_by.get(q).cloned().unwrap_or_default(),
             correspondence,
             scenarios,
+            passing,
             mutation,
             requirements: split,
         });

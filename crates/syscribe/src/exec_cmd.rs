@@ -1127,7 +1127,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
     }
     if flag("--record") {
-        let rec = syscribe_model::exec_evidence::MutationRecord { machine: report.machine.clone(), machine_hash: report.machine_hash.clone(), score: report.score, killed: report.killed, survived: report.survived, recorded_at_unix: now_unix() };
+        let rec = syscribe_model::exec_evidence::MutationRecord { subject: machine_q.clone(), machine: report.machine.clone(), machine_hash: report.machine_hash.clone(), score: report.score, killed: report.killed, survived: report.survived, recorded_at_unix: now_unix() };
         if let Err(code) = record_scores(model_root, vec![rec], flag("--json")) {
             return code;
         }
@@ -1706,15 +1706,16 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
         }
     }
     if record {
-        // a part whose mutants were never judged has no score worth keeping
-        let recs = report
-            .parts
-            .iter()
-            .filter(|p| p.killed + p.survived > 0)
-            .filter_map(|p| {
-                let m = model.spec.instance(&p.part).and_then(|i| model.machines[i].as_ref())?;
-                Some(syscribe_model::exec_evidence::MutationRecord { machine: m.machine.clone(), machine_hash: p.machine_hash.clone(), score: p.score, killed: p.killed, survived: p.survived, recorded_at_unix: now_unix() })
-            })
+        // one score per machine, summed over the product parts that use it (environment parts are not the product);
+        // a machine none of whose mutants was judged has no score worth keeping
+        let parts = report.parts.iter().filter_map(|p| {
+            let i = model.spec.instance(&p.part)?;
+            let m = model.machines[i].as_ref().filter(|_| !model.spec.instances[i].environment)?;
+            Some((m.machine.clone(), p.machine_hash.clone(), p.killed, p.survived))
+        });
+        let recs = syscribe_model::exec_evidence::aggregate_parts(parts)
+            .into_iter()
+            .map(|(machine, machine_hash, killed, survived)| syscribe_model::exec_evidence::MutationRecord { subject: composite.to_string(), machine, machine_hash, score: syscribe_model::exec_evidence::score_of(killed, survived), killed, survived, recorded_at_unix: now_unix() })
             .collect();
         if let Err(code) = record_scores(model_root, recs, json) {
             return code;

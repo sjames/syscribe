@@ -587,8 +587,18 @@ fn ok(v: Value) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::success(vec![Content::json(v)?]))
 }
 
+/// `only` names resolved to qualified names (ids and qnames alike), unresolved ones kept as written.
+fn resolve_only(store: &store::McpStore, only: Option<&[String]>) -> Vec<String> {
+    only.unwrap_or_default().iter().map(|o| store.resolver.resolve_ref(&store.elements, o).map(|e| e.qualified_name.clone()).unwrap_or_else(|| o.clone())).collect()
+}
+
 /// The executable evidence of `requirement_coverage`/`exec_coverage`, on the model projected onto `config` if given.
 fn exec_evidence_of(store: &store::McpStore, args: &ExecEvidenceArgs) -> Result<syscribe_model::exec_evidence::Evidence, ErrorData> {
+    for (name, v) in [("min_states", args.min_states), ("min_transitions", args.min_transitions), ("min_guards", args.min_guards), ("min_score", args.min_score)] {
+        if v.is_some_and(|p| !(0.0..=100.0).contains(&p)) {
+            return Err(ErrorData::invalid_params(format!("{name} must be a percentage between 0 and 100"), None));
+        }
+    }
     use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
     let projected = match args.config.as_deref() {
         None => None,
@@ -2673,9 +2683,27 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let ev = exec_evidence_of(&store, &args)?;
-        let only = args.only.unwrap_or_default();
+        let only = resolve_only(&store, args.only.as_deref());
         let reqs: Vec<_> = ev.requirements.iter().filter(|r| only.is_empty() || only.iter().any(|o| *o == r.id || *o == r.qualified_name)).collect();
-        ok(json!({ "configuration": ev.configuration, "requirements": reqs, "scenarios": ev.scenarios, "errors": ev.errors }))
+        use syscribe_model::exec_evidence::ReqVerdict as V;
+        let count = |v: V| reqs.iter().filter(|r| r.verdict == v).count();
+        let applicable = reqs.len() - count(V::NotApplicable);
+        let pct = if applicable == 0 { 100.0 } else { 100.0 * count(V::Executable) as f64 / applicable as f64 };
+        ok(json!({
+            "configuration": ev.configuration,
+            "summary": {
+                "requirements": reqs.len(),
+                "executable": count(V::Executable),
+                "executableWeak": count(V::ExecutableWeak),
+                "descriptiveOnly": count(V::DescriptiveOnly),
+                "unverified": count(V::Unverified),
+                "notApplicable": count(V::NotApplicable),
+                "executablePercent": pct,
+            },
+            "requirements": reqs,
+            "scenarios": ev.scenarios,
+            "errors": ev.errors,
+        }))
     }
 
     #[tool(
@@ -2692,7 +2720,7 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let ev = exec_evidence_of(&store, &args)?;
-        let only = args.only.unwrap_or_default();
+        let only = resolve_only(&store, args.only.as_deref());
         let elems: Vec<_> = ev.elements.iter().filter(|e| only.is_empty() || only.contains(&e.qualified_name)).collect();
         let modelled = elems.iter().filter(|e| e.modelled()).count();
         ok(json!({ "configuration": ev.configuration, "summary": { "elements": elems.len(), "modelled": modelled }, "elements": elems, "errors": ev.errors }))
