@@ -701,8 +701,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                         }
                     }
                     let rep = syscribe_model::sm_cov::report(m, &cov, mine.len(), config.clone(), &reqs);
-                    let label = format!("{}.{} ({}){}", mname, inst.name, m.machine, if inst.environment { " [environment]" } else { "" });
-                    for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)] {
+                    let label = format!("{}.{} ({})", mname, inst.name, m.machine);
+                    // GH #332: the gates judge the product, not the test set-up
+                    for (what, got, min) in [("states", rep.states_percent(), min_s), ("transitions", rep.transitions_percent(), min_t), ("guards", rep.guards_percent(), min_g)].into_iter().filter(|_| !inst.environment) {
                         if let Some(min) = min {
                             if got + 1e-9 < min {
                                 eprintln!("coverage gate: {mname}.{} {what} {:.1}% is below the required {min}%", inst.name, got);
@@ -717,7 +718,8 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                         agg_g = (agg_g.0 + rep.guards.covered, agg_g.1 + rep.guards.total);
                     }
                     coverage_text.push_str(&format!(
-                        "coverage of {label} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
+                        "coverage of {label}{} (hash {}, {} scenario(s)):\n  states        {}/{}  {:.0}%\n  transitions   {}/{}  {:.0}%\n  pairs         {}/{}\n  guard conds   {}/{}  {:.0}%\n  timers        {}/{}\n",
+                        if inst.environment { " [environment]" } else { "" },
                         &rep.basis.machine_hash[..12], rep.basis.scenarios,
                         rep.states.covered, rep.states.total, rep.states_percent(),
                         rep.transitions.covered, rep.transitions.total, rep.transitions_percent(),

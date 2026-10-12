@@ -486,23 +486,18 @@ struct ArchEdge {
     composite: String,
 }
 
-/// Whether composite `c` is architecture: an architecture element itself, or a composite all of whose parts are. A
-/// composite that also holds executable models or environment parts (a verification composite, GH #332) is not, even
-/// where some of its parts are architecture elements used directly.
-fn is_architecture_composite(
-    elements: &[RawElement],
-    resolver: &Resolver,
-    c: &RawElement,
-    features: &[Y],
-) -> bool {
-    is_architecture(elements, resolver, c)
-        || features.iter().filter_map(|f| f.as_mapping()).all(|m| {
-            field(m, "type").and_then(|t| t.as_str()) == Some("Port")
-                || field(m, "typedBy")
-                    .and_then(|t| t.as_str())
-                    .and_then(|t| resolver.resolve_ref(elements, t))
-                    .is_none_or(|d| !is_part(d) || is_architecture(elements, resolver, d))
-        })
+/// Whether composite `c` is a verification composite (GH #332): it holds an environment part, or an executable part
+/// that models an architecture element. Its connections are not architecture, even between two architecture elements
+/// it uses directly, and only in it does an architecture element used directly count as its own counterpart.
+fn is_verification_composite(elements: &[RawElement], resolver: &Resolver, features: &[Y]) -> bool {
+    features.iter().filter_map(|f| f.as_mapping()).any(|m| {
+        system::is_environment(m)
+            || field(m, "typedBy")
+                .and_then(|t| t.as_str())
+                .and_then(|t| resolver.resolve_ref(elements, t))
+                .filter(|d| is_part(d) && !is_architecture(elements, resolver, d))
+                .is_some_and(|d| !usage_binding(elements, resolver, d, m).0.is_empty())
+    })
 }
 
 fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
@@ -524,8 +519,9 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
                 .and_then(|t| t.as_str())
                 .and_then(|t| resolver.resolve_ref(elements, t))
         };
-        let architecture = is_architecture_composite(elements, resolver, c, &view.features);
-        if !architecture {
+        if !is_architecture(elements, resolver, c)
+            && is_verification_composite(elements, resolver, &view.features)
+        {
             continue;
         }
         for conn in &view.connections {
@@ -752,7 +748,34 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             })
             .collect()
     };
-    let covered_keys = expand(&covered);
+    let mut covered_keys = expand(&covered);
+    // GH #332: an architecture element used directly in a verification composite covers its own ports
+    for c in elements
+        .iter()
+        .filter(|e| is_part(e) && !is_architecture(elements, resolver, e))
+    {
+        let view = system::composite_view(elements, resolver, c);
+        if !is_verification_composite(elements, resolver, &view.features) {
+            continue;
+        }
+        for m in view.features.iter().filter_map(|f| f.as_mapping()) {
+            if system::is_environment(m) {
+                continue;
+            }
+            let Some(d) = field(m, "typedBy")
+                .and_then(|t| t.as_str())
+                .and_then(|t| resolver.resolve_ref(elements, t))
+                .filter(|d| is_part(d) && is_architecture(elements, resolver, d))
+            else {
+                continue;
+            };
+            for k in tkeys(d) {
+                for p in ports(d) {
+                    covered_keys.insert((k.clone(), p.name));
+                }
+            }
+        }
+    }
     let abstracted_keys = expand(&abstracted);
     let hit_any =
         |ks: &BTreeSet<String>, p: &str, set: &std::collections::HashSet<(String, String)>| {
@@ -765,8 +788,8 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             && !(e.frontmatter.supertype.is_some() && e.frontmatter.features.is_none() && e.frontmatter.connections.is_none())
     }) {
         let view = system::composite_view(elements, resolver, c);
-        if is_architecture_composite(elements, resolver, c, &view.features) {
-            continue;
+        if !is_verification_composite(elements, resolver, &view.features) {
+            continue; // no modelling or environment part: nothing to correspond
         }
         // part name → (keys of everything it models, its port map)
         #[allow(clippy::type_complexity)]
@@ -988,27 +1011,35 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     out
 }
 
-/// The nearest `domain:` along an element's definition chain.
 /// E992 (GH #332): a `role:` on a composite's `features:` entry that is not a known role, or that is not on a part usage.
 fn role_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     let mut out = Vec::new();
     for e in elements.iter().filter(|e| is_part(e)) {
         for f in e.frontmatter.features.iter().flatten() {
             let Some(m) = f.as_mapping() else { continue };
-            let Some(role) = field(m, "role") else { continue };
+            let Some(role) = field(m, "role") else {
+                continue;
+            };
             let name = field(m, "name").and_then(|n| n.as_str()).unwrap_or("?");
             let known = system::ROLES.join(", ");
             match role.as_str() {
                 Some(r) if system::ROLES.contains(&r) => {}
-                Some(r) => out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has `role: {r}`, which is not a role (the roles are: {known})", e.qualified_name))),
-                None => out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has a `role:` that is not a string (the roles are: {known})", e.qualified_name))),
+                Some(r) => {
+                    out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has `role: {r}`, which is not a role (the roles are: {known})", e.qualified_name)));
+                    continue;
+                }
+                None => {
+                    out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has a `role:` that is not a string (the roles are: {known})", e.qualified_name)));
+                    continue;
+                }
             }
-            let part_usage = field(m, "type").and_then(|t| t.as_str()) != Some("Port")
-                && field(m, "typedBy")
-                    .and_then(|t| t.as_str())
-                    .and_then(|t| resolver.resolve_ref(elements, t))
-                    .is_some_and(is_part);
-            if !part_usage {
+            // a `typedBy:` that does not resolve is reported on its own; here only a port or a non-part type
+            let ty = field(m, "typedBy").and_then(|t| t.as_str());
+            let resolved = ty.and_then(|t| resolver.resolve_ref(elements, t));
+            let not_part_usage = field(m, "type").and_then(|t| t.as_str()) == Some("Port")
+                || ty.is_none()
+                || resolved.is_some_and(|d| !is_part(d));
+            if not_part_usage {
                 out.push(("E992", e.file_path.clone(), format!("'{}': feature '{name}' has `role:`, which is recognised on a part usage only (a feature typed by a PartDef or Part)", e.qualified_name)));
             }
         }
@@ -1016,6 +1047,7 @@ fn role_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     out
 }
 
+/// The nearest `domain:` along an element's definition chain.
 fn domain_of(elements: &[RawElement], resolver: &Resolver, e: &RawElement) -> Option<String> {
     system::chain(elements, resolver, e)
         .iter()

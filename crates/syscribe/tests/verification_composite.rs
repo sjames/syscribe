@@ -162,3 +162,49 @@ fn inject_marks_faults_of_environment_parts() {
     let env: Vec<bool> = v["sets"].as_array().unwrap().iter().map(|s| s["environment"].as_bool().unwrap()).collect();
     assert_eq!(env.iter().filter(|e| **e).count(), 1, "{v}");
 }
+
+#[test]
+fn an_architecture_composite_with_an_undomained_part_is_still_architecture() {
+    // a cable with no `domain:` in a domain-less Board: Board's connections still count as architecture
+    let mut f = base();
+    edit(&mut f, "Arch/Board.md", "domain: software\n", "");
+    edit(&mut f, "Arch/Board.md", "  - {name: relay, typedBy: Arch::Relay}\n", "  - {name: relay, typedBy: Arch::Relay}\n  - {name: cable, typedBy: Arch::Cable}\n");
+    f.insert("Arch/Cable.md", "---\ntype: PartDef\nname: Cable\n---\n".into());
+    let out = validate(&f);
+    assert!(lines(&out, "W991").is_empty(), "{out}");
+}
+
+#[test]
+fn a_composite_with_an_environment_part_is_never_architecture() {
+    // every product part of Bench2 is an architecture element; its environment part makes it a verification composite
+    let mut f = base();
+    f.insert(
+        "Exec/Bench2.md",
+        "---\ntype: PartDef\nname: Bench2\nfeatures:\n  - {name: env, typedBy: Arch::Sensor, role: environment}\n  - {name: mgr, typedBy: Arch::Manager}\n  - {name: rel, typedBy: Arch::Relay}\nconnections:\n  - {from: mgr.trip, to: rel.cmd}\n  - {from: rel.cmd, to: mgr.samples}\n---\n".into(),
+    );
+    let out = validate(&f);
+    assert!(lines(&out, "W991").iter().any(|l| l.contains("connection rel.cmd → mgr.samples of 'Exec::Bench2' has no counterpart")), "{out}");
+}
+
+#[test]
+fn a_missing_connection_between_elements_used_directly_is_reported() {
+    let mut f = base();
+    edit(&mut f, "Exec/Bench.md", "  - {from: mon.out, to: rel.cmd}\n", "");
+    let out = validate(&f);
+    assert!(lines(&out, "W991").iter().any(|l| l.contains("architecture connection 'Arch::Manager.trip' → 'Arch::Relay.cmd' (in 'Arch::Board') has no counterpart in 'Exec::Bench'")), "{out}");
+}
+
+#[test]
+fn coverage_gates_ignore_environment_parts() {
+    let mut f = base();
+    edit(&mut f, "Exec/StimM.md", "effect: {send: Sample, via: out}}\n", "effect: {send: Sample, via: out}}\n      - {target: Never, accept: Stop}\n  - {name: Never}\n");
+    let root = write(&f);
+    let o = Command::new(env!("CARGO_BIN_EXE_syscribe")).arg("-m").arg(&root).args(["simulate", "Exec::Bench", "--coverage", "--min-states", "100"]).output().unwrap();
+    let t = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+    assert!(t.contains("coverage of Exec::Bench.stim (Exec::StimM) [environment]") && t.contains("states        1/2"), "{t}");
+    assert!(!t.contains("coverage gate"), "{t}");
+    assert_eq!(o.status.code(), Some(0), "{t}");
+    let json = run(&f, &["simulate", "Exec::Bench", "--coverage", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&json[json.find('{').unwrap()..]).unwrap();
+    assert_eq!(v["coverage"]["parts"][0]["basis"]["machine"], "Exec::Bench.stim (Exec::StimM)", "the label keeps its shape; `role` carries the role");
+}

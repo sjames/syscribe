@@ -71,7 +71,7 @@ features:
 ---
 ```
 
-An environment part is not the product. Its connections are not compared with the architecture (`W991`), it is never evidence for a requirement (`W992`), and a `models:` or `portMap:` written on its usage is ignored with `W993`. `simulate --coverage` lists it with `[environment]` and leaves it out of the aggregate; `inject` lists the environment parts and marks a fault set that touches only them `[environment]`, since that fault breaks the test set-up rather than the product. An architecture element used directly is its own counterpart: `mon.out → supervisor.trip` is checked against the architecture connection into `Supervisor.trip`, and the requirements `Supervisor` satisfies are exercised. A `role:` other than `environment`, or on a port, is `E992`.
+An environment part is not the product. Its connections are not compared with the architecture (`W991`), it is never evidence for a requirement (`W992`), and a `models:` or `portMap:` written on its usage is ignored with `W993`. `simulate --coverage` lists it with `[environment]` and leaves it out of the aggregate; `inject` lists the environment parts and marks a fault set that touches only them `[environment]`, since that fault breaks the test set-up rather than the product. An architecture element used directly is its own counterpart: `mon.out → supervisor.trip` is checked against the architecture connection into `Supervisor.trip`, and the requirements `Supervisor` satisfies are exercised. A `role:` other than `environment`, or on a port, is `E992`. A `models:` on the environment part's definition still applies to that definition; only one on the usage is ignored. The coverage gates of `simulate --coverage` judge product parts only.
 
 ## Queries
 
