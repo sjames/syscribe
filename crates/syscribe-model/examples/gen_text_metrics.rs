@@ -8,7 +8,7 @@
 
 use ab_glyph::{Font, FontRef};
 
-/// U+0020–U+017E (Basic Latin, Latin-1, Latin Extended-A), then the punctuation and symbols diagram labels use.
+/// U+0020–U+017F (Basic Latin, Latin-1, Latin Extended-A), then the punctuation and symbols diagram labels use.
 fn chars() -> Vec<char> {
     let mut v: Vec<char> = (0x20u32..=0x7E).chain(0xA0..=0x17F).filter_map(char::from_u32).collect();
     v.extend("‐–—‘’‚“”„•…‰‹›€™←↑→↓↔⇒≈≠≤≥−×÷±°µΩαβγδεθλμπστφω√∞".chars());

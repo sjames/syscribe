@@ -42,14 +42,18 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
 (REQ-TRS-LINK-002); without `[links]` both are inert.
 
 `--all` (GH #339) writes every `Diagram` to `<out-dir>/<qname path>.<ext>`
-(default `<root>/generated`, SVG unless `--format` says otherwise), rewriting
-only files whose content changed and removing files of that format that no
-diagram renders any more. A diagram with nothing to draw (a hand-drawn
-companion) is reported `skipped:` and is not an error. `--check` writes
-nothing and exits 1 naming each file that differs, is missing or is left over,
-so a committed directory of renders can gate CI. Text is measured with metrics
-compiled into syscribe, never the installed fonts, so a render is the same
-bytes on every machine (a PlantUML `!include` names an absolute path).
+(default `<root>/generated`, or `<root>/generated/<CONF-id>` with `--config`;
+SVG unless `--format` says otherwise) and records what it wrote in
+`<out-dir>/.syscribe-generated`. It rewrites only files whose content changed
+and removes only a file that record names and no diagram renders any more; a
+directory containing the model is refused. A hand-authored diagram, a kind
+with no mapping in the format and a companion picture are reported `skipped:`;
+any other render failure is an error that keeps the diagram's file and exits 1.
+`--check` writes nothing and exits 1 naming each file that differs, is missing
+or is left over, so a committed directory of renders can gate CI. Text is
+measured with metrics compiled into syscribe, never the installed fonts, and a
+PlantUML style `!include` is written relative to the file, so a render is the
+same bytes on every machine and checkout.
 
 ## OPTIONS
     --format <plantuml|mermaid|svg|dot>   Output format (default: plantuml). Any
@@ -61,7 +65,8 @@ bytes on every machine (a PlantUML `!include` names an absolute path).
     --out <file>                      Write to <file> (parent directories are
                                       created) instead of stdout.
     --all                             Every Diagram of the model, into --out-dir.
-    --out-dir <dir>                   With --all: the directory (default <root>/generated).
+    --out-dir <dir>                   With --all: the directory (default <root>/generated,
+                                      or <root>/generated/<CONF-id> with --config).
     --check                           With --all: write nothing; exit 1 when a file is
                                       out of date, missing or left over.
 
@@ -70,7 +75,8 @@ bytes on every machine (a PlantUML `!include` names an absolute path).
     1  element '<qname>' not found (nothing on stdout); '<qname>' is not a
        Diagram; svg requested for a diagram with no shapes to draw; a
        diagramKind with no mapping for the format; invalid --format; with
-       --check, a render out of date
+       --all, a diagram that fails to render, an --out-dir containing the
+       model, or (with --check) a render out of date
 
 ## EXAMPLES
     syscribe -m model/ diagram export Diagrams::PowerSystemDerivedIBD --format mermaid

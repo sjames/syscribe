@@ -9,11 +9,34 @@ fn gti() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model_gti")
 }
 
-fn scratch(tag: &str) -> PathBuf {
+/// A scratch directory, removed when the test ends.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl std::ops::Deref for Scratch {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+fn scratch(tag: &str) -> Scratch {
     static N: AtomicU64 = AtomicU64::new(0);
     let d = std::env::temp_dir().join(format!("syscribe-export-all-{tag}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
     let _ = std::fs::remove_dir_all(&d);
-    d
+    Scratch(d)
+}
+
+/// A copy of model_gti in a scratch directory.
+fn gti_copy(tag: &str) -> Scratch {
+    let s = scratch(tag);
+    copy_dir(&gti(), &s);
+    s
 }
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -69,7 +92,6 @@ fn every_format_renders_the_same_bytes_twice() {
         }
         let (fa, fb) = (files(&a), files(&b));
         assert!(fa.len() >= 8, "{format}: {:?}", fa.iter().map(|f| &f.0).collect::<Vec<_>>());
-        // PlantUML names its style include by absolute path, which is the same within one checkout
         assert_eq!(fa, fb, "{format}: two runs differ");
     }
 }
@@ -94,8 +116,7 @@ fn every_svg_shape_and_edge_names_its_model_element() {
 
 #[test]
 fn editing_a_drawn_element_makes_the_check_fail_until_regenerated() {
-    let root = scratch("edit");
-    copy_dir(&gti(), &root);
+    let root = gti_copy("edit");
     let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
     assert_eq!(c, 0, "{o}");
     let f = root.join("System/GridTieInverter.md");
@@ -114,8 +135,7 @@ fn editing_a_drawn_element_makes_the_check_fail_until_regenerated() {
 
 #[test]
 fn a_render_no_diagram_produces_is_reported_then_removed() {
-    let root = scratch("stale");
-    copy_dir(&gti(), &root);
+    let root = gti_copy("stale");
     std::fs::remove_file(root.join("Diagrams/GtiPowerView.md")).unwrap();
     std::fs::write(root.join("generated/Diagrams/Notes.txt"), "kept: not a render\n").unwrap();
     let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
@@ -132,8 +152,7 @@ fn a_render_no_diagram_produces_is_reported_then_removed() {
 
 #[test]
 fn a_missing_render_is_reported() {
-    let root = scratch("missing");
-    copy_dir(&gti(), &root);
+    let root = gti_copy("missing");
     std::fs::remove_file(root.join("generated/Diagrams/GtiBdd.svg")).unwrap();
     let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
     assert_eq!(c, 1, "{o}");
@@ -145,4 +164,111 @@ fn all_takes_at_most_one_configuration() {
     let (o, c) = run(&gti(), &["diagram", "export", "--all", "--check", "--config", "CONF-GTI-US-M3-001", "--config", "CONF-GTI-US-M3-001"]);
     assert_eq!(c, 1, "{o}");
     assert!(o.contains("one --config"), "{o}");
+}
+
+#[test]
+fn renders_do_not_depend_on_where_the_checkout_is() {
+    // two checkouts at different paths, and the default output directory inside each: PlantUML names its style
+    // `!include` relative to the file, so even its text is the same
+    let (a, b) = (gti_copy("where-a"), gti_copy("where-b"));
+    let style = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.plantuml");
+    for root in [&a, &b] {
+        // model_gti's style file is `../.plantuml/sysml.iuml`, beside the model in the checkout
+        copy_dir(&style, &root.join("../.plantuml"));
+        std::fs::remove_dir_all(root.join("generated")).unwrap();
+    }
+    for format in ["svg", "plantuml"] {
+        for root in [&a, &b] {
+            let (o, c) = run(root, &["diagram", "export", "--all", "--format", format]);
+            assert_eq!(c, 0, "{format}: {o}");
+        }
+        assert_eq!(files(&a.join("generated")), files(&b.join("generated")), "{format}");
+    }
+    let puml = std::fs::read_to_string(a.join("generated/Diagrams/GtiBdd.puml")).unwrap();
+    assert!(puml.contains("!include ../../../.plantuml/sysml.iuml\n"), "{puml}");
+    let _ = std::fs::remove_dir_all(a.join("../.plantuml"));
+}
+
+#[test]
+fn only_files_the_export_wrote_are_ever_removed() {
+    let root = gti_copy("safe");
+    // a hand-drawn picture of the export's format in the output directory, and the hand-drawn companions beside the
+    // diagrams, exported into their own directory
+    std::fs::write(root.join("generated/Diagrams/Hand.svg"), "<svg/>").unwrap();
+    let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
+    assert_eq!(c, 0, "an unlisted file is not left over: {o}");
+    let (o, c) = run(&root, &["diagram", "export", "--all"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(root.join("generated/Diagrams/Hand.svg").exists(), "{o}");
+    let diagrams = root.join("Diagrams");
+    for _ in 0..2 {
+        let (o, c) = run(&root, &["diagram", "export", "--all", "--out-dir", diagrams.to_str().unwrap()]);
+        assert_eq!(c, 0, "{o}");
+        assert!(!o.contains("removed"), "{o}");
+    }
+    assert!(diagrams.join("GtiFirmwareView.svg").exists() && diagrams.join("GtiBlockDefinitionView.svg").exists());
+    // a directory that holds the model is refused
+    for dir in [root.to_str().unwrap().to_string(), format!("{}/..", root.display())] {
+        let (o, c) = run(&root, &["diagram", "export", "--all", "--out-dir", &dir]);
+        assert_eq!(c, 1, "{o}");
+        assert!(o.contains("contains the model"), "{o}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_manifest_entry_through_a_link_never_removes_a_file_outside() {
+    let root = gti_copy("link");
+    let outside = scratch("outside");
+    std::fs::create_dir_all(&*outside).unwrap();
+    std::fs::write(outside.join("keep.svg"), "<svg/>").unwrap();
+    std::os::unix::fs::symlink(&*outside, root.join("generated/ext")).unwrap();
+    let m = root.join("generated/.syscribe-generated");
+    let mut text = std::fs::read_to_string(&m).unwrap();
+    text.push_str("ext/keep.svg\n../escape.svg\n");
+    std::fs::write(&m, text).unwrap();
+    std::fs::write(root.join("escape.svg"), "<svg/>").unwrap();
+    let (o, c) = run(&root, &["diagram", "export", "--all"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(outside.join("keep.svg").exists() && root.join("escape.svg").exists(), "{o}");
+}
+
+#[test]
+fn a_diagram_that_fails_to_render_fails_the_run_and_keeps_its_file() {
+    let root = gti_copy("fail");
+    let d = root.join("Diagrams/GtiBdd.md");
+    let src = std::fs::read_to_string(&d).unwrap();
+    std::fs::write(&d, src.replace("subject: System::GridTieInverter", "subject: System::NoSuchPart")).unwrap();
+    assert_ne!(std::fs::read_to_string(&d).unwrap(), src, "fixture moved");
+    let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("error:") && o.contains("GtiBdd") && !o.contains("left over"), "{o}");
+    let (o, c) = run(&root, &["diagram", "export", "--all"]);
+    assert_eq!(c, 1, "{o}");
+    assert!(o.contains("removed nothing") && root.join("generated/Diagrams/GtiBdd.svg").exists(), "{o}");
+}
+
+#[test]
+fn one_configuration_renders_beside_the_whole_model() {
+    let root = gti_copy("config");
+    let before = files(&root.join("generated/Diagrams"));
+    let (o, c) = run(&root, &["diagram", "export", "--all", "--config", "CONF-GTI-US-M3-001"]);
+    assert_eq!(c, 0, "{o}");
+    assert!(root.join("generated/CONF-GTI-US-M3-001/Diagrams/GtiIbd.svg").exists(), "{o}");
+    assert_eq!(files(&root.join("generated/Diagrams")), before, "the whole-model renders are untouched");
+    let (o, c) = run(&root, &["diagram", "export", "--all", "--check"]);
+    assert_eq!(c, 0, "{o}");
+}
+
+#[test]
+fn flags_that_do_not_fit_are_refused() {
+    for args in [
+        &["diagram", "export", "Diagrams::GtiBdd", "--check"][..],
+        &["diagram", "export", "Diagrams::GtiBdd", "--out-dir", "x"][..],
+        &["diagram", "export", "--all", "Diagrams::GtiBdd"][..],
+        &["diagram", "export", "--all", "--out", "x.svg"][..],
+    ] {
+        let (o, c) = run(&gti(), args);
+        assert_eq!(c, 1, "{args:?}: {o}");
+    }
 }

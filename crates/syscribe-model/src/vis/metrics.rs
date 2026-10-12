@@ -7,7 +7,7 @@
 //! - [`ApproxMetrics`]: a per-character estimate used when no suitable
 //!   system font is installed (containers, CI images without fonts);
 //! - [`BundledMetrics`]: the advance widths of Liberation Sans compiled into
-//!   the binary ([`super::metrics_table`]), the same on every machine.
+//!   the binary (the generated `metrics_table` module), the same on every machine.
 //!
 //! [`load_metrics`] keeps the family stack the MagicGrid report has always
 //! used (Roboto, Inter, Noto Sans, DejaVu Sans, any sans), so its SVG output
@@ -18,7 +18,6 @@
 //! the `font-family` stack the static SVG writer names and the browser's CSS
 //! must match (`ADR-SYS-VIS-001`, addendum); the sizer adds a safety margin on
 //! top so a slightly wider browser font never clips a label.
-
 
 use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
 

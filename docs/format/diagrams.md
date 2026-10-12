@@ -386,7 +386,9 @@ and run `syscribe diagram export --all --check` in CI: it fails, naming the file
 changed what a diagram draws and nobody regenerated it. The output does not depend on the machine.
 Box sizes come from Liberation Sans advance widths compiled into syscribe (a metric twin of
 Helvetica and Arial), plus a margin, so a browser drawing the SVG with its own sans font does not
-clip a label. Hand-drawn companion diagrams are skipped. See `model_gti/generated/` for the
+clip a label. Hand-drawn companion diagrams are skipped, and the export only ever removes files it
+recorded in `generated/.syscribe-generated`, so a hand-drawn picture kept there is safe. With
+`--config CONF-X` the renders go to `generated/CONF-X/`. See `model_gti/generated/` for the
 grid-tie inverter's renders.
 
 ### Codes

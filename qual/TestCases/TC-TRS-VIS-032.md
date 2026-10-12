@@ -15,6 +15,12 @@ testFunctions:
   - a_render_no_diagram_produces_is_reported_then_removed
   - a_missing_render_is_reported
   - all_takes_at_most_one_configuration
+  - renders_do_not_depend_on_where_the_checkout_is
+  - only_files_the_export_wrote_are_ever_removed
+  - a_manifest_entry_through_a_link_never_removes_a_file_outside
+  - a_diagram_that_fails_to_render_fails_the_run_and_keeps_its_file
+  - one_configuration_renders_beside_the_whole_model
+  - flags_that_do_not_fit_are_refused
 tags:
   - diagrams
 ---
@@ -36,4 +42,8 @@ Feature: Deterministic diagram exports (TC-TRS-VIS-032)
   Scenario: drift
     When a drawn element is renamed, a render is deleted, or a diagram is removed
     Then --check exits 1 naming the file, and export --all brings the directory back in line
+
+  Scenario: safety
+    When the output directory holds files the export did not write, links, or a failing diagram
+    Then nothing outside the export's own record is removed, and a failure fails the run
 ```
