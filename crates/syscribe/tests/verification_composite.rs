@@ -126,7 +126,7 @@ fn an_unknown_role_or_a_role_off_a_part_usage_is_e992() {
     let mut f = base();
     edit(&mut f, "Exec/Bench.md", "role: environment}", "role: enviroment}");
     let out = validate(&f);
-    assert!(lines(&out, "E992").iter().any(|l| l.contains("feature 'stim' has `role: enviroment`, which is not a role (the roles are: environment)")), "{out}");
+    assert!(lines(&out, "E992").iter().any(|l| l.contains("feature 'stim' has `role: enviroment`, which is not a role (the roles are: environment, external)")), "{out}");
     let mut f = base();
     edit(&mut f, "Exec/Stim.md", "{name: out, type: Port, direction: out}", "{name: out, type: Port, direction: out, role: environment}");
     let out = validate(&f);

@@ -35,6 +35,8 @@ struct Usage<'a> {
     multiplicity: Option<String>,
     /// The inline feature's own `appliesWhen:` (GH #336).
     applies_when: Option<String>,
+    /// `role: external` (an actor) or `role: environment` (the test set-up) (GH #337).
+    role: Option<String>,
 }
 
 /// The part usages `owner` declares: its inline part features, then (when `with_children`) its child
@@ -50,6 +52,7 @@ fn usages_of<'a>(owner: &'a RawElement, with_children: bool, elements: &'a [RawE
             own_ports: Vec::new(),
             multiplicity: f.multiplicity,
             applies_when: f.applies_when,
+            role: f.usage_role,
         })
         .collect();
     if !with_children {
@@ -70,6 +73,7 @@ fn usages_of<'a>(owner: &'a RawElement, with_children: bool, elements: &'a [RawE
             own_ports: features_of(child, elements, resolver).into_iter().filter(|f| f.role == FeatureRole::Port).collect(),
             multiplicity: child.frontmatter.multiplicity.clone(),
             applies_when: None,
+            role: None,
         });
     }
     usages
@@ -183,7 +187,12 @@ impl Ctx<'_, '_> {
             }
         };
         node.element_type = Some("Part".to_string());
-        node.stereotype = Some("part".to_string());
+        // an actor outside the product, or a part of the test set-up, says so (GH #337); the latter is drawn dashed
+        node.stereotype = Some(match u.role.as_deref() {
+            Some("external") => "actor",
+            Some("environment") => "environment",
+            _ => "part",
+        }.to_string());
         let def_banners = u.definition.map(|d| super::super::banners_of(d, elements, resolver)).unwrap_or_default();
         node.mark = usage_mark(u, &node.banners.iter().chain(def_banners.iter()).cloned().collect::<Vec<_>>());
         graph.nodes.push(node);

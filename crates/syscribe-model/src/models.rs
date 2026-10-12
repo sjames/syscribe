@@ -498,7 +498,7 @@ pub fn exercised_by(
                 continue;
             }
             // an environment part (GH #332) exercises nothing of the product
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue;
             }
             if let Some(d) = field(m, "typedBy")
@@ -618,6 +618,7 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
 /// Every `models:` finding (E990, E991, W990, W991, W992). Empty unless some part declares `models:`.
 pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     let mut out = role_findings(elements, resolver);
+    out.extend(boundary_port_findings(elements, resolver));
     if !active(elements) {
         return out;
     }
@@ -819,7 +820,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             continue;
         }
         for m in view.features.iter().filter_map(|f| f.as_mapping()) {
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue;
             }
             let Some(d) = field(m, "typedBy")
@@ -874,7 +875,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             ) else {
                 continue;
             };
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue; // GH #332: not the product, so no architecture counterpart
             }
             let (models, pm, _) = usage_binding(elements, resolver, def, m);
@@ -1066,6 +1067,49 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 tc.file_path.clone(),
                 format!("{tc_id} verifies {r}, satisfied by {names}, but {why}: its scenarios cannot be evidence for it"),
             ));
+        }
+    }
+    out
+}
+
+/// W996 (GH #337): in a context composite (a part that holds at least one `role: external` usage), a port of a
+/// product part that no connection, flow or binding of the composite reaches. Opt-in by construction: it applies only
+/// where a context composite says which parts are actors.
+fn boundary_port_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for c in elements.iter().filter(|e| is_part(e)) {
+        if !system::is_context(c) {
+            continue;
+        }
+        let usages: Vec<&Mapping> = c.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping()).collect();
+        let mut reached: BTreeSet<String> = BTreeSet::new();
+        for list in [&c.frontmatter.connections, &c.frontmatter.flow_connections, &c.frontmatter.binding_connections] {
+            for entry in list.iter().flatten() {
+                if let Some(p) = crate::connections::parse_entry(entry) {
+                    reached.extend(p.endpoints.into_iter().map(|e| e.chain.trim().replace("::", ".")));
+                }
+            }
+        }
+        for m in usages.iter().filter(|m| !system::is_outside(m) && field(m, "type").and_then(|t| t.as_str()) != Some("Port")) {
+            let Some(name) = field(m, "name").and_then(|n| n.as_str()) else { continue };
+            let Some(def) = field(m, "typedBy").and_then(|t| t.as_str()).and_then(|t| resolver.resolve_ref(elements, t)).filter(|d| is_part(d)) else {
+                continue;
+            };
+            for p in def.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping()) {
+                let Some(pname) = field(p, "name").and_then(|n| n.as_str()) else { continue };
+                let is_port = field(p, "type").and_then(|t| t.as_str()) == Some("Port")
+                    || field(p, "typedBy")
+                        .and_then(|t| t.as_str())
+                        .and_then(|t| resolver.resolve_ref(elements, t))
+                        .is_some_and(|t| t.frontmatter.element_type == Some(ElementType::PortDef));
+                if is_port && !reached.contains(&format!("{name}.{pname}")) {
+                    out.push((
+                        "W996",
+                        c.file_path.clone(),
+                        format!("'{}': port '{pname}' of '{name}' ({}) connects to nothing in this context; connect it to an actor (`role: external`) or another part", c.qualified_name, def.qualified_name),
+                    ));
+                }
+            }
         }
     }
     out

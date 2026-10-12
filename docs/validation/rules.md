@@ -387,7 +387,7 @@ Dormant unless some part declares `models:`, except `E992`, which checks every `
 | W990 | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
 | W991 | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections and environment parts are skipped, and an architecture element used directly is its own counterpart (GH #330, #332, §12.11) |
 | W992 | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
-| E992 | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
+| E992 | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`, `external`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
 | W993 | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 
 ## Executable evidence (W994–W995, §12.12)
@@ -398,6 +398,14 @@ Scenario-level `@verifies` claims, checked against the TestCase's `verifies:`. `
 |---|---|---|
 | W994 | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
 | W995 | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
+
+## System context (W996, §12.13)
+
+Opt-in: only a part that holds a `role: external` usage is checked.
+
+| Code | Severity | Condition |
+|---|---|---|
+| W996 | Warning | in a context composite (a part holding a `role: external` usage), a port of a product part's definition that no connection, flow or binding of the composite reaches (GH #337, §12.13) |
 
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 

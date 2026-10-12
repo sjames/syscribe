@@ -6264,7 +6264,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
         for elem in elements {
             if is_type_def(elem)
-                && !referenced_defs.contains(&elem.qualified_name) {
+                && !referenced_defs.contains(&elem.qualified_name)
+                // a context composite is the root of its context (GH #337)
+                && !crate::system::is_context(elem) {
                     findings.push(warning(
                         "W007",
                         &elem.file_path,

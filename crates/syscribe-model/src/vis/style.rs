@@ -197,8 +197,10 @@ pub fn node_style(node: &Node) -> NodeStyle {
         stroke: stroke.to_string(),
         header_fill: header.then(|| stroke.to_string()),
         text: TEXT.to_string(),
-        // an `optional` (appliesWhen-gated) part, GH #336, is dashed like an unresolved one
-        dashed: !node.resolved || node.mark.as_ref().is_some_and(|m| m.badges.iter().any(|b| b == "optional")),
+        // unresolved, an `optional` (appliesWhen-gated) part (GH #336), or a part of the test set-up (`role: environment`, GH #337)
+        dashed: !node.resolved
+            || node.mark.as_ref().is_some_and(|m| m.badges.iter().any(|x| x == "optional"))
+            || node.stereotype.as_deref() == Some("environment"),
         stroke_width,
     }
 }

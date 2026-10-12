@@ -8,6 +8,7 @@ satisfies:
   - REQ-GTI-HW-005
 features:
   - {name: cmd, type: Port, direction: in}
+  - {name: initiator, type: Port, direction: in}
   - {name: dcLine, type: Port, direction: out}
 ---
 
