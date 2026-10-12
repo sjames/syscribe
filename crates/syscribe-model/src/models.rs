@@ -401,6 +401,45 @@ fn abstracted_requirements(
         .collect()
 }
 
+/// The architecture elements satisfying each requirement, by the requirement's qualified name (GH #333/#344).
+pub fn satisfiers(elements: &[RawElement], resolver: &Resolver) -> HashMap<String, Vec<String>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for e in elements.iter().filter(|e| is_architecture(elements, resolver, e)) {
+        for r in e.frontmatter.satisfies.iter().flatten() {
+            if let Some(req) = resolver.resolve_ref(elements, r) {
+                let list = out.entry(req.qualified_name.clone()).or_default();
+                if !list.contains(&e.qualified_name) {
+                    list.push(e.qualified_name.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether `reach` (what a subject exercises) can be evidence for requirement `req` (a qualified name) satisfied by the
+/// architecture elements `satisfiers`: some part reaches one of them without naming `req` in `abstracts:`. A requirement
+/// no architecture element satisfies has nothing to compare, so any subject counts (as for `W992`).
+pub fn evidences(elements: &[RawElement], resolver: &Resolver, reach: &Exercised, req: &str, satisfiers: &[String]) -> bool {
+    satisfiers.is_empty()
+        || satisfiers.iter().filter_map(|s| resolver.get(elements, s)).any(|s| keys(elements, resolver, s).iter().any(|k| reach.evidences(k, req)))
+}
+
+/// Whether part definition `def` is, or models, one of `targets` (architecture qualified names): the parts whose
+/// machines carry the behaviour of those elements.
+pub fn carries(elements: &[RawElement], resolver: &Resolver, def: &RawElement, usage: Option<&Mapping>, targets: &[String]) -> bool {
+    let mine: BTreeSet<String> = if is_architecture(elements, resolver, def) {
+        keys_up(elements, resolver, def)
+    } else {
+        let models = match usage {
+            Some(m) => usage_binding(elements, resolver, def, m).0,
+            None => def_binding_fields(elements, resolver, def).0,
+        };
+        models.iter().filter_map(|r| resolver.resolve_ref(elements, r)).flat_map(|t| keys_up(elements, resolver, t)).collect()
+    };
+    targets.iter().any(|t| mine.contains(t))
+}
+
 /// [`keys`] plus the supertypes along the definition chain: a requirement satisfied by an abstract base is exercised by a
 /// part that models one of its specialisations.
 fn keys_up(elements: &[RawElement], resolver: &Resolver, e: &RawElement) -> BTreeSet<String> {
@@ -469,6 +508,27 @@ pub fn exercised_by(
             {
                 stack.push((d, Some(m.clone())));
             }
+        }
+    }
+    out
+}
+
+/// What a state-machine `subject` exercises: the parts that exhibit it, and what each models (GH #344).
+pub fn exercised_by_machine(elements: &[RawElement], resolver: &Resolver, machine: &RawElement) -> Exercised {
+    let mut out = Exercised::default();
+    for e in elements.iter().filter(|e| is_part(e)) {
+        let ch = system::chain(elements, resolver, e);
+        let exhibits = ch.iter().flat_map(|d| d.frontmatter.exhibits_states.iter().flatten()).any(|st| resolver.resolve_ref(elements, st).is_some_and(|m| m.qualified_name == machine.qualified_name));
+        if !exhibits {
+            continue;
+        }
+        if is_architecture(elements, resolver, e) {
+            out.add(keys_up(elements, resolver, e), &BTreeSet::new());
+        }
+        let (models, _, abstracts) = def_binding_fields(elements, resolver, e);
+        let left_out = abstracted_requirements(elements, resolver, &abstracts);
+        for t in models.iter().filter_map(|r| resolver.resolve_ref(elements, r)).filter(|t| is_architecture(elements, resolver, t)) {
+            out.add(keys_up(elements, resolver, t), &left_out);
         }
     }
     out

@@ -388,6 +388,14 @@ Dormant unless some part declares `models:`, except `E992`, which checks every `
 | E992 | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
 | W993 | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
 
+## Executable evidence (W994–W995, §12.12)
+
+Scenario-level `@verifies` claims, checked against the TestCase's `verifies:`. `requirement-coverage` and `exec-coverage` report the evidence itself.
+
+| Code | Severity | Condition |
+|---|---|---|
+| W994 | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
+| W995 | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
 
 ## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 

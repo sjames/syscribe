@@ -39,6 +39,10 @@ cargo run --package syscribe-server -- -m model/
 ./target/debug/syscribe -m model/ plantuml render --jar /path/to/plantuml.jar
 ./target/debug/syscribe -m model/ plantuml render --dry-run   # preview which files would be rendered
 
+# Executable evidence (GH #333/#344; see docs/model-guide/executable-evidence.md)
+./target/debug/syscribe -m model_gti/ requirement-coverage --config CONF-GTI-US-M3-001   # verdict per requirement
+./target/debug/syscribe -m model_gti/ exec-coverage --config CONF-GTI-US-M3-001          # modelled/exercised per element
+
 # Variability / product-line commands (opt-in; see docs/model-guide/variability.md)
 ./target/debug/syscribe -m model/ matrix                 # Requirement × Configuration coverage grid
 ./target/debug/syscribe -m model/ feature-check          # holistic feature-model validation

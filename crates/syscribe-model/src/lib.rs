@@ -30,6 +30,7 @@ pub mod fault_campaign;
 pub mod fta;
 pub mod metrics;
 pub mod models;
+pub mod exec_evidence;
 pub mod port_types;
 pub mod mutate;
 pub mod constraints;

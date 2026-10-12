@@ -202,6 +202,7 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | ID scheme validation | REQ-TRS-ID-001–008 | TC-TRS-ID-001–008 |
 | Behavioural model trace `models:` E990–E991, W990–W992 (§12.11) | REQ-TRS-MODELS-001 | TC-TRS-MODELS-001 |
 | Verification composites, `role: environment` E992, W993 (§12.11) | REQ-TRS-VCOMP-001 | TC-TRS-VCOMP-001 |
+| Executable evidence: `requirement-coverage`, `exec-coverage`, `@verifies` W994, W995 (§12.12) | REQ-TRS-EXECEV-001 | TC-TRS-EXECEV-001 |
 | Typed ports: events and payloads against `PortDef` items, E932/E935 (§8.8.5) | REQ-TRS-PORTTYPE-001 | TC-TRS-PORTTYPE-001 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |
 | Model-time errors E101–E106, E310–E315 (§11.12) | REQ-TRS-VAL-002 | TC-TRS-VAL-002 |

@@ -184,6 +184,21 @@ struct CoverageArgs {}
 struct LinkTypesArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ExecEvidenceArgs {
+    /// Configuration id to project the model onto first (needed when machines use feature parameters).
+    config: Option<String>,
+    /// Restrict the report to these requirement ids/qnames (requirement_coverage) or element qnames (exec_coverage).
+    only: Option<Vec<String>>,
+    /// Thresholds (percent) below which executable evidence is weak.
+    min_states: Option<f64>,
+    min_transitions: Option<f64>,
+    min_guards: Option<f64>,
+    min_score: Option<f64>,
+    /// Compute mutation scores now (slower) instead of reading those `mutate --record` kept.
+    mutate: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct SysmlSubmodelsArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
@@ -570,6 +585,23 @@ fn fn_verdict_str(v: FnVerdict) -> &'static str {
 
 fn ok(v: Value) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::success(vec![Content::json(v)?]))
+}
+
+/// The executable evidence of `requirement_coverage`/`exec_coverage`, on the model projected onto `config` if given.
+fn exec_evidence_of(store: &store::McpStore, args: &ExecEvidenceArgs) -> Result<syscribe_model::exec_evidence::Evidence, ErrorData> {
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
+    let projected = match args.config.as_deref() {
+        None => None,
+        Some(c) => match resolve_config_flag(&store.elements, c) {
+            SelectionOutcome::Dormant => None,
+            SelectionOutcome::Resolved(sel) => Some(project(&store.elements, &sel)),
+            SelectionOutcome::Error(m) => return Err(ErrorData::invalid_params(m, None)),
+        },
+    };
+    let view = projected.as_deref().unwrap_or(&store.elements);
+    let thresholds = syscribe_model::exec_evidence::Thresholds { min_states: args.min_states, min_transitions: args.min_transitions, min_guards: args.min_guards, min_score: args.min_score };
+    let req = syscribe_model::exec_evidence::Request { model_root: &store.model_root, configuration: args.config.clone(), mutate: args.mutate.unwrap_or(false), thresholds };
+    Ok(syscribe_model::exec_evidence::compute(view, &req))
 }
 
 fn tool_error(msg: impl Into<String>) -> Result<CallToolResult, ErrorData> {
@@ -2624,6 +2656,46 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         ok(syscribe_model::link_types::link_types_json(&store.elements, &store.config.link_types))
+    }
+
+    #[tool(
+        description = "Executable evidence per requirement (GH #344): runs the scenarios of the \
+        active TestCases whose subject is a state machine, action or composite, in-process, and \
+        grades each requirement executable | executable-weak | descriptive-only | unverified | \
+        not-applicable, with its scenarios, the coverage of the machines that carry it, mutation \
+        scores and scenarios that claim it without exercising what satisfies it. Same data as \
+        `requirement-coverage --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn requirement_coverage(
+        &self,
+        Parameters(args): Parameters<ExecEvidenceArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let ev = exec_evidence_of(&store, &args)?;
+        let only = args.only.unwrap_or_default();
+        let reqs: Vec<_> = ev.requirements.iter().filter(|r| only.is_empty() || only.iter().any(|o| *o == r.id || *o == r.qualified_name)).collect();
+        ok(json!({ "configuration": ev.configuration, "requirements": reqs, "scenarios": ev.scenarios, "errors": ev.errors }))
+    }
+
+    #[tool(
+        description = "Executable evidence per architecture element (GH #333): for each software or \
+        hardware part, whether it is executable itself, which executable parts model it, the \
+        models: correspondence findings naming it, how many executable scenarios exercise it, \
+        mutation scores, and how the requirements it satisfies are verified. Same data as \
+        `exec-coverage --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn exec_coverage(
+        &self,
+        Parameters(args): Parameters<ExecEvidenceArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let ev = exec_evidence_of(&store, &args)?;
+        let only = args.only.unwrap_or_default();
+        let elems: Vec<_> = ev.elements.iter().filter(|e| only.is_empty() || only.contains(&e.qualified_name)).collect();
+        let modelled = elems.iter().filter(|e| e.modelled()).count();
+        ok(json!({ "configuration": ev.configuration, "summary": { "elements": elems.len(), "modelled": modelled }, "elements": elems, "errors": ev.errors }))
     }
 
     #[tool(

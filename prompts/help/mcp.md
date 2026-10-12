@@ -133,6 +133,12 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 - `coverage_gaps {config?, status?, class?}` — the actionable subset:
   `uncovered` / `failing` / `unverified-claim` (`W010`/`W015`/`W029`).
 - `evidence {ref}` — a requirement's verification chain with ingested verdicts.
+- `requirement_coverage {config?, only?, min_states?, min_transitions?, min_guards?, min_score?, mutate?}` —
+  executable evidence per requirement: the active executable scenarios run in-process, each requirement graded
+  `executable` | `executable-weak` | `descriptive-only` | `unverified` | `not-applicable` (matches
+  `requirement-coverage --json`).
+- `exec_coverage {config?, only?, …}` — the same evidence per software/hardware element: modelled or not, the
+  scenarios that exercise it, mutation scores, its requirements by verdict (matches `exec-coverage --json`).
 - `trace_export {config?, sort?}` — the single-document traceability export
   (ADR-SYS-TREX-001): `{version: 1, modelRoot, config, sort, requirements[],
   summary}`, one entry per requirement (native `Requirement` and SysML

@@ -6684,6 +6684,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(if code.starts_with('E') { error(code, &file, &msg) } else { warning(code, &file, &msg) });
     }
 
+    // W994–W995: `@verifies` tags and `# verifies:` step comments of TestCase scenarios (GH #344).
+    for tc in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase))) {
+        for (code, msg) in crate::exec_evidence::tag_findings(elements, &resolver, tc) {
+            findings.push(warning(code, &tc.file_path, &msg));
+        }
+    }
+
     // ── Tier 2 cross-reference checks (E825-E830) ────────────────────────────
 
     // Build reverse index: csg_implemented_by[csg_id_or_qn] — used for W802

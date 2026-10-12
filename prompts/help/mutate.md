@@ -1,7 +1,7 @@
 # mutate — judge the quality of a machine's scenarios by seeding faults
 
 ## SYNOPSIS
-    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--config <C>] [--json]
+    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--config <C>] [--json]
 
 ## DESCRIPTION
 Seeds one fault at a time into the machine's IR (the model files are never touched) and
@@ -33,10 +33,16 @@ replaced; plant parts get fresh plants for every run. The report has one block p
 (`<composite>.<part> (<machine>)`) and an aggregate score; `--part <name>` restricts the analysis to one
 part and `--min-score` is checked for every part, naming the one below it.
 
+`--record` keeps each machine's score, with the hash of the machine it was computed on, in
+`<model>/.syscribe/mutation.json` (one entry per machine, replacing its earlier one). `requirement-coverage`
+and `exec-coverage` read it; a score whose machine has since changed is shown as stale. A part none of whose
+mutants was judged is not recorded.
+
 ## OPTIONS
     --part <name>        composite only: mutate just this part
     --min-score <pct>    gate: exit 2 when the score (of any part, for a composite) is below it
     --config <C>         run on the model projected onto this Configuration: feature parameters written as {{Features::F.param}} in guards, assignments and durations take its values
+    --record             keep the score(s) in .syscribe/mutation.json for requirement-coverage and exec-coverage
     --json               machine-readable report
 
 ## EXIT STATUS

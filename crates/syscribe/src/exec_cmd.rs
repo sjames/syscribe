@@ -1027,7 +1027,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
     let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--min-score" || *a == "--part").map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
-        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--json]");
+        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--json]");
         return 1;
     };
     let min = match value("--min-score").map(|v| v.parse::<f64>()) {
@@ -1065,7 +1065,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         return 1;
     };
     if resolver.resolve_ref(elems, &machine_q).is_some_and(is_composite) {
-        return mutate_composite(elems, &machine_q, &tcs, min, value("--part").as_deref(), flag("--json"), model_root);
+        return mutate_composite(elems, &machine_q, &tcs, min, value("--part").as_deref(), flag("--json"), flag("--record"), model_root);
     }
     if value("--part").is_some() {
         eprintln!("error: --part applies to a composite subject");
@@ -1124,6 +1124,12 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
         if !report.uncovered.states.is_empty() {
             println!("  states never entered: {}", report.uncovered.states.join(", "));
+        }
+    }
+    if flag("--record") {
+        let rec = syscribe_model::exec_evidence::MutationRecord { machine: report.machine.clone(), machine_hash: report.machine_hash.clone(), score: report.score, killed: report.killed, survived: report.survived, recorded_at_unix: now_unix() };
+        if let Err(code) = record_scores(model_root, vec![rec], flag("--json")) {
+            return code;
         }
     }
     if let Some(min) = min {
@@ -1624,7 +1630,29 @@ fn verified_requirements(active: &[RawElement], resolver: &syscribe_model::resol
 }
 
 /// `mutate` of a composite: every part's machine is mutated and judged by the composite scenarios (REQ-TRS-SYSMUT-001).
-fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], min: Option<f64>, only_part: Option<&str>, json: bool, model_root: &std::path::Path) -> i32 {
+fn now_unix() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// `mutate --record`: keep the scores in `.syscribe/mutation.json` for `requirement-coverage`/`exec-coverage` (GH #333).
+fn record_scores(model_root: &std::path::Path, records: Vec<syscribe_model::exec_evidence::MutationRecord>, quiet: bool) -> Result<(), i32> {
+    let n = records.len();
+    match syscribe_model::exec_evidence::record_mutation(model_root, records) {
+        Ok(path) => {
+            if !quiet {
+                println!("recorded {n} mutation score(s) in {}", path.display());
+            }
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("error: could not record the mutation scores: {e}");
+            Err(2)
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], min: Option<f64>, only_part: Option<&str>, json: bool, record: bool, model_root: &std::path::Path) -> i32 {
     use syscribe_model::sm_scen::extract_scenarios;
     let scenarios: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).collect();
     if scenarios.is_empty() {
@@ -1675,6 +1703,21 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
             if p.killed + p.survived == 0 && p.equivalent_suspect > 0 {
                 println!("  note: no mutant of this part was judged; the scenarios never exercise it");
             }
+        }
+    }
+    if record {
+        // a part whose mutants were never judged has no score worth keeping
+        let recs = report
+            .parts
+            .iter()
+            .filter(|p| p.killed + p.survived > 0)
+            .filter_map(|p| {
+                let m = model.spec.instance(&p.part).and_then(|i| model.machines[i].as_ref())?;
+                Some(syscribe_model::exec_evidence::MutationRecord { machine: m.machine.clone(), machine_hash: p.machine_hash.clone(), score: p.score, killed: p.killed, survived: p.survived, recorded_at_unix: now_unix() })
+            })
+            .collect();
+        if let Err(code) = record_scores(model_root, recs, json) {
+            return code;
         }
     }
     let mut exit = 0;

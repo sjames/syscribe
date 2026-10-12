@@ -153,6 +153,8 @@ The validation report (section 4) prints a matrix of all leaf requirements again
 | REQ-UAV-NAV-001   |               | ✓              | 1          |
 ```
 
+A `✓` says a TestCase claims the requirement, not that anything ran. `requirement-coverage` says which requirements have *executable* evidence (scenarios that ran and exercised what satisfies the requirement) and which only descriptive tests; see [Executable evidence](executable-evidence.md).
+
 ## Suspect links — has a reviewed link gone stale? (`ADR-SYS-SUSLINK-001`)
 
 A trace link asserts a relationship that was valid *when a human reviewed it*. When the

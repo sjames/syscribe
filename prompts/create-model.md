@@ -546,6 +546,7 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 - Must contain a fenced ` ```gherkin ` block (error E011).
 - First ` ```gherkin ` block must begin with `Feature:` (error E015).
 - Every `Scenario Outline:` must have an `Examples:` table (error E014).
+- When a TestCase verifies several requirements, tag each scenario with the ones it is evidence for: `@verifies REQ-A,REQ-B` on the line before `Scenario:` (GH #344). Tags only narrow `verifies:`; a tag naming a requirement outside it is `W994`, and a `verifies:` requirement no tagged scenario claims is `W995`. `requirement-coverage` then shows which requirements have executable evidence.
 
 **Getting the next ID:** `syscribe -m model/ next-id TC-AID-FC`
 

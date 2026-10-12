@@ -29,6 +29,8 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("simulate", include_str!("../../../prompts/help/simulate.md")),
             ("inject", include_str!("../../../prompts/help/inject.md")),
             ("mutate", include_str!("../../../prompts/help/mutate.md")),
+            ("requirement-coverage", include_str!("../../../prompts/help/requirement-coverage.md")),
+            ("exec-coverage", include_str!("../../../prompts/help/exec-coverage.md")),
             ("export-scxml", include_str!("../../../prompts/help/export-scxml.md")),
         ],
     ),

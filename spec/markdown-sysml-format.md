@@ -6083,6 +6083,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E980`–`E984`, `W980`–`W984`, `W987` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
 | `E960`–`E967`, `W960`–`W979` | Security-analysis completeness: TARA rows, risk inputs, attack-tree shape, zones/conduits, `VulnerabilityReport` | §13.6 |
 | `E990`–`E992`, `W990`–`W993` | Behavioural model trace (`models:`, `role:`) | §12.11 |
+| `W994`–`W995` | Executable evidence: scenario `@verifies` claims | §12.12 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6640,6 +6641,8 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it; an environment part (`role: environment`) is never evidence (GH #330, #332, §12.11) |
 | `E992` | Error | a `role:` on a composite's `features:` entry that is not a known role (`environment`), or that is on a port or on an entry not typed by a `PartDef`/`Part` (GH #332, §12.11) |
 | `W993` | Warning | a part usage marked `role: environment` carries its own `models:` or `portMap:`; it is ignored, since an environment part is not the product (GH #332, §12.11) |
+| `W994` | Warning | a scenario's `@verifies` tag or `# verifies:` step comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored (GH #344, §12.12) |
+| `W995` | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
 | `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
 | `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
 | `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
@@ -7293,6 +7296,52 @@ features:
   - {name: out, type: Port, direction: out}
 ---
 ```
+
+
+### 12.12 Executable Evidence (`@verifies`, `requirement-coverage`, `exec-coverage`)
+
+A TestCase is *executable* when it is `active`, names a `subject:` that is a state machine, an executable action or a composite part, and has Gherkin scenarios; any other TestCase that `verifies:` a requirement is *descriptive*. The executable scenarios run in-process (the interpreter of §8.13, no external toolchain), and their results are evidence for the requirements they verify, graded by one engine that two reports show from two sides: `requirement-coverage` per requirement, `exec-coverage` per software or hardware architecture element (GH #333, #344).
+
+**Scenario-level claims.** A scenario verifies the requirements of its TestCase's `verifies:`. A Gherkin tag narrows that set:
+
+```gherkin
+Feature: protection chain
+
+  @verifies REQ-GTI-SYS-030
+  Scenario: insulation below the limit prevents connection
+    ...
+
+  @invariant @verifies REQ-GTI-SYS-010,REQ-GTI-SYS-038
+  Scenario: a dead grid at power-up is never energised
+    When grid receives Set with v = 0, f = 60
+    # verifies: REQ-GTI-SW-001
+    Then supervisor is in state WaitGrid
+```
+
+`@verifies REQ-A,REQ-B`, `@verifies:REQ-A` and `@verifies(REQ-A, REQ-B)` are accepted, on the line before `Scenario:`/`Scenario Outline:` (every row of an outline inherits it) or before `Feature:` (every scenario). A `# verifies: REQ-A` comment line before a step adds its references to the scenario's claims. A scenario with no claim verifies every requirement of the TestCase. A claim never widens the set: a reference that is not a requirement in the TestCase's `verifies:` is ignored (`W994`), so `verifies:` stays the single source of the trace link (§12.1).
+
+**Evidence.** A scenario is evidence for a requirement when its subject exercises an architecture element that satisfies it: the element itself carries the machine (`exhibitsStates:`), or the subject contains a product part (not `role: environment`, §12.11) that is or models it. A requirement no architecture element satisfies has nothing to compare, and any subject counts. A scenario that claims a requirement without exercising what satisfies it is reported as *claimed but not exercised* and is not evidence.
+
+**Verdicts.**
+
+| Verdict | Condition |
+|---|---|
+| `executable` | Passing executable scenarios are evidence for it, above every threshold given |
+| `executable-weak` | Such scenarios exist, but one fails or could not run, or the coverage they give of the machines that carry the requirement (states, transitions, guard conditions) or those machines' mutation score is below a threshold |
+| `descriptive-only` | Only descriptive TestCases verify it |
+| `unverified` | Nothing verifies it |
+| `not-applicable` | Its `verificationMethod:` is `inspection` or `analysis`, or it is a parent requirement (its children carry the evidence), and no executable scenario is evidence for it |
+
+The machines that carry a requirement are the machine of a machine subject, or the machines of the product parts of a composite whose definition satisfies the requirement or models an element that does; their coverage is merged over the scenarios that are evidence for that requirement only. A mutation score is read from `<model>/.syscribe/mutation.json`, which `mutate --record` writes with the hash of the machine it ran on (a score whose machine has since changed is *stale*), or computed on demand (`--mutate`). Scenarios that use plants are not run by these reports.
+
+**Element view.** For each `Part`/`PartDef` with `domain: software` or `domain: hardware`, `exec-coverage` shows whether it carries a machine itself or is modelled by executable parts (`models:`), the `models:` correspondence findings (`E991`, `W990`, `W991`) that name it, the number of executable scenarios whose subject exercises it, the mutation scores of the machines that carry or model it, and its `satisfies:` requirements split by verdict.
+
+Both reports gate CI: `requirement-coverage --min-executable <pct>` (the share of applicable requirements that are `executable`) and `--require <REQ>`; `exec-coverage --min-modelled <pct>` and `--require <element>` (modelled and exercised). A missed gate exits 2.
+
+| Code | Condition |
+|---|---|
+| `W994` | A scenario's `@verifies` tag or `# verifies:` comment names a reference that is not a requirement in its TestCase's `verifies:`; the claim is ignored |
+| `W995` | Every scenario of a TestCase is tagged, and none claims one of the TestCase's `verifies:` requirements: no scenario is evidence for it |
 
 ---
 

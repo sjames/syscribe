@@ -82,4 +82,4 @@ An environment part is not the product. Its connections are not compared with th
 * A `models:` written on a part usage (a composite's `features:` entry) is checked and counted for `W992`, but `links`, `refs`, `follow`, `impact` and suspect-link detection see only a `models:` on a definition.
 * `W991` matches direct architecture connections. Two executable parts that model elements at different levels of the hierarchy, joined in the architecture through a delegated port, are reported; connections between a software and a hardware element are not checked at all.
 
-The worked example is `model_gti/Behavior/Parts/` and `model_gti/Behavior/Chain/ProtectionChain.md`.
+The worked example is `model_gti/Behavior/Parts/` and `model_gti/Behavior/Chain/ProtectionChain.md`. `exec-coverage` and `requirement-coverage` report what these models make executable: see [Executable evidence](executable-evidence.md).

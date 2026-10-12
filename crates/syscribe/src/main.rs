@@ -14,6 +14,7 @@ mod runhist;
 mod reqif_import;
 mod compliance;
 mod exec_cmd;
+mod evidence_cmd;
 mod mechanisms;
 mod cyberrisk;
 mod connectivity;
@@ -1307,6 +1308,15 @@ fn main() {
                 let (rest, projected) = with_config_lens(rest, &elems);
                 let elems = projected.as_deref().unwrap_or(&elems);
                 let code = exec_cmd::cmd_mutate(elems, &rest, &model_root);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "requirement-coverage" | "exec-coverage" => {
+                // Executable evidence per requirement / per architecture element (GH #344, #333). Read-only. Exit 0 · 1 usage · 2 gate.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let lens = |cfg: Option<&str>| lensed_elements(&elems, None, cfg);
+                let code = if subcommand_args[0] == "exec-coverage" { evidence_cmd::cmd_exec_coverage(&elems, rest, &lens, &model_root) } else { evidence_cmd::cmd_requirement_coverage(&elems, rest, &lens, &model_root) };
                 if code != 0 {
                     std::process::exit(code);
                 }
