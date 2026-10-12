@@ -11,8 +11,8 @@ features:
   - {name: switchingFrequencyKhz, typedBy: ScalarValues::Integer}
   - {name: dcIn, type: Port, direction: in}
   - {name: acOut, type: Port, direction: out}
-  - {name: gate, type: Port, direction: in}
-  - {name: hwDisable, type: Port, direction: in}
+  - {name: gate, type: Port, direction: in, typedBy: Interfaces::DrivePort, isConjugated: true}
+  - {name: hwDisable, type: Port, direction: in, typedBy: Interfaces::TripPort, isConjugated: true}
   - {name: tempOut, type: Port, direction: out}
 ---
 

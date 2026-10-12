@@ -53,6 +53,7 @@ Building this model exposed twelve tool problems. Seven became issues (#310–#3
 | `inject --max-order` printed "too many cut sets" when it only pruned by order | #316 | Says higher-order cut sets were left out |
 | `Configuration` ids had to end in a number (`CONF-GTI-US-M3` was `E200`) | #327 | `CONF-*` needs no numeric suffix, like `FEAT-*` |
 | Behaviour parts and architecture parts had no declared link, so a TestCase listed `REQ-GTI-SYS-037` and `REQ-GTI-HW-002` as verified although the executable chain models neither | #330 | Every `Behavior::Parts::*` part declares `models:` with `portMap:` and `abstracts:` (the two sensor instances map the two sensing chains); the power stage and relay parts name those two requirements in `abstracts:`, so listing them again is `W992` |
+| Architecture ports and machine ports were declared twice with no shared definition of the events they carry | #331 | `Interfaces/` holds the events (`GridSample`, `GridGood`, `GridLost`, `Close`, `Shutdown`, `Enable`, `Trip`, `Rearm`) as items of five `PortDef`s typing both sides; a machine sending an event its port does not carry is `E932`, and only the two ambiguous `portMap:` entries remain |
 
 Not changed in the tool:
 

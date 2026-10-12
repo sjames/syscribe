@@ -201,6 +201,7 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | Element type handling (§2, §11.4) | REQ-TRS-ELEM-001–003 | TC-TRS-ELEM-001–003 |
 | ID scheme validation | REQ-TRS-ID-001–008 | TC-TRS-ID-001–008 |
 | Behavioural model trace `models:` E990–E991, W990–W992 (§12.11) | REQ-TRS-MODELS-001 | TC-TRS-MODELS-001 |
+| Typed ports: events and payloads against `PortDef` items, E932/E935 (§8.8.5) | REQ-TRS-PORTTYPE-001 | TC-TRS-PORTTYPE-001 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |
 | Model-time errors E101–E106, E310–E315 (§11.12) | REQ-TRS-VAL-002 | TC-TRS-VAL-002 |
 | Warnings W001–W007, W300–W305 (§11.12) | REQ-TRS-VAL-003 | TC-TRS-VAL-003 |

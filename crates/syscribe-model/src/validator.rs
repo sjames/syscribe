@@ -2946,6 +2946,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E932/E935 against typed ports (GH #331): a part definition that exhibits a machine and has ports typed by a
+        // `PortDef`. Dormant for untyped ports.
+        if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && fm.exhibits_states.as_ref().is_some_and(|v| !v.is_empty()) {
+            for (code, msg) in crate::port_types::findings(machine_view, &resolver, elem) {
+                findings.push(error(code, &file, &msg));
+            }
+        }
+
         // E930–E934/W936 (REQ-TRS-SYSCOMP-001): a composite part with executable behaviours. Dormant for every part
         // that has no part with an executable state machine.
         if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) && (fm.features.is_some() || fm.supertype.is_some()) {

@@ -28,7 +28,7 @@ impl Ty {
         }
     }
 
-    fn describe(&self) -> String {
+    pub fn describe(&self) -> String {
         match self {
             Ty::Bool => "a boolean".into(),
             Ty::Str => "a string".into(),
@@ -206,7 +206,7 @@ fn infer_ir(m: &Machine, e: &IrExpr) -> Result<Ty, String> {
 }
 
 /// Why a value of type `rhs` cannot be assigned to a variable of type `lhs`, if it certainly cannot.
-fn assign_mismatch(lhs: Ty, rhs: Ty) -> Option<String> {
+pub fn assign_mismatch(lhs: Ty, rhs: Ty) -> Option<String> {
     match (lhs, rhs) {
         (Ty::Num(Some(a)), Ty::Num(Some(b))) if a != b => Some(format!("{} to {}", b.human(), a.human())),
         (Ty::Num(_), Ty::Bool | Ty::Str) | (Ty::Bool, Ty::Num(_) | Ty::Str) | (Ty::Str, Ty::Num(_) | Ty::Bool) => Some(format!("{} to {}", rhs.describe(), lhs.describe())),

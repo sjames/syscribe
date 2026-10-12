@@ -88,13 +88,42 @@ The verdict lists every injection and clearing with its time among its messages,
 
 `syscribe inject` runs the scenarios tagged `@invariant` under every single fault and every minimal cut set of a fault tree and reports which sets the design survives (see [Safety & Security Analysis](safety-analysis.md#fault-injection-campaign--inject)).
 
+## Typed ports
+
+A port can be typed by a `PortDef` whose items are the events it carries. The same `PortDef` then types the architecture port and the machine's port, so both say the same thing in one place (GH #331):
+
+<!-- syscribe-example: skip reason="fragments of model_gti/Interfaces shown together" -->
+```yaml
+---
+type: ItemDef
+name: GridSample
+features:
+  - {name: v, typedBy: ScalarValues::Real}            # per-unit, dimensionless
+  - {name: f, typedBy: ScalarValues::Real}
+---
+---
+type: PortDef
+name: SamplePort
+features:
+  - {name: sample, typedBy: Interfaces::GridSample, direction: out}
+---
+```
+
+```yaml
+features:
+  - {name: out, type: Port, direction: out, typedBy: Interfaces::SamplePort}                        # the sender
+  - {name: samples, type: Port, direction: in, typedBy: Interfaces::SamplePort, isConjugated: true} # the receiver
+```
+
+An item's `direction:` is seen from a part that owns the port unconjugated; `isConjugated: true` reverses it. A machine that sends or accepts an event its port's type does not carry, or carries the other way, or names a payload field the item does not have, gets `E932`; a payload value or a use of an accepted field of the wrong type or unit dimension gets `E935`. Units are compared by dimension, like every other type check. Untyped ports are checked as before. When a part `models:` an architecture element whose port has the same type, the two correspond without `portMap:` (see [Behavioural models](behaviour-models.md)).
+
 ## Diagnostics
 
 | Code | Meaning |
 |---|---|
 | `E930` | a part has more than one behaviour, or its `exhibitsStates` does not resolve to a StateDef |
 | `E931` | a connection end is not a port of that part, or the direction is wrong |
-| `E932` | a machine sends or accepts through a port its part does not have |
+| `E932` | a machine sends or accepts through a port its part does not have; or, through a typed port, an event the type does not carry or carries the other way, or an unknown payload field |
 | `E933` | a binding names an unknown variable or joins different types or dimensions |
 | `E934` | malformed composite: unnamed or duplicate part, `delay:` not a duration |
 | `E936` | a fault model (`injection:`) is malformed, or does not fit the composite it applies to |

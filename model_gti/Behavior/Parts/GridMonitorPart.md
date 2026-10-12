@@ -5,12 +5,9 @@ exhibitsStates: [Behavior::Machines::GridMonitor]
 models: [System::Software::ProtectionManager]
 fidelity: "fast-stage voltage/frequency window only"
 abstracts: [arcTrip, profile, relayCmd]
-portMap:
-  samples: gridSamples
-  out: trip
 features:
-  - {name: samples, type: Port, direction: in}
-  - {name: out, type: Port, direction: out}
+  - {name: samples, type: Port, direction: in, typedBy: Interfaces::SamplePort, isConjugated: true}
+  - {name: out, type: Port, direction: out, typedBy: Interfaces::GridStatusPort}
 ---
 
 Software grid monitor.

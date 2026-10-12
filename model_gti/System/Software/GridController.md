@@ -8,7 +8,7 @@ satisfies:
   - REQ-GTI-SYS-012
   - REQ-GTI-SYS-013
 features:
-  - {name: ctl, type: Port, direction: in}
+  - {name: ctl, type: Port, direction: in, typedBy: Interfaces::DrivePort, isConjugated: true}
   - {name: powerRef, type: Port, direction: in}
   - {name: gridSamples, type: Port, direction: in}
   - {name: pwm, type: Port, direction: out}

@@ -10,8 +10,8 @@ satisfies:
 features:
   - {name: acIn, type: Port, direction: in}
   - {name: gridOut, type: Port, direction: out}
-  - {name: relayDrive, type: Port, direction: in}
-  - {name: relayTrip, type: Port, direction: in}
+  - {name: relayDrive, type: Port, direction: in, typedBy: Interfaces::RelayCmdPort, isConjugated: true}
+  - {name: relayTrip, type: Port, direction: in, typedBy: Interfaces::TripPort, isConjugated: true}
   - {name: relayAux, type: Port, direction: out}
   - {name: acSense, type: Port, direction: out}
 ---

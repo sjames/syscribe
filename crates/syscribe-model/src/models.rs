@@ -77,6 +77,41 @@ fn mapped(pm: &PortMap, port: &str) -> Vec<String> {
         .unwrap_or_else(|| vec![port.to_string()])
 }
 
+/// The architecture ports executable port `port` of `def` corresponds to: its `portMap:` entry; else the port of the same
+/// name; else, when it is typed by a `PortDef`, the one port of the modelled elements typed by the same `PortDef` (GH #331:
+/// a shared interface makes `portMap:` unnecessary).
+fn counterparts(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    def: &RawElement,
+    targets: &[&RawElement],
+    pm: &PortMap,
+    port: &str,
+) -> Vec<String> {
+    if pm.contains_key(port) {
+        return mapped(pm, port);
+    }
+    let same = targets.iter().any(|t| {
+        system::def_ports(elements, resolver, t)
+            .iter()
+            .any(|q| q.name == port)
+    });
+    if !same {
+        if let Some(ty) = crate::port_types::port_type_of(elements, resolver, def, port) {
+            let typed: BTreeSet<String> = targets
+                .iter()
+                .flat_map(|t| crate::port_types::typed_ports(elements, resolver, t))
+                .filter(|p| (&p.ty, p.conjugated) == (&ty.0, ty.1))
+                .map(|p| p.name)
+                .collect();
+            if typed.len() == 1 {
+                return typed.into_iter().collect();
+            }
+        }
+    }
+    vec![port.to_string()]
+}
+
 struct Binding<'a> {
     file: String,
     /// How a finding names the holder: `'Pkg::Monitor'` or `part 'sensorSw' of 'Pkg::Chain'`.
@@ -480,7 +515,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             .collect::<Vec<_>>()
             .join(", ");
         for p in &exec {
-            for m in mapped(&b.port_map, &p.name) {
+            for m in counterparts(elements, resolver, b.def, &b.targets, &b.port_map, &p.name) {
                 let hits: Vec<(&RawElement, PortSpec)> = b
                     .targets
                     .iter()
@@ -507,6 +542,27 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 for (t, q) in &hits {
                     // a counterpart in the wrong direction is still a counterpart: E991 here, not also W990
                     covered.insert((t.qualified_name.clone(), q.name.clone()));
+                    // GH #331: ports typed on both sides share the interface
+                    if let (Some(a), Some(c)) = (
+                        crate::port_types::port_type_of(elements, resolver, b.def, &p.name),
+                        crate::port_types::port_type_of(elements, resolver, t, &q.name),
+                    ) {
+                        if a != c {
+                            out.push((
+                                "E991",
+                                b.file.clone(),
+                                format!(
+                                    "{}: port '{}' is typed by '{}' but its counterpart '{}.{}' is typed by '{}'",
+                                    b.holder,
+                                    p.name,
+                                    crate::port_types::show(&a),
+                                    t.qualified_name,
+                                    q.name,
+                                    crate::port_types::show(&c)
+                                ),
+                            ));
+                        }
+                    }
                     if !compatible(p.dir, q.dir) {
                         out.push((
                             "E991",
@@ -590,8 +646,17 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     {
         let view = system::composite_view(elements, resolver, c);
         // part name → (keys of everything it models, its port map)
-        let mut parts: BTreeMap<String, (BTreeSet<String>, PortMap, Option<String>)> =
-            BTreeMap::new();
+        #[allow(clippy::type_complexity)]
+        let mut parts: BTreeMap<
+            String,
+            (
+                BTreeSet<String>,
+                PortMap,
+                Option<String>,
+                &RawElement,
+                Vec<&RawElement>,
+            ),
+        > = BTreeMap::new();
         for f in &view.features {
             let Some(m) = f.as_mapping() else { continue };
             let (Some(name), Some(def)) = (
@@ -620,7 +685,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 } else {
                     None
                 };
-                parts.insert(name.to_string(), (ks, pm, dom));
+                parts.insert(name.to_string(), (ks, pm, dom, def, ts));
             }
         }
         if parts.len() < 2 {
@@ -639,10 +704,15 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             else {
                 continue;
             };
-            let (Some((ka, ma, da)), Some((kb, mb, db))) = (parts.get(a), parts.get(b)) else {
+            let (Some((ka, ma, da, dfa, tsa)), Some((kb, mb, db, dfb, tsb))) =
+                (parts.get(a), parts.get(b))
+            else {
                 continue;
             };
-            let (pas, pbs) = (mapped(ma, pa), mapped(mb, pb));
+            let (pas, pbs) = (
+                counterparts(elements, resolver, dfa, tsa, ma, pa),
+                counterparts(elements, resolver, dfb, tsb, mb, pb),
+            );
             if pas.is_empty() || pbs.is_empty() {
                 continue; // an end mapped to `null`
             }
@@ -682,7 +752,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             }
         }
         // the reverse: an architecture connection between two elements this composite models
-        let all: BTreeSet<&String> = parts.values().flat_map(|(k, _, _)| k).collect();
+        let all: BTreeSet<&String> = parts.values().flat_map(|(k, ..)| k).collect();
         let mut reported: BTreeSet<(String, String, String, String)> = BTreeSet::new();
         for e in &edges {
             if !all.contains(&e.a) || !all.contains(&e.b) || e.a == e.b {

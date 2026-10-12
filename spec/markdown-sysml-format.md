@@ -2314,6 +2314,33 @@ Exhibits the top-level operating state machine, binding speed to the vehicle's c
 - `typedBy` is required (an exhibit-state usage must reference a `StateDef`).
 - `bindingConnections` follow the same schema as §8.4.3.
 
+#### 8.8.5 Typed Ports
+
+A port (an inline `features:` entry of `type: Port`, or a child `Port` element) may be typed by a `PortDef` with `typedBy:`, and conjugated with `isConjugated: true` (SysML `~`). The `PortDef`'s `features:` entries typed by an `ItemDef` are its **items**: each names an event (the `ItemDef`'s name) and may say `direction: in | out | inout`, relative to a part that owns the port unconjugated; a conjugated port reverses `in` and `out`. The `ItemDef`'s own `features:` are the event's payload fields, each with `typedBy:` (or `type:`) and optional `unit:`: a number without a unit is dimensionless, an ISQ quantity type gives its dimension, `Boolean` and `String` their kinds, anything else is unknown and compatible with everything (GH #331).
+
+A part that `exhibitsStates:` a machine is checked against its typed ports:
+
+| Check | Code |
+|---|---|
+| `send: E, via: p` or `accept: {payload: E, via: p}` where `p`'s type has no item `E` | `E932` |
+| the item's direction at `p` (after conjugation) does not allow the send or accept | `E932` |
+| a `send` payload key, or an `as: m` reference `m.f`, naming a field the item does not have | `E932` |
+| a `send` payload value, or an expression using `m.f`, of the wrong kind or unit dimension (by dimension, not exact unit, like every other `E935`) | `E935` |
+
+An untyped port, an item with no `direction:`, and an item whose `ItemDef` does not resolve keep today's checks (name and port direction only). A `PortDef` types a single port; an `InterfaceDef` types a connection between two ends and is not used here.
+
+When an executable part `models:` an architecture element (§12.11), a port typed by the same `PortDef` and conjugation as exactly one port of the modelled elements corresponds to it without a `portMap:` entry, and two corresponding ports typed differently are `E991`.
+
+<!-- syscribe-example: skip reason="an excerpt; the ItemDef and machine it names are not shown" -->
+```yaml
+---
+type: PortDef
+name: SamplePort
+features:
+  - {name: sample, typedBy: Interfaces::GridSample, direction: out}
+---
+```
+
 ### 8.9 Calculation Elements
 
 #### 8.9.1 `CalculationDef`
@@ -6599,14 +6626,14 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E889` | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output or a parameter, names two plants alike, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
 | `E930` | Error | a part of a composite has more than one behaviour (several `exhibitsStates`, or a state machine and an `fmu:`), or its `exhibitsStates` entry does not resolve to a StateDef (needs a composite with an executable machine; GH #297) |
 | `E931` | Error | a composite `connections:` entry joins ports wrongly: the part or port does not exist, or a message does not go from an out/inout port to an in/inout port (GH #297) |
-| `E932` | Error | an executable machine sends or accepts through a port its part definition does not have, or in the wrong direction (GH #297) |
+| `E932` | Error | an executable machine sends or accepts through a port its part definition does not have, or in the wrong direction (GH #297); or, through a port typed by a `PortDef`, an event the type does not carry, carries the other way (after `isConjugated`), or a payload field its `ItemDef` does not have (GH #331, §8.8.5) |
 | `E933` | Error | a composite `bindingConnections:` entry names a variable the part's machine does not have, or joins variables of different type or unit dimension (GH #297) |
 | `E934` | Error | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297) |
-| `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272) |
+| `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272), except a field of an event accepted through a port typed by a `PortDef`, which has its `ItemDef` field's type; a `send` payload value of the wrong kind or dimension for that field is reported too (GH #331, §8.8.5) |
 | `E936` | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306) |
 | `E937` | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
 | `E990` | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |
-| `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction (GH #330, §12.11) |
+| `E991` | Error | a `portMap:` key is not a port of the executable part, an executable port corresponds to no port of the elements it models, or the counterpart has an incompatible direction or a different `PortDef` type or conjugation (GH #330, #331, §12.11) |
 | `W990` | Warning | a port of an element named by `models:` has no counterpart in any part that models it and is not named in `abstracts:` (GH #330, §12.11) |
 | `W991` | Warning | an executable composite's connection has no counterpart architecture connection, or an architecture connection between two elements the composite models has no executable counterpart; HW/SW boundary connections are skipped (GH #330, §12.11) |
 | `W992` | Warning | a TestCase verifies a requirement whose architecture satisfiers no part of its `subject:` models (or every such part names the requirement in `abstracts:`): its scenarios cannot be evidence for it (GH #330, §12.11) |
@@ -7209,7 +7236,7 @@ Because the vocabulary is per-project, the generic authoring prompt cannot enume
 | Field | On | YAML type | Description |
 |---|---|---|---|
 | `models` | `PartDef`/`Part`, or a part usage in a composite's `features:` | string or list | Architecture element(s) this part models: a `PartDef`/`Part` with a `domain:` on itself or its definition chain. Many-to-one (two machines model one element) and one-to-many (two usages of one part model two chains) are both allowed. A usage-level value replaces the definition's |
-| `portMap` | same | mapping | Executable port → architecture port. A value is a port name, a list (one executable port stands for several architecture ports, such as a trip line that fans out), or `null` (no counterpart, on purpose). Unmapped ports correspond by name. A usage-level map replaces the definition's, which is how two instances model two chains |
+| `portMap` | same | mapping | Executable port → architecture port. A value is a port name, a list (one executable port stands for several architecture ports, such as a trip line that fans out), or `null` (no counterpart, on purpose). Unmapped ports correspond by name, else by a shared `PortDef` type and conjugation when exactly one port of the modelled elements has it (§8.8.5). A usage-level map replaces the definition's, which is how two instances model two chains |
 | `abstracts` | same | list of strings | What the model leaves out. An entry naming a port of a modelled element exempts that port from `W990`; an entry that resolves to a `Requirement` says the model cannot be evidence for it (`W992`); any other entry is a free name recorded for the reader |
 | `fidelity` | same | string | Prose: what the model covers |
 
@@ -7220,7 +7247,7 @@ Because the vocabulary is per-project, the generic authoring prompt cannot enume
 | Code | Condition |
 |---|---|
 | `E990` | A `models:` target does not resolve, or is not an architecture element |
-| `E991` | A `portMap:` key is not a port of the executable part; an executable port corresponds (by name or `portMap:`) to no port of any element it models; or the counterpart's direction is incompatible (`in` against `out`; `inout` matches either). A wrong-direction counterpart still counts as covered for `W990` |
+| `E991` | A `portMap:` key is not a port of the executable part; an executable port corresponds (by name or `portMap:`) to no port of any element it models; or the counterpart's direction is incompatible (`in` against `out`; `inout` matches either), or both ports are typed and their `PortDef` or conjugation differs (§8.8.5). A wrong-direction counterpart still counts as covered for `W990` |
 | `W990` | A port of a modelled element has no counterpart in any part that models it, checked on the union of those parts, and none of them names it in `abstracts:` |
 | `W991` | In an executable composite with at least two modelling parts: a connection whose ends model two different elements has no architecture connection between the corresponding ports; or an architecture connection between two elements the composite models, whose ports are both covered and not abstracted, has no executable connection. A connection between a `software` and a `hardware` element is skipped, since §12.6 joins those through allocation, never a connection |
 | `W992` | A `TestCase` whose `subject:` is a part `verifies:` a requirement satisfied by architecture elements, and no part reachable from the subject models one of them without naming the requirement in `abstracts:`: its scenarios cannot be evidence for it |

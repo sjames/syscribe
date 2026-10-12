@@ -247,3 +247,21 @@ fn the_link_appears_in_links_follow_why_trace_impact_and_suspect() {
     let out = run(&root, &["suspect", "list"]);
     assert!(out.contains("Arch::Manager") && out.contains("models"), "{out}");
 }
+
+#[test]
+fn a_shared_port_type_makes_port_map_unnecessary() {
+    // GH #331: Monitor's `out` and Manager's `trip` are both typed by TripPort, so they correspond without `portMap:`
+    let mut f = base();
+    f.insert("Ifc/Trip.md", "---\ntype: ItemDef\nname: Trip\n---\nA trip.\n".into());
+    f.insert("Ifc/TripPort.md", "---\ntype: PortDef\nname: TripPort\nfeatures:\n  - {name: trip, typedBy: Ifc::Trip, direction: out}\n---\nTrips.\n".into());
+    edit(&mut f, "Arch/Manager.md", "{name: trip, type: Port, direction: out}", "{name: trip, type: Port, direction: out, typedBy: Ifc::TripPort}");
+    edit(&mut f, "Exec/Monitor.md", "portMap: {out: trip}\n", "");
+    edit(&mut f, "Exec/Monitor.md", "{name: out, type: Port, direction: out}", "{name: out, type: Port, direction: out, typedBy: Ifc::TripPort}");
+    none_of_ours(&validate(&f));
+    // a counterpart typed differently (here: conjugated) is E991
+    let mut g = f;
+    edit(&mut g, "Exec/Monitor.md", "models: [Arch::Manager]\n", "models: [Arch::Manager]\nportMap: {out: trip}\n");
+    edit(&mut g, "Exec/Monitor.md", "typedBy: Ifc::TripPort}", "typedBy: Ifc::TripPort, isConjugated: true}");
+    let out = validate(&g);
+    assert!(lines(&out, "E991").iter().any(|l| l.contains("port 'out' is typed by '~Ifc::TripPort' but its counterpart 'Arch::Manager.trip' is typed by 'Ifc::TripPort'")), "{out}");
+}

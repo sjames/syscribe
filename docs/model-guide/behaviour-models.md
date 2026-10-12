@@ -25,7 +25,7 @@ features:
 ```
 
 * **`models:`** names one or more architecture elements: a `PartDef` or `Part` with a `domain:` on itself or its definition chain.
-* **`portMap:`** maps an executable port to the architecture port it stands for. Ports with the same name need no entry. A list maps one executable port to several architecture ports (one comparator output that drives two trip lines); `null` says the port has no counterpart on purpose.
+* **`portMap:`** maps an executable port to the architecture port it stands for. Ports with the same name need no entry, and neither does a port typed by the same `PortDef` (and conjugation) as exactly one port of the modelled element ([typed ports](system-composition.md#typed-ports)); two corresponding ports typed differently are `E991`. A list maps one executable port to several architecture ports (one comparator output that drives two trip lines); `null` says the port has no counterpart on purpose.
 * **`abstracts:`** says what the model leaves out. A port name exempts that architecture port from `W990`. A requirement id says the model cannot be evidence for that requirement, so a TestCase that claims it is reported (`W992`). Anything else is a free name for the reader.
 * **`fidelity:`** is prose.
 
