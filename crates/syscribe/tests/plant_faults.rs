@@ -122,3 +122,21 @@ fn a_fault_that_does_not_fit_the_plant_is_reported_when_injected() {
     assert!(!v.contains("I011"), "{v}");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn stacked_parameter_faults_and_a_stuck_silent_plant_do_not_depend_on_order() {
+    let root = model();
+    let sheet = std::fs::read_to_string(root.join("FMEA-LAG-001.md")).unwrap().replace(
+        "  - {id: FM-LAG-005,",
+        "  - {id: FM-LAG-007, ref: LagP, failureMode: \"gain tripled\", injection: [{kind: parameter, parameter: k, value: \"3\"}]}\n  - {id: FM-LAG-005,",
+    );
+    std::fs::write(root.join("FMEA-LAG-001.md"), sheet).unwrap();
+    let tc = TC.split("```gherkin").next().unwrap().to_string()
+        + "```gherkin\nFeature: order\n\n  Scenario: the first of two faults on one parameter is cleared first\n    Given fault FM-LAG-004 is injected\n    And fault FM-LAG-007 is injected\n    When fault FM-LAG-004 is cleared\n    And 2 s elapses\n    Then ctl.y > 2.99\n    When fault FM-LAG-007 is cleared\n    And 3 s elapses\n    Then ctl.y > 0.999 and ctl.y < 1.001\n\n  Scenario: a silent plant then a stuck output\n    When 100 ms elapses\n    And fault FM-LAG-003 is injected\n    And fault FM-LAG-001 is injected\n    And 100 ms elapses\n    Then ctl.y == 0.5\n\n  Scenario: a stuck output then a silent plant\n    When 100 ms elapses\n    And fault FM-LAG-001 is injected\n    And fault FM-LAG-003 is injected\n    And 100 ms elapses\n    Then ctl.y == 0.5\n```\n";
+    std::fs::write(root.join("TC-SYS-001.md"), tc).unwrap();
+    let (c, t) = run(&root, &["simulate", "TC-SYS-001", "--json"]);
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap_or_else(|e| panic!("{e}: {t}"));
+    let failed: Vec<String> = j["verdicts"].as_array().unwrap().iter().filter(|x| x["status"] != "pass").map(|x| format!("{}: {}", x["scenario"], x["message"])).collect();
+    assert!(failed.is_empty() && c == 0, "{failed:?}\n{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}

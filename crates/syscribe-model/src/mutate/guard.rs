@@ -203,6 +203,10 @@ pub fn element_ref_strings(e: &RawElement) -> Vec<(&'static str, String)> {
         }
     }
     refs.extend(nested_allocation_refs(e));
+    // `plant: <PlantDef>` or `plant: {def: <PlantDef>, …}` (GH #340)
+    if let Some(d) = crate::plant_def::plant_def_ref(fm.plant.as_ref()) {
+        refs.push(("plant", d));
+    }
     // User-defined links (REQ-TRS-LINKTYPE-002): every well-formed `links:` target
     // is a cross-reference too, so `delete_element` sees it as a referrer and a
     // write introducing a dangling one is refused like any other.

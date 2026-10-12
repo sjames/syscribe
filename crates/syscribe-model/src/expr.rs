@@ -127,6 +127,26 @@ const PREFIXES: &[(&str, &str, i32)] = &[
     ("T", "tera", 12),
 ];
 
+/// `x` to an integer power by repeated squaring: the same bits on every platform, unlike `f64::powi`, whose
+/// precision the standard library leaves unspecified.
+pub fn ipow(x: f64, e: i32) -> f64 {
+    let mut base = x;
+    let mut n = e.unsigned_abs();
+    let mut acc = 1.0;
+    while n > 0 {
+        if n & 1 == 1 {
+            acc *= base;
+        }
+        base *= base;
+        n >>= 1;
+    }
+    if e < 0 {
+        1.0 / acc
+    } else {
+        acc
+    }
+}
+
 /// `unit` → (scale to SI base units, dimension).
 pub fn unit_scale(unit: &str) -> Option<(f64, Dim)> {
     let unit = unit.strip_prefix("SI::").unwrap_or(unit);
@@ -143,7 +163,7 @@ pub fn unit_scale(unit: &str) -> Option<(f64, Dim)> {
                 continue;
             }
             if let Some((_, _, s, d)) = PREFIXABLE.iter().find(|(sym, lg, _, _)| if long { *lg == rest } else { *sym == rest }) {
-                return Some((s * 10f64.powi(*exp), *d));
+                return Some((s * ipow(10.0, *exp), *d));
             }
         }
     }
@@ -805,7 +825,7 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
             for (o, x) in d.iter_mut().zip(nums[0].dim.0) {
                 *o = i8::try_from(i32::from(x) * e).map_err(|_| ExprError::Dimension("dimension exponent out of range".to_string()))?;
             }
-            let v = finite(nums[0].v.powi(e), "result")?;
+            let v = finite(ipow(nums[0].v, e), "result")?;
             if v == 0.0 && nums[0].v != 0.0 {
                 return Err(ExprError::Domain("result underflows to zero".to_string()));
             }

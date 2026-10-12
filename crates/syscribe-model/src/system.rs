@@ -569,6 +569,11 @@ pub fn check_all(elements: &[RawElement], resolver: &Resolver, elem: &RawElement
     // E933 — bindings join variables of compatible type and dimension.
     for b in &spec.bindings {
         let (fi, ti) = (&spec.instances[b.from.0], &spec.instances[b.to.0]);
+        // a plant exchanges values with machines at communication points; two plants are joined inside one PlantDef
+        if matches!(fi.behavior, Behavior::Plant(_)) && matches!(ti.behavior, Behavior::Plant(_)) {
+            out.push(("E933", format!("{q}: binding {}.{} → {}.{}: both ends are plants; one end must be a machine variable (join plants by writing one PlantDef with both sets of equations)", fi.name, b.from.1, ti.name, b.to.1)));
+            continue;
+        }
         // `source`: the end the value comes from. An in-process plant end must be an output read or an input written.
         let var = |idx: usize, name: &str, source: bool| -> Result<Option<Value>, String> {
             match (&spec.instances[idx].behavior, &machines[idx], &plants[idx]) {

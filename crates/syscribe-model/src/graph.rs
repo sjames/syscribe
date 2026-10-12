@@ -27,6 +27,7 @@ pub enum EdgeKind {
     AllocatedTo,           // allocation → target element
     ConditionalOn,         // element → FeatureDef (appliesWhen:)
     Satisfies,             // Part/Config → Requirement/FeatureDef (satisfies:)
+    Plant,                 // Part/PartDef → the PlantDef it runs (plant:, GH #340)
     PlanningParent,        // PlanningItem child → parent (ADR-SYS-PLANITEM-001)
     PlanningBlockedBy,     // PlanningItem → element it's waiting on (REQ-TRS-PLANITEM-007)
     // Part-to-part wiring (resolved from connection feature chains; issue #26)
@@ -75,6 +76,7 @@ impl EdgeKind {
         EdgeKind::AllocatedTo,
         EdgeKind::ConditionalOn,
         EdgeKind::Satisfies,
+        EdgeKind::Plant,
         EdgeKind::PlanningParent,
         EdgeKind::PlanningBlockedBy,
         EdgeKind::Connection,
@@ -112,6 +114,7 @@ impl EdgeKind {
             EdgeKind::AllocatedTo => "allocatedTo",
             EdgeKind::ConditionalOn => "conditionalOn",
             EdgeKind::Satisfies => "satisfies",
+            EdgeKind::Plant => "plant",
             EdgeKind::PlanningParent => "planningParent",
             EdgeKind::PlanningBlockedBy => "planningBlockedBy",
             EdgeKind::Connection => "connection",
@@ -320,6 +323,13 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 if let Some(dst) = resolve_to_idx(s) {
                     graph.add_edge(src, dst, EdgeKind::Satisfies);
                 }
+            }
+        }
+
+        // plant: — the PlantDef a plant part runs
+        if let Some(d) = crate::plant_def::plant_def_ref(fm.plant.as_ref()) {
+            if let Some(dst) = resolve_to_idx(&d) {
+                graph.add_edge(src, dst, EdgeKind::Plant);
             }
         }
 

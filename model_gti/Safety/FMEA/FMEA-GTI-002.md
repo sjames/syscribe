@@ -87,7 +87,7 @@ entries:
   - id: FM-GTI-009
     ref: Behavior::Parts::SensorPart
     failureMode: "Software-path voltage sensing reads nominal while the grid is lost"
-    effect: "The monitor does not see the loss; the hardware trip still can"
+    effect: "The monitor's voltage window does not see the loss; the perturbation-response check (REQ-GTI-SW-008) and the hardware trip still can"
     cause: "Sensor or isolation amplifier stuck"
     fmeaSeverity: 9
     occurrence: 3

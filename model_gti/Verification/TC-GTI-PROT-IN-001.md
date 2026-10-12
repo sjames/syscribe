@@ -394,6 +394,28 @@ Feature: Grid connection and protection chain (India)
     When 2 s elapses
     Then supervisor is in state Running
 
+  @verifies REQ-GTI-SYS-007,REQ-GTI-SYS-010,REQ-GTI-SYS-038
+  Scenario: the chain reconnects after a grid loss and clears a second one
+    Given supervisor is in state Running
+    And relayA is in state Closed
+    And relayA.closed is 1
+    And relayB is in state Closed
+    And relayB.closed is 1
+    And powerStage is in state On
+    And powerStage.pwm is 1
+    And supervisor.gridOk is 1
+    And monitor is in state Normal
+    When grid receives Set with v = 0, f = 50
+    And 200 ms elapses
+    And grid receives Set with v = 1.0, f = 50
+    And 61 s elapses
+    And 6 s elapses
+    Then supervisor is in state Running
+    And relayA.closed == 1 and relayB.closed == 1
+    When grid receives Set with v = 0, f = 50
+    And 2 s elapses
+    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
+
   @invariant @verifies REQ-GTI-SYS-007,REQ-GTI-SYS-010,REQ-GTI-SYS-038
   Scenario: a second grid loss after a full reconnection cycle is also cleared
     Given supervisor is in state Running

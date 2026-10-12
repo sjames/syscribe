@@ -1,6 +1,6 @@
 # In-process plants
 
-A composite closes its loop around physics with a **plant part**. Besides an FMU (see [FMU plants](fmi-plants.md), behind the `fmi` build feature), a plant can be written in the model itself: a `PlantDef` in the expression language, or one of a few standard plants. Nothing outside Syscribe is needed, there is no feature flag, and the same model and scenario give the same trace, bit for bit, on every machine (GH #340).
+A composite closes its loop around physics with a **plant part**. Besides an FMU (see [FMU plants](fmi-plants.md), behind the `fmi` build feature), a plant can be written in the model itself: a `PlantDef` in the expression language, or one of a few standard plants. Nothing outside Syscribe is needed, there is no feature flag, and the same model and scenario give the same trace, bit for bit, on every machine (GH #340): the engine uses IEEE arithmetic, integer powers by repeated squaring and the software `libm` functions, never a platform's own math library, and a test pins the bits of a reference response.
 
 ## A first-order lag
 
@@ -44,12 +44,12 @@ bindingConnections:
 | Field | Meaning |
 |---|---|
 | `parameters:` | `{name, value}`; `value` is a constant with its unit (`"0.4 SI::ohm"`) |
-| `inputs:` | `{name, unit, value}`; written by bindings, `value` until the first write |
+| `inputs:` | `{name, unit, value}`; written by bindings, `value` until the first write. A `unit` is a coherent SI unit (`V`, `A`, `ohm`, `s`): the plant computes in base units, so a scaled unit such as `mV` is refused (`E938`) rather than read as `V` |
 | `outputs:` | `{name, unit}`; read by bindings |
 | `states:` | `{name, value}`; the initial value fixes the dimension |
 | `equations:` | `der(state) = expression` for each state, `output := expression` for each output |
 | `method:` | `rk4` (default) or `euler`, fixed step |
-| `maxStep:` | the longest integration sub-step; each communication step is split evenly below it |
+| `maxStep:` | the longest integration sub-step; each communication step is split evenly below it, at most one million sub-steps per communication step |
 
 Every equation is checked for unit dimension before anything runs: `der(x)` must have the dimension of `x` per second, an output the dimension it declares. Outputs may use earlier outputs; a cycle between them is an algebraic loop. Besides the operators of the expression language, `exp`, `ln`, `sin`, `cos` and `tanh` take a dimensionless argument.
 
@@ -66,7 +66,7 @@ plant: {library: FirstOrderLag, unit: "SI::V", parameters: {tau: "5 ms"}}
 | `FirstOrderLag` | `der(x) = (k·u − x)/tau`, `y := x` | `k`, `tau` |
 | `Integrator` | `der(x) = k·u`, `y := x` (`unit` is the output's) | `k` |
 | `Saturation` | `y := min(max(u, lo), hi)` | `lo`, `hi` |
-| `DelayLine` | `y` is `u` sampled at the communication points and delayed by `delay`; `initial` before | `delay`, `initial` |
+| `DelayLine` | `y` is `u` sampled at the communication points and delayed by `delay`; `initial` before. The line keeps only the samples the current delay needs, so a delay raised mid-run by a fault shows `initial` until it has caught up | `delay` (not negative), `initial` |
 | `ImpedanceDivider` | `v := vSrc − z·i` (input `i` in A, output `v` in V) | `vSrc`, `z` |
 
 ## Semantics
@@ -86,7 +86,7 @@ The grid-tie inverter (`model_gti`) runs its anti-islanding perturbation check a
 | Code | Meaning |
 |---|---|
 | `E930` | a part carries both `fmu:` and `plant:` |
-| `E933` | a binding reads something that is not a plant output, writes something that is not a plant input, or joins different dimensions |
+| `E933` | a binding reads something that is not a plant output, writes something that is not a plant input, joins different dimensions, or joins two plants (a plant exchanges values with machines; two plants that act on each other are one `PlantDef`) |
 | `E934` | a composite with an in-process plant part has no `plantStep:` |
 | `E935` | a unit or type error in an equation |
 | `E936` | a fault does not fit the plant (an unknown output or parameter, a value of the wrong dimension) |

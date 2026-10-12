@@ -235,3 +235,66 @@ fn the_new_functions_take_a_dimensionless_argument_and_are_libm_exact() {
     let c = codes(&world("plant: Lag\n", Some("10 ms"), &[("Lag", lag("")), ("CtlM", ctl.to_string())]));
     assert!(c.iter().any(|x| x.starts_with("E935") && x.contains("exp")), "{c:?}");
 }
+
+#[test]
+fn the_lag_response_has_the_same_bits_on_every_platform() {
+    // only IEEE add/multiply/divide and repeated squaring for integer powers: no platform-dependent libm call
+    let y = y_after(&world("plant: Lag\n", Some("10 ms"), &[("Lag", lag(""))]), 0.7, 0.83);
+    assert_eq!(y.to_bits(), GOLDEN_LAG_BITS, "{y} = {:#x}", y.to_bits());
+}
+
+const GOLDEN_LAG_BITS: u64 = 0x3fe6_0c00_2167_fbc0;
+
+#[test]
+fn an_output_whose_name_starts_with_der_is_an_output() {
+    let derate = lag("").replace("outputs:\n  - {name: y}", "outputs:\n  - {name: y}\n  - {name: derate}").replace("\"y := x\"", "\"y := x\"\n  - \"derate := x\"");
+    let c = codes(&world("plant: Lag\n", Some("10 ms"), &[("Lag", derate)]));
+    assert!(c.iter().all(|x| !x.starts_with('E')), "{c:?}");
+}
+
+#[test]
+fn a_scaled_unit_is_refused_rather_than_read_as_its_base_unit() {
+    let mv = lag("").replace("outputs:\n  - {name: y}", "outputs:\n  - {name: y, unit: mV}");
+    let c = codes(&world("plant: Lag\n", Some("10 ms"), &[("Lag", mv)]));
+    assert!(c.iter().any(|x| x.starts_with("E938") && x.contains("mV")), "{c:?}");
+}
+
+#[test]
+fn a_binding_between_two_plants_is_refused_by_validate() {
+    let root = world("plant: {library: FirstOrderLag}\n", Some("10 ms"), &[("GainP", "---\ntype: PartDef\nname: GainP\nplant: {library: Gain}\n---\nA gain.\n".to_string())]);
+    let sys = "---\ntype: PartDef\nname: Sys\nplantStep: \"10 ms\"\nfeatures:\n  - {name: ctl, typedBy: CtlP}\n  - {name: p, typedBy: PlantP}\n  - {name: g, typedBy: GainP}\nbindingConnections:\n  - {from: ctl.u, to: p.u}\n  - {from: p.y, to: g.u}\n  - {from: g.y, to: ctl.y}\n---\nThe system.\n";
+    std::fs::write(root.join("Sys.md"), sys).unwrap();
+    let c = codes(&root);
+    assert!(c.iter().any(|x| x.starts_with("E933") && x.contains("both ends are plants")), "{c:?}");
+}
+
+#[test]
+fn a_part_that_runs_a_plant_def_references_it() {
+    let root = world("plant: Lag\n", Some("10 ms"), &[("Lag", lag(""))]);
+    let elems = walk_model(&root).unwrap();
+    let part = elems.iter().find(|e| e.qualified_name == "PlantP").unwrap();
+    assert!(syscribe_model::mutate::guard::element_ref_strings(part).contains(&("plant", "Lag".to_string())));
+    let by: Vec<String> = syscribe_model::mutate::guard::referrers(&elems, "Lag").into_iter().map(|(q, _)| q).collect();
+    assert_eq!(by, vec!["PlantP".to_string()]);
+    let map = std::fs::read_to_string(root.join("PlantP.md")).unwrap().replace("plant: Lag", "plant: {def: Lag, parameters: {k: 2}}");
+    std::fs::write(root.join("PlantP.md"), map).unwrap();
+    let elems = walk_model(&root).unwrap();
+    assert_eq!(syscribe_model::mutate::guard::referrers(&elems, "Lag").len(), 1);
+}
+
+#[test]
+fn a_negative_delay_and_too_many_sub_steps_are_refused() {
+    let fmea = "---\ntype: FMEASheet\nid: FMEA-D-001\nname: delay\nstatus: draft\nentries:\n  - {id: FM-D-001, ref: PlantP, failureMode: \"negative delay\", injection: [{kind: parameter, parameter: delay, value: \"-1 s\"}]}\n---\n";
+    let root = world("plant: {library: DelayLine, parameters: {delay: \"30 ms\"}}\n", Some("10 ms"), &[("FMEA-D-001", fmea.to_string())]);
+    let m = build(&root).unwrap_or_else(|e| panic!("{e:?}"));
+    let mut s = System::new(&m, Options::default());
+    let e = s.inject("FM-D-001").unwrap_err();
+    assert!(e.contains("non-negative"), "{e}");
+    // the refused fault left nothing behind: the line still delays by 30 ms
+    s.advance(0.05);
+    assert!(s.error().is_none(), "{:?}", s.error());
+    let tiny = build(&world("plant: Lag\n", Some("10 ms"), &[("Lag", lag("maxStep: \"1 ns\"\n"))])).unwrap();
+    let mut s = System::new(&tiny, Options::default());
+    s.advance(0.02);
+    assert!(s.error().is_some_and(|e| e.contains("sub-steps")), "{:?}", s.error());
+}

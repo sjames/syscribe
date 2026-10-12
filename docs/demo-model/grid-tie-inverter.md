@@ -8,7 +8,7 @@ A three-phase, 10 kW, transformerless grid-tie inverter with a **multi-string, h
 syscribe -m model_gti/ validate --all-configs
 syscribe -m model_gti/ simulate TC-GTI-PROT-US-001 --coverage
 syscribe -m model_gti/ mutate TC-GTI-PROT-IN-001
-syscribe -m model_gti/ inject TC-GTI-PROT-US-001 --ft FT-GTI-001 --max-order 3 --report-only
+syscribe -m model_gti/ inject TC-GTI-PROT-US-001 --ft FT-GTI-001 --max-order 3 --report-only --config CONF-GTI-US-M3-001
 syscribe -m model_gti/ matrix
 ```
 

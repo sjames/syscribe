@@ -108,7 +108,12 @@ fn constant(src: &str) -> Result<Quantity, String> {
 fn unit_dim(unit: Option<&str>) -> Result<Dim, String> {
     match unit.map(str::trim).filter(|u| !u.is_empty()) {
         None | Some("1") => Ok(NONE),
-        Some(u) => expr::unit_scale(u).map(|(_, d)| d).ok_or_else(|| format!("unknown unit '{u}'")),
+        Some(u) => match expr::unit_scale(u) {
+            Some((scale, d)) if (scale - 1.0).abs() < 1e-12 => Ok(d),
+            // a plant computes in SI base units: a scaled unit would silently be read as its base unit
+            Some((scale, _)) => Err(format!("unit '{u}' is {scale} of an SI base unit; a plant variable is declared in coherent SI units (`V`, not `mV`)")),
+            None => Err(format!("unknown unit '{u}'")),
+        },
     }
 }
 
@@ -251,8 +256,8 @@ enum Eq {
 
 fn split_equation(src: &str) -> Option<Eq> {
     let s = src.trim();
-    if let Some(rest) = s.strip_prefix("der") {
-        let rest = rest.trim_start().strip_prefix('(')?;
+    // `der(x) = …`; a name that merely starts with `der` (`derate := …`) is an output
+    if let Some(rest) = s.strip_prefix("der").and_then(|r| r.trim_start().strip_prefix('(')) {
         let (name, rhs) = rest.split_once(')')?;
         let rhs = rhs.trim_start().strip_prefix('=')?;
         if rhs.starts_with('=') {
@@ -374,6 +379,9 @@ pub fn compile(elem: &RawElement) -> Result<PlantModel, Vec<Finding>> {
     lower(d)
 }
 
+/// The most sub-steps of `maxStep` one communication step may take.
+pub const MAX_SUBSTEPS: usize = 1_000_000;
+
 /// The standard plants `plant: {library: <Name>}` names.
 pub const LIBRARY: &[&str] = &["Gain", "FirstOrderLag", "Integrator", "Saturation", "DelayLine", "ImpedanceDivider"];
 
@@ -449,6 +457,16 @@ pub struct PlantRef {
 }
 
 /// Read a `plant:` value: `Pkg::Def`, or `{def: Pkg::Def | library: Name, unit, parameters: {name: value}}`.
+/// The PlantDef a `plant:` value names (`plant: X` or `plant: {def: X}`), as written: the cross-reference the
+/// referrer guard, `refs` and `impact` follow.
+pub fn plant_def_ref(v: Option<&Y>) -> Option<String> {
+    match v? {
+        Y::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+        Y::Mapping(m) => field(m, "def").and_then(text),
+        _ => None,
+    }
+}
+
 pub fn parse_plant_ref(v: &Y) -> Result<PlantRef, Vec<String>> {
     let m = match v {
         Y::String(s) if !s.trim().is_empty() => return Ok(PlantRef { def: Some(s.trim().to_string()), library: None, unit: None, parameters: Vec::new() }),
@@ -732,6 +750,9 @@ impl Plant for EquationPlant {
         } else if let Some(i) = m.parameters.iter().position(|p| p.name == name) {
             self.params[i] = value;
             if let (Dynamics::Delay { .. }, "delay") = (&m.dynamics, name) {
+                if value < 0.0 || !value.is_finite() {
+                    return Err(format!("parameter 'delay' of {} must be a non-negative number, not {value}", m.name));
+                }
                 // the delay line reads its delay from the model; a changed delay is honoured through a fresh model
                 let mut changed = (**m).clone();
                 changed.dynamics = Dynamics::Delay { delay: value };
@@ -778,6 +799,9 @@ impl Plant for EquationPlant {
         }
         if !self.states.is_empty() && h > 0.0 {
             let n = self.model.max_step.map_or(1.0, |m| (h / m).ceil().max(1.0));
+            if n > MAX_SUBSTEPS as f64 {
+                return Err(format!("a step of {h} s needs {n} sub-steps of maxStep, more than {MAX_SUBSTEPS}; raise `maxStep` or lower `plantStep`"));
+            }
             let dt = h / n;
             for i in 0..(n as usize) {
                 self.now = t + dt * i as f64;

@@ -250,7 +250,12 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
         _ => None,
     }) {
         Some(s) => crate::system::duration(&s).filter(|d| *d > 0.0).ok_or_else(|| vec![format!("`plantStep: {s}` is not a positive duration")])?,
-        None => return Err(vec![format!("E934: {}: a composite with plant parts needs a `plantStep:` (the communication step)", composite.qualified_name)]),
+        None => {
+            // E934 when an in-process plant is among them (as `validate` reports it), E888 for FMU plants only
+            let in_process = spec.instances.iter().any(|i| matches!(&i.behavior, Behavior::Plant(d) if resolver.resolve_ref(elements, d).is_some_and(|e| e.frontmatter.plant.is_some())));
+            let code = if in_process { "E934" } else { "E888" };
+            return Err(vec![format!("{code}: {}: a composite with plant parts needs a `plantStep:` (the communication step)", composite.qualified_name)]);
+        }
     };
     let cfg = ValidateConfig::with_model_root(model_root);
     let mut plants: Vec<Option<PlantSpec>> = spec.instances.iter().map(|_| None).collect();
@@ -339,6 +344,16 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
         Ok((plants, exchanges, step))
     } else {
         Err(errs)
+    }
+}
+
+/// A value a fault put on a plant output, in the shape `read_si` gives the machine: a Boolean exchange gets a Boolean,
+/// an Integer output a whole number, and the machine variable's dimension.
+fn as_machine_value(v: Value, var: &plant::VarInfo, machine_bool: bool, machine_dim: crate::units::Dim) -> Value {
+    match v {
+        Value::Num(q) if machine_bool => Value::Bool(q.v != 0.0),
+        Value::Num(q) => Value::Num(crate::expr::Quantity { v: if var.ty == plant::VarType::Integer { q.v.round() } else { q.v }, dim: machine_dim }),
+        other => other,
     }
 }
 
@@ -497,11 +512,20 @@ impl<'m> System<'m> {
         for ex in &model.exchanges {
             if let Exchange::Read { plant: pi, var, sink, machine_bool, machine_dim } = ex {
                 let Some(p) = self.plants.get_mut(*pi).and_then(|p| p.as_mut()) else { continue };
+                let shape = |v: Value| as_machine_value(v, var, *machine_bool, *machine_dim);
                 if self.frozen[*pi] {
+                    // a silent plant delivers nothing new, except an output a fault holds stuck (in either order)
+                    let stuck = self.plant_pins.iter().rev().find_map(|(q, n, _, pin)| match pin {
+                        Pin::Stuck(v) if *q == *pi && *n == var.name => Some(v.clone()),
+                        _ => None,
+                    });
+                    if let Some(v) = stuck {
+                        staged[sink.0].push((sink.1.clone(), shape(v)));
+                    }
                     continue;
                 }
                 match plant::read_si(p.as_mut(), &model.spec.instances[*pi].name, var, *machine_bool, *machine_dim) {
-                    Ok(v) => staged[sink.0].push((sink.1.clone(), pinned(&self.plant_pins, *pi, &var.name, v))),
+                    Ok(v) => staged[sink.0].push((sink.1.clone(), shape(pinned(&self.plant_pins, *pi, &var.name, v)))),
                     Err(e) => return self.fail(e),
                 }
             }
@@ -613,7 +637,32 @@ impl<'m> System<'m> {
         if !model.faults[fi].problems.is_empty() {
             return Err(model.faults[fi].problems.join("; "));
         }
-        // a plant's parameter first: it is the one item that can be refused by the plant itself
+        // the items that can be refused first (machine pins, then plant parameters), each undone if a later one is;
+        // then the plant pins and a fail-silent part, which cannot fail: nothing stays half-applied
+        let mut pinned: Vec<usize> = Vec::new();
+        let unpin = |runs: &mut Vec<Option<Run<'m>>>, pinned: &[usize]| {
+            for p in pinned {
+                if let Some(r) = runs[*p].as_mut() {
+                    r.unpin_cause(id);
+                }
+            }
+        };
+        for item in &model.faults[fi].items {
+            let r = match item {
+                FaultItem::Stuck { part, variable, value } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Stuck(value.clone())))),
+                FaultItem::Offset { part, variable, by } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Offset(by.clone())))),
+                _ => None,
+            };
+            match r {
+                Some((part, Ok(()))) => pinned.push(part),
+                Some((part, Err(e))) => {
+                    pinned.push(part);
+                    unpin(&mut self.runs, &pinned);
+                    return Err(format!("E936: fault {id}: {e}"));
+                }
+                None => {}
+            }
+        }
         let mut changed: Vec<(String, usize, String, f64)> = Vec::new();
         for item in &model.faults[fi].items {
             let FaultItem::Parameter { part, name, value } = item else { continue };
@@ -632,6 +681,7 @@ impl<'m> System<'m> {
                             let _ = p.set(&name, before);
                         }
                     }
+                    unpin(&mut self.runs, &pinned);
                     return Err(format!("E936: fault {id}: {e}"));
                 }
             }
@@ -649,28 +699,6 @@ impl<'m> System<'m> {
         }
         if self.plant_pins.len() > pins_before {
             self.read_plants(self.time);
-        }
-        // value faults first, a fail-silent part last: if one cannot be applied, nothing stays half-applied
-        let mut pinned: Vec<usize> = Vec::new();
-        for item in &model.faults[fi].items {
-            let r = match item {
-                FaultItem::Stuck { part, variable, value } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Stuck(value.clone())))),
-                FaultItem::Offset { part, variable, by } => self.runs[*part].as_mut().map(|r| (*part, r.pin(id, variable, Pin::Offset(by.clone())))),
-                _ => None,
-            };
-            match r {
-                Some((part, Ok(()))) => pinned.push(part),
-                Some((part, Err(e))) => {
-                    pinned.push(part);
-                    for p in pinned {
-                        if let Some(r) = self.runs[p].as_mut() {
-                            r.unpin_cause(id);
-                        }
-                    }
-                    return Err(format!("E936: fault {id}: {e}"));
-                }
-                None => {}
-            }
         }
         for item in &model.faults[fi].items {
             if let FaultItem::Silent { part } = item {
@@ -704,14 +732,38 @@ impl<'m> System<'m> {
         }
         let pins_before = self.plant_pins.len();
         self.plant_pins.retain(|(_, _, cause, _)| cause != id);
-        for (_, part, name, before) in self.saved_params.iter().filter(|(cause, ..)| cause == id) {
-            if let Some(p) = self.plants[*part].as_mut() {
-                if let Err(e) = p.set(name, *before) {
-                    self.error.get_or_insert(format!("plant '{}': restoring '{name}': {e}", model.spec.instances[*part].name));
+        // A parameter keeps its value before the first fault on it (the nominal). Clearing one of several faults on
+        // the same parameter leaves the latest remaining one in force; clearing the last restores the nominal.
+        let touched: Vec<(usize, String)> = self.saved_params.iter().filter(|(cause, ..)| cause == id).map(|(_, p, n, _)| (*p, n.clone())).collect();
+        for (part, name) in touched {
+            let same = |e: &(String, usize, String, f64)| e.1 == part && e.2 == name;
+            let nominal = self.saved_params.iter().find(|e| same(e)).map(|e| e.3).unwrap_or_default();
+            self.saved_params.retain(|e| !(same(e) && e.0 == id));
+            if let Some(first) = self.saved_params.iter_mut().find(|e| same(e)) {
+                first.3 = nominal;
+            }
+            let latest = self.saved_params.iter().rev().find(|e| same(e)).map(|e| e.0.clone());
+            let inst = &model.spec.instances[part].name;
+            let Some(p) = self.plants[part].as_mut() else { continue };
+            let r = match latest {
+                None => p.set(&name, nominal),
+                Some(cause) => {
+                    let value = model.faults.iter().find(|f| f.id == cause).and_then(|f| {
+                        f.items.iter().find_map(|i| match i {
+                            FaultItem::Parameter { part: q, name: n, value } if *q == part && *n == name => Some(value.clone()),
+                            _ => None,
+                        })
+                    });
+                    match (value, p.info().var(&name).cloned()) {
+                        (Some(v), Some(var)) => plant::write_si(p.as_mut(), inst, &var, &v),
+                        _ => p.set(&name, nominal),
+                    }
                 }
+            };
+            if let Err(e) = r {
+                self.error.get_or_insert(format!("plant '{inst}': restoring '{name}': {e}"));
             }
         }
-        self.saved_params.retain(|(cause, ..)| cause != id);
         if self.plant_pins.len() < pins_before {
             self.read_plants(self.time);
         }
