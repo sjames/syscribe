@@ -239,7 +239,7 @@ fn the_link_appears_in_links_follow_why_trace_impact_and_suspect() {
     let out = run(&root, &["follow", "Arch::Manager", "modeledBy"]);
     assert!(out.contains("Exec::Monitor"), "{out}");
     let out = run(&root, &["why", "Exec::Monitor"]);
-    assert!(out.contains("## Models") && out.contains("REQ-MO-001"), "{out}");
+    assert!(out.contains("## Models") && out.contains("## Requirements of the modelled elements") && out.contains("REQ-MO-001"), "{out}");
     let out = run(&root, &["trace", "REQ-MO-001"]);
     assert!(out.contains("| Arch::Manager | Exec::Monitor |"), "{out}");
     let out = run(&root, &["impact", "Arch::Manager"]);
@@ -264,4 +264,96 @@ fn a_shared_port_type_makes_port_map_unnecessary() {
     edit(&mut g, "Exec/Monitor.md", "typedBy: Ifc::TripPort}", "typedBy: Ifc::TripPort, isConjugated: true}");
     let out = validate(&g);
     assert!(lines(&out, "E991").iter().any(|l| l.contains("port 'out' is typed by '~Ifc::TripPort' but its counterpart 'Arch::Manager.trip' is typed by 'Ifc::TripPort'")), "{out}");
+}
+
+#[test]
+fn a_port_name_in_abstracts_is_not_a_requirement_with_that_display_name() {
+    let mut f = base();
+    edit(&mut f, "Reqs/REQ-MO-001.md", "name: trip", "name: profile");
+    none_of_ours(&validate(&f));
+}
+
+#[test]
+fn an_inherited_models_link_checks_the_subtype_ports() {
+    let mut f = base();
+    f.insert(
+        "Exec/MonSub.md",
+        "---\ntype: PartDef\nname: MonSub\nsupertype: Exec::Monitor\nfeatures:\n  - {name: debug, type: Port, direction: out}\n---\n".into(),
+    );
+    let out = validate(&f);
+    assert!(lines(&out, "E991").iter().any(|l| l.contains("'Exec::MonSub': port 'debug' corresponds to no port of 'Arch::Manager'")), "{out}");
+    assert!(lines(&out, "E990").is_empty(), "the target is reported where `models:` is written, not again: {out}");
+}
+
+#[test]
+fn one_to_many_needs_no_definition_level_port_map() {
+    let mut f = base();
+    f.insert(
+        "Arch/Sensing.md",
+        "---\ntype: PartDef\nname: Sensing\ndomain: software\nfeatures:\n  - {name: sig, type: Port, direction: in}\n  - {name: adcOut, type: Port, direction: out}\n  - {name: hwOut, type: Port, direction: out}\n---\n".into(),
+    );
+    f.insert("Exec/Sensor.md", "---\ntype: PartDef\nname: Sensor\nmodels: [Arch::Sensing]\nfeatures:\n  - {name: inp, type: Port, direction: in}\n  - {name: out, type: Port, direction: out}\n---\n".into());
+    f.insert(
+        "Exec/Bench.md",
+        "---\ntype: PartDef\nname: Bench\nfeatures:\n  - {name: sw, typedBy: Exec::Sensor, portMap: {inp: sig, out: adcOut}}\n  - {name: hw, typedBy: Exec::Sensor, portMap: {inp: sig, out: hwOut}}\n---\n".into(),
+    );
+    none_of_ours(&validate(&f));
+}
+
+#[test]
+fn an_architecture_usage_typed_by_a_part_matches_its_definition() {
+    let mut f = base();
+    f.insert("Arch/TheMgr.md", "---\ntype: Part\nname: TheMgr\ndomain: software\ntypedBy: Arch::Manager\n---\n".into());
+    edit(&mut f, "Arch/Board.md", "{name: mgr, typedBy: Arch::Manager}", "{name: mgr, typedBy: Arch::TheMgr}");
+    none_of_ours(&validate(&f));
+}
+
+#[test]
+fn a_requirement_satisfied_by_a_supertype_is_exercised_through_the_specialisation() {
+    let mut f = base();
+    f.insert("Arch/MgrBase.md", "---\ntype: PartDef\nname: MgrBase\ndomain: software\nisAbstract: true\nsatisfies: [REQ-MO-001]\n---\n".into());
+    edit(&mut f, "Arch/Manager.md", "satisfies: [REQ-MO-001]\n", "supertype: Arch::MgrBase\n");
+    none_of_ours(&validate(&f));
+}
+
+#[test]
+fn a_subtype_composite_with_nothing_of_its_own_does_not_repeat_w991() {
+    let mut f = base();
+    edit(&mut f, "Arch/Board.md", "connections:\n  - {from: mgr.trip, to: relay.cmd}\n", "");
+    f.insert("Exec/ChainSub.md", "---\ntype: PartDef\nname: ChainSub\nsupertype: Exec::Chain\n---\n".into());
+    let out = validate(&f);
+    let w = lines(&out, "W991");
+    assert_eq!(w.len(), 1, "{out}");
+    assert!(w[0].contains("of 'Exec::Chain'"), "{out}");
+}
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for e in std::fs::read_dir(from).unwrap() {
+        let e = e.unwrap();
+        let p = to.join(e.file_name());
+        if e.file_type().unwrap().is_dir() {
+            copy_dir(&e.path(), &p);
+        } else {
+            std::fs::copy(e.path(), p).unwrap();
+        }
+    }
+}
+
+#[test]
+fn grid_tie_regression_a_protection_test_listing_unmodelled_requirements_is_reported() {
+    // GH #330 acceptance: TC-GTI-PROT-IN-001 once listed REQ-GTI-SYS-037 (10 µs overcurrent trip) and REQ-GTI-HW-002
+    // (relay weld detection), which the executable chain does not model.
+    let gti = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model_gti");
+    let root = std::env::temp_dir().join(format!("syscribe-models-gti-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    copy_dir(&gti, &root);
+    let tc = root.join("Verification/TC-GTI-PROT-IN-001.md");
+    let t = std::fs::read_to_string(&tc).unwrap().replacen("  - REQ-GTI-SYS-030\n", "  - REQ-GTI-SYS-030\n  - REQ-GTI-SYS-037\n  - REQ-GTI-HW-002\n", 1);
+    std::fs::write(&tc, t).unwrap();
+    let out = run(&root, &[]);
+    let _ = std::fs::remove_dir_all(&root);
+    let w = lines(&out, "W992");
+    assert_eq!(w.len(), 2, "{out}");
+    assert!(w.iter().any(|l| l.contains("REQ-GTI-SYS-037")) && w.iter().any(|l| l.contains("REQ-GTI-HW-002")), "{out}");
 }

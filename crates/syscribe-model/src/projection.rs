@@ -58,6 +58,13 @@ pub fn current_config() -> Option<String> {
     CURRENT_CONFIG.with(|c| c.borrow().clone())
 }
 
+/// Record the stored Configuration a caller is about to project, as `resolve_selection` does, for a caller that walks
+/// Configurations itself (`validate --all-configs`): Configurations that select the same features differ only in their
+/// bindings, which the selection alone cannot tell apart.
+pub fn set_current_config(qname: Option<String>) {
+    CURRENT_CONFIG.with(|c| *c.borrow_mut() = qname);
+}
+
 /// Resolve a `--config` argument into a concrete selection. Accepts a stored
 /// `Configuration` (by id or qualified name) or an ad-hoc comma-separated set of
 /// `FeatureDef` qualified names (listed = selected, all others deselected).
@@ -403,7 +410,11 @@ pub fn validate_projected(
         e.frontmatter.element_type.as_ref() != Some(&ElementType::Configuration)
             || canonical_selection(full, e) == wanted
     });
-    let res = validator::validate_with_config(&active, config);
+    // Machines are checked at this variant's parameter values (GH #328). Only the machine-check view substitutes
+    // them: the elements themselves keep their symbolic text, which suspect links and baselines hash.
+    let mut config = config.clone();
+    config.machine_config = crate::placeholders::matching_config(full, &wanted).map(|c| c.qualified_name.clone());
+    let res = validator::validate_with_config(&active, &config);
     findings.extend(
         res.findings
             .into_iter()

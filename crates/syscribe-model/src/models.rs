@@ -87,12 +87,13 @@ fn counterparts(
     targets: &[&RawElement],
     pm: &PortMap,
     port: &str,
+    index: &HashMap<String, Vec<PortSpec>>,
 ) -> Vec<String> {
     if pm.contains_key(port) {
         return mapped(pm, port);
     }
     let same = targets.iter().any(|t| {
-        system::def_ports(elements, resolver, t)
+        system::def_ports_in(elements, resolver, t, index)
             .iter()
             .any(|q| q.name == port)
     });
@@ -210,27 +211,56 @@ fn bindings<'a>(
     out: &mut Vec<Finding>,
 ) -> Vec<Binding<'a>> {
     let mut v = Vec::new();
+    // definitions every one of whose uses can map its ports: a part usage carrying its own `portMap:` (one-to-many)
+    let usage_mapped: std::collections::HashSet<&str> = elements
+        .iter()
+        .filter(|e| is_part(e))
+        .flat_map(|e| e.frontmatter.features.iter().flatten())
+        .filter_map(|f| f.as_mapping())
+        .filter(|m| field(m, "portMap").is_some())
+        .filter_map(|m| {
+            field(m, "typedBy")
+                .and_then(|t| t.as_str())
+                .and_then(|t| resolver.resolve_ref(elements, t))
+        })
+        .map(|d| d.qualified_name.as_str())
+        .collect();
     for e in elements {
         let own = e.frontmatter.models.clone().unwrap_or_default();
-        if !own.is_empty() {
-            let holder = format!("'{}'", e.qualified_name);
-            if !is_part(e) {
-                out.push((
-                    "E990",
-                    e.file_path.clone(),
-                    format!("{holder}: `models:` is recognised on a PartDef or Part only"),
-                ));
-            } else {
-                let targets = resolve_targets(elements, resolver, &own, &holder, &e.file_path, out);
-                let (_, pm, abstracts) = def_binding_fields(elements, resolver, e);
-                v.push(Binding {
-                    file: e.file_path.clone(),
-                    holder,
-                    def: e,
-                    targets,
-                    port_map: pm,
-                    abstracts,
-                });
+        let holder = format!("'{}'", e.qualified_name);
+        if !own.is_empty() && !is_part(e) {
+            out.push((
+                "E990",
+                e.file_path.clone(),
+                format!("{holder}: `models:` is recognised on a PartDef or Part only"),
+            ));
+        } else if is_part(e) {
+            // its own `models:` (reported here when a target is wrong) or one inherited along its definition chain
+            let (models, pm, abstracts) = def_binding_fields(elements, resolver, e);
+            if !models.is_empty() {
+                let targets = if own.is_empty() {
+                    resolve_targets(
+                        elements,
+                        resolver,
+                        &models,
+                        &holder,
+                        &e.file_path,
+                        &mut Vec::new(),
+                    )
+                } else {
+                    resolve_targets(elements, resolver, &own, &holder, &e.file_path, out)
+                };
+                // with no map of its own, a definition whose usages map their ports is checked through them only
+                if !(pm.is_empty() && usage_mapped.contains(e.qualified_name.as_str())) {
+                    v.push(Binding {
+                        file: e.file_path.clone(),
+                        holder,
+                        def: e,
+                        targets,
+                        port_map: pm,
+                        abstracts,
+                    });
+                }
             }
         }
         if !is_part(e) {
@@ -353,10 +383,28 @@ fn abstracted_requirements(
 ) -> BTreeSet<String> {
     abstracts
         .iter()
-        .filter_map(|a| resolver.resolve_ref(elements, a))
+        // a stable id or a qualified name only: a port name in `abstracts:` that happens to equal a requirement's
+        // display name is not that requirement
+        .filter_map(|a| {
+            resolver
+                .get_by_id(elements, a)
+                .or_else(|| resolver.get(elements, a))
+        })
         .filter(|r| matches!(r.frontmatter.element_type, Some(ElementType::Requirement)))
         .map(|r| r.qualified_name.clone())
         .collect()
+}
+
+/// [`keys`] plus the supertypes along the definition chain: a requirement satisfied by an abstract base is exercised by a
+/// part that models one of its specialisations.
+fn keys_up(elements: &[RawElement], resolver: &Resolver, e: &RawElement) -> BTreeSet<String> {
+    let mut k = keys(elements, resolver, e);
+    k.extend(
+        system::chain(elements, resolver, e)
+            .iter()
+            .map(|d| d.qualified_name.clone()),
+    );
+    k
 }
 
 /// The architecture elements a composite `subject` can exercise: itself and every part reachable through `features:`,
@@ -367,12 +415,10 @@ pub fn exercised_by(
     subject: &RawElement,
 ) -> Exercised {
     let mut out = Exercised::default();
+    // (definition, usage name) pairs already walked: finite, so the walk ends without a cap
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut stack: Vec<(&RawElement, Option<Mapping>)> = vec![(subject, None)];
     while let Some((e, usage)) = stack.pop() {
-        if seen.len() > 512 {
-            break;
-        }
         let key = format!(
             "{}#{}",
             e.qualified_name,
@@ -386,7 +432,7 @@ pub fn exercised_by(
             continue;
         }
         if is_architecture(elements, resolver, e) {
-            out.add(keys(elements, resolver, e), &BTreeSet::new());
+            out.add(keys_up(elements, resolver, e), &BTreeSet::new());
         }
         let (models, _, abstracts) = match &usage {
             Some(m) => usage_binding(elements, resolver, e, m),
@@ -398,7 +444,7 @@ pub fn exercised_by(
                 .resolve_ref(elements, &r)
                 .filter(|t| is_architecture(elements, resolver, t))
             {
-                out.add(keys(elements, resolver, t), &left_out);
+                out.add(keys_up(elements, resolver, t), &left_out);
             }
         }
         for f in system::composite_view(elements, resolver, e).features {
@@ -420,9 +466,12 @@ pub fn exercised_by(
 
 /// One architecture connection between two part usages, by the definitions they are typed by.
 struct ArchEdge {
-    a: String,
+    /// The keys of each end's type: a usage typed by a `Part` matches both the Part and its definition.
+    a: BTreeSet<String>,
+    an: String,
     pa: String,
-    b: String,
+    b: BTreeSet<String>,
+    bn: String,
     pb: String,
     composite: String,
 }
@@ -463,9 +512,11 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
             };
             if is_architecture(elements, resolver, da) && is_architecture(elements, resolver, db) {
                 v.push(ArchEdge {
-                    a: da.qualified_name.clone(),
+                    a: keys(elements, resolver, da),
+                    an: da.qualified_name.clone(),
                     pa: fp.to_string(),
-                    b: db.qualified_name.clone(),
+                    b: keys(elements, resolver, db),
+                    bn: db.qualified_name.clone(),
                     pb: tp.to_string(),
                     composite: c.qualified_name.clone(),
                 });
@@ -484,12 +535,13 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     let bs = bindings(elements, resolver, &mut out);
 
     // E991: each executable port corresponds to a port of a modelled element, in a compatible direction.
+    let port_index = system::child_port_index(elements);
     let ports_cache: std::cell::RefCell<HashMap<String, Vec<PortSpec>>> = Default::default();
     let ports = |d: &RawElement| -> Vec<PortSpec> {
         ports_cache
             .borrow_mut()
             .entry(d.qualified_name.clone())
-            .or_insert_with(|| system::def_ports(elements, resolver, d))
+            .or_insert_with(|| system::def_ports_in(elements, resolver, d, &port_index))
             .clone()
     };
     // (architecture qname, port) covered by some executable port
@@ -515,7 +567,15 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             .collect::<Vec<_>>()
             .join(", ");
         for p in &exec {
-            for m in counterparts(elements, resolver, b.def, &b.targets, &b.port_map, &p.name) {
+            for m in counterparts(
+                elements,
+                resolver,
+                b.def,
+                &b.targets,
+                &b.port_map,
+                &p.name,
+                &port_index,
+            ) {
                 let hits: Vec<(&RawElement, PortSpec)> = b
                     .targets
                     .iter()
@@ -633,17 +693,42 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             .or_insert_with(|| keys(elements, resolver, t))
             .clone()
     };
-    let joined =
-        |ka: &BTreeSet<String>, pa: &str, kb: &BTreeSet<String>, pb: &str| -> Option<&ArchEdge> {
-            edges.iter().find(|e| {
-                (ka.contains(&e.a) && e.pa == pa && kb.contains(&e.b) && e.pb == pb)
-                    || (kb.contains(&e.a) && e.pa == pb && ka.contains(&e.b) && e.pb == pa)
+    // edges by port name, so a lookup does not scan every architecture connection
+    let mut by_port: HashMap<&str, Vec<&ArchEdge>> = HashMap::new();
+    for e in &edges {
+        by_port.entry(e.pa.as_str()).or_default().push(e);
+        if e.pb != e.pa {
+            by_port.entry(e.pb.as_str()).or_default().push(e);
+        }
+    }
+    let joined = |ka: &BTreeSet<String>, pa: &str, kb: &BTreeSet<String>, pb: &str| -> bool {
+        by_port.get(pa).into_iter().flatten().any(|e| {
+            (!ka.is_disjoint(&e.a) && e.pa == pa && !kb.is_disjoint(&e.b) && e.pb == pb)
+                || (!kb.is_disjoint(&e.a) && e.pa == pb && !ka.is_disjoint(&e.b) && e.pb == pa)
+        })
+    };
+    // (architecture key, port) covered by some executable port, or exempted by `abstracts:`
+    let expand = |set: &BTreeSet<(String, String)>| -> std::collections::HashSet<(String, String)> {
+        set.iter()
+            .flat_map(|(t, p)| {
+                tkeys_of(elements, resolver, t)
+                    .into_iter()
+                    .map(move |k| (k, p.clone()))
             })
+            .collect()
+    };
+    let covered_keys = expand(&covered);
+    let abstracted_keys = expand(&abstracted);
+    let hit_any =
+        |ks: &BTreeSet<String>, p: &str, set: &std::collections::HashSet<(String, String)>| {
+            ks.iter().any(|k| set.contains(&(k.clone(), p.to_string())))
         };
-    for c in elements
-        .iter()
-        .filter(|e| is_part(e) && !is_architecture(elements, resolver, e))
-    {
+    for c in elements.iter().filter(|e| {
+        is_part(e)
+            && !is_architecture(elements, resolver, e)
+            // a subtype that adds no parts or connections of its own repeats its base's findings, reported there
+            && !(e.frontmatter.supertype.is_some() && e.frontmatter.features.is_none() && e.frontmatter.connections.is_none())
+    }) {
         let view = system::composite_view(elements, resolver, c);
         // part name → (keys of everything it models, its port map)
         #[allow(clippy::type_complexity)]
@@ -710,8 +795,8 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
                 continue;
             };
             let (pas, pbs) = (
-                counterparts(elements, resolver, dfa, tsa, ma, pa),
-                counterparts(elements, resolver, dfb, tsb, mb, pb),
+                counterparts(elements, resolver, dfa, tsa, ma, pa, &port_index),
+                counterparts(elements, resolver, dfb, tsb, mb, pb, &port_index),
             );
             if pas.is_empty() || pbs.is_empty() {
                 continue; // an end mapped to `null`
@@ -734,7 +819,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             }
             if !pas
                 .iter()
-                .any(|pa2| pbs.iter().any(|pb2| joined(ka, pa2, kb, pb2).is_some()))
+                .any(|pa2| pbs.iter().any(|pb2| joined(ka, pa2, kb, pb2)))
             {
                 let side = |k: &BTreeSet<String>| k.iter().next().cloned().unwrap_or_default();
                 let alts = |ps: &[String]| {
@@ -752,35 +837,28 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             }
         }
         // the reverse: an architecture connection between two elements this composite models
-        let all: BTreeSet<&String> = parts.values().flat_map(|(k, ..)| k).collect();
+        let all: BTreeSet<String> = parts.values().flat_map(|(k, ..)| k.iter().cloned()).collect();
         let mut reported: BTreeSet<(String, String, String, String)> = BTreeSet::new();
         for e in &edges {
-            if !all.contains(&e.a) || !all.contains(&e.b) || e.a == e.b {
+            if e.a.is_disjoint(&all) || e.b.is_disjoint(&all) || !e.a.is_disjoint(&e.b) {
                 continue;
             }
-            if abstracted.contains(&(e.a.clone(), e.pa.clone()))
-                || abstracted.contains(&(e.b.clone(), e.pb.clone()))
-            {
+            if hit_any(&e.a, &e.pa, &abstracted_keys) || hit_any(&e.b, &e.pb, &abstracted_keys) {
                 continue;
             }
             // a port no executable part covers is already W990
-            let cov = |q: &str, p: &str| {
-                covered
-                    .iter()
-                    .any(|(t, pp)| pp == p && tkeys_of(elements, resolver, t).contains(q))
-            };
-            if !cov(&e.a, &e.pa) || !cov(&e.b, &e.pb) {
+            if !hit_any(&e.a, &e.pa, &covered_keys) || !hit_any(&e.b, &e.pb, &covered_keys) {
                 continue;
             }
             let hit = exec_pairs.iter().any(|(ka, pa, kb, pb)| {
-                (ka.contains(&e.a) && pa == &e.pa && kb.contains(&e.b) && pb == &e.pb)
-                    || (kb.contains(&e.a) && pb == &e.pa && ka.contains(&e.b) && pa == &e.pb)
+                (!ka.is_disjoint(&e.a) && pa == &e.pa && !kb.is_disjoint(&e.b) && pb == &e.pb)
+                    || (!kb.is_disjoint(&e.a) && pb == &e.pa && !ka.is_disjoint(&e.b) && pa == &e.pb)
             });
-            if !hit && reported.insert((e.a.clone(), e.pa.clone(), e.b.clone(), e.pb.clone())) {
+            if !hit && reported.insert((e.an.clone(), e.pa.clone(), e.bn.clone(), e.pb.clone())) {
                 out.push((
                     "W991",
                     c.file_path.clone(),
-                    format!("architecture connection '{}.{}' → '{}.{}' (in '{}') has no counterpart in '{}', which models both ends", e.a, e.pa, e.b, e.pb, e.composite, c.qualified_name),
+                    format!("architecture connection '{}.{}' → '{}.{}' (in '{}') has no counterpart in '{}', which models both ends", e.an, e.pa, e.bn, e.pb, e.composite, c.qualified_name),
                 ));
             }
         }
@@ -801,6 +879,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             }
         }
     }
+    let mut reach_cache: HashMap<String, Exercised> = HashMap::new();
     for tc in elements
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase)))
@@ -814,7 +893,9 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
         else {
             continue;
         };
-        let reach = exercised_by(elements, resolver, subject);
+        let reach = reach_cache
+            .entry(subject.qualified_name.clone())
+            .or_insert_with(|| exercised_by(elements, resolver, subject));
         for r in tc.frontmatter.verifies.iter().flatten() {
             let Some(req) = resolver.resolve_ref(elements, r) else {
                 continue;

@@ -39,7 +39,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E101–E108, E110–E128 | Cross-reference | Duplicate ids (E101) and qualified names (E108), unresolved or ill-typed `verifies`/`derivedFrom`, scenario names, unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
 | E050, W050 | Build-system integration (§9.9) | Conflicting `buildExports` variables; selected feature exporting nothing |
 | E200–E247 | Product lines (§9) | Configuration and FeatureDef fields, parameter binding (E202–E207, E222, E229, E230), `appliesWhen` (E209, E228), feature-model constraints (E212, E213, E219–E221), `feature-check --deep` (E223–E225, E227), `--config` escapes (E226), single-file feature models (E231–E233), Configuration inheritance (E215, E234–E237) |
-| W011–W027, W048, W239–W240, W245–W246 | Product-line warnings (§9) | Dead/always-selected features, untested active requirements, unbound parameters, false-optional, escaping/violable references, orphan features, runtime bindings, empty gating packages, misplaced feature-model fields |
+| W011–W027, W048, W239–W240, W245–W246, W248 | Product-line warnings (§9) | Dead/always-selected features, untested active requirements, unbound parameters, false-optional, escaping/violable references, orphan features, runtime bindings, empty gating packages, misplaced feature-model fields, machine parameters with no default |
 | W023, W028, W029 | Implementation and external refs | Missing `implementedBy:` path (§12.8), duplicate `extRef`, unmeasured `wcet:` claim |
 | W030–W040 | Safety↔security | Co-engineering, cyber-risk treatment and CAL, HW metrics, freedom from interference, attack-tree feasibility, responsibility and independent assessment, orphan GSN nodes |
 | W041–W047, W049, W051, W052, W056, W057, W058, W059, W065, W068 | Schema hygiene | Nested `custom_fields`, non-basic names, standard-library typos and unit/quantity mismatches, stereotype tagged values, `[ids.prefixes]` entries, unrecognised frontmatter keys |
@@ -71,8 +71,8 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit fields, IDs, status (E926), SL range (E925), resolution, Security-Level gaps |
 | W934 | Audit policy (`[audit]`) | Malformed `[audit]` entries in `.syscribe.toml` |
 | E980–E984, W980–W987 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W985–W986 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
-| E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
 | E990–E991, W990–W992 | Behavioural model trace (`models:`, §12.11) | Unresolved or non-architecture `models:` targets, port correspondence and direction, uncovered architecture ports, connection correspondence, TestCase subjects that cannot evidence a requirement |
+| E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
 | E960–E967, W960–W979 | Security-analysis completeness | TARA row integrity, risk inputs and treatment, attack-tree shape, zone/conduit consistency, `VulnerabilityReport` hygiene |
 
 See [Rule Reference](rules.md) for every code.

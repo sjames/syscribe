@@ -194,6 +194,39 @@ pub fn def_ports(elements: &[RawElement], resolver: &Resolver, def: &RawElement)
     i.ports
 }
 
+/// Child `Port` elements by the qualified name of their parent, built once for callers that ask for many definitions
+/// ports ([`def_ports_in`]).
+pub fn child_port_index(elements: &[RawElement]) -> std::collections::HashMap<String, Vec<PortSpec>> {
+    let mut by_parent: std::collections::HashMap<String, Vec<PortSpec>> = std::collections::HashMap::new();
+    for e in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Port))) {
+        if let Some((parent, last)) = e.qualified_name.rsplit_once("::") {
+            by_parent.entry(parent.to_string()).or_default().push(PortSpec { name: last.to_string(), dir: Dir::parse(e.frontmatter.direction.as_deref()) });
+        }
+    }
+    by_parent
+}
+
+/// [`def_ports`] with the child-port index built once by [`child_port_index`].
+pub fn def_ports_in(elements: &[RawElement], resolver: &Resolver, def: &RawElement, index: &std::collections::HashMap<String, Vec<PortSpec>>) -> Vec<PortSpec> {
+    let ch = chain(elements, resolver, def);
+    let mut ports: Vec<PortSpec> = Vec::new();
+    for d in &ch {
+        for p in inline_ports(d) {
+            if !ports.iter().any(|x| x.name == p.name) {
+                ports.push(p);
+            }
+        }
+    }
+    for d in &ch {
+        for p in index.get(d.qualified_name.as_str()).into_iter().flatten() {
+            if !ports.iter().any(|x| x.name == p.name) {
+                ports.push(p.clone());
+            }
+        }
+    }
+    ports
+}
+
 /// The ports a part definition declares inline: `features:` of `type: Port`.
 fn inline_ports(d: &RawElement) -> Vec<PortSpec> {
     let mut ports: Vec<PortSpec> = Vec::new();

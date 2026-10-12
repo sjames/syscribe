@@ -2144,17 +2144,16 @@ pub fn cmd_why(
         elem.frontmatter.domain.as_deref().unwrap_or("—"));
     println!();
 
-    if !modelled.is_empty() && cov_elem.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty()) {
+    let via_models = !modelled.is_empty() && cov_elem.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty());
+    if via_models {
         println!("## Models");
         println!();
         for m in &modelled {
             println!("- {} ({})", m.qualified_name, tl(m.frontmatter.element_type.as_ref()));
         }
         println!();
-        println!("The requirements below are satisfied by the modelled architecture elements.");
-        println!();
     }
-    println!("## Satisfied requirements");
+    println!("{}", if via_models { "## Requirements of the modelled elements" } else { "## Satisfied requirements" });
     println!();
     println!("| ID | Title | Status | reqDomain | SIL | ASIL |");
     println!("|---|---|---|---|---|---|");
@@ -2177,7 +2176,7 @@ pub fn cmd_why(
     println!();
 
     // Which TCs cover those requirements
-    println!("## Verification coverage (via satisfied requirements)");
+    println!("{}", if via_models { "## Verification coverage (via the modelled elements' requirements)" } else { "## Verification coverage (via satisfied requirements)" });
     println!();
     let mut tcs: Vec<(String, String, String, String)> = Vec::new(); // (tc_id, name, level, req_id)
     for req_id in &req_ids {
@@ -3043,6 +3042,7 @@ pub fn cmd_validate_all_configs(
         } else {
             config
         };
+        syscribe_model::projection::set_current_config(Some(cfg.qualified_name.clone()));
         let all = syscribe_model::projection::validate_projected(elements, config, &sel);
         let findings = filter_by_file(&all, file_filter);
         let eval = evaluate_gate(&findings, gate, profile, elements);

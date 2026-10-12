@@ -1506,7 +1506,7 @@ pub struct ColdFrontmatter3 {
     #[serde(default, deserialize_with = "named_string_or_vec::models")]
     pub models: Option<Vec<String>>,
     /// `PartDef`/`Part.abstracts` — free names of what the model leaves out; an
-    /// architecture port named here needs no executable counterpart (W991).
+    /// architecture port named here needs no executable counterpart (W990).
     #[serde(default, deserialize_with = "named_string_or_vec::abstracts")]
     pub abstracts: Option<Vec<String>>,
     /// `PartDef`/`Part.fidelity` — prose on what the model covers.
@@ -2104,7 +2104,7 @@ struct ColdWire {
     #[serde(default, deserialize_with = "named_string_or_vec::models")]
     pub models: Option<Vec<String>>,
     /// `PartDef`/`Part.abstracts` — free names of what the model leaves out; an
-    /// architecture port named here needs no executable counterpart (W991).
+    /// architecture port named here needs no executable counterpart (W990).
     #[serde(default, deserialize_with = "named_string_or_vec::abstracts")]
     pub abstracts: Option<Vec<String>>,
     /// `PartDef`/`Part.fidelity` — prose on what the model covers.
