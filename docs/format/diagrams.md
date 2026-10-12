@@ -276,6 +276,27 @@ subject: System::GridTieInverter
 depth: 2
 ```
 
+### System context: actors (IBD, BDD)
+
+A context is an ordinary `PartDef` holding the system beside the actors it deals with. An actor is a part usage marked `role: external` (spec §12.13), one field shared with the `role: environment` parts of a verification set-up:
+
+<!-- syscribe-example: skip reason="an excerpt of model_gti; the inverter and actor definitions live there" -->
+```yaml
+---
+type: PartDef
+name: Inverter Context
+features:
+  - {name: inverter, typedBy: System::GridTieInverter}
+  - {name: pvArray, typedBy: Context::PvArray, role: external}
+  - {name: grid, typedBy: Context::UtilityGrid, role: external}
+connections:
+  - {from: pvArray.dcOut, to: inverter.pvIn}
+  - {from: inverter.gridOut, to: grid.acIn}
+---
+```
+
+A derived IBD of the context draws each actor «actor» beside the system, an environment part «environment» with a dashed outline, and the connections between their ports; a derived BDD marks an actor's definition «actor». In a context, a port of a product part that no connection, flow or binding reaches is `W996`, so a port added to the system without saying who is on the other side is caught. A part with no actor is not a context and is not checked.
+
 ### Flow kinds and port sides
 
 An architecture picture reads faster when the lines say what they carry. Put `flowKind:` on a

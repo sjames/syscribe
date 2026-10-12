@@ -274,9 +274,9 @@ fn bindings<'a>(
             }
             let name = field(m, "name").and_then(|n| n.as_str()).unwrap_or("?");
             let holder = format!("part '{name}' of '{}'", e.qualified_name);
-            // GH #332: an environment part is not the product, so it models nothing
-            if system::is_environment(m) {
-                out.push(("W993", e.file_path.clone(), format!("{holder}: is `role: environment`, so its `models:`/`portMap:` is ignored; an environment part is not the product and has no architecture counterpart")));
+            // GH #332, GH #337: an environment part or an actor is not the product, so it models nothing
+            if let Some(role) = system::role_of(m) {
+                out.push(("W993", e.file_path.clone(), format!("{holder}: is `role: {role}`, so its `models:`/`portMap:` is ignored; it is not the product and has no architecture counterpart")));
                 continue;
             }
             let Some(def) = field(m, "typedBy")
@@ -498,7 +498,7 @@ pub fn exercised_by(
                 continue;
             }
             // an environment part (GH #332) exercises nothing of the product
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue;
             }
             if let Some(d) = field(m, "typedBy")
@@ -618,6 +618,7 @@ fn arch_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<ArchEdge> {
 /// Every `models:` finding (E990, E991, W990, W991, W992). Empty unless some part declares `models:`.
 pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     let mut out = role_findings(elements, resolver);
+    out.extend(boundary_port_findings(elements, resolver));
     if !active(elements) {
         return out;
     }
@@ -819,7 +820,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             continue;
         }
         for m in view.features.iter().filter_map(|f| f.as_mapping()) {
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue;
             }
             let Some(d) = field(m, "typedBy")
@@ -874,7 +875,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
             ) else {
                 continue;
             };
-            if system::is_environment(m) {
+            if system::is_outside(m) {
                 continue; // GH #332: not the product, so no architecture counterpart
             }
             let (models, pm, _) = usage_binding(elements, resolver, def, m);
@@ -1069,6 +1070,98 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
         }
     }
     out
+}
+
+/// W996 (GH #337): in a context composite (a part that holds at least one `role: external` usage), a port of a
+/// product part that no connection, flow or binding of the composite reaches. Opt-in by construction: it applies only
+/// where a context composite says which parts are actors.
+fn boundary_port_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let index = system::child_port_index(elements);
+    for c in elements.iter().filter(|e| is_part(e)) {
+        if !system::is_context(c) {
+            continue;
+        }
+        // the usages: inline part features and child `Part` files, each with the element its ports come from
+        let mut usages: Vec<(String, &RawElement, bool)> = Vec::new();
+        for m in c.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping()) {
+            let Some(name) = field(m, "name").and_then(|n| n.as_str()) else { continue };
+            if field(m, "type").and_then(|t| t.as_str()) == Some("Port") {
+                continue;
+            }
+            if let Some(def) = field(m, "typedBy").and_then(|t| t.as_str()).and_then(|t| resolver.resolve_ref(elements, t)).filter(|d| is_part(d)) {
+                usages.push((name.to_string(), def, system::is_outside(m)));
+            }
+        }
+        for child in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Part)) && e.qualified_name.rsplit_once("::").is_some_and(|(p, _)| p == c.qualified_name)) {
+            let name = child.qualified_name.rsplit_once("::").map_or("", |(_, n)| n);
+            if !usages.iter().any(|(n, ..)| n == name) {
+                usages.push((name.to_string(), child, false));
+            }
+        }
+        // an entry reaches its ends only when every end is on a part that is drawn (a projected-out actor reaches
+        // nothing) or on the context's own port
+        let own: Vec<String> = port_names(elements, resolver, c, &index).into_iter().map(|(n, _)| n).collect();
+        let mut reached: BTreeSet<String> = BTreeSet::new();
+        let mut written: BTreeSet<String> = BTreeSet::new();
+        for list in [&c.frontmatter.connections, &c.frontmatter.flow_connections, &c.frontmatter.binding_connections] {
+            for entry in list.iter().flatten() {
+                let Some(p) = crate::connections::parse_entry(entry) else { continue };
+                let chains: Vec<String> = p.endpoints.into_iter().map(|e| e.chain.trim().replace("::", ".")).collect();
+                let live = chains.iter().all(|ch| {
+                    let head = ch.split('.').next().unwrap_or("");
+                    usages.iter().any(|(n, ..)| n == head) || own.iter().any(|o| o == head)
+                });
+                if live {
+                    reached.extend(chains.iter().cloned());
+                }
+                written.extend(chains);
+            }
+        }
+        for (name, from, outside) in &usages {
+            if *outside {
+                continue;
+            }
+            for (pname, gated) in port_names(elements, resolver, from, &index) {
+                // a port with its own `appliesWhen:` stays in a projected variant (inline features are not projected),
+                // so it is judged by what is written, as in the whole model
+                let at = format!("{name}.{pname}");
+                if !(if gated { written.contains(&at) } else { reached.contains(&at) }) {
+                    out.push((
+                        "W996",
+                        c.file_path.clone(),
+                        format!("'{}': port '{pname}' of '{name}' ({}) connects to nothing in this context; connect it to an actor (`role: external`) or another part", c.qualified_name, from.qualified_name),
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The ports of a part (usage or definition) along its `supertype:`/`typedBy:` chain: inline `type: Port` features,
+/// features typed by a `PortDef`, and child `Port` files; each with whether it is an inline feature gated by `appliesWhen:`.
+fn port_names(elements: &[RawElement], resolver: &Resolver, e: &RawElement, index: &std::collections::HashMap<String, Vec<system::PortSpec>>) -> Vec<(String, bool)> {
+    let mut names: Vec<(String, bool)> = Vec::new();
+    for d in system::chain_with(elements, resolver, e, true) {
+        for p in d.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping()) {
+            let Some(pname) = field(p, "name").and_then(|n| n.as_str()) else { continue };
+            let is_port = field(p, "type").and_then(|t| t.as_str()) == Some("Port")
+                || field(p, "typedBy")
+                    .and_then(|t| t.as_str())
+                    .and_then(|t| resolver.resolve_ref(elements, t))
+                    .is_some_and(|t| t.frontmatter.element_type == Some(ElementType::PortDef));
+            if is_port && !names.iter().any(|(n, _)| n == pname) {
+                names.push((pname.to_string(), field(p, "appliesWhen").is_some()));
+            }
+        }
+        for p in index.get(d.qualified_name.as_str()).into_iter().flatten() {
+            if !names.iter().any(|(n, _)| *n == p.name) {
+                names.push((p.name.clone(), false));
+            }
+        }
+    }
+    names
 }
 
 /// E992 (GH #332): a `role:` on a composite's `features:` entry that is not a known role, or that is not on a part usage.

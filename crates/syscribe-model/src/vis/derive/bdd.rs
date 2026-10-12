@@ -159,11 +159,22 @@ pub fn generate(
     filters.unmatched_issues(&known, issues);
     let all_blocks: Vec<&RawElement> = blocks.iter().chain(externals.iter()).copied().collect();
 
+    // The definitions a diagram block uses as actors (`role: external`, GH #337): drawn «actor».
+    let actors: Vec<String> = all_blocks
+        .iter()
+        .flat_map(|b| features_of(b, elements, resolver))
+        .filter(|f| f.role == FeatureRole::Part && f.usage_role.as_deref() == Some("external"))
+        .filter_map(|f| f.typed_by.as_deref().and_then(|t| resolver.resolve_ref(elements, t)).map(|d| d.qualified_name.clone()))
+        .collect();
+
     // ── nodes ───────────────────────────────────────────────────────────
     for e in &all_blocks {
         let id = derived_shape_id(&e.qualified_name);
         let mut node = block_node(id.clone(), e, NodeKind::Block, None, display_name(e), elements, resolver);
         node.lines = Vec::new();
+        if actors.contains(&e.qualified_name) {
+            node.stereotype = Some("actor".to_string());
+        }
         // Integrity allocation (GH #244): the ASIL as a banner.
         if let Some(asil) = e.frontmatter.asil_level.as_deref().filter(|a| !a.trim().is_empty()) {
             node.banners.push(format!("ASIL {}", asil.trim()));

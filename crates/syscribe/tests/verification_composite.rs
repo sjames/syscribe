@@ -126,7 +126,7 @@ fn an_unknown_role_or_a_role_off_a_part_usage_is_e992() {
     let mut f = base();
     edit(&mut f, "Exec/Bench.md", "role: environment}", "role: enviroment}");
     let out = validate(&f);
-    assert!(lines(&out, "E992").iter().any(|l| l.contains("feature 'stim' has `role: enviroment`, which is not a role (the roles are: environment)")), "{out}");
+    assert!(lines(&out, "E992").iter().any(|l| l.contains("feature 'stim' has `role: enviroment`, which is not a role (the roles are: environment, external)")), "{out}");
     let mut f = base();
     edit(&mut f, "Exec/Stim.md", "{name: out, type: Port, direction: out}", "{name: out, type: Port, direction: out, role: environment}");
     let out = validate(&f);
@@ -140,7 +140,7 @@ fn simulate_coverage_lists_environment_parts_apart() {
     assert!(out.contains("coverage of Exec::Bench.stim (Exec::StimM) [environment]"), "{out}");
     assert!(out.contains("coverage of Exec::Bench.mon (Exec::MonM) (hash"), "{out}");
     // stim's one state is not in the aggregate: mon's one and rel's two
-    assert!(out.lines().any(|l| l.starts_with("aggregate coverage of Exec::Bench") && l.contains("states 3/3") && l.ends_with("(product parts only; environment parts not counted: stim)")), "{out}");
+    assert!(out.lines().any(|l| l.starts_with("aggregate coverage of Exec::Bench") && l.contains("states 3/3") && l.ends_with("(product parts only; not counted, as not the product: stim)")), "{out}");
     let json = run(&base(), &["simulate", "Exec::Bench", "--coverage", "--json"]);
     let start = json.find('{').unwrap();
     let v: serde_json::Value = serde_json::from_str(&json[start..]).unwrap_or_else(|e| panic!("{e}: {json}"));
@@ -153,7 +153,7 @@ fn simulate_coverage_lists_environment_parts_apart() {
 #[test]
 fn inject_marks_faults_of_environment_parts() {
     let out = run(&base(), &["inject", "Exec::Bench", "--report-only"]);
-    assert!(out.contains("environment parts (not the product): stim"), "{out}");
+    assert!(out.contains("parts that are not the product (environment, external): stim"), "{out}");
     assert!(out.lines().any(|l| l.contains("FM-VC-001 [environment]")), "{out}");
     assert!(out.lines().any(|l| l.contains("FM-VC-002") && !l.contains("[environment]")), "{out}");
     let json = run(&base(), &["inject", "Exec::Bench", "--report-only", "--json"]);
@@ -207,4 +207,19 @@ fn coverage_gates_ignore_environment_parts() {
     let json = run(&f, &["simulate", "Exec::Bench", "--coverage", "--json"]);
     let v: serde_json::Value = serde_json::from_str(&json[json.find('{').unwrap()..]).unwrap();
     assert_eq!(v["coverage"]["parts"][0]["basis"]["machine"], "Exec::Bench.stim (Exec::StimM)", "the label keeps its shape; `role` carries the role");
+}
+
+#[test]
+fn an_actor_is_not_the_product_either_and_is_reported_as_external() {
+    // GH #337: `role: external` carries the same exclusions as `role: environment`, labelled with its own role
+    let mut f = base();
+    edit(&mut f, "Exec/Bench.md", "role: environment}", "role: external}");
+    let out = run(&f, &["simulate", "Exec::Bench", "--coverage"]);
+    assert!(out.contains("coverage of Exec::Bench.stim (Exec::StimM) [external]"), "{out}");
+    assert!(out.lines().any(|l| l.starts_with("aggregate coverage of Exec::Bench") && l.contains("states 3/3")), "{out}");
+    let out = run(&f, &["inject", "Exec::Bench", "--report-only"]);
+    assert!(out.lines().any(|l| l.contains("FM-VC-001 [external]")), "{out}");
+    edit(&mut f, "Exec/Bench.md", "role: external}", "role: external, models: [Arch::Sensor]}");
+    let out = validate(&f);
+    assert!(lines(&out, "W993").iter().any(|l| l.contains("part 'stim' of 'Exec::Bench': is `role: external`")), "{out}");
 }

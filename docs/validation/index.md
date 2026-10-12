@@ -73,6 +73,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E980–E984, W980–W987 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W985–W986 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
 | E990–E992, W990–W993 | Behavioural model trace (`models:`, `role:`, §12.11) | Unresolved or non-architecture `models:` targets, port correspondence and direction, uncovered architecture ports, connection correspondence, TestCase subjects that cannot evidence a requirement, unknown `role:` values, `models:` on an environment part |
 | W994–W995 | Executable evidence (`@verifies`, §12.12) | Scenario `@verifies` tags or `# verifies:` comments naming a requirement outside the TestCase's `verifies:`, and requirements no tagged scenario claims |
+| W996 | System context (`role: external`, §12.13) | A port of a product part in a context composite that connects to nothing |
 | E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
 | E960–E967, W960–W979 | Security-analysis completeness | TARA row integrity, risk inputs and treatment, attack-tree shape, zone/conduit consistency, `VulnerabilityReport` hygiene |
 

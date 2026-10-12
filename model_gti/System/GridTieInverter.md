@@ -24,6 +24,16 @@ features:
   - {name: firmware, typedBy: System::Software::Firmware}
   - {name: arcFaultFrontEnd, typedBy: System::Hardware::ArcFaultFrontEnd}
   - {name: rapidShutdownDriver, typedBy: System::Hardware::RapidShutdownDriver}
+  - {name: pvIn, type: Port, direction: in, flowKind: power}
+  - {name: gridOut, type: Port, direction: out, flowKind: power}
+  - {name: comms, type: Port, direction: inout, flowKind: data}
+  - {name: rsdIn, type: Port, direction: in, flowKind: command, appliesWhen: Features::Protection::RapidShutdown}
+bindingConnections:
+  - {left: pvIn, right: dcInput.pvIn}
+  - {left: pvIn, right: arcFaultFrontEnd.pvTap}
+  - {left: gridOut, right: acOutput.gridOut}
+  - {left: comms, right: controlBoard.comms}
+  - {left: rsdIn, right: rapidShutdownDriver.initiator}
 connections:
   - {from: dcInput.dcOut, to: powerStage.dcIn, flowKind: power}
   - {from: powerStage.acOut, to: acOutput.acIn, flowKind: power}

@@ -256,6 +256,8 @@ pub(crate) struct Feature {
     pub side: Option<Side>,
     /// The entry's own `appliesWhen:`, as written (GH #336).
     pub applies_when: Option<String>,
+    /// A part usage's `role:` (`external`, `environment`; GH #332, GH #337).
+    pub usage_role: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -302,6 +304,7 @@ pub(crate) fn features_of(e: &RawElement, elements: &[RawElement], resolver: &Re
             flow,
             side: map_str(m, "side").and_then(Side::parse),
             applies_when: m.get(serde_yaml::Value::String("appliesWhen".into())).map(applies_when_text),
+            usage_role: map_str(m, "role").map(str::to_string),
         });
     }
     out

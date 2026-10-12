@@ -57,13 +57,44 @@ pub struct Instance {
     pub def: String,
     pub behavior: Behavior,
     pub ports: Vec<PortSpec>,
-    /// Marked `role: environment`: part of the verification set-up, not of the product (GH #332).
+    /// Marked `role: environment` (part of the verification set-up, GH #332) or `role: external` (an actor, GH #337): not the product.
     pub environment: bool,
+    /// The `role:` that makes it so, for reports: `environment` or `external`.
+    pub role: Option<&'static str>,
 }
 
-/// The values a part usage's `role:` may take (GH #332). `environment`: a part of the verification set-up (a grid
-/// source, a stimulus), not of the product.
-pub const ROLES: &[&str] = &["environment"];
+/// The values a part usage's `role:` may take (GH #332, GH #337). `environment`: a part of the verification set-up (a
+/// grid source, a stimulus), not of the product. `external`: an actor outside the product (the PV array, the utility
+/// grid, an operator) in a context composite; diagrams draw it «actor», and the system's boundary ports are checked
+/// against it (`W996`).
+pub const ROLES: &[&str] = &["environment", "external"];
+
+/// Whether a part usage is not the product: `role: environment` or `role: external`. Neither is evidence.
+pub fn is_outside(usage: &Mapping) -> bool {
+    role_of(usage).is_some()
+}
+
+/// The role that puts a part usage outside the product, `environment` or `external`, if it has one.
+pub fn role_of(usage: &Mapping) -> Option<&'static str> {
+    if is_environment(usage) {
+        Some("environment")
+    } else if is_external(usage) {
+        Some("external")
+    } else {
+        None
+    }
+}
+
+/// Whether `e` is a context composite (GH #337): a part that holds at least one `role: external` usage. It is the
+/// root of its context, so nothing has to use it (no `W007`), and its product parts' ports are checked (`W996`).
+pub fn is_context(e: &RawElement) -> bool {
+    e.frontmatter.features.iter().flatten().filter_map(|f| f.as_mapping()).any(is_external)
+}
+
+/// Whether a part usage (a composite's `features:` entry) is marked `role: external`.
+pub fn is_external(usage: &Mapping) -> bool {
+    field(usage, "role").and_then(|v| v.as_str()) == Some("external")
+}
 
 /// Whether a part usage (a composite's `features:` entry) is marked `role: environment`.
 pub fn is_environment(usage: &Mapping) -> bool {
@@ -192,7 +223,7 @@ pub fn composite_view(elements: &[RawElement], resolver: &Resolver, elem: &RawEl
 /// Every port of a part definition: inline `type: Port` features and child `Port`
 /// elements along its definition chain, nearest first (GH #330).
 pub fn def_ports(elements: &[RawElement], resolver: &Resolver, def: &RawElement) -> Vec<PortSpec> {
-    let mut inst = [Instance { name: String::new(), def: def.qualified_name.clone(), behavior: Behavior::Inert, ports: Vec::new(), environment: false }];
+    let mut inst = [Instance { name: String::new(), def: def.qualified_name.clone(), behavior: Behavior::Inert, ports: Vec::new(), environment: false, role: None }];
     for d in chain(elements, resolver, def) {
         for p in inline_ports(d) {
             if !inst[0].ports.iter().any(|x| x.name == p.name) {
@@ -326,7 +357,7 @@ pub fn parts_of(elements: &[RawElement], resolver: &Resolver, elem: &RawElement,
                 continue;
             }
         };
-        instances.push(Instance { name: name.to_string(), def: def.qualified_name.clone(), behavior, ports, environment: is_environment(m) });
+        instances.push(Instance { name: name.to_string(), def: def.qualified_name.clone(), behavior, ports, environment: is_outside(m), role: role_of(m) });
     }
     instances
 }
