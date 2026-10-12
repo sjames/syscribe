@@ -3,7 +3,8 @@
 //!
 //! - `PATCH /api/diagrams/layout/{*qname}` writes pins (`x`/`y`, and `w`/`h`
 //!   when given); a `null` value removes one pin and leaves the others;
-//! - `DELETE /api/diagrams/layout/{*qname}` removes the whole `layout:` key;
+//! - `DELETE /api/diagrams/layout/{*qname}` removes every pin (the whole `layout:` key unless it holds the
+//!   `flow`/`layers` hints, which stay);
 //! - `PUT /api/diagrams/svg/{*qname}` writes the companion file, sets
 //!   `svgMode`/`svgFile` when absent and appends one `<img>` (never twice);
 //!   a body that is not an SVG document is refused and writes nothing.
@@ -210,6 +211,20 @@ async fn patch_null_removes_one_pin_and_leaves_others() {
     assert_eq!(layout.len(), 1);
     assert_eq!(num(layout.get("s-widget2").and_then(|v| v.as_mapping()).unwrap(), "x"), Some(7));
 
+    let _ = std::fs::remove_dir_all(&model_root);
+}
+
+/// `DELETE` drops the pins and keeps the layout hints (GH #338).
+#[tokio::test]
+async fn delete_keeps_the_layout_hints() {
+    let model_root = temp_model();
+    std::fs::write(diagram_path(&model_root), TWO_PIN_DIAGRAM.replace("layout:\n", "layout:\n  flow: left-to-right\n  layers: [a, b]\n")).unwrap();
+    let app = build_app(&model_root).await;
+    let (_, resp) = call(&app, "DELETE", "/api/diagrams/layout/Diagrams/TestDiagram", None).await;
+    assert_eq!(resp["written"], json!(true), "expected commit, got {resp:#?}");
+    let layout = layout_on_disk(&model_root).expect("the hints keep `layout:`");
+    let keys: Vec<&str> = layout.keys().filter_map(|k| k.as_str()).collect();
+    assert_eq!(keys, ["flow", "layers"]);
     let _ = std::fs::remove_dir_all(&model_root);
 }
 

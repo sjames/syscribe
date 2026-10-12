@@ -54,6 +54,28 @@ impl FeatureExpr {
         out
     }
 
+    /// The operands that are not negated: the features whose selection can make the expression true (GH #338).
+    pub fn positive_operands(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        self.collect_signed(true, &mut out);
+        out
+    }
+
+    fn collect_signed(&self, positive: bool, out: &mut Vec<String>) {
+        match self {
+            FeatureExpr::Feat(q) => {
+                if positive {
+                    out.push(q.clone());
+                }
+            }
+            FeatureExpr::Not(e) => e.collect_signed(!positive, out),
+            FeatureExpr::And(a, b) | FeatureExpr::Or(a, b) => {
+                a.collect_signed(positive, out);
+                b.collect_signed(positive, out);
+            }
+        }
+    }
+
     fn collect(&self, out: &mut Vec<String>) {
         match self {
             FeatureExpr::Feat(q) => out.push(q.clone()),

@@ -417,6 +417,10 @@ fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg));
+    // `layout.flow` (GH #338)
+    if graph.flow_set {
+        out.push_str(if graph.layout_hints.direction == vis::LayoutDirection::Down { "top to bottom direction\n" } else { "left to right direction\n" });
+    }
     out.push('\n');
 
     // Top-level containers: have children and no parent themselves.
@@ -462,7 +466,9 @@ fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
             _ => "-->".to_string(),
         };
         let stereo = e.flow.map(|f| format!(" <<{}>>", f.as_str())).unwrap_or_default();
-        out.push_str(&format!("{} {} {} : {}{stereo}\n", sanitize_id(&src), connector, sanitize_id(&tgt), e.kind.as_str()));
+        // the variant view's `[only X]` (GH #338) on an edge only one product has
+        let only = e.label.as_deref().and_then(|l| l.rfind("[only ").map(|i| format!(" {}", &l[i..]))).unwrap_or_default();
+        out.push_str(&format!("{} {} {} : {}{only}{stereo}\n", sanitize_id(&src), connector, sanitize_id(&tgt), e.kind.as_str()));
     }
 
     out.push_str("\n@enduml\n");

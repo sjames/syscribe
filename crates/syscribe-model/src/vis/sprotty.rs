@@ -161,6 +161,11 @@ pub struct LayoutOptions {
     /// cycle breaker's pick, so a cyclic machine still reads top-down.
     #[serde(rename = "elk.layered.cycleBreaking.strategy", skip_serializing_if = "Option::is_none")]
     pub cycle_breaking: Option<&'static str>,
+    /// `NODES_AND_EDGES` with a forced node order when `layout.layers` orders the bands (GH #338).
+    #[serde(rename = "elk.layered.considerModelOrder.strategy", skip_serializing_if = "Option::is_none")]
+    pub model_order: Option<&'static str>,
+    #[serde(rename = "elk.layered.crossingMinimization.forceNodeModelOrder", skip_serializing_if = "Option::is_none")]
+    pub force_node_order: Option<&'static str>,
 }
 
 impl LayoutOptions {
@@ -183,6 +188,8 @@ impl LayoutOptions {
     pub fn from_hints(hints: &LayoutHints) -> LayoutOptions {
         LayoutOptions {
             cycle_breaking: None,
+            model_order: hints.model_order.then_some("NODES_AND_EDGES"),
+            force_node_order: hints.model_order.then_some("true"),
             algorithm: match hints.algorithm {
                 LayoutAlgorithm::Layered => "layered",
                 LayoutAlgorithm::Fixed => "fixed",

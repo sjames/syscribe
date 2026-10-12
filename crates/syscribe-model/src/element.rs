@@ -1529,11 +1529,50 @@ pub struct ColdFrontmatter3 {
 
 /// `include:`: a list (the members of a derived diagram's subject, or an annotated package's globs), or, on a
 /// derived IBD, a mapping that says what the view is about (GH #338).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IncludeSpec {
     List(Vec<String>),
     View(ViewInclude),
+}
+
+impl<'de> Deserialize<'de> for IncludeSpec {
+    /// A list keeps the list form's own messages; a mapping never fails: a key whose value has the wrong shape is
+    /// recorded in [`ViewInclude::malformed`] and reported as `W421`, like an unknown key.
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let v = serde_yaml::Value::deserialize(d)?;
+        let serde_yaml::Value::Mapping(m) = v else {
+            return serde_yaml::from_value::<Vec<String>>(v).map(IncludeSpec::List).map_err(|e| D::Error::custom(format!("{e} (or, on a derived IBD, a mapping of members, kinds, domains, tags, features, depth)")));
+        };
+        let mut view = ViewInclude::default();
+        for (k, val) in m {
+            let Some(key) = k.as_str().map(str::to_string) else { continue };
+            let list = || serde_yaml::from_value::<Vec<String>>(val.clone()).ok();
+            let slot = match key.as_str() {
+                "members" => &mut view.members,
+                "kinds" => &mut view.kinds,
+                "domains" => &mut view.domains,
+                "tags" => &mut view.tags,
+                "features" => &mut view.features,
+                "depth" => {
+                    match serde_yaml::from_value::<usize>(val.clone()) {
+                        Ok(n) => view.depth = Some(n),
+                        Err(_) => view.malformed.push(key),
+                    }
+                    continue;
+                }
+                _ => {
+                    view.unknown.insert(key, val);
+                    continue;
+                }
+            };
+            match list() {
+                Some(l) => *slot = Some(l),
+                None => view.malformed.push(key),
+            }
+        }
+        Ok(IncludeSpec::View(view))
+    }
 }
 
 /// The mapping form of `include:` (GH #338). Every key is optional; a part is in the view when it passes every
@@ -1556,6 +1595,9 @@ pub struct ViewInclude {
     /// Any other key, reported as `W421`.
     #[serde(flatten)]
     pub unknown: std::collections::BTreeMap<String, serde_yaml::Value>,
+    /// Known keys whose value has the wrong shape (not a list of strings; `depth` not a count), reported as `W421`.
+    #[serde(skip)]
+    pub malformed: Vec<String>,
 }
 
 /// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`

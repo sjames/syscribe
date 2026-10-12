@@ -31,6 +31,16 @@ fn text(s: &str) -> String {
     s.replace('"', "#quot;").replace('\n', " ")
 }
 
+/// A label for a place Mermaid reads unquoted (a port's circle, an edge's `|…|`): as it is, unless it holds a
+/// bracket, which starts a shape there (`[only CONF-A]`, GH #338); then quoted.
+fn bare_or_quoted(label: &str) -> String {
+    if !label.contains(['[', ']', '(', ')', '{', '}']) {
+        label.to_string()
+    } else {
+        format!("\"{label}\"")
+    }
+}
+
 /// A member line inside a `class … { }` body. Braces would end the body
 /// early, so they are replaced; everything else is shown as written.
 fn member(s: &str) -> String {
@@ -98,7 +108,8 @@ fn click_lines(out: &mut String, nodes: &[&Node], links: &dyn Fn(&str) -> Option
 pub fn render_mermaid(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) -> Option<String> {
     Some(match graph.kind {
         DiagramKind::Bdd | DiagramKind::Requirement => render_class(graph, links),
-        DiagramKind::Ibd => render_flowchart(graph, "LR", links),
+        // an IBD follows its layout direction (left to right unless `layout.flow` says otherwise, GH #338)
+        DiagramKind::Ibd => render_flowchart(graph, if graph.layout_hints.direction == super::ir::LayoutDirection::Down { "TD" } else { "LR" }, links),
         DiagramKind::StateMachine => render_state(graph),
         DiagramKind::Sequence => render_sequence(graph),
         DiagramKind::Allocation
@@ -214,7 +225,7 @@ fn flow_node(node: &Node) -> String {
         NodeKind::Context => format!("{id}([\"{label}\"])"),
         NodeKind::Justification => format!("{id}((\"J: {label}\"))"),
         NodeKind::Assumption => format!("{id}((\"A: {label}\"))"),
-        NodeKind::Port => format!("{id}(({label}))"),
+        NodeKind::Port => format!("{id}(({}))", bare_or_quoted(&label)),
         NodeKind::UseCase => format!("{id}([\"{label}\"])"),
         NodeKind::Actor => format!("{id}[/\"{label}\"/]"),
         NodeKind::Note => format!("{id}>\"{label}\"]"),
@@ -295,7 +306,7 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
         };
         out.push_str(&format!("  {s} {connector}"));
         if let Some(l) = label {
-            out.push_str(&format!("|{}|", text(&l).replace('|', "/")));
+            out.push_str(&format!("|{}|", bare_or_quoted(&text(&l).replace('|', "/"))));
         }
         out.push_str(&format!(" {t}\n"));
     }

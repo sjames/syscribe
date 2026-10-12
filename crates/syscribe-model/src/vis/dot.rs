@@ -216,12 +216,15 @@ fn emit_node(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String) 
     let pad = "  ".repeat(depth + 1);
     if is_cluster(graph, node) && depth < graph.nodes.len() {
         let style = node_style(node);
+        // outside the view's `include:` (GH #338): pale like a faded node
+        let tint = |c: String| if node.faded { faded(c) } else { c };
         out.push_str(&format!("{pad}subgraph cluster_{} {{\n", dot_id(&node.id)));
         out.push_str(&format!(
-            "{pad}  label=\"{}\"; style=\"filled\"; fillcolor=\"{}\"; color=\"{}\"; fontname=\"Helvetica\";\n",
+            "{pad}  label=\"{}\"; style=\"filled\"; fillcolor=\"{}\"; color=\"{}\"; fontname=\"Helvetica\";{}\n",
             label(node),
-            color(&style.fill),
-            color(&style.stroke)
+            tint(color(&style.fill)),
+            tint(color(&style.stroke)),
+            if node.faded { format!(" fontcolor=\"{}\";", faded(color(&style.text))) } else { String::new() }
         ));
         for c in graph.children_of(&node.id) {
             emit_node(graph, c, depth + 1, out);

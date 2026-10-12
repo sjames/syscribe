@@ -31,7 +31,7 @@ pub mod svg;
 use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
-pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, NodeMark, Point, PortDirection, Rect, Side, Tone};
+pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutDirection, LayoutHints, Node, NodeKind, NodeMark, Point, PortDirection, Rect, Side, Tone};
 pub use layout::{layout, Layout, LayoutError};
 pub use manifest::Issue;
 pub use dot::render_dot;
@@ -142,7 +142,9 @@ pub fn build_graph_with(
             if filters.group_by.is_some() {
                 issues.push(derive::w420("`groupBy` applies only to a derived IBD (one with a `subject` and no `shapes`) — ignored".to_string()));
             }
-            if !filters.is_empty() {
+            if filters.view.is_some() {
+                issues.push(derive::w421("the mapping form of `include` applies only to a derived IBD (one with a `subject` and no `shapes`) — ignored".to_string()));
+            } else if !filters.is_empty() {
                 issues.push(derive::w417(
                     "`include`/`exclude` apply only to a derived diagram (one with a `subject` and no `shapes`) — ignored".to_string(),
                 ));

@@ -16,6 +16,12 @@ testFunctions:
   - layout_hints_set_the_flow_and_order_the_bands
   - the_variant_view_marks_what_only_one_product_has
   - writers_draw_faded_elements
+  - layers_order_the_laid_out_bands
+  - ignored_entries_select_nothing_away_and_malformed_values_are_w421
+  - a_negated_feature_does_not_select_a_part
+  - only_a_style_on_a_cycle_is_blamed_and_default_may_be_extended
+  - writers_fade_frames_and_follow_the_flow
+  - the_variant_view_marks_the_outermost_part_and_quotes_its_labels
 tags:
   - diagrams
 ---

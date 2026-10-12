@@ -145,6 +145,13 @@ fn interactive_options(opts: &mut Map<String, Json>) {
     opts.insert("elk.layered.considerModelOrder.strategy".into(), json!("NODES_AND_EDGES"));
 }
 
+/// The node order of the IR kept across the flow (`layout.layers`, GH #338; `layout.ts` `MODEL_ORDER_OPTIONS`), set on
+/// the root and on every compound node like the interactive options.
+fn model_order_options(opts: &mut Map<String, Json>) {
+    opts.insert("elk.layered.considerModelOrder.strategy".into(), json!("NODES_AND_EDGES"));
+    opts.insert("elk.layered.crossingMinimization.forceNodeModelOrder".into(), json!("true"));
+}
+
 /// `layout.ts` `isContainerKind`: the kinds whose labels sit top-left.
 fn is_container_kind(kind: NodeKind) -> bool {
     matches!(kind, NodeKind::Boundary | NodeKind::SystemBoundary | NodeKind::Swimlane | NodeKind::Fragment)
@@ -192,6 +199,7 @@ struct Builder<'a> {
     direction: &'static str,
     any_pinned: bool,
     all_pinned: bool,
+    model_order: bool,
 }
 
 impl Builder<'_> {
@@ -295,6 +303,8 @@ impl Builder<'_> {
                 opts.insert("elk.algorithm".into(), json!("fixed"));
             } else if self.any_pinned {
                 interactive_options(&mut opts);
+            } else if self.model_order {
+                model_order_options(&mut opts);
             }
         } else if let Some(s) = sizing {
             // sprotty-elk's `transformCompartment` folds a leaf node's
@@ -376,9 +386,11 @@ pub fn elk_input(graph: &DiagramGraph, sizes: &Sizes) -> ElkInput {
     }
     if any_pinned && !all_pinned {
         interactive_options(&mut graph_opts);
+    } else if opts.model_order.is_some() {
+        model_order_options(&mut graph_opts);
     }
 
-    let b = Builder { graph, sizes, direction: opts.direction, any_pinned, all_pinned };
+    let b = Builder { graph, sizes, direction: opts.direction, any_pinned, all_pinned, model_order: opts.model_order.is_some() };
     let children: Vec<Json> = graph.nodes.iter().filter(|n| is_root(graph, n) && sprotty_type(n.kind) == TYPE_NODE).map(|n| b.node_json(n, 0)).collect();
 
     // An edge end must be a node or port of the ELK graph (a root-level free

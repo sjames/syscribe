@@ -112884,6 +112884,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       this.anyPinned = false;
       this.allPinned = false;
       this.direction = "DOWN";
+      /** `layout.layers` orders the bands: keep the node order (GH #338). */
+      this.modelOrder = false;
       /** Ids of the ELK edges the preprocessor flipped, for the postprocessor. */
       this.flippedEdges = /* @__PURE__ */ new Set();
     }
@@ -112893,6 +112895,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       this.reversedKinds = new Set(Array.isArray(reversed) ? reversed : []);
       this.pinned = new Set(model.pinned ?? []);
       this.direction = String(opts["elk.direction"] ?? "DOWN");
+      this.modelOrder = opts["elk.layered.crossingMinimization.forceNodeModelOrder"] === "true";
       const nodeIds = collectNodeIds(model);
       this.anyPinned = nodeIds.some((id) => this.pinned.has(id));
       this.allPinned = nodeIds.length > 0 && nodeIds.every((id) => this.pinned.has(id));
@@ -112921,6 +112924,10 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     "elk.layered.layering.strategy": "INTERACTIVE",
     "elk.layered.crossingMinimization.strategy": "INTERACTIVE",
     "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES"
+  };
+  var MODEL_ORDER_OPTIONS = {
+    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+    "elk.layered.crossingMinimization.forceNodeModelOrder": "true"
   };
   function fallbackSide(port, direction) {
     const right = direction === "RIGHT";
@@ -112983,6 +112990,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       if (this.state.anyPinned && !this.state.allPinned) {
         Object.assign(opts, INTERACTIVE_OPTIONS);
+      } else if (this.state.modelOrder) {
+        Object.assign(opts, MODEL_ORDER_OPTIONS);
       }
       return opts;
     }
@@ -113017,6 +113026,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           opts["elk.algorithm"] = "fixed";
         } else if (this.state.anyPinned) {
           Object.assign(opts, INTERACTIVE_OPTIONS);
+        } else if (this.state.modelOrder) {
+          Object.assign(opts, MODEL_ORDER_OPTIONS);
         }
       }
       if (this.state.pinned.has(node.id) && node.position) {

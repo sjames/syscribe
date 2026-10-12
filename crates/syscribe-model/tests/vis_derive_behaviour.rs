@@ -430,7 +430,8 @@ fn the_writers_accept_a_derived_action_diagram() {
     assert!(mermaid.contains("s_beh_mission_checkweather{{\"wind > 12\"}}"), "a decision is a diamond: {mermaid}");
     assert!(mermaid.contains("s_beh_mission_start[[\"start\"]]"), "a fork is a bar: {mermaid}");
     assert!(mermaid.contains("subgraph s_beh_mission_navigate[\"navigate [for wp in waypoints]\"]"), "a loop is a subgraph: {mermaid}");
-    assert!(mermaid.contains("s_beh_mission_checkweather -->|[then]| s_beh_mission_checkweather_abort"), "{mermaid}");
+    // a guard's brackets would start a shape in Mermaid's `|…|`, so the label is quoted (GH #338)
+    assert!(mermaid.contains("s_beh_mission_checkweather -->|\"[then]\"| s_beh_mission_checkweather_abort"), "{mermaid}");
     let svg = render_svg(&g, &no_links).expect("svg laid out by the embedded ELK");
     assert!(svg.contains("class=\"decision\""), "{}", &svg[..svg.len().min(600)]);
     assert!(svg.contains("class=\"fork\"") && svg.contains("class=\"join\"") && svg.contains("class=\"merge\""));

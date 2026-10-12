@@ -88,7 +88,7 @@ struct Drawn {
     domain: Option<String>,
     /// `tags:` of the usage element and its definition (GH #338).
     tags: Vec<String>,
-    /// The features its `appliesWhen:` (inline, usage element or definition) names (GH #338).
+    /// The features its `appliesWhen:` (inline, usage element or definition) names, not negated (GH #338).
     features: Vec<String>,
 }
 
@@ -209,7 +209,7 @@ impl Ctx<'_, '_> {
             features: {
                 let mut exprs: Vec<serde_yaml::Value> = u.applies_when.iter().map(|a| serde_yaml::Value::String(a.clone())).collect();
                 exprs.extend(u.element.into_iter().chain(u.definition).filter_map(|e| e.frontmatter.applies_when.clone()));
-                exprs.iter().filter_map(|v| crate::variability::applies_when_expr(v).ok().flatten()).flat_map(|x| x.operands()).collect()
+                exprs.iter().filter_map(|v| crate::variability::applies_when_expr(v).ok().flatten()).flat_map(|x| x.positive_operands()).collect()
             },
         });
 
@@ -574,6 +574,10 @@ fn parents_first_and_view(graph: &mut DiagramGraph, drawn: &[Drawn], filters: &F
     for k in view.unknown.keys() {
         issues.push(w421(format!("`include` has an unknown key '{k}' (known: members, kinds, domains, tags, features, depth) — ignored")));
     }
+    for k in &view.malformed {
+        let what = if k == "depth" { "a whole number" } else { "a list of names" };
+        issues.push(w421(format!("`include.{k}` must be {what} — ignored")));
+    }
     let mut kinds: Option<Vec<FlowKind>> = None;
     if let Some(ks) = &view.kinds {
         let mut v = Vec::new();
@@ -586,24 +590,36 @@ fn parents_first_and_view(graph: &mut DiagramGraph, drawn: &[Drawn], filters: &F
                 ))),
             }
         }
-        kinds = Some(v);
+        // a key whose every entry is ignored is ignored as a whole, rather than selecting nothing
+        kinds = (!v.is_empty()).then_some(v);
     }
-    for d in view.domains.iter().flatten() {
-        if !["system", "hardware", "software"].contains(&d.as_str()) {
-            issues.push(w421(format!("`include.domains` entry '{d}' is not a domain (system, hardware, software)")));
+    let mut domains: Option<Vec<String>> = None;
+    if let Some(ds) = &view.domains {
+        let mut v = Vec::new();
+        for d in ds {
+            if ["system", "hardware", "software"].contains(&d.as_str()) {
+                v.push(d.clone());
+            } else {
+                issues.push(w421(format!("`include.domains` entry '{d}' is not a domain (system, hardware, software) — ignored")));
+            }
         }
+        domains = (!v.is_empty()).then_some(v);
     }
     let alias = crate::variability::feature_id_to_qname(elements);
     let canon = |f: &str| crate::variability::canon_feature_ref(f, &alias);
-    let wanted: Option<Vec<String>> = view.features.as_ref().map(|fs| fs.iter().map(|f| canon(f)).collect());
-    if let Some(ws) = &wanted {
-        for w in ws {
-            if !elements.iter().any(|e| e.qualified_name == *w && e.frontmatter.element_type == Some(ElementType::FeatureDef)) {
-                issues.push(w421(format!("`include.features` entry '{w}' is not a feature")));
+    let mut wanted: Option<Vec<String>> = None;
+    if let Some(fs) = &view.features {
+        let mut v = Vec::new();
+        for w in fs.iter().map(|f| canon(f)) {
+            if elements.iter().any(|e| e.qualified_name == w && e.frontmatter.element_type == Some(ElementType::FeatureDef)) {
+                v.push(w);
+            } else {
+                issues.push(w421(format!("`include.features` entry '{w}' is not a feature — ignored")));
             }
         }
+        wanted = (!v.is_empty()).then_some(v);
     }
-    let criteria = kinds.is_some() || view.domains.is_some() || view.tags.is_some() || wanted.is_some();
+    let criteria = kinds.is_some() || domains.is_some() || view.tags.is_some() || wanted.is_some();
     if !criteria {
         return;
     }
@@ -622,7 +638,7 @@ fn parents_first_and_view(graph: &mut DiagramGraph, drawn: &[Drawn], filters: &F
     }
     let focused: HashSet<String> = drawn
         .iter()
-        .filter(|d| view.domains.as_ref().map_or(true, |ds| d.domain.as_ref().is_some_and(|x| ds.contains(x))))
+        .filter(|d| domains.as_ref().map_or(true, |ds| d.domain.as_ref().is_some_and(|x| ds.contains(x))))
         .filter(|d| view.tags.as_ref().map_or(true, |ts| d.tags.iter().any(|t| ts.contains(t))))
         .filter(|d| {
             wanted.as_ref().map_or(true, |ws| {

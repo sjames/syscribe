@@ -23,15 +23,19 @@ pub fn diff(a: DiagramGraph, b: DiagramGraph, la: &str, lb: &str) -> DiagramGrap
         m.tone = tone;
         m.emphasis = true;
     };
+    // only the outermost node a product lacks is marked: a part's ports and inner parts go with it
+    let outermost = |n: &super::ir::Node, other: &DiagramGraph| n.parent.as_deref().map_or(true, |p| other.node(p).is_some());
     for n in out.nodes.iter_mut() {
-        if b.node(&n.id).is_none() {
+        if b.node(&n.id).is_none() && outermost(n, &b) {
             mark(n, la, Tone::Bad);
         }
     }
     for n in &b.nodes {
         if a.node(&n.id).is_none() {
             let mut n = n.clone();
-            mark(&mut n, lb, Tone::Ok);
+            if outermost(&n, &a) {
+                mark(&mut n, lb, Tone::Ok);
+            }
             out.nodes.push(n);
         }
     }

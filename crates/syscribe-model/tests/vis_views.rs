@@ -192,3 +192,86 @@ fn writers_draw_faded_elements() {
     let json = syscribe_model::vis::sprotty::to_sgraph_json(&g).to_string();
     assert!(json.contains("\"cssClasses\":[\"faded\"]"), "sprotty");
 }
+
+/// The laid-out top edge of a block.
+fn top(g: &DiagramGraph, id: &str) -> f64 {
+    let sizes = syscribe_model::vis::size::size_graph_default(g);
+    syscribe_model::vis::layout(g, &sizes).unwrap().nodes[id].y
+}
+
+#[test]
+fn layers_order_the_laid_out_bands() {
+    // left to right, dc and sensor share the first layer: the band order decides which is on top
+    let g = graph(&model("layout: {flow: left-to-right, layers: [protection, power]}\n"));
+    assert!(top(&g, "s-inv-inverter-sensor") < top(&g, "s-inv-inverter-dc"), "protection band first");
+    let g = graph(&model("layout: {flow: left-to-right, layers: [power, protection]}\n"));
+    assert!(top(&g, "s-inv-inverter-dc") < top(&g, "s-inv-inverter-sensor"), "power band first");
+    assert!(g.layout_hints.model_order);
+    let opts = syscribe_model::vis::sprotty::to_sgraph_json(&g)["layoutOptions"].clone();
+    assert_eq!(opts["elk.layered.crossingMinimization.forceNodeModelOrder"], "true", "the browser keeps the order too: {opts}");
+}
+
+#[test]
+fn ignored_entries_select_nothing_away_and_malformed_values_are_w421() {
+    // every kind ignored: the key is ignored as a whole, nothing fades
+    let root = model("include: {kinds: [steam]}\n");
+    assert!(graph(&root).nodes.iter().all(|n| !n.faded));
+    assert_eq!(hits(&root, "W421").len(), 1);
+    // a scalar where a list belongs is W421, not a parse error
+    let root = model("include: {kinds: power, depth: deep}\n");
+    let f: Vec<String> = hits(&root, "W421").into_iter().map(|f| f.message).collect();
+    assert!(f.iter().any(|m| m.contains("`include.kinds` must be a list")) && f.iter().any(|m| m.contains("`include.depth` must be a whole number")), "{f:?}");
+    assert!(hits(&root, "E002").is_empty());
+    // the list form keeps its own message
+    let e = hits(&model("include: dc\n"), "E002");
+    assert!(e.iter().any(|f| f.message.contains("expected a sequence")), "{e:?}");
+    // the mapping form on a manifest diagram
+    let root = model("");
+    write(&root, "Diagrams/Hand.md", "---\ntype: Diagram\nname: Hand\ndiagramKind: IBD\nshapes:\n  dc: {ref: Inv::Dc, kind: PartDef}\ninclude: {kinds: [power]}\n---\n\nHand.\n");
+    assert!(hits(&root, "W421").iter().any(|f| f.message.contains("derived IBD")));
+}
+
+#[test]
+fn a_negated_feature_does_not_select_a_part() {
+    let root = model("include: {features: [FEAT-AFCI]}\n");
+    write(&root, "Inv/Fw.md", "---\ntype: PartDef\nname: Fw\ndomain: software\nappliesWhen: \"not Features::Afci\"\n---\n");
+    assert!(faded(&graph(&root), "s-inv-inverter-fw"));
+}
+
+#[test]
+fn only_a_style_on_a_cycle_is_blamed_and_default_may_be_extended() {
+    let cfg = DiagramConfig::from_toml_str("[diagram.style.a]\nextends = \"b\"\n[diagram.style.b]\nextends = \"c\"\n[diagram.style.c]\nextends = \"b\"\n[diagram.style.d]\nextends = \"default\"\n");
+    assert_eq!(cfg.problems.len(), 1, "{:?}", cfg.problems);
+    assert!(cfg.problems[0].contains("[diagram.style.b]"), "{:?}", cfg.problems);
+}
+
+#[test]
+fn writers_fade_frames_and_follow_the_flow() {
+    let root = model("include: {kinds: [protection]}\ngroupBy: domain\nlayout: {flow: top-to-bottom}\n");
+    let g = graph(&root);
+    // the software frame holds only the faded firmware
+    let frame = g.nodes.iter().find(|n| n.kind == syscribe_model::vis::NodeKind::Swimlane && n.faded).expect("a faded frame");
+    let dot = syscribe_model::vis::render_dot(&g);
+    let line = dot.lines().skip_while(|l| !l.contains(&format!("cluster_{}", frame.id.replace('-', "_")))).nth(1).unwrap_or_else(|| panic!("{dot}"));
+    assert!(line.contains("40\"") && line.contains("fontcolor"), "{line}");
+    let elements = walk_model(&root).unwrap();
+    let d = elements.iter().find(|e| e.qualified_name == "Diagrams::View").unwrap();
+    let puml = syscribe_model::plantuml::render_plantuml(d, &elements, None).unwrap();
+    assert!(puml.contains("#f7f7f7;line:bbbbbb") && puml.contains("-[#bbbbbb]->") && puml.contains("top to bottom direction"), "{puml}");
+    let mmd = syscribe_model::vis::render_mermaid(&g, &|_| None).unwrap();
+    assert!(mmd.starts_with("flowchart TD"), "{mmd}");
+}
+
+#[test]
+fn the_variant_view_marks_the_outermost_part_and_quotes_its_labels() {
+    let root = model("");
+    let base = graph(&root);
+    let mut without = base.clone();
+    without.nodes.retain(|n| !n.id.starts_with("s-inv-inverter-dc"));
+    without.edges.retain(|e| !e.source.starts_with("s-inv-inverter-dc"));
+    let g = syscribe_model::vis::variant::diff(base, without, "CONF-A", "CONF-B");
+    assert!(g.node("s-inv-inverter-dc").unwrap().mark.is_some());
+    assert!(g.node("s-inv-inverter-dc-out").unwrap().mark.is_none(), "its port goes with it, unmarked");
+    let mmd = syscribe_model::vis::render_mermaid(&g, &|_| None).unwrap();
+    assert!(mmd.contains("|\"connection [only CONF-A]\"|") || mmd.contains("[only CONF-A]\"|"), "{mmd}");
+}

@@ -386,7 +386,7 @@ Styles layer as project `[diagram.styles]`, then `[diagram.style.default]`, then
 | W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`; StateMachine: `StateDef`/`State`/`ExhibitState`; Action: `ActionDef`/`Action`; Requirement: `Package`/`RequirementDef`/`Requirement`; Allocation: `Package`/`AllocationDef`/`Allocation`; Sequence: `ActionDef`/`Action`/`UseCaseDef`/`UseCase`); the diagram is drawn empty |
 | W419 | A `flowKind:` or `side:` names no flow kind or side, or a `[diagram]` entry is malformed; the value is ignored |
 | W420 | `groupBy:` is not `domain`, or is set on a diagram that is not an IBD; ignored |
-| W421 | A view is malformed: an unknown `include:` key, kind, domain or feature, a `style:` that names no style, a bad `layout:` hint; ignored |
+| W421 | A view is malformed: an unknown `include:` key or a value of the wrong shape, a kind, domain or feature that is none, the mapping form on a diagram that is not a derived IBD, a `style:` that names no style or sits on an element that is not a `Diagram`, a bad `layout:` hint; ignored |
 
 An unresolved `subject:` is still W401, and a derived diagram never raises W402/W403 for the
 shapes it generates.

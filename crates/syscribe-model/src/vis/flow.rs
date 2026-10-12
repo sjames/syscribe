@@ -160,17 +160,26 @@ impl DiagramConfig {
         let names: Vec<String> = self.named.keys().cloned().collect();
         for name in names {
             let Some(parent) = self.named[&name].extends.clone() else { continue };
+            // the built-in `default` may be extended even when the project defines none (it is then empty)
+            if parent == "default" && !self.named.contains_key("default") {
+                self.named.get_mut(&name).unwrap().extends = None;
+                continue;
+            }
             if !self.named.contains_key(&parent) {
                 self.problems.push(format!("[diagram.style.{name}] extends '{parent}', which is not a style — ignored"));
                 self.named.get_mut(&name).unwrap().extends = None;
                 continue;
             }
+            // only a style on a cycle is blamed: one that merely leads into a cycle elsewhere keeps its link
             let mut seen = vec![name.clone()];
             let mut cur = Some(parent);
             while let Some(c) = cur {
-                if seen.contains(&c) {
-                    self.problems.push(format!("[diagram.style.{name}] extends a chain that comes back to '{c}' — the link is ignored"));
+                if c == name {
+                    self.problems.push(format!("[diagram.style.{name}] extends a chain that comes back to itself — the link is ignored"));
                     self.named.get_mut(&name).unwrap().extends = None;
+                    break;
+                }
+                if seen.contains(&c) {
                     break;
                 }
                 seen.push(c.clone());

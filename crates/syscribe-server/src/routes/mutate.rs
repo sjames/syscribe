@@ -57,7 +57,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use syscribe_model::connections::{add_connection as add_conn_entry, remove_connection as remove_conn_entry};
-use syscribe_model::vis::manifest::{KEY_EDGES, KEY_KIND, KEY_LAYOUT, KEY_REF, KEY_SHAPES};
+use syscribe_model::vis::manifest::{KEY_EDGES, KEY_FLOW, KEY_KIND, KEY_LAYERS, KEY_LAYOUT, KEY_REF, KEY_SHAPES};
 use syscribe_model::element::ElementType;
 use syscribe_model::frontmatter::patch_frontmatter;
 use syscribe_model::mutate::{
@@ -958,7 +958,16 @@ pub async fn delete_layout(
         let file = root.join(&rel);
         let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
         let new_content = patch_frontmatter(&content, None, |map| {
-            map.remove(KEY_LAYOUT);
+            // the pins go; the layout hints (`flow`, `layers`, GH #338) are the author's and stay
+            let hints: serde_yaml::Mapping = match map.get(KEY_LAYOUT) {
+                Some(serde_yaml::Value::Mapping(lm)) => lm.iter().filter(|(k, _)| matches!(k.as_str(), Some(KEY_FLOW | KEY_LAYERS))).map(|(k, v)| (k.clone(), v.clone())).collect(),
+                _ => serde_yaml::Mapping::new(),
+            };
+            if hints.is_empty() {
+                map.remove(KEY_LAYOUT);
+            } else {
+                map.insert(serde_yaml::Value::String(KEY_LAYOUT.to_string()), serde_yaml::Value::Mapping(hints));
+            }
         })
         .map_err(|e| e.to_string())?;
         std::fs::write(&file, new_content).map_err(|e| e.to_string())

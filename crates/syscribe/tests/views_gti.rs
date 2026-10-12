@@ -46,4 +46,9 @@ fn the_variant_view_marks_what_only_the_us_product_has() {
         assert!(line.contains("only CONF-GTI-US-M3-001"), "{line}");
     }
     assert!(!mmd.contains("only CONF-GTI-IN-M2-001"), "the India M2 product adds no part:\n{mmd}");
+    // Mermaid reads a bracket in an unquoted port or edge label as a shape: those labels are quoted
+    for l in mmd.lines().filter(|l| l.contains("[only")) {
+        assert!(!l.contains("((") || l.contains("((\""), "an unquoted port label: {l}");
+        assert!(!l.contains("|[only") && !l.contains("-|[") , "an unquoted edge label: {l}");
+    }
 }

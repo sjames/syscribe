@@ -281,8 +281,8 @@ pub(super) fn apply_layout(graph: &mut DiagramGraph, layout: Option<&Value>, iss
 
 }
 
-const KEY_FLOW: &str = "flow";
-const KEY_LAYERS: &str = "layers";
+pub const KEY_FLOW: &str = "flow";
+pub const KEY_LAYERS: &str = "layers";
 
 /// A `layout:` hint (GH #338). `flow:` sets the direction of the flow (`left-to-right`, `top-to-bottom`). `layers:`
 /// lists bands in order: each entry is a part's name, a flow kind or a `domain:` value; the parts of each container
@@ -291,14 +291,20 @@ const KEY_LAYERS: &str = "layers";
 fn apply_hint(graph: &mut DiagramGraph, key: &str, v: &Value, issues: &mut Vec<Issue>) {
     if key == KEY_FLOW {
         match v.as_str() {
-            Some("left-to-right" | "right") => graph.layout_hints.direction = super::ir::LayoutDirection::Right,
-            Some("top-to-bottom" | "down") => graph.layout_hints.direction = super::ir::LayoutDirection::Down,
+            Some("left-to-right" | "right") => {
+                graph.layout_hints.direction = super::ir::LayoutDirection::Right;
+                graph.flow_set = true;
+            }
+            Some("top-to-bottom" | "down") => {
+                graph.layout_hints.direction = super::ir::LayoutDirection::Down;
+                graph.flow_set = true;
+            }
             _ => issues.push(super::derive::w421(format!("`layout.flow` must be left-to-right or top-to-bottom, not {} — ignored", short(v)))),
         }
         return;
     }
     let Some(list) = v.as_sequence() else {
-        issues.push(super::derive::w421("`layout.layers` must be a list of part names, flow kinds or domains — ignored".to_string()));
+        issues.push(super::derive::w421("`layout.layers` must be a list of part names, flow kinds or domain frame labels — ignored".to_string()));
         return;
     };
     let bands: Vec<String> = list.iter().filter_map(|b| b.as_str().map(str::to_string)).collect();
@@ -327,8 +333,9 @@ fn apply_hint(graph: &mut DiagramGraph, key: &str, v: &Value, issues: &mut Vec<I
         })
         .collect();
     for u in unmatched {
-        issues.push(super::derive::w421(format!("`layout.layers` entry '{u}' matches no part (a name, a flow kind or a domain)")));
+        issues.push(super::derive::w421(format!("`layout.layers` entry '{u}' matches no part (a name, a flow kind or a domain frame label)")));
     }
+    graph.layout_hints.model_order = true;
     let rank = |id: &str| keys.iter().find(|(k, _)| k == id).map(|(_, b)| *b).unwrap_or(0);
     // a stable sort among siblings: the node order is what the layout takes as the order across the flow
     let mut indexed: Vec<(usize, super::ir::Node)> = std::mem::take(&mut graph.nodes).into_iter().enumerate().collect();

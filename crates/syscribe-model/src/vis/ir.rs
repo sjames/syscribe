@@ -775,6 +775,10 @@ pub struct LayoutHints {
     /// would otherwise pull the tree out of shape).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub overlay_kinds: Vec<EdgeKind>,
+    /// Keep the node order across the flow (`layout.layers`, GH #338): ELK's crossing minimisation then follows
+    /// the order of `nodes` among siblings instead of choosing its own.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub model_order: bool,
 }
 
 impl LayoutHints {
@@ -787,6 +791,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Inheritance],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Ibd => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -795,6 +800,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::FixedSide,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::StateMachine => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -803,6 +809,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Sequence => LayoutHints {
                 algorithm: LayoutAlgorithm::Fixed,
@@ -811,6 +818,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Requirement => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -819,6 +827,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Derive, EdgeKind::Satisfy, EdgeKind::Verify, EdgeKind::Refine],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Allocation => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -827,6 +836,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::UseCase => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -835,6 +845,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Inheritance],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Action => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -843,6 +854,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::FeatureModel => LayoutHints {
                 algorithm: LayoutAlgorithm::Tree,
@@ -851,6 +863,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![EdgeKind::Requires, EdgeKind::Excludes],
+                model_order: false,
             },
             // Trees and arguments read top-down; the layered engine (not mrtree)
             // because a shared event or sub-goal makes the structure a DAG.
@@ -861,6 +874,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             // Hazard to test reads left to right; the links point upstream
             // (OSLC), so they are reversed for layering (GH #223).
@@ -871,6 +885,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Derive, EdgeKind::Verify, EdgeKind::Trace, EdgeKind::Satisfy],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::ZoneConduit => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -879,6 +894,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::ThreatGraph => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -887,6 +903,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
             DiagramKind::Custom => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -895,6 +912,7 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![],
+                model_order: false,
             },
         }
     }
@@ -927,6 +945,9 @@ pub struct DiagramGraph {
     /// applied (`vis::flow::apply`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub style: Option<String>,
+    /// `layout.flow` set the direction (GH #338), so writers that otherwise keep their own default (PlantUML) follow it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub flow_set: bool,
 }
 
 impl DiagramGraph {
@@ -942,6 +963,7 @@ impl DiagramGraph {
             derived: false,
             flow_styles: Default::default(),
             style: None,
+            flow_set: false,
         }
     }
 

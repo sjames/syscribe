@@ -303,6 +303,8 @@ export class LayoutState {
     anyPinned = false;
     allPinned = false;
     direction = 'DOWN';
+    /** `layout.layers` orders the bands: keep the node order (GH #338). */
+    modelOrder = false;
     /** Ids of the ELK edges the preprocessor flipped, for the postprocessor. */
     flippedEdges = new Set<string>();
 
@@ -312,6 +314,7 @@ export class LayoutState {
         this.reversedKinds = new Set(Array.isArray(reversed) ? reversed : []);
         this.pinned = new Set(model.pinned ?? []);
         this.direction = String(opts['elk.direction'] ?? 'DOWN');
+        this.modelOrder = opts['elk.layered.crossingMinimization.forceNodeModelOrder'] === 'true';
         const nodeIds = collectNodeIds(model);
         this.anyPinned = nodeIds.some(id => this.pinned.has(id));
         this.allPinned = nodeIds.length > 0 && nodeIds.every(id => this.pinned.has(id));
@@ -347,6 +350,13 @@ const INTERACTIVE_OPTIONS: LayoutOptions = {
     'elk.layered.layering.strategy': 'INTERACTIVE',
     'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
     'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+};
+
+/** The node order kept across the flow when the server says so (`layout.layers`, GH #338;
+ * `vis::layout::model_order_options`): set on the root and every compound node, like the interactive options. */
+const MODEL_ORDER_OPTIONS: LayoutOptions = {
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+    'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
 };
 
 function fallbackSide(port: SysmlPortSchema, direction: string): string {
@@ -414,6 +424,8 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
         }
         if (this.state.anyPinned && !this.state.allPinned) {
             Object.assign(opts, INTERACTIVE_OPTIONS);
+        } else if (this.state.modelOrder) {
+            Object.assign(opts, MODEL_ORDER_OPTIONS);
         }
         return opts;
     }
@@ -462,6 +474,8 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
                 opts['elk.algorithm'] = 'fixed';
             } else if (this.state.anyPinned) {
                 Object.assign(opts, INTERACTIVE_OPTIONS);
+            } else if (this.state.modelOrder) {
+                Object.assign(opts, MODEL_ORDER_OPTIONS);
             }
         }
         if (this.state.pinned.has(node.id) && node.position) {
