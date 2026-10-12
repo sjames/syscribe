@@ -393,10 +393,14 @@
           ]
         }
       ],
+      "invocation": {
+        "ft": "FT-GTI-001",
+        "maxOrder": 3
+      },
       "cutSetOrder": 3,
       "cutSetsTruncated": true,
       "engine": "0.53.0",
-      "recordedAtUnix": 1791803330
+      "recordedAtUnix": 1791805822
     }
   ],
   "TC-GTI-PROT-US-001@CONF-GTI-US-M3-001": [
@@ -793,10 +797,14 @@
           ]
         }
       ],
+      "invocation": {
+        "ft": "FT-GTI-001",
+        "maxOrder": 3
+      },
       "cutSetOrder": 3,
       "cutSetsTruncated": true,
       "engine": "0.53.0",
-      "recordedAtUnix": 1791803327
+      "recordedAtUnix": 1791805818
     }
   ]
 }

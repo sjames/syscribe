@@ -43,7 +43,10 @@ A recorded campaign is evidence: everything in it but the timestamp is a functio
 same model records the same content. `syscribe results campaigns` lists the histories, `results campaigns diff`
 compares two records. `validate` checks the `ResidualRisk` decisions against the latest record of each campaign:
 W940 a defeat no decision names, W941 a decision the campaign contradicts, W942 a decision taken on another composite
-hash, W943 an expired decision, W944 a record of an older composite. See spec §12.14.
+hash, W943 an expired decision, W944 a record of an older composite, W945 an unreadable record file (`--record`
+then refuses to overwrite it), W946 a decision whose set the latest record did not run. Each record keeps its
+invocation (`--ft`, `--max-order`, `--fmea`); re-recording with fewer sets warns and prints the earlier command.
+`--run` without `--record` or `--report` is ignored with a warning. See spec §12.14.
 
 ## EXIT STATUS
 0 every set survived (or `--report-only`) · 1 usage: no composite, no `@invariant` scenario, an unknown fault tree or

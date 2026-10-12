@@ -401,7 +401,7 @@ Scenario-level `@verifies` claims, checked against the TestCase's `verifies:`. `
 | W995 | Warning | every scenario of a TestCase is tagged `@verifies` and none claims one of its `verifies:` requirements: no scenario is evidence for it (GH #344, §12.12) |
 
 
-## Fault-injection campaigns and residual risk (E942–E944, W940–W944, §12.14)
+## Fault-injection campaigns and residual risk (E942–E944, W940–W946, §12.14)
 
 Decisions on the defeats of recorded `inject` campaigns (GH #341). See [Safety analysis](../model-guide/safety-analysis.md#residual-risk-decisions--residualrisk).
 
@@ -414,7 +414,9 @@ Decisions on the defeats of recorded `inject` campaigns (GH #341). See [Safety a
 | W941 | Warning | a `ResidualRisk` the latest recorded campaign contradicts: proposed or accepted, but the design now survives its fault set; or mitigated, but the set still defeats an invariant (GH #341, §12.14) |
 | W942 | Warning | a `ResidualRisk`'s `campaignHash` matches the current hash of no composite whose recorded campaign ran its fault set: the decision was taken on a different design (GH #341, §12.14) |
 | W943 | Warning | a proposed or accepted `ResidualRisk` whose `expires` date has passed (GH #341, §12.14) |
-| W944 | Warning | the latest recorded campaign of a subject ran on a composite hash the composite no longer has: its verdicts may not hold; run `inject --record` again (GH #341, §12.14) |
+| W944 | Warning | the latest recorded campaign of a subject ran on a composite hash the composite (as projected for the record's configuration) no longer has, or the composite can no longer be built to check: its verdicts may not hold; run the recorded `inject … --record` command again (GH #341, §12.14) |
+| W945 | Warning | the campaign record file `.syscribe/campaigns.json` exists but cannot be read or parsed: no campaign is judged, and `inject --record` refuses to overwrite it (GH #341, §12.14) |
+| W946 | Warning | a proposed, accepted or mitigated decision names a fault set the latest record for its configuration did not run (a narrower re-record dropped it): the decision is no longer checked; re-run the recorded command (GH #341, §12.14) |
 
 ## System context (W996, §12.13)
 

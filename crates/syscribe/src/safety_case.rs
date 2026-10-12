@@ -193,20 +193,26 @@ fn attach_campaigns(case: &mut SafetyCase, campaigns: &Summary, elements: &[RawE
     let risk = |id: &str| resolver.get_by_id(elements, id).or_else(|| resolver.get(elements, id));
     for g in &mut case.goals {
         let Some(goal_q) = g.root.qualified_name.clone() else { continue };
-        for c in &campaigns.campaigns {
-            let ids: Vec<&String> = c.explained.iter().flat_map(|(_, ids)| ids).collect();
+        // a campaign is evidence for the goal its fault tree analyses and the goals its decisions name: shown under
+        // it whether or not its defeats are decided, so an unexplained defeat is visible in the argument
+        for c in campaigns.campaigns.iter().filter(|c| c.goals.contains(&goal_q)) {
             let mut children: Vec<SafetyCaseNode> = Vec::new();
-            for id in ids {
-                let Some(e) = risk(id) else { continue };
-                let names_goal = e.frontmatter.goal.iter().flatten().any(|r| resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == goal_q));
-                if names_goal && !children.iter().any(|n| &n.id == id) {
+            let decided = c.explained.iter().map(|(_, ids)| (ids, false)).chain(c.contradicted.iter().map(|(_, ids)| (ids, true)));
+            for (ids, contradicted) in decided {
+                for id in ids {
+                    let Some(e) = risk(id) else { continue };
+                    let names_goal = e.frontmatter.goal.iter().flatten().any(|r| resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == goal_q));
+                    if !names_goal || children.iter().any(|n| &n.id == id) {
+                        continue;
+                    }
                     let st = e.frontmatter.status.as_deref().unwrap_or("");
                     children.push(SafetyCaseNode {
                         kind: NodeKind::Other("ResidualRisk".into()),
                         id: id.clone(),
                         qualified_name: Some(e.qualified_name.clone()),
-                        title: format!("{} [{st}]", e.frontmatter.name.as_deref().unwrap_or("")),
-                        status: if st == "proposed" { NodeStatus::Unverified } else { NodeStatus::Supported },
+                        title: format!("{} [{st}{}]", e.frontmatter.name.as_deref().unwrap_or(""), if contradicted { ", but the set still defeats an invariant" } else { "" }),
+                        // a proposal is not yet an accepted risk, and a mitigation the campaign contradicts supports nothing
+                        status: if contradicted { NodeStatus::Failing } else if st == "accepted" { NodeStatus::Supported } else { NodeStatus::Unverified },
                         undeveloped: false,
                         verdict: None,
                         decomposition_kind: None,
@@ -216,16 +222,14 @@ fn attach_campaigns(case: &mut SafetyCase, campaigns: &Summary, elements: &[RawE
                     });
                 }
             }
-            if children.is_empty() {
-                continue;
-            }
+            let settled = c.unexplained.is_empty() && c.contradicted.is_empty() && c.errors == 0;
             g.root.children.push(SafetyCaseNode {
                 kind: NodeKind::Solution,
                 id: format!("campaign:{}", syscribe_model::residual_risk::key(&c.subject, c.config.as_deref())),
                 qualified_name: None,
                 title: campaign_title(c),
-                status: if c.unexplained.is_empty() && c.errors == 0 { NodeStatus::Supported } else { NodeStatus::Undeveloped },
-                undeveloped: false,
+                status: if settled { NodeStatus::Supported } else { NodeStatus::Undeveloped },
+                undeveloped: !settled,
                 verdict: None,
                 decomposition_kind: None,
                 implicit: false,
@@ -255,6 +259,9 @@ fn render_text(case: &SafetyCase, sidecar_loaded: bool, failure_details: &[(Stri
             println!("  {}", campaign_title(c));
             for (set, ids) in &c.explained {
                 println!("    explained: {set} by {}", ids.join(", "));
+            }
+            for (set, ids) in &c.contradicted {
+                println!("    CONTRADICTED: {set} still defeats, though {} says it is mitigated", ids.join(", "));
             }
             for set in &c.unexplained {
                 println!("    UNEXPLAINED: {set}");

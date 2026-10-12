@@ -56,4 +56,5 @@ Not yet: per-configuration verdicts (GH #258).
 `results campaigns` lists the campaigns `inject --record` kept, per subject (and `@config`), latest first, with the
 composite hash and the survived/defeated counts. `results campaigns diff <subject[@config]>` compares the two latest
 records (or the two named runs; `(unnamed)` is the run recorded without `--run`): the sets whose verdict changed, sets
-only one of them ran, and whether the composite or the invariants changed.
+only one of them ran, and whether the composite or the invariants changed. An unreadable `.syscribe/campaigns.json` is
+an error (exit 1).

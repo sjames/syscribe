@@ -6777,7 +6777,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     }
     if let Some(root) = &config.model_root {
         let config_id = machine_cfg.map(|c| c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone()));
-        for (code, file, msg) in crate::residual_risk::campaign_findings(elements, &resolver, root, config_id.as_deref()) {
+        for (code, file, msg) in crate::residual_risk::campaign_findings(elements, machine_view, &resolver, root, config_id.as_deref()) {
             findings.push(warning(code, &file, &msg));
         }
     }

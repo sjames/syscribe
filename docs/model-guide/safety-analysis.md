@@ -783,14 +783,16 @@ campaignHash: 3f9a1c0be2d4   # the hash `inject` printed
 
 | Code | When |
 |---|---|
-| `W940` | a defeated set has no proposed, accepted or mitigated decision (on the composite) |
+| `W940` | a defeated set has no proposed or accepted decision explaining it (on the composite) |
 | `W941` | a decision the campaign contradicts: accepted but the design now survives the set, or mitigated but it still defeats |
 | `W942` | `campaignHash` is not the current hash of the composite: review the decision |
 | `W943` | an accepted or proposed decision past its `expires` |
-| `W944` | the recorded campaign ran on an older composite: record it again |
+| `W944` | the recorded campaign ran on an older composite (or the composite no longer builds): run the recorded command again |
+| `W945` | `.syscribe/campaigns.json` cannot be read; nothing is judged and `--record` refuses to overwrite it |
+| `W946` | a decision names a set the latest record did not run (a narrower re-record dropped it) |
 | `E942` / `E943` / `E944` | a malformed decision / a `faultSet`, `goal` or `mitigatedBy` that resolves to nothing / one of the wrong kind |
 
-Gate CI on new defeats with `validate --deny W940`. The rate of a set comes from the fault-tree events' `failureRate`, not from the decision; `inject --report` shows it next to the decision. `safety-case` shows a solution node per campaign under the goals the decisions name, and `audit` lists the unexplained defeats. See spec §12.14.
+Gate CI on new defeats with `validate --deny W940`. The rate of a set comes from the fault-tree events' `failureRate`, not from the decision; `inject --report` shows it next to the decision. `safety-case` shows a solution node per campaign under the `--ft` tree's top-event goal and the goals the decisions name, undeveloped while a defeat is unexplained; `audit --config C` lists the unexplained defeats, and plain `audit` counts them per configuration. See spec §12.14.
 
 ### Generating a template
 

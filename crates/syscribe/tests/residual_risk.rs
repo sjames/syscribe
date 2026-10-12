@@ -258,7 +258,117 @@ fn the_grid_tie_campaigns_are_current_and_every_defeat_is_decided() {
         assert!(j.to_string().contains(key), "no recorded campaign {key}");
     }
     for conf in ["CONF-GTI-US-M3-001", "CONF-GTI-IN-M3-001"] {
-        let (c, t) = run(&gti, &["validate", "--config", conf, "--deny", "W940", "--deny", "W941", "--deny", "W944"]);
+        let (c, t) = run(&gti, &["validate", "--config", conf, "--deny", "W940", "--deny", "W941", "--deny", "W944", "--deny", "W946"]);
         assert!(c == 0 && !t.contains("W94"), "{conf}: {t}");
     }
+    // not vacuous: the campaigns do defeat sets, each one recorded with the invocation that ran it
+    for list in j.as_object().unwrap().values() {
+        let rec = &list[0];
+        assert_eq!(rec["invocation"]["ft"], "FT-GTI-001", "{rec}");
+        let defeated: Vec<&serde_json::Value> = rec["sets"].as_array().unwrap().iter().filter(|s| s["status"] == "defeated").collect();
+        assert_eq!(defeated.len(), 10, "{rec}");
+    }
+    assert_eq!(std::fs::read_dir(gti.join("Safety/ResidualRisk")).unwrap().filter(|e| e.as_ref().unwrap().path().to_string_lossy().contains("RISK-")).count(), 10);
+}
+
+fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for e in std::fs::read_dir(from).unwrap() {
+        let e = e.unwrap();
+        let p = to.join(e.file_name());
+        if e.file_type().unwrap().is_dir() {
+            copy_dir(&e.path(), &p);
+        } else {
+            std::fs::copy(e.path(), p).unwrap();
+        }
+    }
+}
+
+/// A private copy of the worked example, so a test may edit it.
+fn gti_copy() -> PathBuf {
+    static N: AtomicU64 = AtomicU64::new(0);
+    let root = std::env::temp_dir().join(format!("syscribe-risk-gti-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+    let _ = std::fs::remove_dir_all(&root);
+    copy_dir(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model_gti"), &root);
+    root
+}
+
+const US: &str = "CONF-GTI-US-M3-001";
+
+fn validate_codes(root: &Path, conf: &str, code: &str) -> Vec<String> {
+    let (_, t) = run(root, &["validate", "--config", conf]);
+    t.lines().filter(|l| l.contains(code)).map(str::to_string).collect()
+}
+
+#[test]
+fn a_corrupt_record_file_is_reported_and_never_overwritten() {
+    let root = model();
+    std::fs::create_dir_all(root.join(".syscribe")).unwrap();
+    std::fs::write(root.join(".syscribe/campaigns.json"), "{ not json").unwrap();
+    let w = findings(&root, "W945");
+    assert_eq!(w.len(), 1, "{w:?}");
+    let (c, t) = run(&root, &["inject", "TC-SYS-001", "--record", "--report-only"]);
+    assert_ne!(c, 0, "{t}");
+    assert_eq!(std::fs::read_to_string(root.join(".syscribe/campaigns.json")).unwrap(), "{ not json");
+    let (c, t) = run(&root, &["results", "campaigns"]);
+    assert_eq!(c, 1, "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_safety_case_agrees_with_the_validator_on_what_is_explained() {
+    let root = model();
+    run(&root, &["inject", "TC-SYS-001", "--record", "--report-only"]);
+    // a mitigated decision on a set that still defeats is contradicted (W941), not explained
+    risk(&root, "RISK-SYS-001", "status: mitigated\nfaultSet: [FM-TX-003]\ngoal: SG-SYS-001\nmitigatedBy: [REQ-SYS-001]\n");
+    // a misspelt status explains nothing (E942) and the defeat stays unexplained (W940)
+    risk(&root, "RISK-SYS-002", "status: acceptd\nfaultSet: [FM-TX-004]\ngoal: SG-SYS-001\n");
+    assert!(findings(&root, "W941").iter().any(|l| l.contains("RISK-SYS-001")));
+    assert!(findings(&root, "W940").iter().any(|l| l.contains("FM-TX-004")));
+    let (_, t) = run(&root, &["safety-case"]);
+    assert!(t.contains("2 defeated (0 explained)") && t.contains("[UNDEVELOPED]"), "{t}");
+    assert!(t.contains("CONTRADICTED: FM-TX-003") && t.contains("UNEXPLAINED: FM-TX-004"), "{t}");
+    // once every defeat has an accepted decision the node is developed
+    risk(&root, "RISK-SYS-001", "status: accepted\nfaultSet: [FM-TX-003]\ngoal: SG-SYS-001\napprovedBy: jane\n");
+    risk(&root, "RISK-SYS-002", "status: accepted\nfaultSet: [FM-TX-004]\ngoal: SG-SYS-001\napprovedBy: jane\n");
+    let (_, t) = run(&root, &["safety-case"]);
+    let line = t.lines().find(|l| l.contains("campaign:TC-SYS-001")).unwrap_or_default().to_string();
+    assert!(line.contains("(2 explained)") && !line.contains("UNDEVELOPED"), "{t}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Findings 1, 3, 5 and 6 of the review, on the worked example: a record judged under its configuration goes stale
+/// when a machine changes, a narrower re-record warns and leaves decisions unchecked, the campaign shows in the safety
+/// case before any decision exists, and the un-configured audit points at the configured records.
+#[test]
+fn the_grid_tie_records_are_judged_under_their_configuration() {
+    let root = gti_copy();
+    assert!(validate_codes(&root, US, "W944").is_empty());
+    let (_, t) = run(&root, &["audit"]);
+    assert!(t.contains(&format!("campaigns recorded on {US}: 0 defeat(s) no decision explains")), "{t}");
+
+    // no decisions at all: the campaign still hangs under the fault tree's goal, undeveloped, and the audit counts it
+    let risks = root.join("Safety/ResidualRisk");
+    let aside = root.with_extension("risks");
+    std::fs::rename(&risks, &aside).unwrap();
+    let (_, t) = run(&root, &["safety-case", "--config", US]);
+    let line = t.lines().find(|l| l.contains("campaign:TC-GTI-PROT-US-001")).unwrap_or_default().to_string();
+    assert!(line.contains("10 defeated (0 explained)") && line.contains("[UNDEVELOPED]"), "{t}");
+    let (_, t) = run(&root, &["audit"]);
+    assert!(t.contains(&format!("campaigns recorded on {US}: 10 defeat(s) no decision explains")), "{t}");
+    std::fs::rename(&aside, &risks).unwrap();
+
+    // a narrower re-record: the order-2 and order-3 sets the decisions name are no longer run
+    let (_, t) = run(&root, &["inject", "TC-GTI-PROT-US-001", "--ft", "FT-GTI-001", "--max-order", "1", "--config", US, "--record", "--report-only"]);
+    assert!(t.contains("--max-order 3"), "the warning names the earlier command: {t}");
+    let w = validate_codes(&root, US, "W946");
+    assert!(w.len() >= 10 && w.iter().any(|l| l.contains("RISK-GTI-010")), "{w:?}");
+
+    // a machine edit makes the configured record stale, and the message prints the command to re-run
+    let p = root.join("Behavior/Machines/PerturbationCheck.md");
+    std::fs::write(&p, std::fs::read_to_string(&p).unwrap().replace("iInj := 0.2 SI::A", "iInj := 0.3 SI::A")).unwrap();
+    let w = validate_codes(&root, US, "W944");
+    assert!(w.len() == 1 && w[0].contains("--config CONF-GTI-US-M3-001 --record"), "{w:?}");
+
+    let _ = std::fs::remove_dir_all(&root);
 }

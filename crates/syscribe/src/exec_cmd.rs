@@ -1939,6 +1939,9 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
         println!("summary: {survived} survived, {defeated} defeated, {errored} could not be run");
     }
+    if value("--run").is_some() && !flag("--record") && value("--report").is_none() {
+        eprintln!("warning: --run names a recorded run; without --record (or --report) it has no effect");
+    }
     if flag("--record") || value("--report").is_some() {
         // the Configuration id the campaign ran on (GH #341): the same key `results` and the validator use
         let config_id = match config {
@@ -1952,8 +1955,23 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             },
         };
         let subject = target.frontmatter.id.clone().unwrap_or_else(|| target.qualified_name.clone());
-        let rec = syscribe_model::residual_risk::CampaignRecord::from_campaign(&subject, value("--run").as_deref(), config_id.as_deref(), &campaign, &invariants, now_unix());
+        let invocation = syscribe_model::residual_risk::Invocation {
+            ft: value("--ft"),
+            max_order: value("--ft").map(|_| max_order),
+            fmea: value("--fmea"),
+        };
+        let rec = syscribe_model::residual_risk::CampaignRecord::from_campaign(&subject, value("--run").as_deref(), config_id.as_deref(), invocation, &campaign, &invariants, now_unix());
         if flag("--record") {
+            let dropped = syscribe_model::residual_risk::dropped_sets(model_root, &rec);
+            if !dropped.is_empty() {
+                eprintln!(
+                    "warning: this record replaces one that also ran {} fault set(s) this run did not ({}{}); the decisions on them are no longer checked (W946). The replaced record ran as `{}`; name a narrower run with --run to keep both",
+                    dropped.len(),
+                    dropped.iter().take(5).cloned().collect::<Vec<_>>().join(", "),
+                    if dropped.len() > 5 { ", …" } else { "" },
+                    syscribe_model::residual_risk::load(model_root).ok().and_then(|a| a.get(&rec.key()).and_then(|l| l.iter().find(|r| r.run == rec.run)).map(|r| r.command())).unwrap_or_default()
+                );
+            }
             match syscribe_model::residual_risk::record(model_root, rec.clone()) {
                 Ok(path) if !flag("--json") => println!("recorded the campaign of {} in {}", rec.key(), path.display()),
                 Ok(_) => {}
@@ -1964,7 +1982,7 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             }
         }
         if let Some(file) = value("--report") {
-            let text = if file.ends_with(".md") { campaign_report_md(elems, &resolver, &rec) } else { serde_json::to_string_pretty(&campaign_report_json(elems, &resolver, &rec)).expect("serialises") + "\n" };
+            let text = if file.to_ascii_lowercase().ends_with(".md") { campaign_report_md(elems, &resolver, &rec) } else { serde_json::to_string_pretty(&campaign_report_json(elems, &resolver, &rec)).expect("serialises") + "\n" };
             if let Err(e) = std::fs::write(&file, text) {
                 eprintln!("error: cannot write the report {file}: {e}");
                 return 1;

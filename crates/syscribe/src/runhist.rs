@@ -245,7 +245,13 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
 /// `results campaigns` / `results campaigns diff`: the fault-injection campaigns `inject --record` kept (GH #341).
 fn campaigns(model_root: &Path, pos: &[&str], json_out: bool) -> i32 {
     use syscribe_model::residual_risk::{self, CampaignRecord};
-    let all = residual_risk::load(model_root);
+    let all = match residual_risk::load(model_root) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: the recorded campaigns cannot be read: {e}");
+            return 1;
+        }
+    };
     let label = |r: &CampaignRecord| r.run.clone().unwrap_or_else(|| "(unnamed)".into());
     match pos {
         [] => {

@@ -604,7 +604,20 @@ pub fn cmd_audit(
     dangling_tcs.sort();
 
     // ---- Sections 5/6: safety & security (GH #216) -------------------------
-    let safety = safety_section(view, &resolver, &findings, &in_scope);
+    let mut safety = safety_section(view, &resolver, &findings, &in_scope);
+    if sel.is_none() {
+        // the campaigns recorded on a Configuration are judged only by `validate/audit --config`: name their
+        // undecided defeats here so a product-line model's base audit does not read as clean (GH #341)
+        let configs: std::collections::BTreeSet<String> = syscribe_model::residual_risk::load(model_root).unwrap_or_default().values().filter_map(|l| l.first()).filter_map(|r| r.config.clone()).collect();
+        let per: Vec<serde_json::Value> = configs
+            .iter()
+            .map(|c| {
+                let sum = syscribe_model::residual_risk::summary(elements, &full_resolver, model_root, Some(c));
+                json!({ "config": c, "unexplainedDefeats": sum.campaigns.iter().map(|x| x.unexplained.len()).sum::<usize>() })
+            })
+            .collect();
+        safety["faultCampaigns"]["configurations"] = json!(per);
+    }
     let security = security_section(view, &findings, &in_scope);
     let verification = verification_section(view, &resolver, config, &in_scope, plan_scope.is_some());
 
@@ -1002,6 +1015,9 @@ fn print_safety(s: &serde_json::Value) {
     );
     for m in unexplained.iter().filter_map(|m| m.as_str()) {
         println!("  - {m}");
+    }
+    for c in c["configurations"].as_array().into_iter().flatten() {
+        println!("  campaigns recorded on {}: {} defeat(s) no decision explains; see `audit --config {}`", c["config"].as_str().unwrap_or(""), c["unexplainedDefeats"], c["config"].as_str().unwrap_or(""));
     }
     println!("Hardware metrics ({} failing):", s["metricsFailing"]);
     let rows = s["metrics"].as_array().cloned().unwrap_or_default();

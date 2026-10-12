@@ -2,8 +2,9 @@
 //! `<model_root>/.syscribe/campaigns.json`, and a `type: ResidualRisk` element (`RISK-*`) records what was decided
 //! about a fault set the design does not survive. The validator ties the two together: a defeat in the latest
 //! recorded campaign that no decision names is `W940`, a decision the campaign contradicts is `W941`, a decision
-//! taken on a different composite is `W942`, an expired one `W943`, and a recorded campaign the composite has since
-//! moved away from `W944`.
+//! taken on a different composite is `W942`, an expired one `W943`, a recorded campaign the composite has since
+//! moved away from (or that cannot be checked) `W944`, an unreadable record file `W945`, and a decision on a set no
+//! latest campaign ran `W946`.
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -49,6 +50,21 @@ pub struct SetRecord {
     pub defeats: Vec<FindingRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<FindingRecord>,
+    /// The role the set's parts share when they are not the product (`environment` or `external`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+/// The options a campaign was run with, so a record says how to run it again.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Invocation {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ft: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_order: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fmea: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -74,8 +90,12 @@ pub struct CampaignRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<String>,
     pub composite_hash: String,
+    #[serde(default)]
     pub invariants: Vec<InvariantRecord>,
     pub sets: Vec<SetRecord>,
+    /// `--ft`, `--max-order` and `--fmea` as given.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub invocation: Invocation,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub not_run: Vec<NotRunRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -83,12 +103,18 @@ pub struct CampaignRecord {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub cut_sets_truncated: bool,
     /// The syscribe version that ran the campaign.
+    #[serde(default)]
     pub engine: String,
+    #[serde(default)]
     pub recorded_at_unix: u64,
 }
 
+fn is_default(i: &Invocation) -> bool {
+    *i == Invocation::default()
+}
+
 impl CampaignRecord {
-    pub fn from_campaign(subject: &str, run: Option<&str>, config: Option<&str>, campaign: &Campaign, invariants: &[Scenario], now: u64) -> Self {
+    pub fn from_campaign(subject: &str, run: Option<&str>, config: Option<&str>, invocation: Invocation, campaign: &Campaign, invariants: &[Scenario], now: u64) -> Self {
         CampaignRecord {
             run: run.map(str::to_string),
             subject: subject.to_string(),
@@ -96,6 +122,7 @@ impl CampaignRecord {
             config: config.map(str::to_string),
             composite_hash: campaign.hash.clone(),
             invariants: invariants.iter().map(|s| InvariantRecord { scenario: s.title.clone(), hash: scenario_hash(s) }).collect(),
+            invocation,
             sets: campaign
                 .sets
                 .iter()
@@ -107,6 +134,7 @@ impl CampaignRecord {
                     environment: s.environment,
                     defeats: s.defeats.iter().map(|d| FindingRecord { scenario: d.scenario.clone(), message: d.message.clone() }).collect(),
                     errors: s.errors.iter().map(|d| FindingRecord { scenario: d.scenario.clone(), message: d.message.clone() }).collect(),
+                    role: s.role.map(str::to_string),
                 })
                 .collect(),
             not_run: campaign.not_injectable.iter().map(|n| NotRunRecord { origin: n.origin.clone(), events: n.events.clone(), reason: n.reason.clone() }).collect(),
@@ -130,6 +158,33 @@ impl CampaignRecord {
     pub fn count(&self, status: &str) -> usize {
         self.sets.iter().filter(|s| s.status == status).count()
     }
+
+    /// The command that runs this campaign again with the same options.
+    pub fn command(&self) -> String {
+        let mut c = format!("syscribe inject {}", self.subject);
+        if let Some(ft) = &self.invocation.ft {
+            c += &format!(" --ft {ft}");
+        }
+        if let Some(n) = self.invocation.max_order {
+            c += &format!(" --max-order {n}");
+        }
+        if let Some(f) = &self.invocation.fmea {
+            c += &format!(" --fmea {f}");
+        }
+        if let Some(cf) = &self.config {
+            c += &format!(" --config {cf}");
+        }
+        c += " --record";
+        if let Some(r) = &self.run {
+            c += &format!(" --run {r}");
+        }
+        c
+    }
+}
+
+/// Whether a decision with this status explains a defeat (silences `W940`).
+pub fn explains(status: Option<&str>) -> bool {
+    matches!(status, Some("proposed") | Some("accepted") | Some("mitigated"))
 }
 
 /// The sidecar key of a campaign.
@@ -151,24 +206,38 @@ pub fn sidecar(model_root: &Path) -> PathBuf {
     model_root.join(".syscribe").join("campaigns.json")
 }
 
-/// The recorded campaigns by key, the latest first.
-pub fn load(model_root: &Path) -> BTreeMap<String, Vec<CampaignRecord>> {
-    std::fs::read_to_string(sidecar(model_root)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+/// The recorded campaigns by key, the latest first; empty when nothing was recorded. `Err` when the file exists but
+/// cannot be read or parsed: never mistaken for "no campaigns" (`W945`), and never overwritten by [`record`].
+pub fn load(model_root: &Path) -> Result<BTreeMap<String, Vec<CampaignRecord>>, String> {
+    let path = sidecar(model_root);
+    match std::fs::read_to_string(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(BTreeMap::new()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+        Ok(t) => serde_json::from_str(&t).map_err(|e| format!("{}: {e}", path.display())),
+    }
+}
+
+/// The sets the latest record of `rec`'s campaign ran that `rec` does not: a narrower re-record would drop them.
+pub fn dropped_sets(model_root: &Path, rec: &CampaignRecord) -> Vec<String> {
+    let Ok(all) = load(model_root) else { return Vec::new() };
+    let Some(prev) = all.get(&rec.key()).and_then(|l| l.iter().find(|r| r.run == rec.run)) else { return Vec::new() };
+    let now: BTreeSet<&str> = rec.sets.iter().map(|s| s.label.as_str()).collect();
+    prev.sets.iter().filter(|s| !now.contains(s.label.as_str())).map(|s| s.label.clone()).collect()
 }
 
 /// Record a campaign: it goes first in its history, replacing an earlier record of the same run id (or the earlier
 /// unnamed record), and the history keeps the latest [`HISTORY`] records.
-pub fn record(model_root: &Path, rec: CampaignRecord) -> std::io::Result<PathBuf> {
-    let mut all = load(model_root);
+pub fn record(model_root: &Path, rec: CampaignRecord) -> Result<PathBuf, String> {
+    let mut all = load(model_root).map_err(|e| format!("the recorded campaigns cannot be read, so nothing was recorded (fix or remove the file): {e}"))?;
     let list = all.entry(rec.key()).or_default();
     list.retain(|r| r.run != rec.run);
     list.insert(0, rec);
     list.truncate(HISTORY);
     let path = sidecar(model_root);
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n")?;
+    std::fs::write(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path)
 }
 
@@ -339,22 +408,38 @@ pub fn element_findings(elements: &[RawElement], resolver: &Resolver, risk: &Raw
     out
 }
 
-/// The checks that tie decisions to the latest recorded campaigns (`W940`, `W941`, `W942`, `W944`), as
+/// The checks that tie decisions to the latest recorded campaigns (`W940`–`W942`, `W944`–`W946`), as
 /// `(code, file, message)`. `config` is the Configuration id being validated (`None`: the base model, which is judged
-/// by the campaigns recorded without `--config`). Dormant without recorded campaigns.
-pub fn campaign_findings(elements: &[RawElement], resolver: &Resolver, model_root: &Path, config: Option<&str>) -> Vec<(&'static str, String, String)> {
-    let all = load(model_root);
-    let latest: Vec<&CampaignRecord> = all.values().filter_map(|l| l.first()).filter(|r| r.config.as_deref() == config).collect();
+/// by the campaigns recorded without `--config`). `machines` is the model the composite is rebuilt from to compare its
+/// hash: `elements` with the Configuration's feature parameters substituted, as `inject --config` runs it. Dormant
+/// without recorded campaigns.
+pub fn campaign_findings(elements: &[RawElement], machines: &[RawElement], resolver: &Resolver, model_root: &Path, config: Option<&str>) -> Vec<(&'static str, String, String)> {
     let mut out = Vec::new();
+    let all = match load(model_root) {
+        Ok(a) => a,
+        Err(e) => {
+            out.push(("W945", sidecar(model_root).display().to_string(), format!("the recorded fault-injection campaigns cannot be read, so no defeat or decision is checked against them: {e}")));
+            return out;
+        }
+    };
+    let latest: Vec<&CampaignRecord> = all.values().filter_map(|l| l.first()).filter(|r| r.config.as_deref() == config).collect();
     if latest.is_empty() {
         return out;
     }
-    // the composite as it is now, built once per composite
-    let mut current: BTreeMap<String, Option<String>> = BTreeMap::new();
+    // the composite as it is now, built once per composite: its hash, or why it cannot be built
+    let mut current: BTreeMap<String, Result<String, String>> = BTreeMap::new();
     for r in &latest {
-        current.entry(r.composite.clone()).or_insert_with(|| crate::system_run::SystemModel::build_in(elements, &r.composite, model_root).ok().map(|m| m.hash));
+        current.entry(r.composite.clone()).or_insert_with(|| crate::system_run::SystemModel::build_in(machines, &r.composite, model_root).map(|m| m.hash).map_err(|e| e.join("; ")));
     }
-    let file_of = |q: &str| resolver.get(elements, q).map(|e| e.file_path.clone()).unwrap_or_default();
+    // a finding about a record goes on the composite, else on the subject, else on the record file
+    let file_of = |r: &CampaignRecord| {
+        resolver
+            .get(elements, &r.composite)
+            .or_else(|| resolver.get_by_id(elements, &r.subject))
+            .or_else(|| resolver.get(elements, &r.subject))
+            .map(|e| e.file_path.clone())
+            .unwrap_or_else(|| sidecar(model_root).display().to_string())
+    };
     let risks: Vec<(&RawElement, Vec<String>)> = elements
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::ResidualRisk)))
@@ -363,24 +448,24 @@ pub fn campaign_findings(elements: &[RawElement], resolver: &Resolver, model_roo
     let label = |e: &RawElement| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
     for r in &latest {
         let run = r.run.as_deref().map(|x| format!(" (run {x})")).unwrap_or_default();
-        if let Some(Some(now)) = current.get(&r.composite) {
-            if *now != r.composite_hash {
-                out.push(("W944", file_of(&r.composite), format!(
-                    "the recorded campaign of {}{run} ran on composite hash {} but {} now hashes to {}: its verdicts may no longer hold; run `syscribe inject {} --record` again",
-                    r.subject, &r.composite_hash[..12.min(r.composite_hash.len())], r.composite, &now[..12.min(now.len())], r.subject)));
-            }
+        match current.get(&r.composite) {
+            Some(Ok(now)) if *now != r.composite_hash => out.push(("W944", file_of(r), format!(
+                "the recorded campaign of {}{run} ran on composite hash {} but {} now hashes to {}: its verdicts may no longer hold; run `{}` again",
+                r.subject, &r.composite_hash[..12.min(r.composite_hash.len())], r.composite, &now[..12.min(now.len())], r.command()))),
+            Some(Err(e)) => out.push(("W944", file_of(r), format!(
+                "the recorded campaign of {}{run} cannot be checked against the model: composite {} does not build ({e}); fix it or run `{}` again",
+                r.subject, r.composite, r.command()))),
+            _ => {}
         }
         for s in r.sets.iter().filter(|s| s.status == "defeated" && !s.environment) {
             let set = sorted(&s.faults);
             let named: Vec<&&RawElement> = risks.iter().filter(|(_, f)| *f == set).map(|(e, _)| e).collect();
-            let deciding = named.iter().any(|e| matches!(e.frontmatter.status.as_deref(), Some("proposed") | Some("accepted")));
-            let mitigated = named.iter().any(|e| e.frontmatter.status.as_deref() == Some("mitigated"));
-            if deciding || mitigated {
+            if named.iter().any(|e| explains(e.frontmatter.status.as_deref())) {
                 continue; // a mitigated decision on a set that still defeats is W941 below
             }
             let failing: Vec<&str> = s.defeats.iter().map(|d| d.scenario.as_str()).collect();
             let rejected: Vec<String> = named.iter().map(|e| label(e)).collect();
-            out.push(("W940", file_of(&r.composite), format!(
+            out.push(("W940", file_of(r), format!(
                 "fault set {} ({}) defeats {} in the recorded campaign of {}{run} and no ResidualRisk accepts it{}: fix the design or record the decision (`type: ResidualRisk`, `faultSet: [{}]`)",
                 s.label, s.origin, failing.iter().map(|f| format!("'{f}'")).collect::<Vec<_>>().join(", "), r.subject,
                 if rejected.is_empty() { String::new() } else { format!(" ({} rejected it)", rejected.join(", ")) },
@@ -395,6 +480,13 @@ pub fn campaign_findings(elements: &[RawElement], resolver: &Resolver, model_roo
         let hits: Vec<(&CampaignRecord, &SetRecord)> = latest.iter().flat_map(|r| r.sets.iter().filter(|s| sorted(&s.faults) == *set).map(move |s| (*r, s))).collect();
         let defeated: Vec<&str> = hits.iter().filter(|(_, s)| s.status == "defeated").map(|(r, _)| r.subject.as_str()).collect();
         let survived: Vec<&str> = hits.iter().filter(|(_, s)| s.status == "survived").map(|(r, _)| r.subject.as_str()).collect();
+        if hits.is_empty() && explains(Some(status)) {
+            // the campaigns were re-run without the set (a lower --max-order, another --ft): nothing checks the decision
+            out.push(("W946", risk.file_path.clone(), format!(
+                "no latest recorded campaign{} ran fault set {}, so nothing checks this decision; re-run the campaign that does: {}",
+                config.map(|c| format!(" on {c}")).unwrap_or_default(), set.join(" + "),
+                latest.iter().map(|r| format!("`{}`", r.command())).collect::<Vec<_>>().join(", "))));
+        }
         match status {
             "proposed" | "accepted" if defeated.is_empty() && !survived.is_empty() => out.push(("W941", risk.file_path.clone(), format!(
                 "the design now survives fault set {} in the recorded campaign of {}: the decision has nothing left to accept; set `status: mitigated` (naming the mitigation) or remove it",
@@ -406,7 +498,7 @@ pub fn campaign_findings(elements: &[RawElement], resolver: &Resolver, model_roo
         }
         if let Some(h) = risk.frontmatter.campaign_hash.as_deref().filter(|h| h.len() >= 12) {
             let composites: BTreeSet<&str> = hits.iter().map(|(r, _)| r.composite.as_str()).collect();
-            let now: Vec<(&str, &String)> = composites.iter().filter_map(|c| current.get(*c).and_then(|h| h.as_ref()).map(|h| (*c, h))).collect();
+            let now: Vec<(&str, &String)> = composites.iter().filter_map(|c| current.get(*c).and_then(|h| h.as_ref().ok()).map(|h| (*c, h))).collect();
             if !now.is_empty() && !now.iter().any(|(_, n)| n.starts_with(&h.to_ascii_lowercase())) {
                 out.push(("W942", risk.file_path.clone(), format!(
                     "the decision was taken on composite hash {h}, but {}: review it against the current campaign and update `campaignHash`",
@@ -435,10 +527,15 @@ pub struct CampaignSummary {
     pub survived: usize,
     pub defeated: usize,
     pub errors: usize,
-    /// Defeated sets a `ResidualRisk` (proposed, accepted or mitigated) names: `(set, risk ids)`.
+    /// Defeated sets a proposed or accepted `ResidualRisk` names: `(set, risk ids)`.
     pub explained: Vec<(String, Vec<String>)>,
-    /// Defeated sets no decision names.
+    /// Defeated sets only a `mitigated` decision names, which the campaign contradicts (`W941`): `(set, risk ids)`.
+    pub contradicted: Vec<(String, Vec<String>)>,
+    /// Defeated sets no decision explains (none, or only rejected or malformed ones).
     pub unexplained: Vec<String>,
+    /// The SafetyGoals the campaign is evidence for (qualified names): the top event of its `--ft` fault tree and the
+    /// goals its decisions name.
+    pub goals: Vec<String>,
 }
 
 /// The Configuration id `config` names (an id or a qualified name), as campaign records key it.
@@ -450,25 +547,42 @@ pub fn config_id(elements: &[RawElement], config: &str) -> String {
         .unwrap_or_else(|| config.to_string())
 }
 
-/// The latest recorded campaign of each subject recorded on `config` (`None`: recorded without `--config`).
+/// The latest recorded campaign of each subject recorded on `config` (`None`: recorded without `--config`). An
+/// unreadable record file gives no campaigns (`validate` reports it, `W945`).
 pub fn summary(elements: &[RawElement], resolver: &Resolver, model_root: &Path, config: Option<&str>) -> Summary {
     let config = config.map(|c| config_id(elements, c));
-    let risks: Vec<(String, String, Vec<String>)> = elements
+    let risks: Vec<(&RawElement, String, Vec<String>)> = elements
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::ResidualRisk)))
-        .map(|e| (e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()), e.frontmatter.status.clone().unwrap_or_default(), fault_set_of(elements, resolver, e)))
+        .map(|e| (e, e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()), fault_set_of(elements, resolver, e)))
         .collect();
+    let goal_of = |r: &str| resolver.resolve_ref(elements, r).filter(|g| Resolver::is_safety_goal(g)).map(|g| g.qualified_name.clone());
     let mut campaigns = Vec::new();
-    for list in load(model_root).values() {
+    for list in load(model_root).unwrap_or_default().values() {
         let Some(r) = list.first().filter(|r| r.config == config) else { continue };
-        let (mut explained, mut unexplained) = (Vec::new(), Vec::new());
+        let (mut explained, mut contradicted, mut unexplained) = (Vec::new(), Vec::new(), Vec::new());
+        let mut goals: Vec<String> = Vec::new();
+        if let Some(top) = r.invocation.ft.as_deref().and_then(|ft| crate::fta::find_fault_tree(elements, ft)).and_then(|t| t.frontmatter.top_event.as_deref()).and_then(goal_of) {
+            goals.push(top);
+        }
         for s in r.sets.iter().filter(|s| s.status == "defeated" && !s.environment) {
             let set = sorted(&s.faults);
-            let by: Vec<String> = risks.iter().filter(|(_, st, f)| *f == set && st != "rejected").map(|(id, _, _)| id.clone()).collect();
-            if by.is_empty() {
-                unexplained.push(s.label.clone());
-            } else {
+            let named: Vec<&(&RawElement, String, Vec<String>)> = risks.iter().filter(|(_, _, f)| *f == set).collect();
+            let with = |st: &[&str]| named.iter().filter(|(e, _, _)| st.contains(&e.frontmatter.status.as_deref().unwrap_or(""))).map(|(_, id, _)| id.clone()).collect::<Vec<_>>();
+            let (by, mitigated) = (with(&["proposed", "accepted"]), with(&["mitigated"]));
+            for (e, _, _) in named.iter().filter(|(e, _, _)| explains(e.frontmatter.status.as_deref())) {
+                for g in e.frontmatter.goal.iter().flatten().filter_map(|g| goal_of(g)) {
+                    if !goals.contains(&g) {
+                        goals.push(g);
+                    }
+                }
+            }
+            if !by.is_empty() {
                 explained.push((s.label.clone(), by));
+            } else if !mitigated.is_empty() {
+                contradicted.push((s.label.clone(), mitigated));
+            } else {
+                unexplained.push(s.label.clone());
             }
         }
         campaigns.push(CampaignSummary {
@@ -480,7 +594,9 @@ pub fn summary(elements: &[RawElement], resolver: &Resolver, model_root: &Path, 
             defeated: r.count("defeated"),
             errors: r.count("error"),
             explained,
+            contradicted,
             unexplained,
+            goals,
         });
     }
     Summary { campaigns }
@@ -511,7 +627,8 @@ mod tests {
             config: None,
             composite_hash: "ab".repeat(32),
             invariants: vec![],
-            sets: vec![SetRecord { label: "F1".into(), origin: "single fault F1".into(), faults: vec!["F1".into()], status: status.into(), environment: false, defeats: vec![], errors: vec![] }],
+            sets: vec![SetRecord { label: "F1".into(), origin: "single fault F1".into(), faults: vec!["F1".into()], status: status.into(), environment: false, defeats: vec![], errors: vec![], role: None }],
+            invocation: Invocation::default(),
             not_run: vec![],
             cut_set_order: None,
             cut_sets_truncated: false,
@@ -521,7 +638,7 @@ mod tests {
         record(&dir, rec(None, "defeated", 1)).unwrap();
         record(&dir, rec(None, "survived", 2)).unwrap();
         record(&dir, rec(Some("r1"), "defeated", 3)).unwrap();
-        let all = load(&dir);
+        let all = load(&dir).unwrap();
         let l = &all["TC-1"];
         assert_eq!(l.len(), 2, "the second unnamed run replaces the first");
         assert_eq!(l[0].run.as_deref(), Some("r1"));
@@ -529,6 +646,11 @@ mod tests {
         assert_eq!(d.changed, vec![("F1".to_string(), "survived".to_string(), "defeated".to_string())]);
         assert!(!d.composite_changed);
         assert_eq!(l[0].content(), rec(Some("r1"), "defeated", 0));
+        // an unreadable file is an error, and recording refuses to overwrite it
+        std::fs::write(sidecar(&dir), "{ not json").unwrap();
+        assert!(load(&dir).is_err());
+        assert!(record(&dir, rec(None, "defeated", 4)).is_err());
+        assert_eq!(std::fs::read_to_string(sidecar(&dir)).unwrap(), "{ not json");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
