@@ -36,6 +36,133 @@ pub struct Scenario {
     pub verifies: Vec<String>,
     /// `# verifies: REQ-X` comments on the line before a step: (the step's line, the references).
     pub step_verifies: Vec<(usize, Vec<String>)>,
+    /// Named properties (`Where <name> is <expression>`, GH #342): the scenario's own after those of its feature or
+    /// Background, a scenario's property replacing the feature's of the same name.
+    pub props: Vec<Prop>,
+    /// Malformed `Where`/`Except` lines: (line, reason), reported as `E886`.
+    pub prop_errors: Vec<(usize, String)>,
+}
+
+/// A named property of an invariant (GH #342): `Where <name> is <expression>`, with the `Except under <faults>:
+/// <expression>` clauses that follow it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Prop {
+    pub name: String,
+    pub expr: String,
+    pub line: usize,
+    pub excepts: Vec<Except>,
+}
+
+/// `Except under A and B: <expression>`: the property in force when every listed fault is injected.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Except {
+    pub faults: Vec<String>,
+    pub expr: String,
+    pub line: usize,
+}
+
+impl Except {
+    pub fn label(&self) -> String {
+        format!("Except under {}", self.faults.join(" and "))
+    }
+}
+
+/// Which clause of a property applies when `active` faults are injected.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Clause<'a> {
+    Full(&'a str),
+    Degraded(&'a Except),
+}
+
+impl Prop {
+    /// The clause in force: the full property unless an `Except` clause's faults are all injected; of several such
+    /// clauses the one whose faults include those of every other. `Err` when no clause covers the others: the
+    /// degradations are not combined, the set needs a clause of its own.
+    pub fn clause(&self, active: &[&str]) -> Result<Clause<'_>, String> {
+        let hits: Vec<&Except> = self.excepts.iter().filter(|e| e.faults.iter().all(|f| active.contains(&f.as_str()))).collect();
+        if hits.is_empty() {
+            return Ok(Clause::Full(&self.expr));
+        }
+        let covers = |a: &Except, b: &Except| b.faults.iter().all(|f| a.faults.contains(f));
+        match hits.iter().find(|a| hits.iter().all(|b| covers(a, b))) {
+            Some(e) => Ok(Clause::Degraded(e)),
+            None => Err(format!(
+                "no applicable degraded clause for '{}': {} apply and none covers the others; add `Except under {}: …`",
+                self.name,
+                // the clauses no other applicable clause covers: the ones a combined clause has to replace
+                hits.iter().filter(|a| !hits.iter().any(|b| b.faults.len() > a.faults.len() && covers(b, a))).map(|e| format!("`{}`", e.label())).collect::<Vec<_>>().join(", "),
+                {
+                    let mut all: Vec<&str> = hits.iter().flat_map(|e| e.faults.iter().map(String::as_str)).collect();
+                    all.sort();
+                    all.dedup();
+                    all.join(" and ")
+                }
+            )),
+        }
+    }
+}
+
+/// A `Where <name> is <expression>` line (the keyword already matched): `Err` when it is malformed.
+fn parse_where(rest: &str) -> Result<(String, String), String> {
+    let lower = rest.to_ascii_lowercase();
+    let Some(i) = find_unquoted(&lower, " is ") else { return Err("`Where <name> is <expression>`".into()) };
+    let (name, e) = (rest[..i].trim(), rest[i + 4..].trim());
+    if name.is_empty() || e.is_empty() {
+        return Err("`Where <name> is <expression>`".into());
+    }
+    crate::expr::parse(e).map_err(|x| format!("`{e}` is not an expression: {x}"))?;
+    Ok((name.to_string(), e.to_string()))
+}
+
+/// An `Except under A and B: <expression>` line (the keyword already matched).
+fn parse_except(rest: &str) -> Result<(Vec<String>, String), String> {
+    let Some((ids, e)) = rest.split_once(':') else { return Err("`Except under <fault> [and <fault>…]: <expression>`".into()) };
+    let mut faults: Vec<String> = Vec::new();
+    for id in ids.split(" and ").flat_map(|x| x.split(',')).map(str::trim) {
+        if id.is_empty() || id.contains(char::is_whitespace) {
+            return Err(format!("'{}' is not a list of fault ids joined by `and`", ids.trim()));
+        }
+        if !faults.iter().any(|f| f == id) {
+            faults.push(id.to_string());
+        }
+    }
+    let e = e.trim();
+    if faults.is_empty() || e.is_empty() {
+        return Err("`Except under <fault> [and <fault>…]: <expression>`".into());
+    }
+    crate::expr::parse(e).map_err(|x| format!("`{e}` is not an expression: {x}"))?;
+    faults.sort();
+    Ok((faults, e.to_string()))
+}
+
+/// Add a `Where`/`Except` line to the properties of one scope.
+fn add_prop_line(props: &mut Vec<Prop>, errors: &mut Vec<(usize, String)>, t: &str, line: usize) {
+    let lower = t.to_ascii_lowercase();
+    if lower.starts_with("where ") {
+        match parse_where(&t["where ".len()..]) {
+            Ok((name, expr)) => {
+                props.retain(|p| !p.name.eq_ignore_ascii_case(&name));
+                props.push(Prop { name, expr, line, excepts: vec![] });
+            }
+            Err(e) => errors.push((line, e)),
+        }
+    } else {
+        match (parse_except(&t["except under ".len()..]), props.last_mut()) {
+            (Err(e), _) => errors.push((line, e)),
+            (Ok(_), None) => errors.push((line, "an `Except under` clause belongs to the `Where` before it, and there is none".into())),
+            (Ok((faults, expr)), Some(p)) => {
+                if p.excepts.iter().any(|x| x.faults == faults) {
+                    errors.push((line, format!("'{}' already has a clause `Except under {}`", p.name, faults.join(" and "))));
+                } else {
+                    p.excepts.push(Except { faults, expr, line });
+                }
+            }
+        }
+    }
+}
+
+fn is_prop_line(lower: &str) -> bool {
+    lower.starts_with("where ") || lower.starts_with("except under ")
 }
 
 /// The requirement references of the `@verifies` tags on one tag line: `@verifies REQ-A,REQ-B`, `@verifies:REQ-A` or
@@ -176,6 +303,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         /// The `@verifies` tags of the Examples table each row came from.
         row_verifies: Vec<Vec<String>>,
         examples_verifies: Vec<String>,
+        props: Vec<Prop>,
+        prop_errors: Vec<(usize, String)>,
     }
     let mut raws: Vec<Raw> = Vec::new();
     let mut background: Vec<GStep> = Vec::new();
@@ -189,6 +318,9 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     let mut feature_verifies: Vec<String> = Vec::new();
     let mut pending_verifies: Vec<String> = Vec::new();
     let mut step_comment: Option<Vec<String>> = None;
+    // the properties of the block's feature and Background, which every scenario after them sees
+    let mut feature_props: Vec<Prop> = Vec::new();
+    let mut feature_prop_errors: Vec<(usize, String)> = Vec::new();
     for (i, line) in doc.lines().enumerate() {
         if let Some(open) = is_fence(line) {
             // tags belong to the block they are in: none carry over from one block to the next
@@ -197,6 +329,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             feature_verifies.clear();
             pending_verifies.clear();
             step_comment = None;
+            feature_props.clear();
+            feature_prop_errors.clear();
             in_block = open;
             in_examples = false;
             in_background = false;
@@ -233,14 +367,14 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
         }
         if lower.starts_with("scenario outline:") || lower.starts_with("scenario template:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![] });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: true, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone() });
             in_examples = false;
             in_background = false;
             continue;
         }
         if lower.starts_with("scenario:") || lower.starts_with("example:") {
             let title = t[t.find(':').unwrap() + 1..].trim().to_string();
-            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![] });
+            raws.push(Raw { title, tags: feature_tags.iter().cloned().chain(std::mem::take(&mut pending_tags)).collect(), verifies: feature_verifies.iter().cloned().chain(std::mem::take(&mut pending_verifies)).collect(), step_verifies: vec![], outline: false, steps: vec![], header: vec![], header_pending: false, rows: vec![], row_verifies: vec![], examples_verifies: vec![], props: feature_props.clone(), prop_errors: feature_prop_errors.clone() });
             in_examples = false;
             in_background = false;
             continue;
@@ -277,6 +411,13 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
             }
             in_examples = false;
             in_background = false;
+            continue;
+        }
+        if is_prop_line(&lower) {
+            match raws.last_mut() {
+                Some(cur) if !in_background => add_prop_line(&mut cur.props, &mut cur.prop_errors, t, i + 1),
+                _ => add_prop_line(&mut feature_props, &mut feature_prop_errors, t, i + 1),
+            }
             continue;
         }
         if in_background {
@@ -320,12 +461,12 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
     let mut out = Vec::new();
     for r in raws {
         if !r.outline {
-            out.push(Scenario { title: r.title, outline: None, steps: r.steps, tags: r.tags, verifies: r.verifies, step_verifies: r.step_verifies });
+            out.push(Scenario { title: r.title, outline: None, steps: r.steps, tags: r.tags, verifies: r.verifies, step_verifies: r.step_verifies, props: r.props, prop_errors: r.prop_errors });
             continue;
         }
         if r.rows.is_empty() {
             // An outline with no example rows would silently run nothing: make it an erroring scenario.
-            out.push(Scenario { title: format!("{} [no examples]", r.title), outline: Some(r.title.clone()), steps: vec![], tags: r.tags.clone(), verifies: r.verifies.clone(), step_verifies: r.step_verifies.clone() });
+            out.push(Scenario { title: format!("{} [no examples]", r.title), outline: Some(r.title.clone()), steps: vec![], tags: r.tags.clone(), verifies: r.verifies.clone(), step_verifies: r.step_verifies.clone(), props: r.props.clone(), prop_errors: r.prop_errors.clone() });
             continue;
         }
         for (n, (header, row)) in r.rows.iter().enumerate() {
@@ -343,6 +484,8 @@ pub fn extract_scenarios(doc: &str) -> Vec<Scenario> {
                 tags: r.tags.clone(),
                 verifies: r.verifies.iter().chain(r.row_verifies.get(n).into_iter().flatten()).cloned().collect(),
                 step_verifies: r.step_verifies.clone(),
+                props: r.props.iter().map(|p| Prop { expr: sub(&p.expr), excepts: p.excepts.iter().map(|e| Except { expr: sub(&e.expr), ..e.clone() }).collect(), ..p.clone() }).collect(),
+                prop_errors: r.prop_errors.clone(),
             });
         }
     }
@@ -532,6 +675,10 @@ pub struct Verdict {
     /// The messages exchanged between the parts of a composite, in emission order; empty for a single machine.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<String>,
+    /// The degraded clauses (`Except under …`, GH #342) the scenario was judged by: `'<property>': Except under A`.
+    /// Empty when every named property was judged in full.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub degraded: Vec<String>,
 }
 
 fn const_value(run: &Run, src: &str) -> Result<Value, String> {
@@ -554,6 +701,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
             Ok(c) => Run::with_plants(machine, opts.clone(), c),
             Err(es) => {
                 return Verdict {
+                    degraded: Vec::new(),
                     scenario: sc.title.clone(),
                     outline: sc.outline.clone(),
                     status: Status::Error,
@@ -571,6 +719,7 @@ pub fn run_scenario_with(machine: &Machine, sc: &Scenario, opts: &Options, plant
     };
     let steps: Vec<String> = sc.steps.iter().map(|s| format!("{} {}", match s.kw { Kw::Given => "Given", Kw::When => "When", Kw::Then => "Then" }, s.text)).collect();
     let done = |run: &Run, status: Status, message: Option<String>| Verdict {
+        degraded: Vec::new(),
         scenario: sc.title.clone(),
         outline: sc.outline.clone(),
         status,

@@ -827,6 +827,17 @@ impl<'m> System<'m> {
 
     /// Advance the shared clock by `secs`, stopping at every instant at which anything is due.
     pub fn advance(&mut self, secs: f64) {
+        self.advance_with(secs, &mut |_| true);
+    }
+
+    /// The analysis ids of the faults injected now, in injection order.
+    pub fn active_faults(&self) -> Vec<&str> {
+        self.active.iter().map(|&i| self.model.faults[i].id.as_str()).collect()
+    }
+
+    /// [`advance`](Self::advance), calling `settled` at every instant the system has settled at; it stops early, at that
+    /// instant, when `settled` returns `false` (GH #342: properties checked over time).
+    pub fn advance_with(&mut self, secs: f64, settled: &mut dyn FnMut(&System) -> bool) {
         let target = crate::sm_run::quantise(self.time + secs);
         let h = self.model.plant_step;
         if let Some(h) = h {
@@ -856,6 +867,9 @@ impl<'m> System<'m> {
             }
             self.time = t;
             self.quiesce();
+            if self.error().is_none() && !settled(self) {
+                return;
+            }
         }
         if self.time < target && self.error().is_none() {
             // less than the loop's tolerance remains
@@ -864,6 +878,9 @@ impl<'m> System<'m> {
             }
             self.time = target;
             self.quiesce();
+            if self.error().is_none() {
+                settled(self);
+            }
         }
     }
 

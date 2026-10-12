@@ -47,6 +47,20 @@ pub struct SetResult {
     pub status: &'static str,
     pub defeats: Vec<Finding>,
     pub errors: Vec<Finding>,
+    /// The invariants that held only in a degraded clause (`Except under …`, GH #342): the clauses in `message`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub degraded: Vec<Finding>,
+}
+
+impl SetResult {
+    /// `survived`, `survived (degraded)`, `defeated` or `error`, as a report states it.
+    pub fn verdict(&self) -> String {
+        if self.status == "survived" && !self.degraded.is_empty() {
+            "survived (degraded)".into()
+        } else {
+            self.status.to_string()
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -95,10 +109,11 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
     }
     let mut results = Vec::new();
     for set in sets {
-        let (mut defeats, mut errors) = (Vec::new(), Vec::new());
+        let (mut defeats, mut errors, mut degraded) = (Vec::new(), Vec::new(), Vec::new());
         for sc in invariants {
             let v = run_system_scenario_faulted(model, sc, opts, &set.ids);
             match v.status {
+                Status::Pass if !v.degraded.is_empty() => degraded.push(Finding { scenario: sc.title.clone(), message: v.degraded.join("; ") }),
                 Status::Pass => {}
                 Status::Fail => defeats.push(Finding { scenario: sc.title.clone(), message: v.message.unwrap_or_default() }),
                 Status::Error => errors.push(Finding { scenario: sc.title.clone(), message: v.message.unwrap_or_default() }),
@@ -116,7 +131,7 @@ pub fn run(model: &SystemModel, invariants: &[Scenario], opts: &Options, sets: &
         let environment = !parts.is_empty() && parts.iter().all(|p| model.spec.instances.get(*p).is_some_and(|i| i.environment));
         let roles: BTreeSet<&'static str> = parts.iter().filter_map(|p| model.spec.instances.get(*p).and_then(|i| i.role)).collect();
         let role = if environment && roles.len() == 1 { roles.into_iter().next() } else { None };
-        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, role, status, defeats, errors });
+        results.push(SetResult { label: set.label(), origin: set.origin.clone(), faults: set.ids.clone(), environment, role, status, defeats, errors, degraded });
     }
     let environment = model.spec.instances.iter().filter(|i| i.environment).map(|i| i.name.clone()).collect();
     Ok(Campaign { composite: model.spec.composite.clone(), environment, hash: model.hash.clone(), invariants: invariants.len(), sets: results, not_injectable: Vec::new(), cut_set_order: None, cut_sets_truncated: false, fmea: FmeaCoverage::default() })

@@ -259,7 +259,7 @@ fn campaigns(model_root: &Path, pos: &[&str], json_out: bool) -> i32 {
                 let v: serde_json::Map<String, serde_json::Value> = all
                     .iter()
                     .map(|(k, l)| {
-                        (k.clone(), l.iter().map(|r| json!({"run": r.run, "compositeHash": r.composite_hash, "sets": r.sets.len(), "survived": r.count("survived"), "defeated": r.count("defeated"), "errors": r.count("error"), "engine": r.engine, "recordedAtUnix": r.recorded_at_unix})).collect())
+                        (k.clone(), l.iter().map(|r| json!({"run": r.run, "compositeHash": r.composite_hash, "sets": r.sets.len(), "survived": r.count("survived"), "degraded": r.sets.iter().filter(|s| s.verdict() == "survived (degraded)").count(), "defeated": r.count("defeated"), "errors": r.count("error"), "engine": r.engine, "recordedAtUnix": r.recorded_at_unix})).collect())
                     })
                     .collect();
                 println!("{}", serde_json::to_string_pretty(&json!({ "campaigns": v })).unwrap_or_default());
@@ -269,7 +269,9 @@ fn campaigns(model_root: &Path, pos: &[&str], json_out: bool) -> i32 {
                 for (k, l) in &all {
                     println!("{k}");
                     for r in l {
-                        println!("  {:<14} at {}  hash {}  {} set(s): {} survived, {} defeated, {} could not be run", label(r), r.recorded_at_unix, &r.composite_hash[..12.min(r.composite_hash.len())], r.sets.len(), r.count("survived"), r.count("defeated"), r.count("error"));
+                        let degraded = r.sets.iter().filter(|s| s.verdict() == "survived (degraded)").count();
+                        let degraded = if degraded > 0 { format!(" ({degraded} only degraded)") } else { String::new() };
+                        println!("  {:<14} at {}  hash {}  {} set(s): {} survived{degraded}, {} defeated, {} could not be run", label(r), r.recorded_at_unix, &r.composite_hash[..12.min(r.composite_hash.len())], r.sets.len(), r.count("survived"), r.count("defeated"), r.count("error"));
                     }
                 }
             }

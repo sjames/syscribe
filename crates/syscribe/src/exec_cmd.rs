@@ -855,6 +855,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
                 if !o.v.messages.is_empty() {
                     j["messages"] = serde_json::json!(o.v.messages);
                 }
+                if !o.v.degraded.is_empty() {
+                    j["degraded"] = serde_json::json!(o.v.degraded);
+                }
                 if flag("--trace") {
                     j["trace"] = serde_json::to_value(&o.v.trace).unwrap_or_default();
                 }
@@ -879,6 +882,9 @@ pub fn cmd_simulate(elems: &[RawElement], args: &[String], lens: &dyn Fn(Option<
             println!("{tag}  {}  {}", o.tc, o.v.scenario);
             if let Some(m) = &o.v.message {
                 println!("       {m}");
+            }
+            for d in &o.v.degraded {
+                println!("       held in a degraded clause: {d}");
             }
             if flag("--trace") {
                 for t in &o.v.trace {
@@ -1916,12 +1922,15 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
             println!("  parts that are not the product (environment, external): {}; a fault set marked with their role fails only the set-up around the product", campaign.environment.join(", "));
         }
         for s in &campaign.sets {
-            println!("  {:<9} {}{}   ({})", s.status.to_uppercase(), s.label, if s.environment { format!(" [{}]", s.role.unwrap_or("not the product")) } else { String::new() }, s.origin);
+            println!("  {:<9} {}{}   ({})", s.verdict().to_uppercase(), s.label, if s.environment { format!(" [{}]", s.role.unwrap_or("not the product")) } else { String::new() }, s.origin);
             for d in &s.defeats {
                 println!("      defeats \"{}\": {}", d.scenario, d.message);
             }
             for d in &s.errors {
                 println!("      error in \"{}\": {}", d.scenario, d.message);
+            }
+            for d in &s.degraded {
+                println!("      held only degraded in \"{}\": {}", d.scenario, d.message);
             }
         }
         if let Some(n) = campaign.cut_set_order {
@@ -1937,7 +1946,8 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         if !campaign.fmea.without_model.is_empty() {
             println!("  no usable fault model: {}", campaign.fmea.without_model.join(", "));
         }
-        println!("summary: {survived} survived, {defeated} defeated, {errored} could not be run");
+        let degraded = campaign.sets.iter().filter(|s| s.status == "survived" && !s.degraded.is_empty()).count();
+        println!("summary: {survived} survived{}, {defeated} defeated, {errored} could not be run", if degraded > 0 { format!(" ({degraded} only in a degraded safe state)") } else { String::new() });
     }
     if value("--run").is_some() && !flag("--record") && value("--report").is_none() {
         eprintln!("warning: --run names a recorded run; without --record (or --report) it has no effect");
@@ -2071,7 +2081,16 @@ fn campaign_report_md(elems: &[RawElement], resolver: &syscribe_model::resolver:
         } else {
             (String::new(), String::new())
         };
-        let _ = writeln!(o, "| {}{} | {} | {} | {decision} | {rates} |", s.label, if s.environment { " (not the product)" } else { "" }, s.origin, s.status);
+        let _ = writeln!(o, "| {}{} | {} | {} | {decision} | {rates} |", s.label, if s.environment { " (not the product)" } else { "" }, s.origin, s.verdict());
+    }
+    let degraded: Vec<_> = rec.sets.iter().filter(|s| s.status == "survived" && !s.degraded.is_empty()).collect();
+    if !degraded.is_empty() {
+        let _ = writeln!(o, "\n## Survived only in a degraded safe state\n");
+        for s in degraded {
+            for d in &s.degraded {
+                let _ = writeln!(o, "- **{}** in \"{}\": {}", s.label, d.scenario, d.message);
+            }
+        }
     }
     let defeats: Vec<_> = rec.sets.iter().filter(|s| !s.defeats.is_empty()).collect();
     if !defeats.is_empty() {

@@ -53,6 +53,20 @@ pub struct SetRecord {
     /// The role the set's parts share when they are not the product (`environment` or `external`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
+    /// The invariants that held only in a degraded clause (GH #342).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub degraded: Vec<FindingRecord>,
+}
+
+impl SetRecord {
+    /// `survived`, `survived (degraded)`, `defeated` or `error`.
+    pub fn verdict(&self) -> String {
+        if self.status == "survived" && !self.degraded.is_empty() {
+            "survived (degraded)".into()
+        } else {
+            self.status.clone()
+        }
+    }
 }
 
 /// The options a campaign was run with, so a record says how to run it again.
@@ -135,6 +149,7 @@ impl CampaignRecord {
                     defeats: s.defeats.iter().map(|d| FindingRecord { scenario: d.scenario.clone(), message: d.message.clone() }).collect(),
                     errors: s.errors.iter().map(|d| FindingRecord { scenario: d.scenario.clone(), message: d.message.clone() }).collect(),
                     role: s.role.map(str::to_string),
+                    degraded: s.degraded.iter().map(|d| FindingRecord { scenario: d.scenario.clone(), message: d.message.clone() }).collect(),
                 })
                 .collect(),
             not_run: campaign.not_injectable.iter().map(|n| NotRunRecord { origin: n.origin.clone(), events: n.events.clone(), reason: n.reason.clone() }).collect(),
@@ -198,7 +213,13 @@ pub fn key(subject: &str, config: Option<&str>) -> String {
 /// A stable hash of an invariant scenario: its title, tags and steps.
 pub fn scenario_hash(s: &Scenario) -> String {
     let steps: Vec<String> = s.steps.iter().map(|st| format!("{:?} {}", st.kw, st.text)).collect();
-    let text = serde_json::json!({"title": s.title, "tags": s.tags, "steps": steps}).to_string();
+    let mut text = serde_json::json!({"title": s.title, "tags": s.tags, "steps": steps});
+    if !s.props.is_empty() {
+        // the named properties and their degraded clauses judge the run as much as the steps do (GH #342)
+        let props: Vec<serde_json::Value> = s.props.iter().map(|p| serde_json::json!({"name": p.name, "expr": p.expr, "except": p.excepts.iter().map(|x| (x.faults.join(" and "), x.expr.clone())).collect::<Vec<_>>()})).collect();
+        text["props"] = serde_json::Value::Array(props);
+    }
+    let text = text.to_string();
     blake3::hash(text.as_bytes()).to_hex().to_string()
 }
 
@@ -254,7 +275,7 @@ pub struct RecordDiff {
 }
 
 pub fn diff(a: &CampaignRecord, b: &CampaignRecord) -> RecordDiff {
-    let by = |r: &CampaignRecord| r.sets.iter().map(|s| (s.label.clone(), s.status.clone())).collect::<BTreeMap<_, _>>();
+    let by = |r: &CampaignRecord| r.sets.iter().map(|s| (s.label.clone(), s.verdict())).collect::<BTreeMap<_, _>>();
     let (ma, mb) = (by(a), by(b));
     let mut d = RecordDiff { composite_changed: a.composite_hash != b.composite_hash, invariants_changed: a.invariants != b.invariants, ..Default::default() };
     for (k, va) in &ma {
@@ -627,7 +648,7 @@ mod tests {
             config: None,
             composite_hash: "ab".repeat(32),
             invariants: vec![],
-            sets: vec![SetRecord { label: "F1".into(), origin: "single fault F1".into(), faults: vec!["F1".into()], status: status.into(), environment: false, defeats: vec![], errors: vec![], role: None }],
+            sets: vec![SetRecord { label: "F1".into(), origin: "single fault F1".into(), faults: vec!["F1".into()], status: status.into(), environment: false, defeats: vec![], errors: vec![], role: None, degraded: vec![] }],
             invocation: Invocation::default(),
             not_run: vec![],
             cut_set_order: None,

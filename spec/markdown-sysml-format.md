@@ -3034,6 +3034,34 @@ Integration plan executed before each delivery/survey release.
 
 **Validation summary:** `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
 
+#### 8.12.8 Invariant properties: `Where`, `Except under`, `within`, `always`, `never`
+
+A scenario of a composite TestCase (§8.18 campaign, GH #342) may state a property precisely and over time.
+
+* `Where <name> is <expression>` names a boolean property. Written under `Feature:` or `Background:` (before the first scenario of the block) it is visible to every scenario of the block; written in a scenario it is that scenario's own and replaces a feature property of the same name.
+* `Except under <fault> [and <fault>…]: <expression>` follows a `Where` and belongs to it (written in a scenario, it may also extend the feature property last declared). It replaces the property while every listed fault is injected: the faults of the campaign set plus those a `fault … is injected` step injected and has not cleared. A fault no clause lists leaves the full property in force, so a new fault cannot weaken it. When several clauses apply, the one whose faults include those of every other is used; when none does, the scenario ends in an **error**, "no applicable degraded clause", naming the clauses a combined one must replace. Degradations are never combined: each clause relaxes a different part of the property, and their conjunction rebuilds the property that cannot hold.
+* `Then <name> holds` checks a named property at that instant.
+* `Then within <duration>: <property>` (or `Then within <duration> <name> holds`) advances the clock by the duration; the property must hold at some settled instant no later than that and at every settled instant after it, to the end of the run (reached and kept). The duration is measured from the step, which follows the event it is about.
+* `Then always <property>` / `Then from now on <property>` and `Then never <property>` hold, or never hold, at every settled instant from the step to the end of the run, without advancing the clock.
+
+A property is an expression over `<part>.<variable>`, or `<name> holds`. A *settled instant* is one at which the composite has processed every message due: after each step and at every instant the clock stops at while it advances. A plain `Then <expression>` keeps its meaning, checked once where it stands.
+
+A scenario that passed only because a degraded clause was in force reports the clause (`simulate`: "held in a degraded clause", JSON `degraded`); a campaign set whose invariants all held but at least one only degraded is **survived (degraded)** in `inject`, its report and its record. A defeat names the clause that failed and when. A malformed `Where`/`Except`, an `Except` with no `Where` before it, a step naming an undeclared property, and an operator outside a `Then` step are `E886`; an `Except` fault that is not a fault of the model is `E937`.
+
+```gherkin
+Feature: protection chain
+  Where the safe state is powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0
+  Except under FTE-GTI-002: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FTE-GTI-003: powerStage.pwm == 0 and relayA.closed == 0
+  Except under FTE-GTI-002 and FTE-GTI-003: powerStage.pwm == 0
+
+  @invariant
+  Scenario: after a grid loss the safe state is reached within 2 s and kept
+    When grid receives Set with v = 0, f = 60
+    Then within 2 s the safe state holds
+    When 10 s elapses
+```
+
 ### 8.13 Allocation Elements
 
 #### 8.13.1 `AllocationDef`
@@ -6768,7 +6796,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E883` | Error | a `variables:` entry of a `StateDef` is malformed: not a mapping, no `name`, an invalid or duplicate name, or an initial `value` that does not evaluate (GH #277) |
 | `E884` | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
 | `E885` | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |
-| `E886` | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280) |
+| `E886` | Error | a `TestCase` whose `subject:` is an executable state machine has a Gherkin step outside the executable vocabulary (GH #280); for a composite also a malformed `Where`/`Except under` line, an `Except under` with no `Where` before it, or a step naming an undeclared property (GH #342, §8.12.8) |
 | `E887` | Error | an executable `ActionDef` has a wiring error: more than one `else` succession of a decision, an `else` that is not last, a decision with no outgoing succession, a decision guard not in the expression language, a `while`/`until` loop without `condition:`, `loopKind: for`, or an `AcceptAction` whose `after:` is not a non-negative duration (GH #276) |
 | `E888` | Error | a plant declaration or wiring is malformed (needs the `fmi` feature): an `fmu:` with an unknown key, no `file`, a `kind` other than `cosimulation` or unusable `parameters`; a TestCase `plantStep` that is not a positive duration, `plants` that do not resolve to a Part with `fmu:`, or plants without a state-machine `subject:` (GH #291) |
 | `E889` | Error | a `plantConnections` entry is wrong (needs the `fmi` feature): it names an unknown plant variable or machine variable, reads an input or writes an output or a parameter, names two plants alike, has a unit dimension different from the FMU variable's, or uses an unsupported type (GH #291) |
@@ -6779,7 +6807,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E934` | Error | a composite is malformed: a part without a name, two parts with one name, or a connection `delay:` that is not a duration (GH #297). A composite with an in-process plant part (`plant:`) and no `plantStep:` is `E934` too (GH #340). |
 | `E935` | Error | a type or unit error that the evaluator would raise whenever evaluation reaches it, found statically in an executable state machine: a guard or `when` that is not boolean, a comparison or sum of unequal dimensions, an assignment of the wrong kind or dimension, `and`/`or`/`not` over a number, `min`/`max` over unequal dimensions, `sqrt` of an odd dimension, a non-integer or dimensional `pow` exponent; names that are not variables (event payload fields) are never errors (GH #272), except a field of an event accepted through a port typed by a `PortDef`, which has its `ItemDef` field's type; a `send` payload value of the wrong kind or dimension for that field is reported too (GH #331, §8.8.5). The same errors in the `equations:` of a `PlantDef`, and a derivative or output whose dimension differs from the one declared, are `E935` too (GH #340). |
 | `E936` | Error | an `injection:` on an `FMEAEntry` row or a `FaultTreeEvent` is malformed: not a list, an item that is not a mapping, an unknown key or `kind` (stuck, offset, silent, drop, delay, corrupt), a field missing for its kind, a `value`/`by` that is not an expression, or a `delay` whose `by` is not a non-negative duration; or, when a composite is built for a scenario, a fault that names a variable, port or value that does not fit the part it applies to (GH #306). A `parameter` fault (`parameter`, `value`) changes a parameter of an in-process plant; `stuck`/`offset` may name a plant output and `silent` freezes a plant (GH #340). |
-| `E937` | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306) |
+| `E937` | Error | a `fault <id> is injected/cleared` step of a composite TestCase names an id that is not an `FMEAEntry` or `FaultTreeEvent` with a well-formed `injection:` (GH #306), or an `Except under` clause names such an id (GH #342) |
 | `E938` | Error | a `PlantDef` is malformed: an entry of `parameters:`/`inputs:`/`outputs:`/`states:` without a name or with an unknown key, a value that does not evaluate, a duplicate name, no output, an equation that is neither `der(state) = expression` nor `output := expression`, a name the plant does not declare, a state without one `der(…)` or an output without one `:=`, an algebraic loop between outputs, a `method:` other than `rk4`/`euler`, a `maxStep:` that is not a positive duration; or a plant key (`outputs:`, `states:`, `equations:`, `method:`, `maxStep:`, `inputs:` as mappings) on an element that is not a `PlantDef` (GH #340) |
 | `E939` | Error | a `plant:` declaration is wrong: not on a `PartDef`/`Part`, not a `PlantDef` reference or a `{def | library, unit, parameters}` mapping, a `def:` that does not resolve to a `PlantDef` (or names one with errors), an unknown `library:` plant, a `unit:` on a `def:`, or a parameter override that names no parameter or has the wrong dimension (GH #340) |
 | `E990` | Error | a `models:` target does not resolve, or is not an architecture element (a `PartDef`/`Part` with a `domain:`); or a part usage carries `models:` without a part type (GH #330, §12.11) |

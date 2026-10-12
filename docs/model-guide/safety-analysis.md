@@ -747,6 +747,24 @@ Scenario: the receiver never sees more than the nominal value
   Then rx.got <= 7
 ```
 
+An invariant can state the safe state precisely and over time (GH #342, spec §8.12.8): `Where <name> is <expression>` names it once, `Except under <fault> [and <fault>…]: <expression>` gives the degraded safe state for the faults that make part of it impossible (a welded relay cannot open), and `Then within 2 s the safe state holds`, `Then always …` and `Then never …` check it at every settled instant rather than once:
+
+```gherkin
+Feature: protection
+  Where the safe state is pwm.on == 0 and relayA.closed == 0 and relayB.closed == 0
+  Except under FM-RLY-001: pwm.on == 0 and relayB.closed == 0
+  Except under FM-RLY-002: pwm.on == 0 and relayA.closed == 0
+  Except under FM-RLY-001 and FM-RLY-002: pwm.on == 0
+
+  @invariant
+  Scenario: after a grid loss the safe state is reached within 2 s and kept
+    When grid receives Lost
+    Then within 2 s the safe state holds
+    When 10 s elapses
+```
+
+A fault no clause names keeps the full property. A set to which several clauses apply needs a clause that covers them all; without one the run is an error, "no applicable degraded clause", not a defeat. A set whose invariants held only in a degraded clause is reported **survived (degraded)**.
+
 The invariants must pass without faults first; each fault set is then injected at time 0 and the invariants run unchanged. `survived` / `defeated` / `error` are reported per set with the failing invariant and step; the report also lists the FMEA rows of the composite's parts that were exercised, those with a fault model that were not, and those with none (prose only). Exit status 2 on a defeat unless `--report-only`. `--config <C>` runs it on one Configuration, `--record` keeps it as evidence and `--report <file>` writes it for an assessor (see below). See `syscribe help inject` and `docs/design/fault-injection.md`.
 
 ### Residual-risk decisions — `ResidualRisk`

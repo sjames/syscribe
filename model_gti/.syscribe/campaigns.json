@@ -7,16 +7,16 @@
       "compositeHash": "ccca0c48a1e02f15ea737744912ef7a2730d1b3493fdaf1be411bbe20f2ff8c9",
       "invariants": [
         {
-          "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-          "hash": "c252bd9d1393e6b63f5729eacc206b45e8a0e3f9c5c15130872cfb86094bb1fd"
+          "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+          "hash": "f3c8deab5bc74aee5edcfc2aa8d0b52f0b94bd227624d88335b7c515d6ded3ba"
         },
         {
-          "scenario": "a dead grid at power-up is never energised",
-          "hash": "cfacadf8001314e09e33532a4c5f21d372af3e396c0d42be49361c665af55984"
+          "scenario": "a dead grid at power-up keeps the safe state",
+          "hash": "9ca5efc65d1fd4a9037af3970644a5c6fef74d677b9b91ad1c2b1027aafc3f4b"
         },
         {
-          "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-          "hash": "2a601355b7d375579b882f0f3f912b61fe88460e4bdf3996d9330aa6ca67e39b"
+          "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+          "hash": "7b423553ff70f057ad0817e1afdc44e5bbf8fd39fa946272bf187e0f5695be6a"
         }
       ],
       "sets": [
@@ -26,7 +26,21 @@
           "faults": [
             "FTE-GTI-001"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-002",
@@ -34,7 +48,21 @@
           "faults": [
             "FTE-GTI-002"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-003",
@@ -42,7 +70,21 @@
           "faults": [
             "FTE-GTI-003"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-004",
@@ -50,7 +92,21 @@
           "faults": [
             "FTE-GTI-004"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-005",
@@ -58,7 +114,21 @@
           "faults": [
             "FTE-GTI-005"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-006",
@@ -74,7 +144,21 @@
           "faults": [
             "FTE-GTI-007"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-008",
@@ -90,7 +174,13 @@
           "faults": [
             "FTE-GTI-009"
           ],
-          "status": "survived"
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 70 s elapses`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) does not hold at t = 60 s"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-010",
@@ -106,7 +196,21 @@
           "faults": [
             "FM-GTI-001"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-001"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-001"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-001"
+            }
+          ]
         },
         {
           "label": "FM-GTI-002",
@@ -114,7 +218,21 @@
           "faults": [
             "FM-GTI-002"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-002"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-002"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-002"
+            }
+          ]
         },
         {
           "label": "FM-GTI-003",
@@ -122,7 +240,21 @@
           "faults": [
             "FM-GTI-003"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-003"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-003"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-003"
+            }
+          ]
         },
         {
           "label": "FM-GTI-004",
@@ -130,7 +262,21 @@
           "faults": [
             "FM-GTI-004"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-004"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-004"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-004"
+            }
+          ]
         },
         {
           "label": "FM-GTI-005",
@@ -146,7 +292,21 @@
           "faults": [
             "FM-GTI-006"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-006"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-006"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-006"
+            }
+          ]
         },
         {
           "label": "FM-GTI-007",
@@ -154,7 +314,21 @@
           "faults": [
             "FM-GTI-007"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-007"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-007"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-007"
+            }
+          ]
         },
         {
           "label": "FM-GTI-008",
@@ -162,7 +336,21 @@
           "faults": [
             "FM-GTI-008"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-008"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-008"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-008"
+            }
+          ]
         },
         {
           "label": "FM-GTI-009",
@@ -170,7 +358,21 @@
           "faults": [
             "FM-GTI-009"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-009"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-009"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-009"
+            }
+          ]
         },
         {
           "label": "FM-GTI-011",
@@ -190,12 +392,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -209,12 +417,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -228,12 +442,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -247,16 +467,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 70 s elapses`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) does not hold at t = 60 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -271,12 +491,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
             }
           ]
         },
@@ -291,12 +517,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
             }
           ]
         },
@@ -311,16 +543,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 70 s elapses`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) does not hold at t = 60 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -335,16 +567,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 70 s elapses`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) does not hold at t = 60 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -359,12 +591,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005` (`relayA.closed == 0`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005` (`relayA.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005"
             }
           ]
         },
@@ -379,16 +617,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) is not reached within 2 s (by t = 69.2 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 2 (`Then always the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) does not hold at t = 0 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         }
@@ -400,7 +638,7 @@
       "cutSetOrder": 3,
       "cutSetsTruncated": true,
       "engine": "0.53.0",
-      "recordedAtUnix": 1791805822
+      "recordedAtUnix": 1791806820
     }
   ],
   "TC-GTI-PROT-US-001@CONF-GTI-US-M3-001": [
@@ -411,16 +649,16 @@
       "compositeHash": "1b08e8329d702f53f0a1d4c22d977a1fc0321f6116c7e3548e76d02ba90666e4",
       "invariants": [
         {
-          "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-          "hash": "4aa3f1267720e183798c937d8fb0e61012b316a70f44fef59c238f5d17fccbef"
+          "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+          "hash": "ddeb2fa480b841891bce4ace9d2775226925b38cf284acf981486773f01800be"
         },
         {
-          "scenario": "a dead grid at power-up is never energised",
-          "hash": "65bb7595a9cee3ceaece0d461ef0030a087e050c1a2f91ee7547f9a5211e1f2a"
+          "scenario": "a dead grid at power-up keeps the safe state",
+          "hash": "6b0badcbeaabc71c9602361ee24dff61134cc4cdbe637652eeedac9a1e15656f"
         },
         {
-          "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-          "hash": "ea1cddd7531cbadba8787c702d0ff931c0ce5dad7f23a1589b54bba3d728dac1"
+          "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+          "hash": "1cd4dd0fb8ab0bd87170981c986d419743a533eee10ae23336b50c354b136ade"
         }
       ],
       "sets": [
@@ -430,7 +668,21 @@
           "faults": [
             "FTE-GTI-001"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-001"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-002",
@@ -438,7 +690,21 @@
           "faults": [
             "FTE-GTI-002"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-002"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-003",
@@ -446,7 +712,21 @@
           "faults": [
             "FTE-GTI-003"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-003"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-004",
@@ -454,7 +734,21 @@
           "faults": [
             "FTE-GTI-004"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-004"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-005",
@@ -462,7 +756,21 @@
           "faults": [
             "FTE-GTI-005"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-005"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-006",
@@ -478,7 +786,21 @@
           "faults": [
             "FTE-GTI-007"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FTE-GTI-007"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-008",
@@ -494,7 +816,13 @@
           "faults": [
             "FTE-GTI-009"
           ],
-          "status": "survived"
+          "status": "defeated",
+          "defeats": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 310 s elapses`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) does not hold at t = 300 s"
+            }
+          ]
         },
         {
           "label": "FTE-GTI-010",
@@ -510,7 +838,21 @@
           "faults": [
             "FM-GTI-001"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-001"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-001"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-001"
+            }
+          ]
         },
         {
           "label": "FM-GTI-002",
@@ -518,7 +860,21 @@
           "faults": [
             "FM-GTI-002"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-002"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-002"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-002"
+            }
+          ]
         },
         {
           "label": "FM-GTI-003",
@@ -526,7 +882,21 @@
           "faults": [
             "FM-GTI-003"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-003"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-003"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-003"
+            }
+          ]
         },
         {
           "label": "FM-GTI-004",
@@ -534,7 +904,21 @@
           "faults": [
             "FM-GTI-004"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-004"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-004"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-004"
+            }
+          ]
         },
         {
           "label": "FM-GTI-005",
@@ -550,7 +934,21 @@
           "faults": [
             "FM-GTI-006"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-006"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-006"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-006"
+            }
+          ]
         },
         {
           "label": "FM-GTI-007",
@@ -558,7 +956,21 @@
           "faults": [
             "FM-GTI-007"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-007"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-007"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-007"
+            }
+          ]
         },
         {
           "label": "FM-GTI-008",
@@ -566,7 +978,21 @@
           "faults": [
             "FM-GTI-008"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-008"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-008"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-008"
+            }
+          ]
         },
         {
           "label": "FM-GTI-009",
@@ -574,7 +1000,21 @@
           "faults": [
             "FM-GTI-009"
           ],
-          "status": "survived"
+          "status": "survived",
+          "degraded": [
+            {
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "'the safe state': Except under FM-GTI-009"
+            },
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FM-GTI-009"
+            },
+            {
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "'the safe state': Except under FM-GTI-009"
+            }
+          ]
         },
         {
           "label": "FM-GTI-011",
@@ -594,12 +1034,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -613,12 +1059,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -632,12 +1084,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-005` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-005"
             }
           ]
         },
@@ -651,16 +1109,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 310 s elapses`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) does not hold at t = 300 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' (`powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -675,12 +1133,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
             }
           ]
         },
@@ -695,12 +1159,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-004` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-004"
             }
           ]
         },
@@ -715,16 +1185,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 310 s elapses`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) does not hold at t = 300 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -739,16 +1209,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 4 (`When 310 s elapses`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) does not hold at t = 300 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-007` (`powerStage.pwm == 0 and relayB.closed == 0`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         },
@@ -763,12 +1233,18 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005` (`relayA.closed == 0`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005` (`relayA.closed == 0`) is not reached within 2 s (by t = 2 s)"
+            }
+          ],
+          "degraded": [
+            {
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "'the safe state': Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005"
             }
           ]
         },
@@ -783,16 +1259,16 @@
           "status": "defeated",
           "defeats": [
             {
-              "scenario": "a second grid loss after a full reconnection cycle is also cleared",
-              "message": "step 17 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a second grid loss after a full reconnection cycle also reaches the safe state",
+              "message": "step 16 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) is not reached within 2 s (by t = 309.16 s)"
             },
             {
-              "scenario": "a dead grid at power-up is never energised",
-              "message": "step 4 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "a dead grid at power-up keeps the safe state",
+              "message": "step 2 (`Then always the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) does not hold at t = 0 s"
             },
             {
-              "scenario": "after a grid loss the grid is never energised for longer than 2 s",
-              "message": "step 12 (`Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0`): `powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0` is false"
+              "scenario": "after a grid loss the safe state is reached within 2 s and kept",
+              "message": "step 11 (`Then within 2 s the safe state holds`): 'the safe state' as degraded by `Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003` (`false`) is not reached within 2 s (by t = 2 s)"
             }
           ]
         }
@@ -804,7 +1280,7 @@
       "cutSetOrder": 3,
       "cutSetsTruncated": true,
       "engine": "0.53.0",
-      "recordedAtUnix": 1791805818
+      "recordedAtUnix": 1791806816
     }
   ]
 }

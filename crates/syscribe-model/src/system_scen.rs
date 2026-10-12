@@ -5,10 +5,14 @@
 //! * `When <part> receives <Event> [via <port>] [with <field> = <expression>, …]` · `When <part>.<variable> becomes <expression>` · `When <duration> elapses`
 //! * `Then <part> is in state <State>` · `Then <expression over <part>.<variable>>` · `Then <part> sent <Event> [via <port>]` · `Then <part> did not send <Event> [via <port>]`
 //! * `Given|When fault <id> is injected` · `When fault <id> is cleared` (REQ-TRS-FAULT-001: an `FMEAEntry` or `FaultTreeEvent` with an `injection:`)
+//! * `Then <name> holds` · `Then within <duration>: <property>` · `Then always <property>` · `Then from now on <property>` ·
+//!   `Then never <property>` (GH #342), where a property is an expression or `<name> holds` for a `Where <name> is …`
+
+use std::collections::BTreeSet;
 
 use crate::expr::{self, Value};
 use crate::sm_run::Options;
-use crate::sm_scen::{find_unquoted, split_top, GStep, Kw, Scenario, Status, Verdict};
+use crate::sm_scen::{find_unquoted, split_top, Clause, GStep, Kw, Scenario, Status, Verdict};
 use crate::system_run::{System, SystemModel};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +26,62 @@ pub enum SCmd {
     Sent { part: String, event: String, via: Option<String>, negate: bool },
     /// Inject (`true`) or clear (`false`) the fault of an FMEA row or fault-tree event.
     Fault { id: String, inject: bool },
+    /// A property checked now or over the rest of the run (GH #342).
+    Holds { when: Temporal, prop: PropRef },
+}
+
+/// When a property must hold (GH #342).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Temporal {
+    /// At this instant (`Then <name> holds`).
+    Now,
+    /// At some settled instant no later than the duration from now, and at every settled instant after that.
+    Within(String),
+    /// At every settled instant from now on (`always`, `from now on`).
+    Always,
+    /// At no settled instant from now on.
+    Never,
+}
+
+/// A property: an expression, or a named one (`Where <name> is …`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum PropRef {
+    Expr(String),
+    Named(String),
+}
+
+impl PropRef {
+    fn parse(t: &str) -> Result<PropRef, String> {
+        let t = t.trim();
+        let lower = t.to_ascii_lowercase();
+        if let Some(name) = lower.strip_suffix(" holds").map(|_| t[..t.len() - " holds".len()].trim()) {
+            if name.is_empty() {
+                return Err("`<name> holds` needs a name".into());
+            }
+            return Ok(PropRef::Named(name.to_string()));
+        }
+        expr::parse(t).map(|_| PropRef::Expr(t.to_string())).map_err(|e| format!("`{t}` is not an expression or `<name> holds`: {e}"))
+    }
+}
+
+/// `within <duration>: <property>`, or `within <duration> <name> holds` (the longest prefix that is an expression is
+/// the duration).
+fn parse_within(rest: &str) -> Result<SCmd, String> {
+    if let Some(i) = find_unquoted(rest, ":") {
+        let d = rest[..i].trim();
+        expr::parse(d).map_err(|e| format!("`{d}` is not a duration: {e}"))?;
+        return Ok(SCmd::Holds { when: Temporal::Within(d.to_string()), prop: PropRef::parse(&rest[i + 1..])? });
+    }
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    for k in (1..words.len()).rev() {
+        let d = words[..k].join(" ");
+        if expr::parse(&d).is_ok() {
+            if let Ok(prop @ PropRef::Named(_)) = PropRef::parse(&words[k..].join(" ")) {
+                return Ok(SCmd::Holds { when: Temporal::Within(d), prop });
+            }
+        }
+    }
+    Err("`within <duration>: <property>` or `within <duration> <name> holds`".into())
 }
 
 fn word(s: &str) -> bool {
@@ -53,6 +113,21 @@ pub fn parse_step(kw: Kw, text: &str) -> Result<SCmd, String> {
             }
         }
         return Err("`fault <id> is injected` or `fault <id> is cleared`".into());
+    }
+    for (head, when) in [("within ", None), ("always ", Some(Temporal::Always)), ("from now on ", Some(Temporal::Always)), ("never ", Some(Temporal::Never))] {
+        if lower.starts_with(head) {
+            if kw != Kw::Then {
+                return Err(format!("`{}` is a Then step", head.trim()));
+            }
+            let rest = &t[head.len()..];
+            return match when {
+                None => parse_within(rest),
+                Some(when) => Ok(SCmd::Holds { when, prop: PropRef::parse(rest)? }),
+            };
+        }
+    }
+    if kw == Kw::Then && lower.ends_with(" holds") {
+        return Ok(SCmd::Holds { when: Temporal::Now, prop: PropRef::parse(t)? });
     }
     if let Some(i) = find_unquoted(&lower, " is in state ") {
         let (part, state) = (t[..i].trim(), t[i + " is in state ".len()..].trim().trim_matches(['"', '\'']).replace('/', "."));
@@ -152,10 +227,19 @@ pub fn vocabulary_findings(doc: &str) -> Vec<(usize, String)> {
         if sc.steps.is_empty() {
             out.push((0, format!("scenario '{}': the scenario has no steps", sc.title)));
         }
+        for (line, e) in &sc.prop_errors {
+            if seen.insert((*line, String::new())) {
+                out.push((*line, format!("scenario '{}': {e}", sc.title)));
+            }
+        }
         for st in &sc.steps {
             if seen.insert((st.line, st.text.clone())) {
-                if let Err(e) = parse_step(st.kw, &st.text) {
-                    out.push((st.line, format!("scenario '{}': step `{}` is outside the executable vocabulary: {e}", sc.title, st.text)));
+                match parse_step(st.kw, &st.text) {
+                    Err(e) => out.push((st.line, format!("scenario '{}': step `{}` is outside the executable vocabulary: {e}", sc.title, st.text))),
+                    Ok(SCmd::Holds { prop: PropRef::Named(n), .. }) if !sc.props.iter().any(|p| p.name.eq_ignore_ascii_case(&n)) => {
+                        out.push((st.line, format!("scenario '{}': step `{}` names no property: there is no `Where {n} is <expression>`", sc.title, st.text)))
+                    }
+                    Ok(_) => {}
                 }
             }
         }
@@ -168,12 +252,93 @@ pub fn run_system_scenario(model: &SystemModel, sc: &Scenario, opts: &Options) -
     run_system_scenario_faulted(model, sc, opts, &[])
 }
 
+/// A property checked at every settled instant from the step that set it to the end of the run (GH #342).
+struct Monitor {
+    prop: PropRef,
+    kind: MKind,
+}
+
+enum MKind {
+    /// Reached no later than `deadline`, and kept from then on.
+    Within { deadline: f64, dur: String, reached: Option<f64> },
+    Always,
+    Never,
+}
+
+/// Evaluate a property now: whether it holds, and what was checked (the clause in force for a named property). A
+/// degraded clause in force is added to `used`.
+fn eval_prop(sys: &System, sc: &Scenario, prop: &PropRef, used: &mut BTreeSet<String>) -> Result<(bool, String), String> {
+    let (src, what) = match prop {
+        PropRef::Expr(e) => (e.as_str(), format!("`{e}`")),
+        PropRef::Named(n) => {
+            let Some(p) = sc.props.iter().find(|p| p.name.eq_ignore_ascii_case(n)) else {
+                return Err(format!("no property '{n}' (`Where {n} is <expression>`)"));
+            };
+            match p.clause(&sys.active_faults())? {
+                Clause::Full(e) => (e, format!("'{}' (`{e}`)", p.name)),
+                Clause::Degraded(x) => {
+                    used.insert(format!("'{}': {}", p.name, x.label()));
+                    (x.expr.as_str(), format!("'{}' as degraded by `{}` (`{}`)", p.name, x.label(), x.expr))
+                }
+            }
+        }
+    };
+    match sys.eval_qualified(src)? {
+        Value::Bool(b) => Ok((b, what)),
+        v => Err(format!("{what} is a {}, not a boolean", v.kind())),
+    }
+}
+
+fn secs(t: f64) -> String {
+    format!("{} s", crate::sm_run::quantise(t))
+}
+
+/// Check every monitor at the instant the system has settled at.
+fn check(sys: &System, sc: &Scenario, monitors: &mut [Monitor], used: &mut BTreeSet<String>) -> Result<(), (Status, String)> {
+    let now = sys.time();
+    for m in monitors.iter_mut() {
+        let (holds, what) = eval_prop(sys, sc, &m.prop, used).map_err(|e| (Status::Error, e))?;
+        let fail = |msg: String| Err((Status::Fail, msg));
+        match &mut m.kind {
+            MKind::Within { deadline, dur, reached } => match (*reached, holds) {
+                (None, true) => *reached = Some(now),
+                (None, false) if now >= *deadline - 1e-9 => return fail(format!("{what} is not reached within {dur} (by t = {})", secs(*deadline))),
+                (Some(at), false) => return fail(format!("{what} was reached at t = {} but no longer holds at t = {}", secs(at), secs(now))),
+                _ => {}
+            },
+            MKind::Always if !holds => return fail(format!("{what} does not hold at t = {}", secs(now))),
+            MKind::Never if holds => return fail(format!("{what} holds at t = {}, and must never", secs(now))),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Advance the clock, checking the monitors at every settled instant; stops at the first violation.
+fn advance_checked(sys: &mut System, sc: &Scenario, by: f64, monitors: &mut [Monitor], used: &mut BTreeSet<String>) -> Result<(), (Status, String)> {
+    let mut failed = None;
+    sys.advance_with(by, &mut |s| match check(s, sc, monitors, used) {
+        Ok(()) => true,
+        Err(e) => {
+            failed = Some(e);
+            false
+        }
+    });
+    match failed {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
 /// Run one scenario on a fresh system with the faults of `faults` (analysis element ids) injected before its first step.
 pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Options, faults: &[String]) -> Verdict {
     let mut sys = System::new(model, opts.clone());
     let injected: Result<(), String> = faults.iter().try_for_each(|f| sys.inject(f).map_err(|e| format!("injecting {f}: {e}")));
     let steps: Vec<String> = sc.steps.iter().map(|s: &GStep| format!("{} {}", match s.kw { Kw::Given => "Given", Kw::When => "When", Kw::Then => "Then" }, s.text)).collect();
-    let done = |sys: &System, status: Status, message: Option<String>| Verdict {
+    let mut used: BTreeSet<String> = BTreeSet::new();
+    let mut monitors: Vec<Monitor> = Vec::new();
+    let done = |sys: &System, used: &BTreeSet<String>, status: Status, message: Option<String>| Verdict {
+        degraded: used.iter().cloned().collect(),
         scenario: sc.title.clone(),
         outline: sc.outline.clone(),
         status,
@@ -194,19 +359,19 @@ pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Op
         messages: sys.fault_events().iter().cloned().chain(sys.messages().iter().map(|m| sys.describe(m))).collect(),
     };
     if let Err(e) = injected {
-        return done(&sys, Status::Error, Some(e));
+        return done(&sys, &used, Status::Error, Some(e));
     }
     if let Some(e) = sys.error() {
-        return done(&sys, Status::Error, Some(e));
+        return done(&sys, &used, Status::Error, Some(e));
     }
     if sc.steps.is_empty() {
-        return done(&sys, Status::Error, Some("the scenario has no steps".into()));
+        return done(&sys, &used, Status::Error, Some("the scenario has no steps".into()));
     }
     for (i, st) in sc.steps.iter().enumerate() {
         let label = format!("step {} (`{}`)", i + 1, steps[i]);
         let cmd = match parse_step(st.kw, &st.text) {
             Ok(c) => c,
-            Err(e) => return done(&sys, Status::Error, Some(format!("{label}: {e}"))),
+            Err(e) => return done(&sys, &used, Status::Error, Some(format!("{label}: {e}"))),
         };
         let eval = |sys: &System, src: &str| sys.eval_qualified(src);
         let applied: Result<(), String> = match &cmd {
@@ -225,7 +390,9 @@ pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Op
                 }),
             SCmd::Elapse(d) => match eval(&sys, d) {
                 Ok(Value::Num(q)) if expr::unit_scale("s").map(|x| x.1) == Some(q.dim) && q.v >= 0.0 => {
-                    sys.advance(q.v);
+                    if let Err((status, m)) = advance_checked(&mut sys, sc, q.v, &mut monitors, &mut used) {
+                        return done(&sys, &used, status, Some(format!("{label}: {m}")));
+                    }
                     Ok(())
                 }
                 Ok(v) => Err(format!("`{d}` is a {}, not a non-negative duration", v.kind())),
@@ -233,36 +400,61 @@ pub fn run_system_scenario_faulted(model: &SystemModel, sc: &Scenario, opts: &Op
             },
             SCmd::ExpectState(p, s) => match sys.holds_state(p, s) {
                 Ok(true) => Ok(()),
-                Ok(false) => return done(&sys, Status::Fail, Some(format!("{label}: expected {p} in state {s}, it is in {}", sys.active(p).unwrap_or_default().join(", ")))),
+                Ok(false) => return done(&sys, &used, Status::Fail, Some(format!("{label}: expected {p} in state {s}, it is in {}", sys.active(p).unwrap_or_default().join(", ")))),
                 Err(e) => Err(e),
             },
             SCmd::Expect(e) => match eval(&sys, e) {
                 Ok(Value::Bool(true)) => Ok(()),
-                Ok(Value::Bool(false)) => return done(&sys, Status::Fail, Some(format!("{label}: `{e}` is false"))),
+                Ok(Value::Bool(false)) => return done(&sys, &used, Status::Fail, Some(format!("{label}: `{e}` is false"))),
                 Ok(v) => Err(format!("`{e}` is a {}, not a boolean", v.kind())),
                 Err(x) => Err(x),
             },
             SCmd::Fault { id, inject } => if *inject { sys.inject(id) } else { sys.clear_fault(id) },
+            SCmd::Holds { when: Temporal::Now, prop } => match eval_prop(&sys, sc, prop, &mut used) {
+                Ok((true, _)) => Ok(()),
+                Ok((false, what)) => return done(&sys, &used, Status::Fail, Some(format!("{label}: {what} does not hold"))),
+                Err(e) => return done(&sys, &used, Status::Error, Some(format!("{label}: {e}"))),
+            },
+            SCmd::Holds { when: Temporal::Within(d), prop } => match eval(&sys, d) {
+                Ok(Value::Num(q)) if expr::unit_scale("s").map(|x| x.1) == Some(q.dim) && q.v >= 0.0 => {
+                    monitors.push(Monitor { prop: prop.clone(), kind: MKind::Within { deadline: sys.time() + q.v, dur: d.clone(), reached: None } });
+                    let checked = check(&sys, sc, &mut monitors, &mut used).and_then(|_| advance_checked(&mut sys, sc, q.v, &mut monitors, &mut used));
+                    if let Err((status, m)) = checked {
+                        return done(&sys, &used, status, Some(format!("{label}: {m}")));
+                    }
+                    Ok(())
+                }
+                Ok(v) => Err(format!("`{d}` is a {}, not a non-negative duration", v.kind())),
+                Err(e) => Err(e),
+            },
+            SCmd::Holds { when, prop } => {
+                monitors.push(Monitor { prop: prop.clone(), kind: if *when == Temporal::Never { MKind::Never } else { MKind::Always } });
+                Ok(())
+            }
             SCmd::Sent { part, event, via, negate } => match model.spec.instance(part) {
                 None => Err(format!("no part '{part}'")),
                 Some(pi) => {
                     let hit = sys.messages().iter().any(|m| m.from == pi && m.event == *event && via.as_ref().is_none_or(|v| m.from_port.as_deref() == Some(v.as_str())));
                     if hit == *negate {
                         let what = if *negate { "sent it" } else { "did not send it" };
-                        return done(&sys, Status::Fail, Some(format!("{label}: {part} {what}")));
+                        return done(&sys, &used, Status::Fail, Some(format!("{label}: {part} {what}")));
                     }
                     Ok(())
                 }
             },
         };
         if let Err(e) = applied {
-            return done(&sys, Status::Error, Some(format!("{label}: {e}")));
+            return done(&sys, &used, Status::Error, Some(format!("{label}: {e}")));
         }
         if let Some(e) = sys.error() {
-            return done(&sys, Status::Error, Some(format!("{label}: run error: {e}")));
+            return done(&sys, &used, Status::Error, Some(format!("{label}: run error: {e}")));
+        }
+        // every settled instant counts, including the one a step leaves the system in
+        if let Err((status, m)) = check(&sys, sc, &mut monitors, &mut used) {
+            return done(&sys, &used, status, Some(format!("{label}: {m}")));
         }
     }
-    done(&sys, Status::Pass, None)
+    done(&sys, &used, Status::Pass, None)
 }
 
 /// The fault ids named by `fault … is injected/cleared` steps of a TestCase body, with their lines (for `E937`).
@@ -274,6 +466,14 @@ pub fn fault_ids_in(doc: &str) -> Vec<(usize, String)> {
             if let Ok(SCmd::Fault { id, .. }) = parse_step(st.kw, &st.text) {
                 if seen.insert((st.line, id.clone())) {
                     out.push((st.line, id));
+                }
+            }
+        }
+        // the faults an `Except under` clause names must be faults of the composite too (GH #342)
+        for x in sc.props.iter().flat_map(|p| &p.excepts) {
+            for id in &x.faults {
+                if seen.insert((x.line, id.clone())) {
+                    out.push((x.line, id.clone()));
                 }
             }
         }

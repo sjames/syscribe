@@ -24,6 +24,30 @@ Executable scenarios of the protection chain with the US grid profile. Run with 
 ```gherkin
 Feature: Grid connection and protection chain (US)
 
+  # The safe state of SG-GTI-001, and what is left of it when a fault makes part of it impossible (GH #342).
+  Where the safe state is powerStage.pwm == 0 and relayA.closed == 0 and relayB.closed == 0
+  Except under FM-GTI-006: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FTE-GTI-002: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FM-GTI-007: powerStage.pwm == 0 and relayA.closed == 0
+  Except under FTE-GTI-003: powerStage.pwm == 0 and relayA.closed == 0
+  Except under FM-GTI-008: relayA.closed == 0 and relayB.closed == 0
+  Except under FTE-GTI-001: relayA.closed == 0 and relayB.closed == 0
+  Except under FTE-GTI-001 and FTE-GTI-002: relayB.closed == 0
+  Except under FTE-GTI-001 and FTE-GTI-003: relayA.closed == 0
+  Except under FTE-GTI-002 and FTE-GTI-003: powerStage.pwm == 0
+  # A software fault leaves the hardware trip (REQ-GTI-SYS-039) as the single-fault reaction: gates off, relay B open.
+  Except under FM-GTI-001: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FM-GTI-002: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FM-GTI-003: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FM-GTI-004: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FM-GTI-009: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FTE-GTI-004: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FTE-GTI-005: powerStage.pwm == 0 and relayB.closed == 0
+  Except under FTE-GTI-007: powerStage.pwm == 0 and relayB.closed == 0
+  # No isolating element is left that the remaining protection can open.
+  Except under FTE-GTI-001 and FTE-GTI-003 and FTE-GTI-005: relayA.closed == 0
+  Except under FTE-GTI-001 and FTE-GTI-002 and FTE-GTI-003: false
+
   @verifies REQ-GTI-SYS-010
   Scenario: the inverter connects after the reconnect delay and ramps up
     When grid receives Set with v = 1.0, f = 60
@@ -417,7 +441,7 @@ Feature: Grid connection and protection chain (US)
     Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
 
   @invariant @verifies REQ-GTI-SYS-007,REQ-GTI-SYS-010,REQ-GTI-SYS-038
-  Scenario: a second grid loss after a full reconnection cycle is also cleared
+  Scenario: a second grid loss after a full reconnection cycle also reaches the safe state
     Given supervisor is in state Running
     And relayA is in state Closed
     And relayA.closed is 1
@@ -433,18 +457,18 @@ Feature: Grid connection and protection chain (US)
     And 301 s elapses
     And 6 s elapses
     And grid receives Set with v = 0, f = 60
-    And 2 s elapses
-    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
+    Then within 2 s the safe state holds
+    When 10 s elapses
 
   @invariant @verifies REQ-GTI-SYS-010,REQ-GTI-SYS-038
-  Scenario: a dead grid at power-up is never energised
+  Scenario: a dead grid at power-up keeps the safe state
     When grid receives Set with v = 0, f = 60
-    And supervisor receives Start
+    Then always the safe state holds
+    When supervisor receives Start
     And 310 s elapses
-    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
 
   @invariant @verifies REQ-GTI-SYS-038
-  Scenario: after a grid loss the grid is never energised for longer than 2 s
+  Scenario: after a grid loss the safe state is reached within 2 s and kept
     Given supervisor is in state Running
     And relayA is in state Closed
     And relayA.closed is 1
@@ -455,6 +479,6 @@ Feature: Grid connection and protection chain (US)
     And supervisor.gridOk is 1
     And monitor is in state Normal
     When grid receives Set with v = 0, f = 60
-    And 2 s elapses
-    Then powerStage.pwm == 0 or relayA.closed == 0 or relayB.closed == 0
+    Then within 2 s the safe state holds
+    When 10 s elapses
 ```

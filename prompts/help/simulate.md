@@ -51,6 +51,16 @@ part; `--coverage` reports each part as `<composite>.<part>` plus an aggregate (
     Then  <part> did not send <event> [via <port>]
     Given|When fault <id> is injected      (an FMEAEntry or FaultTreeEvent with an `injection:`)
     When  fault <id> is cleared            (a part that failed silent cannot be cleared)
+    Then  <name> holds                     (a property named with `Where <name> is <expression>`)
+    Then  within <duration>: <property>    (reached by then and kept to the end; or `within <d> <name> holds`)
+    Then  always <property>                (also `from now on`; at every settled instant to the end)
+    Then  never <property>
+
+A composite scenario may name a property under `Feature:`/`Background:` (every scenario) or in a scenario:
+`Where <name> is <expression>`, followed by `Except under <fault> [and <fault>...]: <expression>` clauses that
+replace it while every listed fault is injected (a campaign set or a `fault ... is injected` step). Of several
+applicable clauses the one covering the others is used; if none does, the scenario is an error ("no applicable
+degraded clause"). A scenario that passed only in a degraded clause says so ("held in a degraded clause").
 
 `And`/`But` continue the previous keyword. `Scenario Outline` with `Examples:` expands to one
 scenario per row, named `<title> [row N]`. A scenario is `pass`, `fail` (a Then did not hold,

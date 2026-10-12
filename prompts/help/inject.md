@@ -14,7 +14,8 @@ faults are injected at time 0 and every invariant runs unchanged:
 * with `--ft <FaultTree>`, every minimal cut set of that tree up to `--max-order` (default 2) whose events all have a
   fault model is a set; a cut set with an event that has none is listed as not run.
 
-A set is **survived** when every invariant passes, **defeated** when one fails (the invariant and the failing step are
+A set is **survived** when every invariant passes (**survived (degraded)** when one held only in an
+`Except under` clause of a named property, see `syscribe help simulate`), **defeated** when one fails (the invariant and the failing step are
 shown), and **error** when the run could not be made. The invariants must pass without faults first, else the campaign
 stops: a property that is false without faults says nothing about the faults. The report also lists the FMEA rows of the
 composite's parts that were exercised, those with a fault model that were not, and those with no fault model at all.

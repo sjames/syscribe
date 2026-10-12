@@ -266,9 +266,9 @@ fn the_grid_tie_campaigns_are_current_and_every_defeat_is_decided() {
         let rec = &list[0];
         assert_eq!(rec["invocation"]["ft"], "FT-GTI-001", "{rec}");
         let defeated: Vec<&serde_json::Value> = rec["sets"].as_array().unwrap().iter().filter(|s| s["status"] == "defeated").collect();
-        assert_eq!(defeated.len(), 10, "{rec}");
+        assert_eq!(defeated.len(), 11, "{rec}");
     }
-    assert_eq!(std::fs::read_dir(gti.join("Safety/ResidualRisk")).unwrap().filter(|e| e.as_ref().unwrap().path().to_string_lossy().contains("RISK-")).count(), 10);
+    assert_eq!(std::fs::read_dir(gti.join("Safety/ResidualRisk")).unwrap().filter(|e| e.as_ref().unwrap().path().to_string_lossy().contains("RISK-")).count(), 11);
 }
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -353,9 +353,9 @@ fn the_grid_tie_records_are_judged_under_their_configuration() {
     std::fs::rename(&risks, &aside).unwrap();
     let (_, t) = run(&root, &["safety-case", "--config", US]);
     let line = t.lines().find(|l| l.contains("campaign:TC-GTI-PROT-US-001")).unwrap_or_default().to_string();
-    assert!(line.contains("10 defeated (0 explained)") && line.contains("[UNDEVELOPED]"), "{t}");
+    assert!(line.contains("11 defeated (0 explained)") && line.contains("[UNDEVELOPED]"), "{t}");
     let (_, t) = run(&root, &["audit"]);
-    assert!(t.contains(&format!("campaigns recorded on {US}: 10 defeat(s) no decision explains")), "{t}");
+    assert!(t.contains(&format!("campaigns recorded on {US}: 11 defeat(s) no decision explains")), "{t}");
     std::fs::rename(&aside, &risks).unwrap();
 
     // a narrower re-record: the order-2 and order-3 sets the decisions name are no longer run

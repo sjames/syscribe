@@ -166,6 +166,7 @@ pub fn run_action_scenario(prog: &ActionProgram, sc: &Scenario, opts: &ActOption
     let mut run = ActRun::new(prog, opts.clone());
     let steps: Vec<String> = sc.steps.iter().map(|s| format!("{} {}", match s.kw { Kw::Given => "Given", Kw::When => "When", Kw::Then => "Then" }, s.text)).collect();
     let done = |run: &ActRun, status: Status, message: Option<String>| Verdict {
+        degraded: Vec::new(),
         scenario: sc.title.clone(),
         outline: sc.outline.clone(),
         status,
