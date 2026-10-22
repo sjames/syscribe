@@ -25,9 +25,11 @@
 //! `derived_shape_id("<subject>::<participant|action>")`; the subject's own
 //! lifeline is `derived_shape_id("<subject>")`.
 //!
-//! Scope (the requirement's): no return, create or destroy messages (no
-//! model field declares them); a nested `PerformAction` is a step in the
-//! order but is not expanded into its definition's messages.
+//! A `SendAction`/`PerformAction` that names an operation (`operation:`, `REQ-TRS-SEQ-002`) is a message
+//! labelled with its signature and, for a synchronous operation with a return type, a dashed return.
+//!
+//! Scope: no create or destroy messages (no model field declares them); a nested `PerformAction` without
+//! `operation:` is a step in the order but is not expanded into its definition's messages.
 
 use std::collections::HashMap;
 
@@ -99,6 +101,8 @@ enum Step {
         label: String,
         /// The `to:`/`via:` chain, when declared.
         chain: Option<String>,
+        /// The label of the return that follows the call (a synchronous operation with a return type).
+        ret: Option<String>,
     },
     Fragment {
         name: String,
@@ -175,13 +179,13 @@ pub fn generate(
         performed
             .iter()
             .flat_map(|a| match a.frontmatter.sub_actions.as_deref() {
-                Some(list) => ordered_steps(list, a.frontmatter.succession_connections.as_deref(), true),
+                Some(list) => ordered_steps(list, a.frontmatter.succession_connections.as_deref(), true, elements, resolver),
                 None => Vec::new(),
             })
             .collect()
     } else {
         match behaviour.frontmatter.sub_actions.as_deref() {
-            Some(list) => ordered_steps(list, behaviour.frontmatter.succession_connections.as_deref(), true),
+            Some(list) => ordered_steps(list, behaviour.frontmatter.succession_connections.as_deref(), true, elements, resolver),
             None => Vec::new(),
         }
     };
@@ -332,7 +336,7 @@ pub fn generate(
             };
             for s in steps {
                 match s {
-                    Step::Message { name, kind, label, chain } => {
+                    Step::Message { name, kind, label, chain, ret } => {
                         let other = chain.as_deref().and_then(|c| self.chain_keys.get(c)).and_then(|k| (self.index_of)(k));
                         // A message whose participant is filtered out (or
                         // never resolved to a column) draws nothing.
@@ -373,6 +377,24 @@ pub fn generate(
                             flow: None,
                             faded: false,
                         });
+                        // REQ-TRS-SEQ-002 — the return of a synchronous call, on the next row, back to the subject
+                        if let (Some(ret), true) = (ret, src != tgt) {
+                            let y2 = self.cursor + ROW_PITCH / 2.0;
+                            self.cursor += ROW_PITCH;
+                            self.out.last_row = Some(y2);
+                            let id = self.unique(format!("e-{}", &derived_shape_id(&format!("{}::{name}::return", self.sq))[2..]));
+                            self.out.edges.push(Edge {
+                                id,
+                                element_ref: Some(format!("{}::{name}", self.sq)),
+                                source: format!("#{tgt}"),
+                                target: format!("#{src}"),
+                                kind: EdgeKind::Return,
+                                label: Some(ret.clone()),
+                                waypoints: Some(vec![Point { x: tx, y: y2 }, Point { x: sx, y: y2 }]),
+                                flow: None,
+                                faded: false,
+                            });
+                        }
                     }
                     Step::Fragment { name, operator, condition, children } => {
                         let top = self.cursor + 4.0;
@@ -689,7 +711,7 @@ pub fn place_manifest(graph: &mut DiagramGraph) {
 /// declaration order, a cycle broken in declaration order) at the top level,
 /// declaration order inside `then`/`else`/`body`. Only `SendAction`,
 /// `AcceptAction`, `IfAction` and `LoopAction` yield a step.
-fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::Value]>, top: bool) -> Vec<Step> {
+fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::Value]>, top: bool, elements: &[RawElement], resolver: &Resolver) -> Vec<Step> {
     let order: Vec<usize> = match successions.filter(|_| top) {
         Some(s) => topological_order(list, s),
         None => (0..list.len()).collect(),
@@ -699,6 +721,10 @@ fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::V
         let serde_yaml::Value::Mapping(m) = &list[i] else { continue };
         let Some(name) = map_str(m, "name") else { continue };
         let payload = map_str(m, "payload").map(|p| short_name(p).to_string());
+        if let Some(step) = operation_call(m, name, elements, resolver) {
+            out.push(step);
+            continue;
+        }
         match map_str(m, "kind") {
             Some("SendAction") => {
                 let label = match &payload {
@@ -710,6 +736,7 @@ fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::V
                     kind: MessageKind::Send,
                     label,
                     chain: map_str(m, "to").or_else(|| map_str(m, "via")).map(str::to_string),
+                    ret: None,
                 });
             }
             Some("AcceptAction") => {
@@ -727,13 +754,13 @@ fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::V
                     Some(p) => format!("{name}({p})"),
                     None => name.to_string(),
                 };
-                out.push(Step::Message { name: name.to_string(), kind: MessageKind::Accept, label, chain: map_str(m, "via").map(str::to_string) });
+                out.push(Step::Message { name: name.to_string(), kind: MessageKind::Accept, label, chain: map_str(m, "via").map(str::to_string), ret: None });
             }
             Some("IfAction") => {
                 let mut children = Vec::new();
                 for branch in ["then", "else"] {
                     if let Some(serde_yaml::Value::Sequence(seq)) = m.get(serde_yaml::Value::String(branch.into())) {
-                        children.extend(ordered_steps(seq, None, false));
+                        children.extend(ordered_steps(seq, None, false, elements, resolver));
                     }
                 }
                 out.push(Step::Fragment {
@@ -745,7 +772,7 @@ fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::V
             }
             Some("LoopAction") => {
                 let children = match m.get(serde_yaml::Value::String("body".into())) {
-                    Some(serde_yaml::Value::Sequence(seq)) => ordered_steps(seq, None, false),
+                    Some(serde_yaml::Value::Sequence(seq)) => ordered_steps(seq, None, false, elements, resolver),
                     _ => Vec::new(),
                 };
                 let condition = match (map_str(m, "loopKind"), map_str(m, "condition")) {
@@ -764,6 +791,50 @@ fn ordered_steps(list: &[serde_yaml::Value], successions: Option<&[serde_yaml::V
         }
     }
     out
+}
+
+/// A `SendAction`/`PerformAction` that names an operation (`REQ-TRS-SEQ-002`): a message labelled with the
+/// operation's signature, to the participant `to:`/`via:` names or else the operation's owner, and the label of
+/// its return when the operation is synchronous and has a return type. `None` when `operation:` is absent or
+/// does not resolve (the sub-action is then drawn as before).
+fn operation_call(m: &serde_yaml::Mapping, name: &str, elements: &[RawElement], resolver: &Resolver) -> Option<Step> {
+    use serde_yaml::Value as Y;
+    if !matches!(map_str(m, "kind"), Some("SendAction" | "PerformAction")) {
+        return None;
+    }
+    let (owner, op) = crate::operations::find_operation(elements, resolver, map_str(m, "operation")?).ok()?;
+    let op_name = op.get("name").and_then(Y::as_str)?;
+    let params: Vec<String> = op
+        .get("parameters")
+        .and_then(Y::as_sequence)
+        .into_iter()
+        .flatten()
+        .filter_map(Y::as_mapping)
+        .filter(|p| matches!(map_str(p, "direction").unwrap_or("in"), "in" | "inout"))
+        .filter_map(|p| {
+            let n = map_str(p, "name")?;
+            Some(match map_str(p, "typedBy").or_else(|| map_str(p, "type")) {
+                Some(t) => format!("{n}: {}", short_name(t)),
+                None => n.to_string(),
+            })
+        })
+        .collect();
+    let returns = op.get("returnType").and_then(Y::as_str).map(|t| short_name(t).to_string());
+    let label = format!("{op_name}({}){}", params.join(", "), returns.as_ref().map(|t| format!(": {t}")).unwrap_or_default());
+    let is_async = op.get("isAsync").and_then(Y::as_bool) == Some(true);
+    let errors: Vec<String> = match op.get("errors") {
+        Some(Y::String(e)) => vec![short_name(e).to_string()],
+        Some(Y::Sequence(q)) => q.iter().filter_map(Y::as_str).map(|e| short_name(e).to_string()).collect(),
+        _ => Vec::new(),
+    };
+    let ret = returns.filter(|_| !is_async).map(|t| if errors.is_empty() { t } else { format!("{t} ! {}", errors.join(", ")) });
+    Some(Step::Message {
+        name: name.to_string(),
+        kind: MessageKind::Send,
+        label,
+        chain: Some(map_str(m, "to").or_else(|| map_str(m, "via")).map(str::to_string).unwrap_or_else(|| owner.qualified_name.clone())),
+        ret,
+    })
 }
 
 /// Kahn's algorithm over the `after`/`before` pairs that name two different

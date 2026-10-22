@@ -2,7 +2,7 @@
 type: TestCase
 id: TC-TRS-SEQ-002
 name: "A call of an operation is a message with its signature, and a return"
-status: draft
+status: active
 testLevel: L2
 sourceFile: repo:crates/syscribe-model/tests/vis_derive_sequence.rs
 verifies:
