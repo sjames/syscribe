@@ -143,7 +143,7 @@ pub fn check(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
 }
 
 /// The operation `r` (`<owner>::<name>`) names: the owner that declares it and the operation mapping.
-fn find_operation<'a>(elements: &'a [RawElement], resolver: &Resolver, r: &str) -> Result<&'a serde_yaml::Mapping, String> {
+pub(crate) fn find_operation<'a>(elements: &'a [RawElement], resolver: &Resolver, r: &str) -> Result<(&'a RawElement, &'a serde_yaml::Mapping), String> {
     let r = r.trim();
     let (owner_ref, op_name) = r.rsplit_once("::").ok_or_else(|| format!("'{r}' is not `<owner>::<operation>`"))?;
     let owner = resolver
@@ -156,6 +156,7 @@ fn find_operation<'a>(elements: &'a [RawElement], resolver: &Resolver, r: &str) 
         .flatten()
         .filter_map(Yaml::as_mapping)
         .find(|o| s(o, "name") == Some(op_name))
+        .map(|op| (owner, op))
         .ok_or_else(|| format!("'{}' declares no operation '{op_name}'", owner.qualified_name))
 }
 
@@ -184,7 +185,7 @@ fn check_calls(elements: &[RawElement], resolver: &Resolver, out: &mut Vec<Findi
                 return;
             }
             let op = match find_operation(elements, resolver, r) {
-                Ok(op) => op,
+                Ok((_, op)) => op,
                 Err(why) => {
                     out.push((true, "E673", act.file_path.clone(), format!("{who}: operation {why}")));
                     return;

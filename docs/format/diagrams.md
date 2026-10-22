@@ -186,6 +186,7 @@ performs nothing is `W418`) (`REQ-TRS-VIS-021`; demo: `Diagrams::MissionExecutio
 hand-listed `Diagrams::MissionExecutionSeq`).
 
 - One lifeline per participant, in first-appearance order: the subject first, then every
+- A `SendAction` or `PerformAction` that names an operation (`operation: <owner>::<name>`) is a message labelled with the operation's signature, `read(channel: Integer): Real`, to the participant `to:`/`via:` names or else to the element that declares the operation. A synchronous operation with a return type is followed by a dashed return back to the subject, labelled `Real ! Fault` when errors are declared (`REQ-TRS-SEQ-002`).
   element a `SendAction`'s `to:` chain or an `AcceptAction`'s/`SendAction`'s `via:` chain
   resolves to — a port chain resolves to the part that owns the port (an inline feature of the
   subject, a port element's owner, or the part in the model that owns a port of that name,
