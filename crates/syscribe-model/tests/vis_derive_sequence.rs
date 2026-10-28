@@ -551,3 +551,80 @@ fn the_derived_part_sequence_is_placed_and_renders_like_any_other() {
     let m = render_mermaid(&g, &|_| None).expect("mermaid");
     assert!(m.starts_with("sequenceDiagram"), "{m}");
 }
+
+// ── REQ-TRS-SEQ-002 / GH #365, #398: a call of an operation is a message with its signature and a return ────
+
+fn ops_model() -> PathBuf {
+    let root = fixture_model();
+    write(&root, "Sys/Fault.md", "---\ntype: ItemDef\nname: Fault\n---\n\nF.\n");
+    write(
+        &root,
+        "Sys/Sensor.md",
+        concat!(
+            "---\ntype: InterfaceDef\nname: Sensor\noperations:\n",
+            "  - name: read\n    returnType: ScalarValues::Real\n    errors: [Sys::Fault]\n    parameters:\n      - {name: channel, typedBy: ScalarValues::Integer, direction: in}\n",
+            "  - name: notify\n    isAsync: true\n    parameters:\n      - {name: level, typedBy: ScalarValues::Integer, direction: in}\n",
+            "  - name: reset\n",
+            "---\n\nSensor.\n",
+        ),
+    );
+    write(
+        &root,
+        "Sys/Poll.md",
+        concat!(
+            "---\ntype: ActionDef\nname: Poll\nsubActions:\n",
+            "  - name: sample\n    kind: PerformAction\n    operation: Sys::Sensor::read\n    parameters:\n      - {name: channel, value: \"1\"}\n",
+            "  - name: tell\n    kind: SendAction\n    operation: Sys::Sensor::notify\n    parameters:\n      - {name: level, value: \"2\"}\n",
+            "  - name: zero\n    kind: SendAction\n    operation: Sys::Sensor::reset\n",
+            "successionConnections:\n  - {after: sample, before: tell}\n  - {after: tell, before: zero}\n",
+            "---\n\nPoll.\n",
+        ),
+    );
+    add_diagram(&root, "PollSeq", "diagramKind: Sequence\nsubject: Sys::Poll\n");
+    root
+}
+
+#[test]
+fn a_synchronous_call_is_a_labelled_message_followed_by_a_return() {
+    let (g, _) = graph_of(&ops_model(), "Diagrams::PollSeq");
+    let msgs: Vec<&syscribe_model::vis::Edge> = g.edges.iter().filter(|e| e.kind == EdgeKind::Message).collect();
+    assert!(msgs.iter().any(|e| e.label.as_deref() == Some("read(channel: Integer): Real")), "{:?}", labels(&g));
+    let rets: Vec<&syscribe_model::vis::Edge> = g.edges.iter().filter(|e| e.kind == EdgeKind::Return).collect();
+    assert_eq!(rets.len(), 1, "only read has a return type and is synchronous: {rets:?}");
+    assert_eq!(rets[0].label.as_deref(), Some("Real ! Fault"));
+    let call = msgs.iter().find(|e| e.label.as_deref().is_some_and(|l| l.starts_with("read("))).unwrap();
+    assert_eq!((&rets[0].source, &rets[0].target), (&call.target, &call.source), "the return runs back to the subject");
+    let (cy, ry) = (call.waypoints.as_ref().unwrap()[0].y, rets[0].waypoints.as_ref().unwrap()[0].y);
+    assert!(ry > cy, "the return is below its call");
+}
+
+#[test]
+fn an_asynchronous_call_or_one_without_a_return_type_has_no_return() {
+    let (g, _) = graph_of(&ops_model(), "Diagrams::PollSeq");
+    let l = labels(&g);
+    assert!(l.contains(&"notify(level: Integer)".to_string()), "{l:?}");
+    assert!(l.contains(&"reset()".to_string()), "{l:?}");
+    assert_eq!(g.edges.iter().filter(|e| e.kind == EdgeKind::Return).count(), 1);
+}
+
+#[test]
+fn the_operations_owner_is_a_lifeline_unless_to_names_one() {
+    let root = ops_model();
+    let (g, _) = graph_of(&root, "Diagrams::PollSeq");
+    assert!(g.nodes.iter().any(|n| n.kind == NodeKind::Lifeline && n.label == "Sensor"), "{:?}", g.nodes.iter().map(|n| &n.label).collect::<Vec<_>>());
+    // `to:` redirects the message to another participant
+    let poll = std::fs::read_to_string(root.join("Sys/Poll.md")).unwrap().replace("operation: Sys::Sensor::read\n", "operation: Sys::Sensor::read\n    to: Sys::Propulsion\n");
+    write(&root, "Sys/Poll.md", &poll);
+    let (g, _) = graph_of(&root, "Diagrams::PollSeq");
+    assert!(g.nodes.iter().any(|n| n.kind == NodeKind::Lifeline && n.label == "Propulsion"));
+}
+
+#[test]
+fn an_unresolved_operation_is_drawn_as_before() {
+    let root = ops_model();
+    let poll = std::fs::read_to_string(root.join("Sys/Poll.md")).unwrap().replace("Sys::Sensor::read", "Sys::Sensor::nope");
+    write(&root, "Sys/Poll.md", &poll);
+    let (g, _) = graph_of(&root, "Diagrams::PollSeq");
+    assert!(!labels(&g).iter().any(|l| l.starts_with("nope") || l.starts_with("read")), "{:?}", labels(&g));
+    assert_eq!(g.edges.iter().filter(|e| e.kind == EdgeKind::Return).count(), 0);
+}
