@@ -53,6 +53,24 @@ Feature: Scheduler priority ordering
 The body **must** contain a `gherkin` fenced block (E011 if absent). This is the machine-
 readable test specification that can be compared against actual test code.
 
+### Verifying architecture elements directly (`verifiesElement:`)
+
+A unit-level test often targets a component, not a requirement. A `TestCase` may name the `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` it exercises with `verifiesElement:` (qualified names or stable ids, string or list):
+
+```yaml
+type: TestCase
+id: TC-SCHED-002
+name: "Run queue bitmap operations"
+status: active
+testLevel: L1
+verifiesElement:
+  - Scheduler::RunQueue
+```
+
+An unresolved entry is `E102`; an entry that is not one of those four kinds is `E129`. Under `--config`, a test naming an element the variant removes is `W019`, as for `verifies:`.
+
+An active, non-abstract `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` is *tested* when an active `TestCase` names it in `verifiesElement:`, or when it `satisfies:` a requirement that an active `TestCase` verifies. Otherwise `validate` raises `W104`. Draft and deprecated elements are not checked. Where an element is deliberately untested (a pure data holder, a wrapper covered by its parts), record why with `testExempt: <rationale>` on it. To make untested elements fail CI, run `validate --deny W104`.
+
 ### 4.3 TestPlan
 
 A `TestPlan` groups test cases for a specific verification objective — a configuration,

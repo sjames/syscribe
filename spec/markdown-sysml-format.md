@@ -6436,7 +6436,7 @@ For a reference string `R` in a `verifies:` or `derivedFrom:` list:
   `docs/model-guide/sysmlv2-submodel.md` and `docs/model-guide/stdio-plugins.md` respectively, not
   elsewhere in this specification.
 - If `derivedFrom:` resolves to an element that is not a native `Requirement`, emit `E105`.
-- A `TestCase` with an empty `verifies:` list emits `E013`.
+- A `TestCase` with neither a `verifies:` nor a `verifiesElement:` entry emits `E013`.
 
 ### 11.11 Computed Reverse Indices and Coverage
 
@@ -6508,7 +6508,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E010` | `asilLevel:` value is not `QM`, `A`–`D` (or decomposition notation `B(D)`); the message lists the valid values |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text (text before the first `\n##` heading is empty or whitespace only; a body that begins directly with a `## ` heading is not `E012` — it gives `W001`) |
-| `E013` | A native `TestCase` has no `verifies:` entry (the field is absent or an empty list) |
+| `E013` | A native `TestCase` has no `verifies:` and no `verifiesElement:` entry (both absent or empty) |
 | `E014` | A `Scenario Outline:` block has no `Examples:` table |
 | `E015` | The first Gherkin block in a `TestCase` has no `Feature:` line |
 | `E019` | `dalLevel:` value is not in `A`–`E` (DO-178C) |

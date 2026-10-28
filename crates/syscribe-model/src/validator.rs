@@ -1356,8 +1356,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.test_level.is_none() {
                 findings.push(error("E004", &file, "`testLevel` is required on TestCase"));
             }
-            if fm.verifies.as_ref().is_none_or(|v| v.is_empty()) {
-                findings.push(error("E013", &file, "`verifies` must have at least one entry on TestCase"));
+            if fm.verifies.as_ref().is_none_or(|v| v.is_empty()) && fm.verifies_element.as_ref().is_none_or(|v| v.is_empty()) {
+                findings.push(error("E013", &file, "`verifies` (or `verifiesElement`) must have at least one entry on TestCase"));
             }
         }
 

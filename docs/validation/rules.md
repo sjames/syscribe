@@ -26,7 +26,7 @@ This page groups every finding code by feature area, with context. The same code
 | E010 | Any | `asilLevel` is not one of `QM · A · B · C · D` (or notation `B(D)`); the message lists the valid values |
 | E011 | TestCase | Body has no ` ```gherkin ` fenced block |
 | E012 | Requirement | Normative text (before first `##`) is empty |
-| E013 | TestCase | `verifies:` is absent or empty |
+| E013 | TestCase | both `verifies:` and `verifiesElement:` are absent or empty |
 | E014 | TestCase | `Scenario Outline:` block has no `Examples:` table |
 | E015 | TestCase | First ` ```gherkin ` block has no `Feature:` line |
 | E019 | Any | `dalLevel` is not one of `A · B · C · D · E` (DO-178C) |

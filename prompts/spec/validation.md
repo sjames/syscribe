@@ -17,7 +17,7 @@
 | `E010` | `asilLevel:` is not `QM`, `A`–`D` (or decomposition notation such as `B(D)`); the message lists the valid values |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text before the first `##` heading |
-| `E013` | `verifies:` is absent or empty on a `TestCase` |
+| `E013` | Both `verifies:` and `verifiesElement:` are absent or empty on a `TestCase` |
 | `E014` | `Scenario Outline:` block has no `Examples:` table |
 | `E015` | First Gherkin block has no `Feature:` line |
 | `E019` | `dalLevel:` is not in `A`–`E` (DO-178C) |
