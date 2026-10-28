@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.57.0 — 2026-10-28
+
+- **New:** a `TestCase` can verify architecture elements directly (REQ-TRS-TCELEM-001, #408). `verifiesElement:` names the `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` elements a test exercises (`E102` unresolved, `E129` wrong kind, `W019` when a variant removes the element). A test with only `verifiesElement:` satisfies `E013`.
+- **New:** `W104` reports an active, non-abstract `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` that no active `TestCase` names in `verifiesElement:` and that satisfies no requirement with an active verifying test. `testExempt: <rationale>` on the element suppresses it; draft elements are never checked.
+- **Changed (behaviour):** existing models gain `W104` on every untested active architecture element. It is a warning; add `verifiesElement:` links or `testExempt:` rationales, or leave it, and gate CI with `validate --deny W104` once the count is zero.
+- **New:** sequence diagrams show operation calls (#365, #407, REQ-TRS-SEQ-002). A `SendAction`/`PerformAction` that names an `operation:` is a message labelled with the operation's signature, followed by a dashed return (`Real ! Fault` when `errors:` are declared) for a synchronous operation with a return type. Existing diagrams are unchanged.
+- **New:** operation call arguments are checked against the parameter's kind and unit (`E675`, #398, #406).
+- **Changed:** the repository's own `.cargo/config.toml` caps `RUST_TEST_THREADS` at 4 and debuginfo at line tables so the full test suite no longer exhausts memory.
+
 ## 0.56.0 — 2026-10-22
 
 - **New:** `syscribe design-report <part> [--json]` (#371, #403, REQ-TRS-DREP-001) lays out one software part as the detailed-design (ASPICE SWE.3) work product: level and description, interface (its own operations and those of the ports it contains), behaviour (the `ActionDef`s realising its operations), data (features with type, unit and `range`), resources (`ram`, `flash`, `nvm`, `stack`, `period`, `deadline`, `wcet`, `priority`), code (`implementedBy:`), the requirements it satisfies, and the tests that verify it with their verdicts. An empty section says `None.`; an element that is not a software part is a usage error.
