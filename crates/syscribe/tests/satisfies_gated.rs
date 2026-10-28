@@ -15,7 +15,7 @@ fn model() -> PathBuf {
     w("CONF-SG-ON-001.md", "---\ntype: Configuration\nid: CONF-SG-ON-001\nname: on\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Opt: true\n---\n");
     w("CONF-SG-OFF-001.md", "---\ntype: Configuration\nid: CONF-SG-OFF-001\nname: off\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Opt: false\n---\n");
     w("REQ-SG-001.md", "---\ntype: Requirement\nid: REQ-SG-001\nname: r\nstatus: approved\nreqDomain: software\nappliesWhen: Features::Opt\n---\n\nThe system shall.\n");
-    w("Platform.md", "---\ntype: PartDef\nname: Platform\ndomain: software\nsatisfies: [REQ-SG-001]\n---\nPlatform.\n");
+    w("Platform.md", "---\ntype: PartDef\nname: Platform\ndomain: software\nsatisfies: [REQ-SG-001]\ntestExempt: not the subject of this test\n---\nPlatform.\n");
     w("Use.md", "---\ntype: Part\nname: Use\ntypedBy: Platform\n---\nUse.\n");
     w("TC-SG-001.md", "---\ntype: TestCase\nid: TC-SG-001\nname: t\nstatus: active\ntestLevel: L3\nverifies: [REQ-SG-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: s\n    Given a\n    Then b\n```\n");
     r

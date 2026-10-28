@@ -283,7 +283,7 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
     }
     // List-valued references of the analysis/process elements (GH #234): an inactive member
     // escapes as W019 rather than failing the element's own resolution check.
-    for xs in [&fm.reviews, &fm.test_cases, &fm.demonstrates, &fm.confirms, &fm.supports, &fm.runs_on, &fm.analyses, &fm.covers].into_iter().flatten() {
+    for xs in [&fm.reviews, &fm.test_cases, &fm.demonstrates, &fm.confirms, &fm.supports, &fm.runs_on, &fm.analyses, &fm.covers, &fm.verifies_element].into_iter().flatten() {
         for s in xs {
             out.push((RefKind::Traceability, s.clone()));
         }

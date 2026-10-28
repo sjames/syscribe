@@ -36,7 +36,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E000–E015, E019–E027 | Parse-time | Missing frontmatter delimiter (E001), invalid YAML, required fields, ID patterns, status/testLevel/integrity enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), removed `title:` (E025; E003/E024 retired); E000 is an internal fallback that should never appear |
 | E016–E018, E107 | Cycle detection | Cycles in `supertype:`, `derivedFrom:`, `subsets:` and `typedBy:` graphs |
 | W001–W010, I010 | Parse-time and source drift | Normative `shall`, leaf test coverage (W002/W003), orphan requirements, SIL/ASIL pairing, unused type defs, missing `type:`, `sourceFile`/test-function drift, ingested test results; I010 flags a planned test not yet present |
-| E101–E108, E110–E128 | Cross-reference | Duplicate ids (E101) and qualified names (E108), unresolved or ill-typed `verifies`/`derivedFrom`, scenario names, unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
+| E101–E108, E110–E129 | Cross-reference | Duplicate ids (E101) and qualified names (E108), unresolved or ill-typed `verifies`/`derivedFrom`, scenario names, unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
 | E050, W050 | Build-system integration (§9.9) | Conflicting `buildExports` variables (`E050`); selected feature exporting nothing (`W050`, catalogued but not currently emitted) |
 | E200–E247 | Product lines (§9) | Configuration and FeatureDef fields, parameter binding (E202–E207, E222, E229, E230), `appliesWhen` (E209, E228), feature-model constraints (E212, E213, E219–E221), `feature-check --deep` (E223–E225, E227), `--config` escapes (E226), single-file feature models (E231–E233), Configuration inheritance (E215, E234–E237) |
 | W011–W027, W048, W239–W240, W245–W246, W248 | Product-line warnings (§9) | Dead/always-selected features, untested active requirements, unbound parameters, false-optional, escaping/violable references, orphan features, runtime bindings, empty gating packages, misplaced feature-model fields, machine parameters with no default |
@@ -58,6 +58,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E560–E561, W560–W563 | Annotated source | Bad `annotationFormat:` config, invalid marker YAML, skipped blocks, conflicting ingestion modes, auto-filled `implementedBy:` |
 | W090 | Suspect links | A baselined trace-link target changed since review |
 | W091 | Stale results | A recorded test result predates a change to its TestCase or to a requirement it verifies |
+| W104 | Untested architecture element | An active, non-abstract `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` with no direct (`verifiesElement:`) or satisfied-requirement test and no `testExempt:` rationale |
 | W099–W103 | Documentation linting (`lint-docs`) | Dangling ids, qnames, SVG refs and image paths in external docs; enumerated package members |
 | E600–E606, E893–E894, W600–W601, W610–W616, W891–W892 | TestPlan, test environments and documentation | TestEnvironment fields and `runsOn`, TestPlan fields, members, selection, demonstrates, configurations; empty PartDef/ActionDef docs |
 | W632 | Traceability policy (`[traceability]`) | Malformed `[traceability]` entries in `.syscribe.toml` |

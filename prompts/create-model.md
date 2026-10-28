@@ -602,6 +602,7 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` · `L2` · `L3` · `L4` · `L5` |
 | `verifies` | List of Requirement `id`s — **must not be empty** (error E013) |
+| `verifiesElement` | Optional list of `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` qnames the test verifies directly (E129 if another kind). An active architecture element with no such link and no verified satisfied requirement gets `W104`; silence it with `testExempt: <why>` on the element |
 
 ### Body rules
 

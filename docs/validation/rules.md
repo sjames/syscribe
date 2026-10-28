@@ -82,6 +82,7 @@ This page groups every finding code by feature area, with context. The same code
 | E126 | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
 | E127 | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 | E128 | A send/accept `via:`/`to:` chain (a `SendAction`/`AcceptAction` sub-action, or a state transition's `accept: {via:}`) whose first segment names no port, part, element or inline feature anywhere in the model; `flowConnections:` `from`/`to` and `successionConnections:` `after`/`before` endpoints on a structural element are walked like `connections:` endpoints (`E127`/`W056`) |
+| E129 | A `TestCase`'s `verifiesElement:` entry resolves to something other than a `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` (an unresolved entry is `E102`; REQ-TRS-TCELEM-001) |
 
 `E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
 then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
@@ -455,6 +456,7 @@ The `lint-docs` command scans external `.md` and `.svg` docs for references to m
 | W101 | An SVG `sysml:ref="…"` that does not resolve — neither itself nor any `::`-ancestor, the same feature rule as W402 (so a port/sub-state/action-step ref of a resolvable element is valid; SVGs with no `sysml:ref` are opaque). |
 | W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
 | W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status unless `--deny W103`. |
+| W104 | An active, non-abstract `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` has no active `TestCase` naming it in `verifiesElement:` and satisfies no requirement with an active verifying `TestCase`; suppress with a non-empty `testExempt:` rationale (REQ-TRS-TCELEM-001) |
 
 ## Review records (E700–E705, W700, W704, §19)
 
