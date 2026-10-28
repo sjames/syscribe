@@ -21,6 +21,7 @@ Concretely:
 | Requirement satisfaction | Architecture element | `satisfies: [REQ-LEAF-*]` |
 | Implementation | Architecture element | `implementedBy: [src/...]` |
 | Test case verification | TestCase | `verifies: [REQ-*]` |
+| Direct element verification | TestCase | `verifiesElement: [PartDef/InterfaceDef/ActionDef/StateDef]` — an active element with neither this nor a verified satisfied requirement raises `W104`; `testExempt: <why>` on the element suppresses it |
 | Allocation (default) | Source element | `allocatedTo: [target]` — `allocatedFrom` is **derived** |
 
 ### Allocation — two forms (§12.9)

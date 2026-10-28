@@ -1356,8 +1356,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.test_level.is_none() {
                 findings.push(error("E004", &file, "`testLevel` is required on TestCase"));
             }
-            if fm.verifies.as_ref().is_none_or(|v| v.is_empty()) {
-                findings.push(error("E013", &file, "`verifies` must have at least one entry on TestCase"));
+            if fm.verifies.as_ref().is_none_or(|v| v.is_empty()) && fm.verifies_element.as_ref().is_none_or(|v| v.is_empty()) {
+                findings.push(error("E013", &file, "`verifies` (or `verifiesElement`) must have at least one entry on TestCase"));
             }
         }
 
@@ -5845,6 +5845,76 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         ),
                     ));
                 }
+            }
+        }
+    }
+
+    // REQ-TRS-TCELEM-001 — `TestCase.verifiesElement`: E102/E129 on the targets, W104 on an untested
+    // active architecture element.
+    {
+        let inactive = |s: &str| matches!(s, "draft" | "rejected" | "obsolete" | "retired" | "deprecated" | "superseded");
+        let is_arch = |e: &RawElement| {
+            matches!(
+                e.frontmatter.element_type,
+                Some(ElementType::PartDef | ElementType::InterfaceDef | ElementType::ActionDef | ElementType::StateDef)
+            )
+        };
+        let mut tested: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for tc in elements {
+            let Some(vs) = &tc.frontmatter.verifies_element else { continue };
+            let tc_active = !tc.frontmatter.status.as_deref().is_some_and(inactive);
+            for v in vs {
+                match resolver.resolve_ref(elements, v) {
+                    None if config.peer_resolves(v) => {}
+                    None => findings.push(error(
+                        "E102",
+                        &tc.file_path,
+                        &format!("unresolved verifiesElement reference '{v}'"),
+                    )),
+                    Some(t) if !is_arch(t) => findings.push(error(
+                        "E129",
+                        &tc.file_path,
+                        &format!("verifiesElement '{v}' does not resolve to a PartDef, InterfaceDef, ActionDef or StateDef"),
+                    )),
+                    Some(t) => {
+                        if tc_active {
+                            tested.insert(t.qualified_name.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let req_verified = |r: &str| {
+            verified_by.get(r).is_some_and(|tcs| {
+                tcs.iter().any(|id| {
+                    resolver.get_by_id(elements, id).and_then(|e| e.frontmatter.status.as_deref()) == Some("active")
+                })
+            })
+        };
+        for e in elements.iter().filter(|e| is_arch(e)) {
+            let fm = &e.frontmatter;
+            if fm.status.as_deref().is_some_and(inactive)
+                || fm.is_abstract == Some(true)
+                || fm.test_exempt.as_deref().is_some_and(|r| !r.trim().is_empty())
+                || tested.contains(&e.qualified_name)
+            {
+                continue;
+            }
+            let via_req = fm.satisfies.iter().flatten().any(|r| {
+                resolver.resolve_ref(elements, r).is_some_and(|req| {
+                    let key = req.frontmatter.id.as_deref().unwrap_or(&req.qualified_name);
+                    req_verified(key)
+                })
+            });
+            if !via_req {
+                findings.push(warning(
+                    "W104",
+                    &e.file_path,
+                    &format!(
+                        "'{}' has no active TestCase, directly (verifiesElement) or through a satisfied requirement; add a link or `testExempt: <rationale>`",
+                        e.qualified_name
+                    ),
+                ));
             }
         }
     }
@@ -14833,6 +14903,117 @@ fn attack_potential_findings(
                     }
                 }
             }
+        }
+    }
+}
+
+/// REQ-TRS-TCELEM-001 — `TestCase.verifiesElement` and `W104`.
+#[cfg(test)]
+mod tcelem_tests {
+    use super::*;
+
+    fn el(qname: &str, yaml: &str) -> RawElement {
+        let fm: crate::element::RawFrontmatter = serde_yaml::from_str(yaml).unwrap();
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("model/{}.md", qname.replace("::", "/")),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: vec![],
+            locale_docs: Default::default(),
+            about_notes: Default::default(),
+        }
+    }
+
+    fn codes(els: &[RawElement]) -> Vec<String> {
+        let r = validate(els);
+        if std::env::var("TCELEM_DBG").is_ok() { for f in &r.findings { eprintln!("{} {} {}", f.code, f.file, f.message); } }
+        r.findings.iter().map(|f| f.code.to_string()).collect()
+    }
+
+    const TC: &str = "type: TestCase\nid: TC-001\nname: t\nstatus: active\ntestLevel: L2\n";
+
+    #[test]
+    fn untested_active_partdef_warns() {
+        let c = codes(&[el("S::Motor", "type: PartDef\nstatus: approved\n")]);
+        assert!(c.contains(&"W104".to_string()), "{c:?}");
+    }
+
+    #[test]
+    fn direct_link_clears_w104_for_all_four_kinds() {
+        for k in ["PartDef", "InterfaceDef", "ActionDef", "StateDef"] {
+            let c = codes(&[
+                el("S::X", &format!("type: {k}\nstatus: approved\n")),
+                el("TC-001", &format!("{TC}verifiesElement: S::X\n")),
+            ]);
+            assert!(!c.contains(&"W104".to_string()) && !c.contains(&"E129".to_string()), "{k}: {c:?}");
+        }
+    }
+
+    #[test]
+    fn test_exempt_draft_and_abstract_do_not_warn() {
+        for y in [
+            "type: PartDef\nstatus: approved\ntestExempt: off-the-shelf part\n",
+            "type: PartDef\nstatus: draft\n",
+            "type: PartDef\nisAbstract: true\n",
+        ] {
+            assert!(!codes(&[el("S::X", y)]).contains(&"W104".to_string()), "{y}");
+        }
+    }
+
+    #[test]
+    fn empty_exemption_does_not_suppress() {
+        let c = codes(&[el("S::X", "type: PartDef\nstatus: approved\ntestExempt: \"  \"\n")]);
+        assert!(c.contains(&"W104".to_string()));
+    }
+
+    #[test]
+    fn verified_requirement_clears_w104() {
+        let c = codes(&[
+            el("S::X", "type: PartDef\nstatus: approved\nsatisfies: [REQ-ABC-001]\n"),
+            el("REQ-ABC-001", "type: Requirement\nid: REQ-ABC-001\nname: r\nstatus: approved\nreqDomain: system\nreqClass: system\n"),
+            el("TC-001", &format!("{TC}verifies: [REQ-ABC-001]\n")),
+        ]);
+        assert!(!c.contains(&"W104".to_string()), "{c:?}");
+    }
+
+    #[test]
+    fn unverified_requirement_does_not_clear_w104() {
+        let c = codes(&[
+            el("S::X", "type: PartDef\nstatus: approved\nsatisfies: [REQ-ABC-001]\n"),
+            el("REQ-ABC-001", "type: Requirement\nid: REQ-ABC-001\nname: r\nstatus: approved\nreqDomain: system\nreqClass: system\n"),
+        ]);
+        assert!(c.contains(&"W104".to_string()), "{c:?}");
+    }
+
+    #[test]
+    fn inactive_testcase_does_not_count() {
+        let c = codes(&[
+            el("S::X", "type: PartDef\nstatus: approved\n"),
+            el("TC-001", &TC.replace("active", "draft").to_string().add("verifiesElement: S::X\n")),
+        ]);
+        assert!(c.contains(&"W104".to_string()), "{c:?}");
+    }
+
+    #[test]
+    fn bad_targets_are_errors() {
+        let c = codes(&[
+            el("S::X", "type: Requirement\nid: REQ-ABC-001\nname: r\nstatus: draft\nreqDomain: system\nreqClass: system\n"),
+            el("TC-001", &format!("{TC}verifiesElement: [S::X, S::Nope]\n")),
+        ]);
+        assert!(c.contains(&"E129".to_string()), "{c:?}");
+        assert!(c.contains(&"E102".to_string()), "{c:?}");
+    }
+
+    trait Add {
+        fn add(self, s: &str) -> String;
+    }
+    impl Add for String {
+        fn add(mut self, s: &str) -> String {
+            self.push_str(s);
+            self
         }
     }
 }

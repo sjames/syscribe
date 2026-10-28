@@ -2891,6 +2891,7 @@ The native `TestCase` type is a **first-class element** for structured, executab
 | `testLevel` | enum L1–L5 | **Required** | Verification layer (see table below). |
 | `verifies` | list of id-or-qualname | **Required** | Requirements this test exercises. At least one entry. All must resolve. |
 | `sourceFile` | string | optional | Workspace-relative path to the implementation file. Forward slashes. |
+| `verifiesElement` | string or list | optional | `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` elements verified directly (qname or id). `E102` unresolved, `E129` wrong kind; subject to `appliesWhen` escape analysis (`W019`). An active architecture element with no such link and no verified satisfied requirement raises `W104`; any architecture element may carry `testExempt: <rationale>` to suppress it. |
 | `testFunctions` | list | optional | Structured references to individual test functions (see below). |
 | `tags` | list of strings | optional | Free labels. |
 
@@ -6436,7 +6437,7 @@ For a reference string `R` in a `verifies:` or `derivedFrom:` list:
   `docs/model-guide/sysmlv2-submodel.md` and `docs/model-guide/stdio-plugins.md` respectively, not
   elsewhere in this specification.
 - If `derivedFrom:` resolves to an element that is not a native `Requirement`, emit `E105`.
-- A `TestCase` with an empty `verifies:` list emits `E013`.
+- A `TestCase` with neither a `verifies:` nor a `verifiesElement:` entry emits `E013`.
 
 ### 11.11 Computed Reverse Indices and Coverage
 
@@ -6508,7 +6509,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E010` | `asilLevel:` value is not `QM`, `A`–`D` (or decomposition notation `B(D)`); the message lists the valid values |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text (text before the first `\n##` heading is empty or whitespace only; a body that begins directly with a `## ` heading is not `E012` — it gives `W001`) |
-| `E013` | A native `TestCase` has no `verifies:` entry (the field is absent or an empty list) |
+| `E013` | A native `TestCase` has no `verifies:` and no `verifiesElement:` entry (both absent or empty) |
 | `E014` | A `Scenario Outline:` block has no `Examples:` table |
 | `E015` | The first Gherkin block in a `TestCase` has no `Feature:` line |
 | `E019` | `dalLevel:` value is not in `A`–`E` (DO-178C) |
@@ -6560,6 +6561,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
 | `E127` | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 | `E128` | A send/accept `via:`/`to:` chain (sub-action or state-transition `accept: {via:}`) whose first segment names no port, part, element or inline feature in the model; `flowConnections:`/`successionConnections:` endpoints on a structural element are walked like `connections:` endpoints (`E127`/`W056`) |
+| `E129` | A `TestCase`'s `verifiesElement:` entry resolves to an element that is not a `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` (`E102` when it does not resolve at all) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
@@ -6624,6 +6626,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W008` | Element has no `type:` field — it is ignored by most commands |
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
+| `W104` | An active, non-abstract `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` that no active `TestCase` names in `verifiesElement:` and that `satisfies:` no requirement with an active verifying `TestCase`, and carries no `testExempt:` rationale (draft-suppressed; `REQ-TRS-TCELEM-001`) |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it); not raised for `requirementKind` `process`/`regulatory`/`deliverable` |
 | `W301` | **RETIRED** (GH #121) — formerly flagged a leaf `Requirement` satisfied by more than one element. A leaf may be jointly satisfied by several elements (§12.3), so this code is no longer emitted. |
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` (not raised for non-allocatable kinds) |
@@ -9263,6 +9266,7 @@ since `status: in_progress` alone already signals active work.
 | `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
 | `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
 | `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
+| `testExempt` | Any architecture element | string | absent | 8.12.5, 11.12 (W104) — non-empty rationale suppressing the untested-element warning |
 | `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
 | `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
 | `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |

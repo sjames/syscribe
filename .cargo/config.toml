@@ -1,0 +1,7 @@
+[env]
+# Each test binary runs its tests on all cores by default; many load whole
+# models, so cap it to avoid exhausting memory.
+RUST_TEST_THREADS = "4"
+
+[profile.dev]
+debug = "line-tables-only"

@@ -94,6 +94,9 @@ mod named_string_or_vec {
     pub fn covers<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "covers")
     }
+    pub fn verifies_element<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "verifiesElement")
+    }
     pub fn models<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
         de(d, "models")
     }
@@ -1261,6 +1264,12 @@ pub struct ColdFrontmatter {
     /// `SafetyMechanism.covers` — failure modes / requirements / goals the mechanism covers (E897).
     #[serde(default, deserialize_with = "named_string_or_vec::covers")]
     pub covers: Option<Vec<String>>,
+    /// `TestCase.verifiesElement` — `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` elements the
+    /// test verifies directly (REQ-TRS-TCELEM-001; `E102` unresolved, `E129` wrong kind).
+    #[serde(default, deserialize_with = "named_string_or_vec::verifies_element")]
+    pub verifies_element: Option<Vec<String>>,
+    /// Any architecture element: a non-empty rationale suppresses `W104` (no direct test).
+    pub test_exempt: Option<String>,
     /// `SafetyMechanism.reactionTime` — a duration such as `10 ms` (W894 against the covered FTTI).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub reaction_time: Option<String>,
@@ -2065,6 +2074,12 @@ struct ColdWire {
     /// `SafetyMechanism.covers` — failure modes / requirements / goals the mechanism covers (E897).
     #[serde(default, deserialize_with = "named_string_or_vec::covers")]
     pub covers: Option<Vec<String>>,
+    /// `TestCase.verifiesElement` — `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` elements the
+    /// test verifies directly (REQ-TRS-TCELEM-001; `E102` unresolved, `E129` wrong kind).
+    #[serde(default, deserialize_with = "named_string_or_vec::verifies_element")]
+    pub verifies_element: Option<Vec<String>>,
+    /// Any architecture element: a non-empty rationale suppresses `W104` (no direct test).
+    pub test_exempt: Option<String>,
     /// `SafetyMechanism.reactionTime` — a duration such as `10 ms` (W894 against the covered FTTI).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub reaction_time: Option<String>,
@@ -2522,6 +2537,8 @@ impl ColdWire {
             analyses: w.analyses,
             shared_resources: w.shared_resources,
             covers: w.covers,
+            verifies_element: w.verifies_element,
+            test_exempt: w.test_exempt,
             reaction_time: w.reaction_time,
             quantities: w.quantities,
             runs_on: w.runs_on,

@@ -1,6 +1,7 @@
 ---
 type: StateDef
 name: M
+testExempt: fixture exercises parameters, not coverage
 variables:
   - {name: level, value: "0"}
 subStates:

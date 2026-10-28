@@ -149,6 +149,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("W002", "Requirement has no active TestCase"),
     ("W005", "Requirement has no derivedFrom/derivedChildren (orphan)"),
     ("W007", "definition never used as a supertype or type"),
+    ("W104", "architecture element has no direct or satisfied-requirement TestCase"),
     ("W029", "timing requirement has no measuring TestCase"),
     ("W036", "AttackTree has no child gates/steps"),
     ("W300", "leaf Requirement has no satisfying element"),

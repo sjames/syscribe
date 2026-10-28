@@ -165,6 +165,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `satisfies` | Part/PartDef/etc. | list |
 | `implementedBy` | Part/PartDef/Interface/InterfaceDef | string or list |
 | `verifies` | TestCase / VerificationCase | list |
+| `verifiesElement` | TestCase | list | `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` verified directly (qname or id); E102 unresolved, E129 wrong kind |
 | `verdictExpression` | VerificationCase | string |
 | `verdictType` | VerificationCaseDef | string |
 | `objectives` | CaseDef | list |
@@ -327,6 +328,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | `annotates` | MetadataDef | list | Restricts what types this metadata may annotate |
 | `itemType` | FlowDef | string | QName of the item type flowing |
 | `responsibility` | All work products | string | Accountable party/organisation (ISO 26262-8 §5 DIA/CIA split); drives W038. Opt-in. |
+| `testExempt` | Any architecture element | string | Non-empty rationale suppressing W104 (no direct test). |
 | `ffiRationale` | PartDef/Part/etc. | string | Freedom-from-interference argument for mixed-criticality on a shared resource; suppresses W034. Opt-in. |
 | `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. Never hand-edit. |
 
