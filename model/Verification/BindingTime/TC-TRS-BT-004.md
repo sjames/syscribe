@@ -2,7 +2,7 @@
 id: TC-TRS-BT-004
 type: TestCase
 testLevel: L2
-status: draft
+status: active
 name: "Verify no literal binding-time comparison remains outside the BindingTime type"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-004.sh
 verifies:

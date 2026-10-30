@@ -7,6 +7,7 @@
 
 use regex::Regex;
 
+use crate::binding_time::BindingTime;
 use crate::element::RawElement;
 use crate::element::ElementType;
 use crate::resolver::Resolver;
@@ -570,7 +571,7 @@ pub fn machines_at_defaults(elements: &[RawElement], cfg: Option<&RawElement>) -
             let d = decl(elements, &resolver, &ph.feature, &ph.param).ok()?;
             // W248 is the base model's finding: in the `--config` lens an unbound required parameter is already W017;
             // a runtime parameter cannot be bound (W027), and a derived/`bindTo:` one takes its value elsewhere.
-            let runtime = d.entry.get("bindingTime").and_then(|v| v.as_str()) == Some("runtime");
+            let runtime = BindingTime::from_yaml(d.entry.get("bindingTime")).is_some_and(BindingTime::is_runtime);
             if cfg.is_none() && !runtime && !is_derived(elements, &resolver, &d.feature_qname, &ph.param) {
                 let file = resolver.resolve_ref(elements, &d.feature_qname).map(|e| e.file_path.clone()).unwrap_or_default();
                 no_default
@@ -726,7 +727,7 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
                     continue;
                 }
             };
-            if d.entry.get("bindingTime").and_then(|v| v.as_str()) == Some("runtime") {
+            if BindingTime::from_yaml(d.entry.get("bindingTime")).is_some_and(BindingTime::is_runtime) {
                 out.push((
                     false,
                     "W246",

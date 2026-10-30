@@ -2,7 +2,7 @@
 type: PlanningItem
 id: PI-BT-PHASE1-001
 name: "Phase 1: binding-time vocabulary and windows"
-status: todo
+status: done
 itemType: feature
 parent: PI-BT-001
 tags:
@@ -11,3 +11,5 @@ tags:
 ---
 
 Phase 1 of `PI-BT-001`. Foundation: nothing else starts before the `BindingTime` type exists, so the existing duplicated rank logic is removed first.
+
+Both tasks done: `PI-BT-VOCAB-001` and `PI-BT-WINDOW-001`.

@@ -2,7 +2,7 @@
 id: TC-TRS-BT-006
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify features and parameters accept a binding window and absent means unspecified"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-006.sh
 verifies:

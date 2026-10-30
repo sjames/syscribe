@@ -32,6 +32,7 @@ mod ftsearch;
 mod help;
 mod ingest;
 mod lint_docs;
+mod bindingtimes;
 mod linktypes;
 mod lsp;
 mod matrix;
@@ -658,6 +659,11 @@ fn main() {
                     if let Some(section) = syscribe_model::link_types::agent_instructions_section(&reg) {
                         print!("{}", section);
                     }
+                    // REQ-TRS-BT-005 — likewise a refined binding-time vocabulary.
+                    let bt = syscribe_model::binding_time::BindingTimeVocab::load(std::path::Path::new(&root));
+                    if let Some(section) = bt.agent_instructions_section() {
+                        print!("{}", section);
+                    }
                 }
             }
             Some("magicgrid") => print!("{}", MAGICGRID_INSTRUCTIONS),
@@ -943,6 +949,11 @@ fn main() {
                 // REQ-TRS-LINKTYPE-008 — the declared link-type vocabulary. Read-only.
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
+            }
+            "binding-times" => {
+                // REQ-TRS-BT-005 — the effective binding-time vocabulary. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                bindingtimes::cmd_binding_times(&vcfg.binding_times, json);
             }
             "sysml" => {
                 // REQ-TRS-SYSMLV2-031 — SysMLv2 submodel inspection. Read-only.

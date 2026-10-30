@@ -2,7 +2,7 @@
 id: TC-TRS-BT-001
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify the default vocabulary is compile < load < runtime"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-001.sh
 verifies:

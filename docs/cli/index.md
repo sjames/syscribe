@@ -1535,6 +1535,14 @@ $ syscribe -m model/ link-types [--json]
 
 Lists every valid `[linkTypes.<name>]` declaration in `.syscribe.toml` — description, inverse, `extends` base and relaxed codes, coverage, source → target types, cardinality, `acyclic`, `suspect` — with the number of instances in the model. Entries rejected with `W630` are not listed as usable. With none declared it says so, shows how to declare one, and exits zero. This is the command an LLM authoring agent should run before writing any `links:` entry (MCP equivalent: the read-only `link_types` tool; `follow` is also exposed over MCP).
 
+### List the binding-time stages (`binding-times`)
+
+```
+$ syscribe -m model/ binding-times [--json]
+```
+
+Lists the effective binding-time vocabulary, earliest first: the built-in `compile < load < runtime`, refined by `[bindingTimes.<name>]` tables in `.syscribe.toml` (`description`, `binder`, `after`, `before`). A `bindingTime:` that names none of these is `E230`; a malformed entry is `W750` and is ignored whole. Run it before authoring a `bindingTime:` (MCP equivalent: the read-only `binding_times` tool; `--agent-instructions -m <root>` also appends a "Project binding times" section when the vocabulary is refined). See `ADR-SYS-BT-001`.
+
 Custom links also appear in `links` (outbound under the type name, inbound under its `inverse`), `refs`, `trace`, `show`, and `impact` (whose `--kinds` accepts custom type names).
 
 ---

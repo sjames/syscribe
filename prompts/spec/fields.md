@@ -372,6 +372,8 @@ links:
 | `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — `expression` is a comparison over dotted refs, `appliesWhen` a boolean predicate; checked by `feature-check` (E213/W014, E221/W025) |
 | `groupKind` | FeatureDef | string | child grouping: `optional` · `alternative` · `or` · `mandatory` (legacy member shorthand) |
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
+| `bindingTime` | FeatureDef | string | earliest stage at which the feature's selection may be bound — a stage of `binding-times` (built-in `compile` · `load` · `runtime`; unknown is `E230`); with `latestBindingTime` the *binding window* (§9.7). Parameters carry the same two keys inside their `parameters:` entry |
+| `latestBindingTime` | FeatureDef | string | latest stage at which the selection may still be bound; earlier than `bindingTime` is `E750`; alone it means "no later than this" |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
 | `isRequired` | FeatureDef parameter | bool | `W017` if unbound in a Configuration |

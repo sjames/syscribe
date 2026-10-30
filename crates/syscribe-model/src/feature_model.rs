@@ -14,6 +14,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::binding_time::{BindingWindow, WindowIssue};
 use crate::element::{ElementType, RawElement};
 use crate::solver::{Cnf, Lit};
 use crate::validator::{Finding, Severity};
@@ -55,19 +56,11 @@ struct Param {
     /// Fixed `value:` or `default:` as a number, used as the fallback value when a
     /// parameter reference is not bound by a `Configuration` (E221 evaluation).
     fallback: Option<f64>,
-    /// Binding-time rank (compile=0, load=1, runtime=2); `None` when `bindingTime:`
-    /// is absent or unrecognised (E230 is raised by the `validate` pass).
-    binding_time: Option<u8>,
-}
-
-/// Map the PLE binding-time triad to an ordered rank (earliest -> latest).
-fn binding_time_rank(s: &str) -> Option<u8> {
-    match s {
-        "compile" => Some(0),
-        "load" => Some(1),
-        "runtime" => Some(2),
-        _ => None,
-    }
+    /// Binding window; `None` when `bindingTime:`/`latestBindingTime:` are absent or
+    /// unusable (the defect itself is reported by [`binding_window_findings`]).
+    window: Option<BindingWindow>,
+    /// The window's defects, as authored (E230/E750).
+    window_issues: Vec<WindowIssue>,
 }
 
 fn parse_params(fd: &RawElement) -> Vec<Param> {
@@ -83,11 +76,21 @@ fn parse_params(fd: &RawElement) -> Vec<Param> {
                 derived_from: get("derivedFrom").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 bind_to: get("bindTo").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 fallback: get("value").and_then(num).or_else(|| get("default").and_then(num)),
-                binding_time: get("bindingTime").and_then(|v| v.as_str()).and_then(binding_time_rank),
+                window: read_window(get("bindingTime"), get("latestBindingTime")).0,
+                window_issues: read_window(get("bindingTime"), get("latestBindingTime")).1,
             });
         }
     }
     out
+}
+
+/// Read a window off two raw YAML values (`bindingTime:` and `latestBindingTime:`).
+/// A non-string value is treated as absent: the format has no other way to name a stage.
+fn read_window(
+    earliest: Option<&serde_yaml::Value>,
+    latest: Option<&serde_yaml::Value>,
+) -> (Option<BindingWindow>, Vec<WindowIssue>) {
+    BindingWindow::read(earliest.and_then(|v| v.as_str()), latest.and_then(|v| v.as_str()))
 }
 
 /// Whether `name` appears as a whole identifier token in `expr`.
@@ -349,6 +352,106 @@ pub fn has_feature_model(elements: &[RawElement]) -> bool {
     elements.iter().any(|e| is(e, ElementType::FeatureDef))
 }
 
+/// Binding-window rules (`REQ-TRS-BT-006..009`, generalising `E229`/`E230` of
+/// `REQ-TRS-PARAM-004`), shared by `validate` and `feature-check` so each reports
+/// them once:
+///
+/// * `E230` — a `bindingTime:` / `latestBindingTime:` on a `FeatureDef` or one of its
+///   parameters names a stage that is not in the effective vocabulary;
+/// * `E750` — `latestBindingTime:` is earlier than `bindingTime:`;
+/// * `E229` — a dependent closes its window before what it depends on opens: a
+///   parameter against the sibling parameters named in its `derivedFrom:` expression
+///   and its `bindTo:` target, and a feature against the features it `requires:`.
+///
+/// Only items that declare a window take part; an unspecified end opts the edge out.
+pub fn binding_window_findings(elements: &[RawElement]) -> Vec<Finding> {
+    let mut f = Vec::new();
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if fdefs.is_empty() {
+        return f;
+    }
+
+    let report = |f: &mut Vec<Finding>, file: &str, what: &str, issues: &[WindowIssue]| {
+        for i in issues {
+            match i {
+                WindowIssue::UnknownStage { field, value } => f.push(err("E230", file, format!(
+                    "{what} has {field} '{value}' which is not one of {}",
+                    crate::binding_time::active().names_hint()))),
+                WindowIssue::Inverted { earliest, latest } => f.push(err("E750", file, format!(
+                    "{what} has latestBindingTime '{latest}' earlier than bindingTime '{earliest}' — its binding window closes before it opens"))),
+            }
+        }
+    };
+
+    // Feature windows, keyed by qname; parameter windows, keyed by `qname.param`.
+    let mut feature_win: HashMap<&str, BindingWindow> = HashMap::new();
+    let mut param_win: HashMap<String, BindingWindow> = HashMap::new();
+    for fd in &fdefs {
+        let (w, issues) = BindingWindow::read(
+            fd.frontmatter.binding_time.as_deref(),
+            fd.frontmatter.latest_binding_time.as_deref(),
+        );
+        report(&mut f, &fd.file_path, &format!("feature '{}'", fd.qualified_name), &issues);
+        if let Some(w) = w {
+            feature_win.insert(fd.qualified_name.as_str(), w);
+        }
+        for p in parse_params(fd) {
+            report(&mut f, &fd.file_path, &format!("parameter '{}.{}'", fd.qualified_name, p.name), &p.window_issues);
+            if let Some(w) = p.window {
+                param_win.insert(format!("{}.{}", fd.qualified_name, p.name), w);
+            }
+        }
+    }
+
+    // A dependent that closes before its dependency opens could only ever be bound
+    // earlier than a value it needs.
+    let later = "which binds later — it cannot be bound earlier than a value it depends on";
+    for fd in &fdefs {
+        for p in parse_params(fd) {
+            let Some(pw) = p.window else { continue };
+            if let Some(expr) = &p.derived_from {
+                for s in parse_params(fd) {
+                    if s.name == p.name || !token_present(expr, &s.name) {
+                        continue;
+                    }
+                    if let Some(sw) = s.window {
+                        if pw.closes_before_opens(sw) {
+                            f.push(err("E229", &fd.file_path, format!(
+                                "parameter '{}.{}' (bindingTime {}) is derived from '{}' (bindingTime {}), {later}",
+                                fd.qualified_name, p.name, pw.describe(), s.name, sw.describe())));
+                        }
+                    }
+                }
+            }
+            if let Some(target) = &p.bind_to {
+                if let Some(tw) = param_win.get(target.as_str()) {
+                    if pw.closes_before_opens(*tw) {
+                        f.push(err("E229", &fd.file_path, format!(
+                            "parameter '{}.{}' (bindingTime {}) is bound to '{}' (bindingTime {}), {later}",
+                            fd.qualified_name, p.name, pw.describe(), target, tw.describe())));
+                    }
+                }
+            }
+        }
+    }
+    let alias = crate::variability::feature_id_to_qname(elements);
+    for fd in &fdefs {
+        let Some(fw) = feature_win.get(fd.qualified_name.as_str()) else { continue };
+        let Some(req) = &fd.frontmatter.requires else { continue };
+        for r in strings_from_seq(req) {
+            let target = crate::variability::canon_feature_ref(&r, &alias);
+            if let Some(tw) = feature_win.get(target.as_str()) {
+                if fw.closes_before_opens(*tw) {
+                    f.push(err("E229", &fd.file_path, format!(
+                        "feature '{}' (bindingTime {}) requires '{}' (bindingTime {}), {later}",
+                        fd.qualified_name, fw.describe(), target, tw.describe())));
+                }
+            }
+        }
+    }
+    f
+}
+
 /// Run all feature-model validation rules. Returns an empty vector when no
 /// feature model is present (the command treats that as a dormant no-op).
 pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
@@ -490,49 +593,8 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         }
     }
 
-    // ── E229: binding-time ordering across derivedFrom / bindTo edges ─────────
-    // A parameter computed from a source it depends on cannot be bound *earlier*
-    // than that source. Checked only when both endpoints declare a `bindingTime:`
-    // (an absent binding time opts the edge out). REQ-TRS-PARAM-004.
-    let mut bt_rank: HashMap<String, u8> = HashMap::new();
-    for fd in &fdefs {
-        for p in parse_params(fd) {
-            if let Some(r) = p.binding_time {
-                bt_rank.insert(format!("{}.{}", fd.qualified_name, p.name), r);
-            }
-        }
-    }
-    for fd in &fdefs {
-        let params = parse_params(fd);
-        for p in &params {
-            let Some(pr) = p.binding_time else { continue };
-            // derivedFrom: depends on sibling parameters of the same FeatureDef.
-            if let Some(expr) = &p.derived_from {
-                for s in &params {
-                    if s.name == p.name {
-                        continue;
-                    }
-                    if let Some(sr) = s.binding_time {
-                        if token_present(expr, &s.name) && pr < sr {
-                            f.push(err("E229", &fd.file_path, format!(
-                                "parameter '{}.{}' (bindingTime rank {}) is derived from '{}' (rank {}), which binds later — it cannot be bound earlier than a value it depends on",
-                                fd.qualified_name, p.name, pr, s.name, sr)));
-                        }
-                    }
-                }
-            }
-            // bindTo: depends on the system parameter it is propagated from.
-            if let Some(target) = &p.bind_to {
-                if let Some(&tr) = bt_rank.get(target) {
-                    if pr < tr {
-                        f.push(err("E229", &fd.file_path, format!(
-                            "parameter '{}.{}' (bindingTime rank {}) is bound to '{}' (rank {}), which binds later — it cannot be bound earlier than a value it depends on",
-                            fd.qualified_name, p.name, pr, target, tr)));
-                    }
-                }
-            }
-        }
-    }
+    // ── E229/E230/E750: binding windows (REQ-TRS-BT-006..009) ─────────────────
+    f.extend(binding_window_findings(elements));
 
     // ── E202: two-level bindTo propagation range ─────────────────────────────
     struct Bind<'a> {

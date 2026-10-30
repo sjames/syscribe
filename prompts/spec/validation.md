@@ -685,8 +685,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
 | `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `feature-check`; default severity) |
 | `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter); the message names the accepted form and the path or parameter it most likely meant |
-| `E229` | A parameter's `bindingTime:` is earlier than that of a `derivedFrom`/`bindTo` source it depends on (impossible ordering; checked when both ends declare a `bindingTime:`) |
-| `E230` | A parameter's `bindingTime:` is not `compile`/`load`/`runtime` (§9.7) |
+| `E229` | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
+| `E230` | A `FeatureDef`'s or parameter's `bindingTime:`/`latestBindingTime:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]` (§9.7) |
 | `E223` | (`feature-check --deep`) feature model is **void** — no valid configuration exists |
 | `E224` | (`feature-check --deep`) a **dead feature** — selectable in no valid configuration |
 | `E225` | (`feature-check --deep`) a `Configuration` is not a valid model of the feature model (mandatory/group/cardinality/parent violation) |
@@ -890,6 +890,15 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W059` | A `visibility: private` element is referenced (`supertype:`/`typedBy:`) from outside the namespace that owns it |
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
+
+## Binding times (E750, W750, ADR-SYS-BT-001)
+
+Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
+
+| Code | Condition |
+|---|---|
+| `E750` | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| `W750` | A `[bindingTimes.<name>]` entry in `.syscribe.toml` is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

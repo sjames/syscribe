@@ -129,7 +129,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E215 | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
 | E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter). The message names the form the field accepts and, when one is close, the feature it most likely meant (GH #325). |
-| E230 | A parameter declares a `bindingTime:` value other than `compile`/`load`/`runtime` (§9.7) |
+| E230 | A `FeatureDef` or parameter declares a `bindingTime:`/`latestBindingTime:` value that is not a stage of the effective vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]` (§9.7) |
 | E231 | (single-file feature model, REQ-TRS-FM-005) A `type: FeatureModel` sheet's `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
 | E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
 | E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
@@ -172,7 +172,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E220 | In some `Configuration`, a selected feature's `excludes:` target is also selected |
 | E207 | Circular `derivedFrom:` dependency among parameters of the same `FeatureDef` |
 | E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
-| E229 | A parameter's `bindingTime:` is earlier than that of a `derivedFrom`/`bindTo` source it depends on — an impossible ordering (checked only when both ends declare a `bindingTime:`) |
+| E229 | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
 | E213 | A `parameterConstraints` expression references an unresolved parameter path, **or** uses the legacy `::`-member form (`Features::F::param`) instead of the canonical dotted `Features::F.param` — the constraint is flagged, never silently dropped |
 | E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
@@ -622,6 +622,15 @@ subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
 | W542 | An ingested `allocation` usage's `allocate` endpoint chain was truncated to its deepest resolved prefix because a segment is neither declared on nor inherited (via `typedBy:`/`supertype:`) by the element reached so far (REQ-TRS-SYSMLV2-029) |
 | W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a package declared with a qualified name, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097/-098/-100) |
 | W544 | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
+
+## Binding times (E750, W750, ADR-SYS-BT-001)
+
+The stage vocabulary behind `bindingTime:` is the built-in `compile < load < runtime`, refinable with `[bindingTimes.<name>]` tables in the model-root `.syscribe.toml` (keys `description`, `binder`, `after`, `before`; at least one of `after`/`before`). List it with `binding-times [--json]`.
+
+| Code | Condition |
+|---|---|
+| E750 | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| W750 | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below). The entry is ignored whole; the rest of the vocabulary stays in force. |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

@@ -2,7 +2,7 @@
 id: TC-TRS-BT-008
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a dependent's window may not close before its dependency's opens"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-008.sh
 verifies:

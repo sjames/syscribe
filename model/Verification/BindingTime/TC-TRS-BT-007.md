@@ -2,7 +2,7 @@
 id: TC-TRS-BT-007
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify an unknown stage or an inverted window is an error"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-007.sh
 verifies:

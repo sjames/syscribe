@@ -2,7 +2,7 @@
 id: TC-TRS-BT-009
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify window ordering is reported by validate and by feature-check"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-009.sh
 verifies:

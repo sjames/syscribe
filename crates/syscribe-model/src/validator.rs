@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
+use crate::binding_time::BindingTime;
 use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
@@ -1110,6 +1111,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         for msg in config.link_types.defects() {
             findings.push(warning("W630", &cfg_file, msg));
         }
+    }
+
+    // W750: malformed `[bindingTimes]` config (REQ-TRS-BT-003) — reported once against
+    // `.syscribe.toml`, same posture as W630. Each defective entry was ignored whole
+    // and the rest of the vocabulary stays in force.
+    for msg in config.binding_times.defects() {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W750", &cfg_file, msg));
     }
 
     // W640: malformed `[cyber]` config (GH #222) — reported once against
@@ -6858,6 +6871,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Shared with `feature-check` so a product line validated holistically gets
     // the same binding/range enforcement (GH #14).
     findings.extend(parameter_binding_findings(elements, config, &resolver));
+    // E229/E230/E750 — binding windows (REQ-TRS-BT-006..009), shared with `feature-check`.
+    findings.extend(crate::feature_model::binding_window_findings(elements));
 
     // W028: duplicate external references (§3, REQ-TRS-EXTREF-001).
     findings.extend(ext_ref_duplicate_findings(elements));
@@ -10659,9 +10674,9 @@ struct ParamMeta {
     enum_values: Option<Vec<String>>,
     is_required: bool,
     has_default: bool,
-    /// Binding-time rank (compile=0, load=1, runtime=2); `None` when `bindingTime:`
+    /// Binding-time stage of the effective vocabulary; `None` when `bindingTime:`
     /// is absent (unspecified — the parameter opts out of binding-time checks).
-    binding_time: Option<u8>,
+    binding_time: Option<BindingTime>,
 }
 
 /// A `FeatureDef` parameter reached through `subConfigurations:`, plus the
@@ -10713,15 +10728,12 @@ fn parse_param_range(s: &str) -> Option<(f64, f64)> {
 }
 
 /// Build the `<FeatureDef qname> -> <param name> -> ParamMeta` table for every
-/// `FeatureDef` in `elements`, plus any `E230` (malformed `bindingTime:`)
-/// findings raised along the way. Shared by [`parameter_binding_findings`]
-/// for the local model and by [`collect_reachable_feature_params`] for each
-/// peer model reached through `subConfigurations:` — a peer's own `E230`s are
-/// its own model's problem (caught when that model is itself validated), so
-/// callers scanning a peer discard the returned findings rather than folding
-/// them into the consolidating model's report.
-fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<String, ParamMeta>>, Vec<Finding>) {
-    let mut findings: Vec<Finding> = Vec::new();
+/// `FeatureDef` in `elements`. Shared by [`parameter_binding_findings`] for the
+/// local model and by [`collect_reachable_feature_params`] for each peer model
+/// reached through `subConfigurations:`. Malformed `bindingTime:` values are not
+/// reported here (`E230` comes from `feature_model::binding_window_findings`, once
+/// per model, and a peer's own are its own model's problem).
+fn build_feature_params(elements: &[RawElement]) -> HashMap<String, HashMap<String, ParamMeta>> {
     let mut feature_params: HashMap<String, HashMap<String, ParamMeta>> = HashMap::new();
     for fd in elements
         .iter()
@@ -10741,19 +10753,9 @@ fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<Str
                     .map(|v| yaml_strings(v).into_iter().map(|s| s.to_string()).collect::<Vec<_>>());
                 let is_required = get("isRequired").and_then(|v| v.as_bool()).unwrap_or(false);
                 let has_default = get("default").is_some() || get("value").is_some();
-                // bindingTime: PLE triad (compile<load<runtime); E230 on an unknown value.
-                let binding_time = match get("bindingTime").and_then(|v| v.as_str()) {
-                    None => None,
-                    Some("compile") => Some(0),
-                    Some("load") => Some(1),
-                    Some("runtime") => Some(2),
-                    Some(other) => {
-                        findings.push(error("E230", &fd.file_path, &format!(
-                            "parameter '{}.{}' has bindingTime '{}' which is not one of compile/load/runtime",
-                            fd.qualified_name, name, other)));
-                        None
-                    }
-                };
+                // The earliest stage of the parameter's binding window; an unknown value is
+                // reported once, by `feature_model::binding_window_findings` (E230).
+                let binding_time = get("bindingTime").and_then(|v| v.as_str()).and_then(BindingTime::parse);
                 params.insert(
                     name.to_string(),
                     ParamMeta { is_fixed, range, enum_values, is_required, has_default, binding_time },
@@ -10762,7 +10764,7 @@ fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<Str
         }
         feature_params.insert(fd.qualified_name.clone(), params);
     }
-    (feature_params, findings)
+    feature_params
 }
 
 /// Human-readable label for a `Configuration` reached by the walk below, used
@@ -10898,7 +10900,7 @@ fn collect_reachable_feature_params(
             if !visiting.insert(key.clone()) {
                 continue; // already on the walk stack — cross-repo cycle, skip.
             }
-            let (peer_params, _peer_findings) = build_feature_params(&peer_elements);
+            let peer_params = build_feature_params(&peer_elements);
             let peer_sel = crate::variability::canon_selection(
                 &target.frontmatter.feature_selections(),
                 &crate::variability::feature_id_to_qname(&peer_elements),
@@ -10975,8 +10977,7 @@ pub fn parameter_binding_findings(
     let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
     let config = &*with_repo_mounts(elements, config);
 
-    let (feature_params, param_meta_findings) = build_feature_params(elements);
-    findings.extend(param_meta_findings);
+    let feature_params = build_feature_params(elements);
 
     for cfg in elements
         .iter()
@@ -11106,7 +11107,7 @@ pub fn parameter_binding_findings(
                         }
                     }
                 }
-                if meta.binding_time == Some(2) {
+                if meta.binding_time.is_some_and(BindingTime::is_runtime) {
                     findings.push(warning("W027", file, &format!(
                         "parameterBindings binds '{}' which has bindingTime: runtime (resolved by the running system, not at configuration time)", path)));
                 }
@@ -11120,7 +11121,7 @@ pub fn parameter_binding_findings(
             for (pname, meta) in params {
                 // A runtime parameter is legitimately unbound by a Configuration —
                 // the running system supplies its value (REQ-TRS-PARAM-004).
-                if meta.is_required && !meta.is_fixed && !meta.has_default && meta.binding_time != Some(2) {
+                if meta.is_required && !meta.is_fixed && !meta.has_default && !meta.binding_time.is_some_and(BindingTime::is_runtime) {
                     let path = format!("{}.{}", feat, pname);
                     if !bound.contains(&path) {
                         findings.push(warning("W017", file, &format!(
@@ -11202,7 +11203,7 @@ pub fn open_parameter_findings(
                     || status.meta.is_fixed
                     || !status.meta.is_required
                     || status.meta.has_default
-                    || status.meta.binding_time == Some(2) // runtime — REQ-TRS-PARAM-004
+                    || status.meta.binding_time.is_some_and(BindingTime::is_runtime) // REQ-TRS-PARAM-004
                     || status.already_bound_by.is_some()
                 {
                     continue;

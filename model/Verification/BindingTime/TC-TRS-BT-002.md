@@ -2,7 +2,7 @@
 id: TC-TRS-BT-002
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify [bindingTimes] declarations are merged into the order"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-002.sh
 verifies:

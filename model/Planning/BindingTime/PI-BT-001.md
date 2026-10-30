@@ -2,7 +2,7 @@
 type: PlanningItem
 id: PI-BT-001
 name: "Implement binding time as a staged-configuration axis"
-status: todo
+status: in_progress
 itemType: feature
 achieves: [REQ-TRS-BT-000]
 tags:

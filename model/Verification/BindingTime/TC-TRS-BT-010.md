@@ -2,7 +2,7 @@
 id: TC-TRS-BT-010
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify default-triad single-stage models are unchanged"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-010.sh
 verifies:

@@ -202,6 +202,9 @@ struct CoverageArgs {}
 struct LinkTypesArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct BindingTimesArgs {}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct ExecEvidenceArgs {
     /// Configuration id to project the model onto first (needed when machines use feature parameters).
     config: Option<String>,
@@ -2743,6 +2746,21 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         ok(syscribe_model::link_types::link_types_json(&store.elements, &store.config.link_types))
+    }
+
+    #[tool(
+        description = "List the effective binding-time stage vocabulary, earliest first: the built-in \
+        compile < load < runtime, refined by [bindingTimes] in .syscribe.toml (name, order, \
+        description, binder, builtin). Call this before authoring a `bindingTime:` — a value that \
+        is not one of these stages is E230. Same data as `binding-times --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn binding_times(
+        &self,
+        Parameters(_args): Parameters<BindingTimesArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(store.config.binding_times.to_json())
     }
 
     #[tool(
