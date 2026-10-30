@@ -23,4 +23,9 @@ tc_TRS_BT_012() {
     _scn "a runtime parameter cannot be bound before runtime"
     out=$(run "$B/runtime_early")
     [ "$(cnt "$out" E752 "Motor.gain")" -eq 1 ] && pass "E752 at stage load" || fail "expected E752: $out"
+
+    _scn "an inherited binding is judged where it was made, not at the derived stage"
+    out=$(run "$B/inherited")
+    has "$out" 'E752' && fail "E752 for an inherited binding: $out" || pass "a runtime Configuration may inherit a compile-stage binding"
 }
+

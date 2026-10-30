@@ -2,7 +2,7 @@
 id: TC-TRS-BT-016
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify residual lists open variability by stage and binder"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-016.sh
 verifies:

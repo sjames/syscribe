@@ -10999,6 +10999,9 @@ pub fn parameter_binding_findings(
     {
         // `None` for an unstaged Configuration, or one whose `bindingStage:` is unknown (E751).
         let cfg_stage = stage_ctx.stage(cfg_idx);
+        // What this Configuration binds itself: an inherited binding was judged where it was
+        // made, so window membership (E752) and narrowing (E756) apply to own entries only.
+        let own_bound = stage_ctx.own_bindings(cfg_idx);
         let sel = crate::variability::canon_selection(
             &cfg.frontmatter.feature_selections(),
             &crate::variability::feature_id_to_qname(elements),
@@ -11123,10 +11126,11 @@ pub fn parameter_binding_findings(
                         }
                     }
                 }
+                let is_own = own_bound.contains_key(&stage_ctx.canon_key(path));
                 match (cfg_stage, meta.window) {
                     // A staged Configuration may bind only what its stage can bind (E752);
                     // a runtime parameter bound at `runtime` is then simply in its window.
-                    (Some(st), Some(w)) if !w.contains(st) => {
+                    (Some(st), Some(w)) if is_own && !w.contains(st) => {
                         findings.push(error("E752", file, &format!(
                             "parameterBindings binds '{}' at bindingStage {}, but its binding window is {} — it cannot be bound at this stage",
                             path, st.name(), w.describe())));
@@ -11139,7 +11143,7 @@ pub fn parameter_binding_findings(
                     (None, _) => {}
                 }
                 // E756: stay inside what an ancestor Configuration narrowed the parameter to.
-                if let Some(n) = stage_ctx.effective_narrowing(cfg_idx, &stage_ctx.canon_key(path)) {
+                if let Some(n) = stage_ctx.effective_narrowing(cfg_idx, &stage_ctx.canon_key(path)).filter(|_| is_own) {
                     if !n.admits(val) {
                         findings.push(error("E756", file, &format!(
                             "parameterBindings '{}' = {} is outside {} — what the parameter was narrowed to along the derivedFrom chain",
@@ -11160,6 +11164,9 @@ pub fn parameter_binding_findings(
                     let path = format!("{}.{}", feat, pname);
                     if !bound.contains(&path) {
                         match (cfg_stage, meta.window) {
+                            // REQ-TRS-BT-020: a window that extends beyond this stage is still open —
+                            // a later stage can bind it — so an unbound required parameter is not a defect yet.
+                            (Some(st), Some(w)) if w.latest > st => {}
                             // E757: the window closed before this stage and nothing in the
                             // chain bound it, so no later stage can — a defect, not a warning.
                             (Some(st), Some(w)) if w.latest < st => {

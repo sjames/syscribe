@@ -59,6 +59,7 @@ pub mod provenance;
 pub mod remote;
 pub mod plantuml;
 pub mod residual_risk;
+pub mod residual;
 pub mod resolver;
 pub mod result_cucumber;
 pub mod result_join;

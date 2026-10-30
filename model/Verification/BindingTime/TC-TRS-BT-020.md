@@ -2,7 +2,7 @@
 id: TC-TRS-BT-020
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify validate --config treats later-stage items as open"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-020.sh
 verifies:

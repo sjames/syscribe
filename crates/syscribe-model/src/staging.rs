@@ -263,6 +263,35 @@ impl<'a> StageContext<'a> {
     }
 }
 
+/// The binding window of every `FeatureDef` that declares one, keyed by qualified name.
+pub fn feature_windows(elements: &[RawElement]) -> HashMap<String, BindingWindow> {
+    elements
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)))
+        .filter_map(|fd| {
+            BindingWindow::read(fd.frontmatter.binding_time.as_deref(), fd.frontmatter.latest_binding_time.as_deref())
+                .0
+                .map(|w| (fd.qualified_name.clone(), w))
+        })
+        .collect()
+}
+
+/// Qualified names of the staged Configurations that a staged Configuration is derived
+/// from. Such a Configuration is deliberately *partial* — it decides only what its stage
+/// can, and a later stage completes it — so it is judged by whether a valid completion
+/// remains (`feature-check --deep`, `E758`), not by the completeness rules
+/// (`E219`/`E220`/`E225`) that apply to a Configuration nothing refines further.
+pub fn partial_config_names(elements: &[RawElement]) -> std::collections::HashSet<String> {
+    let ctx = StageContext::new(elements);
+    elements
+        .iter()
+        .enumerate()
+        .filter(|(i, e)| is_configuration(e) && ctx.stage(*i).is_some())
+        .filter_map(|(i, _)| ctx.base(i).filter(|&b| ctx.stage(b).is_some()))
+        .map(|b| elements[b].qualified_name.clone())
+        .collect()
+}
+
 /// The chain-level staged-configuration rules (`E751`, `E752` for features, `E753`,
 /// `E754`, `E755`). Run by `validate`. Unstaged Configurations take part only in `E755`.
 pub fn staged_configuration_findings(elements: &[RawElement]) -> Vec<Finding> {
@@ -273,16 +302,7 @@ pub fn staged_configuration_findings(elements: &[RawElement]) -> Vec<Finding> {
     }
     let ctx = StageContext::new(elements);
     let params = declared_params(elements);
-    let feature_win: HashMap<&str, BindingWindow> = elements
-        .iter()
-        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)))
-        .filter_map(|fd| {
-            BindingWindow::read(fd.frontmatter.binding_time.as_deref(), fd.frontmatter.latest_binding_time.as_deref())
-                .0
-                .map(|w| (fd.qualified_name.as_str(), w))
-        })
-        .collect();
-
+    let feature_win = feature_windows(elements);
     for &i in &confs {
         let cfg = &elements[i];
         let (file, me) = (cfg.file_path.as_str(), label(cfg));
@@ -299,7 +319,7 @@ pub fn staged_configuration_findings(elements: &[RawElement]) -> Vec<Finding> {
         if let Some(st) = stage {
             // E752 (features): every own selection must be bindable at this stage.
             for feat in ctx.own_selection(i).keys() {
-                if let Some(w) = feature_win.get(feat.as_str()) {
+                if let Some(w) = feature_win.get(feat) {
                     if !w.contains(st) {
                         f.push(err("E752", file, format!(
                             "Configuration '{me}' (bindingStage {}) selects feature '{feat}', whose binding window is {} — it cannot be bound at this stage",

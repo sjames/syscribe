@@ -204,6 +204,12 @@ struct LinkTypesArgs {}
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct BindingTimesArgs {}
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ResidualArgs {
+    /// The Configuration, by `CONF-*` id or qualified name.
+    configuration: String,
+}
+
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct ExecEvidenceArgs {
     /// Configuration id to project the model onto first (needed when machines use feature parameters).
@@ -2761,6 +2767,22 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         ok(store.config.binding_times.to_json())
+    }
+
+    #[tool(
+        description = "The variability a Configuration leaves open: every feature and parameter with \
+        a binding window that its effective selection and bindings do not decide, grouped by the \
+        stage it can next be bound at and that stage's binder, plus any whose window already closed \
+        and the three-valued state (satisfied / violated / undetermined) of each applicable \
+        parameterConstraints entry. Same data as `residual --config <id> --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn residual(&self, Parameters(args): Parameters<ResidualArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::residual::residual_for(&store.elements, &args.configuration) {
+            Some(r) => ok(r.to_json()),
+            None => Err(ErrorData::invalid_params(format!("Configuration not found: {}", args.configuration), None)),
+        }
     }
 
     #[tool(

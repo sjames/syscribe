@@ -3002,8 +3002,27 @@ fn provenance_for(elements: &[RawElement], conf: &str) -> Option<syscribe_model:
 /// the configuration's `features:` as a partial selection and reports
 /// satisfiability + forced/free features. Exit `1` if the partial selection is
 /// contradictory; dormant (exit 0) with no feature model.
-pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
+pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool, stage: Option<&str>) {
     use syscribe_model::feature_model::{configure, ConfigureOutcome};
+    // REQ-TRS-BT-018: `--stage S` restricts the reported choices to features whose binding
+    // window contains S (a feature with no window is unrestricted).
+    let stage_bt = match stage {
+        None => None,
+        Some(s) => match syscribe_model::binding_time::BindingTime::parse(s) {
+            Some(bt) => Some(bt),
+            None => {
+                eprintln!("Unknown stage '{s}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint());
+                std::process::exit(2);
+            }
+        },
+    };
+    let windows = syscribe_model::staging::feature_windows(elements);
+    let at_stage = |names: Vec<String>| -> Vec<String> {
+        match stage_bt {
+            None => names,
+            Some(st) => names.into_iter().filter(|n| windows.get(n).map_or(true, |w| w.contains(st))).collect(),
+        }
+    };
     match configure(elements, conf) {
         ConfigureOutcome::Dormant => {
             if json {
@@ -3017,12 +3036,14 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
             std::process::exit(1);
         }
         ConfigureOutcome::Report { satisfiable, forced_true, forced_false, free, explanation } => {
+            let (forced_true, forced_false, free) = (at_stage(forced_true), at_stage(forced_false), at_stage(free));
             if json {
                 let doc = serde_json::json!({
                     "satisfiable": satisfiable,
                     "forcedTrue": forced_true,
                     "forcedFalse": forced_false,
                     "free": free,
+                    "stage": stage_bt.map(|s| s.name()),
                     "explanation": explanation,
                     "provenance": provenance_for(elements, conf).map(|p| syscribe_model::provenance::to_json(&p)),
                 });
@@ -3030,6 +3051,9 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
             } else {
                 println!("# Configure: {}", conf);
                 println!();
+                if let Some(st) = stage_bt {
+                    println!("- stage: {} (only features whose binding window contains it are listed)", st.name());
+                }
                 println!("- satisfiable: {}", satisfiable);
                 if let Some(e) = &explanation {
                     println!("- conflict: {}", e);

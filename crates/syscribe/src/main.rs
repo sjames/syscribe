@@ -33,6 +33,7 @@ mod help;
 mod ingest;
 mod lint_docs;
 mod bindingtimes;
+mod residual;
 mod linktypes;
 mod lsp;
 mod matrix;
@@ -949,6 +950,18 @@ fn main() {
                 // REQ-TRS-LINKTYPE-008 — the declared link-type vocabulary. Read-only.
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
+            }
+            "residual" => {
+                // REQ-TRS-BT-016 — what a Configuration leaves open. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                let Some(conf) = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str()) else {
+                    eprintln!("Usage: syscribe -m <root> residual --config <Configuration> [--json]");
+                    std::process::exit(2);
+                };
+                let code = residual::cmd_residual(&elems, conf, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "binding-times" => {
                 // REQ-TRS-BT-005 — the effective binding-time vocabulary. Read-only.
@@ -2127,12 +2140,13 @@ fn main() {
             "configure" => {
                 let conf = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 if conf.is_empty() || conf.starts_with("--") {
-                    eprintln!("Usage: syscribe --model <root> configure <Configuration> [--json]");
+                    eprintln!("Usage: syscribe --model <root> configure <Configuration> [--stage <stage>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
-                query::cmd_configure(&elems, conf, json);
+                let stage = rest.windows(2).find(|w| w[0] == "--stage").map(|w| w[1].as_str());
+                query::cmd_configure(&elems, conf, json, stage);
             }
             "build-config" => {
                 let conf = subcommand_args.windows(2)

@@ -1,7 +1,7 @@
 # configure — assisted configuration
 
 ## SYNOPSIS
-    syscribe -m <root> configure <Configuration> [--json]
+    syscribe -m <root> configure <Configuration> [--stage <stage>] [--json]
 
 ## DESCRIPTION
 From a partial selection in a Configuration, reports satisfiability and which
@@ -14,6 +14,10 @@ from a named `derivedFrom:` ancestor, a `subConfigurations:` tier, `bindTo:`, a
 derived expression, fixed, or default — and the stage it was bound at
 (`bindingStage:`, ADR-SYS-BT-001). `--json` carries it as a `provenance` object
 (`bindingStage`, `selections`, `parameters`).
+
+`--stage <stage>` restricts the forced/free report to features whose binding window
+contains the stage (a feature with no window is unrestricted); an unknown stage is a
+usage error. `--json` then carries `stage`. See `residual` for what remains open.
 
 ## EXAMPLES
     syscribe -m model/ configure CONF-UAV-DELIVERY-001

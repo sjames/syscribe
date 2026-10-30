@@ -2,7 +2,7 @@
 id: TC-TRS-BT-018
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify configure --stage reports forced and free choices at a stage"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-018.sh
 verifies:

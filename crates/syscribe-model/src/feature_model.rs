@@ -56,6 +56,8 @@ struct Param {
     /// Fixed `value:` or `default:` as a number, used as the fallback value when a
     /// parameter reference is not bound by a `Configuration` (E221 evaluation).
     fallback: Option<f64>,
+    /// Fixed `value:` alone — final whatever a Configuration does.
+    fixed: Option<f64>,
     /// Binding window; `None` when `bindingTime:`/`latestBindingTime:` are absent or
     /// unusable (the defect itself is reported by [`binding_window_findings`]).
     window: Option<BindingWindow>,
@@ -76,6 +78,7 @@ fn parse_params(fd: &RawElement) -> Vec<Param> {
                 derived_from: get("derivedFrom").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 bind_to: get("bindTo").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 fallback: get("value").and_then(num).or_else(|| get("default").and_then(num)),
+                fixed: get("value").and_then(num),
                 window: read_window(get("bindingTime"), get("latestBindingTime")).0,
                 window_issues: read_window(get("bindingTime"), get("latestBindingTime")).1,
             });
@@ -135,11 +138,27 @@ fn extract_param_paths(expr: &str) -> Vec<String> {
 /// Returns `Some(true/false)` when fully evaluable, `None` when a referenced
 /// parameter is unresolved or the expression cannot be parsed.
 fn eval_constraint(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<bool> {
+    let (pos, op) = split_comparison(expr)?;
+    let lhs = eval_arith(&expr[..pos], resolve)?;
+    let rhs = eval_arith(&expr[pos + op.len()..], resolve)?;
+    Some(match op {
+        ">=" => lhs >= rhs,
+        "<=" => lhs <= rhs,
+        ">" => lhs > rhs,
+        "<" => lhs < rhs,
+        "==" => (lhs - rhs).abs() < f64::EPSILON,
+        "!=" => (lhs - rhs).abs() >= f64::EPSILON,
+        _ => return None,
+    })
+}
+
+/// The comparison operator of a `parameterConstraints` expression and its byte offset,
+/// found at parenthesis depth 0 (two-character operators first).
+fn split_comparison(expr: &str) -> Option<(usize, &'static str)> {
     const OPS: [&str; 6] = [">=", "<=", "==", "!=", ">", "<"];
-    // Find the comparison operator at paren depth 0 (two-char operators first).
     let bytes = expr.as_bytes();
     let mut depth = 0i32;
-    let mut split: Option<(usize, &str)> = None;
+    let mut split: Option<(usize, &'static str)> = None;
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
@@ -160,17 +179,138 @@ fn eval_constraint(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<
         }
         i += 1;
     }
-    let (pos, op) = split?;
-    let lhs = eval_arith(&expr[..pos], resolve)?;
-    let rhs = eval_arith(&expr[pos + op.len()..], resolve)?;
-    Some(match op {
-        ">=" => lhs >= rhs,
-        "<=" => lhs <= rhs,
-        ">" => lhs > rhs,
-        "<" => lhs < rhs,
-        "==" => (lhs - rhs).abs() < f64::EPSILON,
-        "!=" => (lhs - rhs).abs() >= f64::EPSILON,
+    split
+}
+
+/// The truth of a `parameterConstraints` expression over a *partial* binding
+/// (`REQ-TRS-BT-017`): holds whatever the open parameters become, fails whatever they
+/// become, or depends on them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tri {
+    Satisfied,
+    Violated,
+    Undetermined,
+}
+
+impl Tri {
+    pub fn name(self) -> &'static str {
+        match self {
+            Tri::Satisfied => "satisfied",
+            Tri::Violated => "violated",
+            Tri::Undetermined => "undetermined",
+        }
+    }
+}
+
+type Interval = (f64, f64);
+
+/// Interval product, treating a NaN corner (`0 * inf`) as "no information".
+fn imul(a: Interval, b: Interval) -> Interval {
+    let c = [a.0 * b.0, a.0 * b.1, a.1 * b.0, a.1 * b.1];
+    if c.iter().any(|x| x.is_nan()) {
+        return (f64::NEG_INFINITY, f64::INFINITY);
+    }
+    (c.iter().cloned().fold(f64::INFINITY, f64::min), c.iter().cloned().fold(f64::NEG_INFINITY, f64::max))
+}
+
+fn idiv(a: Interval, b: Interval) -> Interval {
+    if b.0 <= 0.0 && b.1 >= 0.0 {
+        return (f64::NEG_INFINITY, f64::INFINITY); // divisor may be zero
+    }
+    imul(a, (1.0 / b.1, 1.0 / b.0))
+}
+
+/// Interval counterpart of [`ArithParser`]: every reference is an interval.
+struct IntervalParser<'a> {
+    toks: &'a [AtomTok],
+    pos: usize,
+    resolve: &'a dyn Fn(&str) -> Option<Interval>,
+}
+
+impl IntervalParser<'_> {
+    fn peek(&self) -> Option<&AtomTok> {
+        self.toks.get(self.pos)
+    }
+    fn expr(&mut self) -> Option<Interval> {
+        let mut v = self.term()?;
+        while let Some(AtomTok::Op(c @ ('+' | '-'))) = self.peek() {
+            let c = *c;
+            self.pos += 1;
+            let r = self.term()?;
+            v = if c == '+' { (v.0 + r.0, v.1 + r.1) } else { (v.0 - r.1, v.1 - r.0) };
+        }
+        Some(v)
+    }
+    fn term(&mut self) -> Option<Interval> {
+        let mut v = self.factor()?;
+        while let Some(AtomTok::Op(c @ ('*' | '/'))) = self.peek() {
+            let c = *c;
+            self.pos += 1;
+            let r = self.factor()?;
+            v = if c == '*' { imul(v, r) } else { idiv(v, r) };
+        }
+        Some(v)
+    }
+    fn factor(&mut self) -> Option<Interval> {
+        match self.peek()? {
+            AtomTok::Num(n) => {
+                let n = *n;
+                self.pos += 1;
+                Some((n, n))
+            }
+            AtomTok::Ref(r) => {
+                let v = (self.resolve)(r)?;
+                self.pos += 1;
+                Some(v)
+            }
+            AtomTok::Op('-') => {
+                self.pos += 1;
+                let v = self.factor()?;
+                Some((-v.1, -v.0))
+            }
+            AtomTok::Op('(') => {
+                self.pos += 1;
+                let v = self.expr()?;
+                matches!(self.peek(), Some(AtomTok::Op(')'))).then(|| {
+                    self.pos += 1;
+                    v
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+fn eval_interval(s: &str, resolve: &dyn Fn(&str) -> Option<Interval>) -> Option<Interval> {
+    let toks = tokenize_arith(s);
+    let mut p = IntervalParser { toks: &toks, pos: 0, resolve };
+    let v = p.expr()?;
+    (p.pos == p.toks.len()).then_some(v)
+}
+
+/// Evaluate `LHS <cmp> RHS` with each parameter reference an interval (a bound value is
+/// a point; an open parameter spans what it may still become). Interval arithmetic
+/// over-approximates, so `Violated`/`Satisfied` are sound: they hold for *every* value
+/// the open parameters can take. `None` when the expression cannot be parsed.
+pub fn eval_constraint_tri(expr: &str, resolve: &dyn Fn(&str) -> Option<(f64, f64)>) -> Option<Tri> {
+    let (pos, op) = split_comparison(expr)?;
+    let (a, b) = eval_interval(&expr[..pos], resolve)?;
+    let (c, d) = eval_interval(&expr[pos + op.len()..], resolve)?;
+    let (always, never) = match op {
+        "<=" => (b <= c, a > d),
+        "<" => (b < c, a >= d),
+        ">=" => (a >= d, b < c),
+        ">" => (a > d, b <= c),
+        "==" => (a == b && c == d && a == c, b < c || d < a),
+        "!=" => (b < c || d < a, a == b && c == d && a == c),
         _ => return None,
+    };
+    Some(if always {
+        Tri::Satisfied
+    } else if never {
+        Tri::Violated
+    } else {
+        Tri::Undetermined
     })
 }
 
@@ -352,6 +492,178 @@ pub fn has_feature_model(elements: &[RawElement]) -> bool {
     elements.iter().any(|e| is(e, ElementType::FeatureDef))
 }
 
+/// The effective numeric binding of a parameter reference in `cfg`, else its fixed/default value.
+fn bound_value(cfg: &RawElement, r: &str, fallback: &HashMap<String, f64>) -> Option<f64> {
+    if let Some(serde_yaml::Value::Mapping(b)) = cfg.frontmatter.effective_parameter_bindings() {
+        if let Some(v) = b.get(serde_yaml::Value::String(r.to_string())) {
+            if let Some(n) = v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)) {
+                return Some(n);
+            }
+        }
+    }
+    fallback.get(r).copied()
+}
+
+/// The numeric range `elements[cfg_idx]`'s `derivedFrom:` chain narrowed each parameter to.
+fn narrow_fn<'a>(ctx: &'a crate::staging::StageContext<'a>, cfg_idx: usize) -> impl Fn(&str) -> Option<(f64, f64)> + 'a {
+    move |r: &str| match ctx.effective_narrowing(cfg_idx, r) {
+        Some(crate::staging::Narrow::Range(lo, hi)) => Some((lo, hi)),
+        _ => None,
+    }
+}
+
+/// What the feature model says about each parameter, for constraint evaluation.
+#[derive(Default)]
+struct ParamFacts {
+    /// Fixed `value:`, else `default:`.
+    fallback: HashMap<String, f64>,
+    /// Fixed `value:` alone.
+    fixed: HashMap<String, f64>,
+    range: HashMap<String, (f64, f64)>,
+    window: HashMap<String, BindingWindow>,
+}
+
+fn param_facts(fdefs: &[&RawElement]) -> ParamFacts {
+    let mut facts = ParamFacts::default();
+    for fd in fdefs {
+        for p in parse_params(fd) {
+            let key = format!("{}.{}", fd.qualified_name, p.name);
+            if let Some(v) = p.fallback {
+                facts.fallback.insert(key.clone(), v);
+            }
+            if let Some(v) = p.fixed {
+                facts.fixed.insert(key.clone(), v);
+            }
+            if let Some(r) = p.range {
+                facts.range.insert(key.clone(), r);
+            }
+            if let Some(w) = p.window {
+                facts.window.insert(key, w);
+            }
+        }
+    }
+    facts
+}
+
+/// The truth of `expr` in `cfg` and the parameter references that have no value yet.
+/// `partial = false` is the original rule: only a fully evaluable expression has a truth
+/// value (an open reference makes it `Undetermined`). `partial = true` (a staged
+/// Configuration, `REQ-TRS-BT-017`) lets an open reference span what it may still become,
+/// so a constraint the bound values already break is `Violated`. A reference is a point
+/// when a Configuration bound it, when it is fixed, or when its `default:` is final — the
+/// parameter has no window, or the window closed before `stage`. Otherwise a later stage
+/// can still change it, and it spans its declared range narrowed by the chain (everything,
+/// when it declares none).
+fn constraint_state(
+    cfg: &RawElement,
+    expr: &str,
+    partial: bool,
+    facts: &ParamFacts,
+    stage: Option<crate::binding_time::BindingTime>,
+    narrow: &dyn Fn(&str) -> Option<(f64, f64)>,
+) -> (Tri, Vec<String>) {
+    if !partial {
+        let mut open: Vec<String> =
+            extract_param_paths(expr).into_iter().filter(|r| bound_value(cfg, r, &facts.fallback).is_none()).collect();
+        open.sort();
+        open.dedup();
+        let state = match eval_constraint(expr, &|r| bound_value(cfg, r, &facts.fallback)) {
+            Some(true) => Tri::Satisfied,
+            Some(false) => Tri::Violated,
+            None => Tri::Undetermined,
+        };
+        return (state, open);
+    }
+    let binding = |r: &str| bound_value(cfg, r, &HashMap::new());
+    let point = |r: &str| -> Option<f64> {
+        binding(r).or_else(|| facts.fixed.get(r).copied()).or_else(|| {
+            let default_is_final = match (facts.window.get(r), stage) {
+                (None, _) => true,
+                (Some(w), Some(st)) => w.latest < st,
+                (Some(_), None) => false,
+            };
+            facts.fallback.get(r).copied().filter(|_| default_is_final)
+        })
+    };
+    let mut open: Vec<String> = extract_param_paths(expr).into_iter().filter(|r| point(r).is_none()).collect();
+    open.sort();
+    open.dedup();
+    let resolve = |r: &str| -> Option<(f64, f64)> {
+        Some(match point(r) {
+            Some(v) => (v, v),
+            None => {
+                let declared = facts.range.get(r).copied().unwrap_or((f64::NEG_INFINITY, f64::INFINITY));
+                narrow(r).map_or(declared, |(lo, hi)| (declared.0.max(lo), declared.1.min(hi)))
+            }
+        })
+    };
+    (eval_constraint_tri(expr, &resolve).unwrap_or(Tri::Undetermined), open)
+}
+
+/// One `parameterConstraints:` entry as it stands for a Configuration.
+#[derive(Debug, Clone)]
+pub struct ConstraintState {
+    pub id: String,
+    pub expression: String,
+    /// `severity: warning` (a violation is `W025`, else `E221`).
+    pub warning: bool,
+    pub state: Tri,
+    /// Parameter references with no value in this Configuration yet.
+    pub open: Vec<String>,
+}
+
+/// Every `parameterConstraints:` entry that applies to `elements[cfg_idx]` (its
+/// `appliesWhen:` holds, every referenced parameter exists), evaluated three-valued on its
+/// partial binding. Used by `residual`.
+pub fn constraint_states(elements: &[RawElement], cfg_idx: usize) -> Vec<ConstraintState> {
+    let cfg = &elements[cfg_idx];
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
+    let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias);
+    let facts = param_facts(&fdefs);
+    let paths: HashSet<String> = fdefs
+        .iter()
+        .flat_map(|fd| parse_params(fd).into_iter().map(move |p| format!("{}.{}", fd.qualified_name, p.name)))
+        .collect();
+    let ctx = crate::staging::StageContext::new(elements);
+    let (stage, narrow) = (ctx.stage(cfg_idx), narrow_fn(&ctx, cfg_idx));
+    let mut out = Vec::new();
+    for pkg in elements.iter().filter(|e| {
+        matches!(
+            e.frontmatter.element_type,
+            Some(ElementType::Package) | Some(ElementType::LibraryPackage) | Some(ElementType::Namespace) | Some(ElementType::FeatureModel)
+        )
+    }) {
+        for c in pkg.frontmatter.parameter_constraints.as_deref().unwrap_or(&[]) {
+            let serde_yaml::Value::Mapping(m) = c else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.into()));
+            let Some(expr) = get("expression").and_then(|v| v.as_str()) else { continue };
+            if extract_param_paths(expr).iter().any(|p| !paths.contains(p)) {
+                continue; // E213 territory
+            }
+            let holds = match get("appliesWhen").and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten()) {
+                None => true,
+                Some(e) => e
+                    .canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias))
+                    .eval(&|q| sel.get(q).copied().unwrap_or(false)),
+            };
+            if !holds {
+                continue;
+            }
+            let (state, open) = constraint_state(cfg, expr, true, &facts, stage, &narrow);
+            out.push(ConstraintState {
+                id: get("id").and_then(|v| v.as_str()).unwrap_or("(unnamed)").to_string(),
+                expression: expr.to_string(),
+                warning: get("severity").and_then(|v| v.as_str()) == Some("warning"),
+                state,
+                open,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    out
+}
+
 /// Binding-window rules (`REQ-TRS-BT-006..009`, generalising `E229`/`E230` of
 /// `REQ-TRS-PARAM-004`), shared by `validate` and `feature-check` so each reports
 /// them once:
@@ -521,6 +833,11 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     }
 
     // ── E219/E220 (per Configuration) + selection counts for W011/W012 ───────
+    // A staged Configuration that another staged Configuration is derived from is
+    // deliberately partial: a required feature whose window is still open at its stage
+    // is left to a later stage (`feature-check --deep`'s E758 checks a completion remains).
+    let partial_cfgs = crate::staging::partial_config_names(elements);
+    let feature_win = crate::staging::feature_windows(elements);
     let mut sel_count: HashMap<&str, usize> = HashMap::new();
     for cfg in &configs {
         let sel = sel_of(cfg);
@@ -532,7 +849,9 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             }
             *sel_count.entry(q).or_insert(0) += 1;
             for r in req.get(q).into_iter().flatten() {
-                if !is_sel(r) {
+                let left_to_later = partial_cfgs.contains(&cfg.qualified_name)
+                    && crate::staging::stage_of(cfg).ok().flatten().is_some_and(|st| feature_win.get(r.as_str()).is_some_and(|w| w.latest > st));
+                if !is_sel(r) && !left_to_later {
                     f.push(err("E219", &cfg.file_path,
                         format!("feature '{}' is selected but its required feature '{}' is not", q, r)));
                 }
@@ -634,14 +953,11 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     // ── E213/W014/E221/W025: cross-feature parameterConstraints (package _index.md) ──
     // Canonical parameter reference is the dotted form `<FeatureDef qname>.<param>`.
     let mut param_paths: HashSet<String> = HashSet::new();
-    let mut param_fallback: HashMap<String, f64> = HashMap::new();
+    let facts = param_facts(&fdefs);
+    let stage_ctx = crate::staging::StageContext::new(elements);
     for fd in &fdefs {
         for p in parse_params(fd) {
-            let key = format!("{}.{}", fd.qualified_name, p.name);
-            if let Some(v) = p.fallback {
-                param_fallback.insert(key.clone(), v);
-            }
-            param_paths.insert(key);
+            param_paths.insert(format!("{}.{}", fd.qualified_name, p.name));
         }
     }
     let mut selected_anywhere: HashSet<String> = HashSet::new();
@@ -738,28 +1054,28 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
                 if !holds {
                     continue;
                 }
-                let resolve = |r: &str| -> Option<f64> {
-                    if let Some(serde_yaml::Value::Mapping(b)) = cfg.frontmatter.effective_parameter_bindings() {
-                        if let Some(v) = b.get(serde_yaml::Value::String(r.to_string())) {
-                            if let Some(n) = num(v) {
-                                return Some(n);
-                            }
-                        }
-                    }
-                    param_fallback.get(r).copied()
-                };
-                // Skip when a referenced parameter has no value in this configuration
-                // (unbound, no default) — W017 already covers required-unbound.
-                if let Some(false) = eval_constraint(expr, &resolve) {
+                // A staged Configuration is deliberately partial, so judge it three-valued
+                // (REQ-TRS-BT-017); an unstaged one only when fully evaluable, as before.
+                let stage = crate::staging::stage_of(cfg).ok().flatten();
+                let cfg_idx = elements.iter().position(|e| std::ptr::eq(e, *cfg));
+                let narrow = cfg_idx.map(|i| narrow_fn(&stage_ctx, i));
+                let (state, open) = constraint_state(
+                    cfg, expr, stage.is_some(), &facts, stage,
+                    &|r: &str| narrow.as_ref().and_then(|n| n(r)),
+                );
+                if state == Tri::Violated {
                     let cfg_id = cfg
                         .frontmatter
                         .id
                         .clone()
                         .unwrap_or_else(|| cfg.qualified_name.clone());
-                    let msg = format!(
+                    let mut msg = format!(
                         "configuration '{}' violates parameterConstraints '{}': {}",
                         cfg_id, cid, expr
                     );
+                    if !open.is_empty() {
+                        msg.push_str(&format!(" — whatever the still-open parameters ({}) become", open.join(", ")));
+                    }
                     if warn_sev {
                         f.push(warn("W025", &cfg.file_path, msg));
                     } else {
@@ -1504,7 +1820,11 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
 
     // Configuration validity under full semantics (E225), excluding the
     // requires/excludes obligations already reported as E219/E220.
+    let partial_cfgs = crate::staging::partial_config_names(elements);
     for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
+        if partial_cfgs.contains(&cfg.qualified_name) {
+            continue; // judged by E758 (a valid completion remains), not as a complete selection
+        }
         let sel = sel_of(cfg);
         let mut violated = config_violations(&enc, &sel);
         if !violated.is_empty() {
@@ -1515,6 +1835,40 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
             rep.findings.push(err("E225", &cfg.file_path, format!(
                 "configuration '{}' is not a valid model of the feature model: {}",
                 id, violated.join("; "))));
+        }
+    }
+
+    // ── E758: a staged chain keeps a valid completion (REQ-TRS-BT-019) ───────
+    // At each staged Configuration, the choices made up to its stage (its effective
+    // selection restricted to features whose window opens no later) must leave at least one
+    // valid configuration. The earliest Configuration in a chain to break that is the one
+    // that closed the last valid completion; later ones inherit its choices and are not blamed.
+    {
+        let ctx = crate::staging::StageContext::new(elements);
+        let fwin = crate::staging::feature_windows(elements);
+        let assumptions = |i: usize, st: crate::binding_time::BindingTime| -> Vec<Lit> {
+            ctx.effective_selection(i)
+                .into_iter()
+                .filter(|(feat, _)| fwin.get(feat).map_or(true, |w| w.earliest <= st))
+                .filter_map(|(feat, on)| enc.var_of.get(&feat).map(|&v| if on { Lit::pos(v) } else { Lit::neg(v) }))
+                .collect()
+        };
+        for (i, cfg) in elements.iter().enumerate().filter(|(_, e)| is(e, ElementType::Configuration)) {
+            let Some(st) = ctx.stage(i) else { continue };
+            let lits = assumptions(i, st);
+            if sat.is_sat(&lits) {
+                continue;
+            }
+            let earlier_broke = ctx.ancestors(i).into_iter().any(|a| ctx.stage(a).is_some_and(|ast| !sat.is_sat(&assumptions(a, ast))));
+            if earlier_broke {
+                continue;
+            }
+            let mut labels: Vec<String> = enc.unsat_core(&lits).iter().map(|&c| enc.cons[c].label.clone()).collect();
+            labels.sort();
+            labels.dedup();
+            rep.findings.push(err("E758", &cfg.file_path, format!(
+                "Configuration '{}' (bindingStage {}) closes the last valid completion: no valid configuration agrees with the choices made up to this stage. Conflicting: {}",
+                cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone()), st.name(), labels.join("; "))));
         }
     }
 
@@ -2184,6 +2538,55 @@ pub fn write_proofs(elements: &[RawElement], dir: &std::path::Path) -> std::io::
 
 #[cfg(test)]
 mod tests {
+    use super::{eval_constraint_tri, Tri};
+
+    fn tri(expr: &str, bound: &[(&str, f64)], open: &[(&str, (f64, f64))]) -> Option<Tri> {
+        let resolve = |r: &str| -> Option<(f64, f64)> {
+            bound.iter().find(|(n, _)| *n == r).map(|(_, v)| (*v, *v)).or_else(|| open.iter().find(|(n, _)| *n == r).map(|(_, i)| *i))
+        };
+        eval_constraint_tri(expr, &resolve)
+    }
+
+    #[test]
+    fn partial_binding_is_violated_satisfied_or_undetermined() {
+        let b_open = [("b", (0.0, 100.0))];
+        // a = 12, b in 0..100: a + b is at least 12 > 10, whatever b becomes.
+        assert_eq!(tri("a + b <= 10", &[("a", 12.0)], &b_open), Some(Tri::Violated));
+        // a = 2: b can still make it hold or fail.
+        assert_eq!(tri("a + b <= 10", &[("a", 2.0)], &b_open), Some(Tri::Undetermined));
+        // a = 2, b in 0..5: always at most 7.
+        assert_eq!(tri("a + b <= 10", &[("a", 2.0)], &[("b", (0.0, 5.0))]), Some(Tri::Satisfied));
+        // Fully bound degenerates to ordinary evaluation.
+        assert_eq!(tri("a + b <= 10", &[("a", 2.0), ("b", 3.0)], &[]), Some(Tri::Satisfied));
+        assert_eq!(tri("a + b <= 10", &[("a", 9.0), ("b", 3.0)], &[]), Some(Tri::Violated));
+    }
+
+    #[test]
+    fn every_comparison_and_arithmetic_operator_is_sound() {
+        let r = [("x", (2.0, 4.0))];
+        assert_eq!(tri("x > 4", &[], &r), Some(Tri::Violated));
+        assert_eq!(tri("x >= 2", &[], &r), Some(Tri::Satisfied));
+        assert_eq!(tri("x < 2", &[], &r), Some(Tri::Violated));
+        assert_eq!(tri("x < 5", &[], &r), Some(Tri::Satisfied));
+        assert_eq!(tri("x == 9", &[], &r), Some(Tri::Violated));
+        assert_eq!(tri("x != 9", &[], &r), Some(Tri::Satisfied));
+        assert_eq!(tri("x == 3", &[], &r), Some(Tri::Undetermined));
+        assert_eq!(tri("2 * x - 1 >= 3", &[], &r), Some(Tri::Satisfied), "2x-1 in 3..7");
+        assert_eq!(tri("x / 2 > 2", &[], &r), Some(Tri::Violated), "x/2 is at most 2, never above it");
+        assert_eq!(tri("x / 2 > 1", &[], &r), Some(Tri::Undetermined), "x/2 in 1..2 straddles 1");
+        assert_eq!(tri("-x < 0", &[], &r), Some(Tri::Satisfied));
+        assert_eq!(tri("(x + 1) * 2 > 5", &[], &r), Some(Tri::Satisfied), "(x+1)*2 in 6..10");
+    }
+
+    #[test]
+    fn unbounded_open_parameter_is_undetermined_not_violated() {
+        let inf = [("p", (f64::NEG_INFINITY, f64::INFINITY))];
+        assert_eq!(tri("p <= 10", &[], &inf), Some(Tri::Undetermined));
+        assert_eq!(tri("p * 0 <= 10", &[], &inf), Some(Tri::Undetermined), "0 * inf must not become a false claim");
+        assert_eq!(tri("1 / p > 0", &[], &[("p", (-1.0, 1.0))]), Some(Tri::Undetermined), "divisor may be zero");
+        assert_eq!(tri("nonsense", &[], &[]), None);
+        assert_eq!(tri("a + <= 3", &[("a", 1.0)], &[]), None);
+    }
     use super::{eval_arith, eval_constraint, parse_range};
 
     // Resolver: A=4, B=2, C=1.5; anything else unresolved.

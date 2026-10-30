@@ -5672,6 +5672,12 @@ A staged Configuration is checked against the binding windows of §9.7 and again
 4. **Narrow only (`E755`, `E756`).** A `parameterNarrowing:` entry must be well-formed, name a declared parameter, and lie inside both the parameter's declared `range:`/`enumValues:` and every ancestor's narrowing (`E755`). A binding must lie inside the narrowing in force along the chain (`E756` — distinct from `E205`/`E206`, which judge it against the declaration).
 5. **Closed window, still unbound (`E757`).** A required parameter of a selected feature, with no default or fixed value and no binding anywhere in the chain, whose window closed *before* the Configuration's stage, can no longer be bound by any later stage; that is `E757`, reported in place of the `W017` warning. A parameter whose window is still open is *residual variability*, not an error.
 
+6. **Open windows are not defects.** A required parameter whose window opens *after* the Configuration's stage is left to a later stage and raises no `W017`; this holds under `validate --config` and for every staged Configuration under whole-model `validate`.
+7. **Partial binding (`feature-check`).** A staged Configuration is deliberately partial, so `parameterConstraints:` are evaluated three-valued on what it has bound: an open parameter spans the range it declares (everything, when it declares none), and a constraint that fails for *every* such value is `E221`/`W025` now, naming the open parameters; one that depends on them is silent. An unstaged Configuration is judged only when fully evaluable, as before.
+8. **A valid completion remains (`feature-check --deep`, `E758`).** At each staged Configuration, the choices made up to its stage (its effective selection restricted to features whose window opens no later) must leave at least one valid configuration; the earliest Configuration in a `derivedFrom:` chain to break that is reported, naming it. A staged Configuration that another staged Configuration is derived from is *partial*: it is judged by this check, not by completeness — `E225` does not apply to it, and `E219` is not raised for a required feature whose window is still open at its stage (`E220`, an excluded feature also selected, always applies). A Configuration nothing refines further is judged as before.
+
+`residual --config <Configuration> [--json]` lists what a Configuration leaves open: every feature (a real choice, not abstract or mandatory) and every parameter (of a selected feature, not fixed or derived) that declares a binding window and that its effective selection and bindings do not decide, grouped by the stage it can next be bound at and by that stage's `binder`, with any whose window already closed listed apart, and the three-valued state of each applicable constraint. `configure <Configuration> --stage <stage>` restricts the forced/free report to features whose window contains the stage (a feature with no window is unrestricted).
+
 The effective value of every feature selection and parameter, with where it came from and the stage it was bound at, is shown by `show <Configuration>` and `configure <Configuration>` (`provenance` in `--json`): the sources are the Configuration's own binding, a named `derivedFrom:` ancestor, a `subConfigurations:` tier, `bindTo:` propagation, the parameter's `derivedFrom:` expression, its fixed `value:`, or its `default:`.
 
 ---
@@ -6880,7 +6886,7 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 | `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
 
-#### Binding times (E750–E757, W750, §9.7)
+#### Binding times (E750–E758, W750, §9.7)
 
 Active only when `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
 
@@ -6894,6 +6900,7 @@ Active only when `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabu
 | `E755` | A `parameterNarrowing:` entry is malformed, names no declared `FeatureDef` parameter, mismatches the parameter's kind (range vs `enumValues`), or **widens** the parameter's declared `range:`/`enumValues:` or an ancestor Configuration's narrowing (§9.8) |
 | `E756` | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
 | `E757` | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
+| `E758` | A staged `Configuration` closes the last valid completion: the choices made up to its `bindingStage:` (its effective selection restricted to features whose window opens no later) leave no valid configuration. Reported by `feature-check --deep` on the earliest Configuration of a `derivedFrom:` chain to do so; a partial Configuration is judged by this instead of `E225` (§9.8) |
 | `W750` | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 
 #### IEC 62443 Zone/Conduit validation (E950–E956, E925, E926, W950–W953, §13.5)

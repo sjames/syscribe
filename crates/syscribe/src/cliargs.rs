@@ -54,7 +54,9 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         ],
         "audit" => &[("--json", Switch), ("--profile", Value), LENS, ("--plan", Value), ("--all-configs", Switch)],
         "types" | "untyped" | "next-id" | "check-ref" | "path-for" => &[],
-        "sysml" | "link-types" | "binding-times" | "testplan" | "conduits" | "review" | "features" | "feature" | "configure" => &[("--json", Switch)],
+        "residual" => &[("--config", Value), ("--json", Switch)],
+        "sysml" | "link-types" | "binding-times" | "testplan" | "conduits" | "review" | "features" | "feature" => &[("--json", Switch)],
+        "configure" => &[("--json", Switch), ("--stage", Value)],
         "export-html" => &[("--out", Value), ("--css", Value)],
         "matrix" => &[
             ("--json", Switch),

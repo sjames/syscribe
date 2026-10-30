@@ -1535,6 +1535,15 @@ $ syscribe -m model/ link-types [--json]
 
 Lists every valid `[linkTypes.<name>]` declaration in `.syscribe.toml` — description, inverse, `extends` base and relaxed codes, coverage, source → target types, cardinality, `acyclic`, `suspect` — with the number of instances in the model. Entries rejected with `W630` are not listed as usable. With none declared it says so, shows how to declare one, and exits zero. This is the command an LLM authoring agent should run before writing any `links:` entry (MCP equivalent: the read-only `link_types` tool; `follow` is also exposed over MCP).
 
+### What a Configuration leaves open (`residual`)
+
+```
+$ syscribe -m model/ residual --config <Configuration> [--json]
+$ syscribe -m model/ configure <Configuration> --stage <stage> [--json]
+```
+
+`residual` lists every feature and parameter with a binding window that the Configuration's effective selection and bindings do not decide, grouped by the stage each can next be bound at and by that stage's `binder`; items whose window already closed are listed apart, and each applicable `parameterConstraints:` entry is shown as `satisfied`, `violated` or `undetermined` on the partial binding (MCP equivalent: the read-only `residual` tool). `configure --stage` restricts the forced/free report to features whose window contains the stage. See `ADR-SYS-BT-001` and spec §9.8.
+
 ### List the binding-time stages (`binding-times`)
 
 ```

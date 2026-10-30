@@ -19,4 +19,9 @@ Feature: Window membership
     Given an unstaged Configuration binding a runtime parameter
     When validate is run
     Then W027 is still raised
+
+  Scenario: an inherited binding is not judged at the derived stage
+    Given a runtime Configuration derived from a compile Configuration that bound a compile-window parameter
+    When the model is validated
+    Then no window-membership error is raised for the inherited binding
 ```
