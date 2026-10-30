@@ -43,6 +43,7 @@ pub mod port_types;
 pub mod mutate;
 pub mod constraints;
 pub mod expr;
+pub mod params;
 pub mod placeholders;
 pub mod plant;
 pub mod plant_cfg;

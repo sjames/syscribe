@@ -2,7 +2,7 @@
 id: TC-TRS-BT-023
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify params export writes the values for a stage keyed by FEAT id"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-023.sh
 verifies:

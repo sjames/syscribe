@@ -12,7 +12,7 @@ tags:
   - binding-time
 ---
 
-A parameter shall accept an optional `fallback:` — the safe value when a late binding is missing or invalid — validated against its `range:` and `enumValues:` as an error, and emitted by `params export` as a comment.
+A parameter shall accept an optional `fallback:` — the safe value when a late binding is missing or invalid — validated against its `range:` and `enumValues:` as an error (`E759`, reported once each by `validate` and `feature-check`), and emitted by `params export` as a comment.
 
 **Acceptance criteria:**
 - A `fallback:` outside `range:` is an error.

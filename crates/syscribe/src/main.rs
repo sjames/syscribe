@@ -33,6 +33,7 @@ mod help;
 mod ingest;
 mod lint_docs;
 mod bindingtimes;
+mod params;
 mod residual;
 mod linktypes;
 mod lsp;
@@ -950,6 +951,13 @@ fn main() {
                 // REQ-TRS-LINKTYPE-008 — the declared link-type vocabulary. Read-only.
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
+            }
+            "params" => {
+                // REQ-TRS-BT-023..030 — the late-bound parameter file. Read-only on the model.
+                let code = params::cmd_params(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "residual" => {
                 // REQ-TRS-BT-016 — what a Configuration leaves open. Read-only.

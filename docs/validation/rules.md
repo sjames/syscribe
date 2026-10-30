@@ -623,7 +623,7 @@ subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
 | W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a package declared with a qualified name, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097/-098/-100) |
 | W544 | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
-## Binding times (E750–E758, W750, ADR-SYS-BT-001)
+## Binding times (E750–E762, W750–W751, ADR-SYS-BT-001)
 
 The stage vocabulary behind `bindingTime:` is the built-in `compile < load < runtime`, refinable with `[bindingTimes.<name>]` tables in the model-root `.syscribe.toml` (keys `description`, `binder`, `after`, `before`; at least one of `after`/`before`). List it with `binding-times [--json]`.
 
@@ -638,7 +638,12 @@ The stage vocabulary behind `bindingTime:` is the built-in `compile < load < run
 | E756 | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
 | E757 | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
 | E758 | A staged `Configuration` closes the last valid completion: the choices made up to its `bindingStage:` (its effective selection restricted to features whose window opens no later) leave no valid configuration. Reported by `feature-check --deep` on the earliest Configuration of a `derivedFrom:` chain to do so; a partial Configuration is judged by this instead of `E225` (§9.8) |
+| E759 | A parameter's `fallback:` — the safe value for a missing or invalid late binding — lies outside the parameter's own `range:` or `enumValues:` (§9.7). Reported once each by `validate` and `feature-check` |
+| E760 | `params check`: the values file has a key the contract does not — an unknown top-level key, feature toggle, feature or parameter (§9.8) |
+| E761 | `params check`: the values file is not valid YAML, is not a mapping where one is expected, or a value has the wrong type for the parameter (§9.8) |
+| E762 | `params check`: a required parameter of the contract is missing from the values file or is still an open `null` placeholder (§9.8) |
 | W750 | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below). The entry is ignored whole; the rest of the vocabulary stays in force. |
+| W751 | `params check`: the values file was generated from a different model state (its `projection-hash` header differs from the contract's), or carries none — regenerate it with `params export`; gate with `--deny W751` (§9.8) |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

@@ -664,6 +664,32 @@ pub fn constraint_states(elements: &[RawElement], cfg_idx: usize) -> Vec<Constra
     out
 }
 
+/// `E759` (`REQ-TRS-BT-026`): a parameter's `fallback:` — the safe value used when a late
+/// binding is missing or invalid — must itself satisfy the parameter's `range:` and
+/// `enumValues:`. Shared by `validate` and `feature-check`, so each reports it once.
+pub fn parameter_contract_findings(elements: &[RawElement]) -> Vec<Finding> {
+    let mut f = Vec::new();
+    for fd in elements.iter().filter(|e| is(e, ElementType::FeatureDef)) {
+        for p in fd.frontmatter.parameters.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = p else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
+            let (Some(name), Some(fb)) = (get("name").and_then(|v| v.as_str()), get("fallback")) else { continue };
+            let at = format!("parameter '{}.{}' fallback", fd.qualified_name, name);
+            if let (Some((lo, hi)), Some(n)) = (get("range").and_then(|v| v.as_str()).and_then(parse_range), fb.as_f64()) {
+                if n < lo || n > hi {
+                    f.push(err("E759", &fd.file_path, format!("{at} {n} is outside the parameter's range {lo}..{hi}")));
+                }
+            }
+            if let (Some(allowed), Some(s)) = (get("enumValues").and_then(|v| v.as_sequence()), fb.as_str()) {
+                if !allowed.iter().any(|a| a.as_str() == Some(s)) {
+                    f.push(err("E759", &fd.file_path, format!("{at} '{s}' is not one of the parameter's enumValues")));
+                }
+            }
+        }
+    }
+    f
+}
+
 /// Binding-window rules (`REQ-TRS-BT-006..009`, generalising `E229`/`E230` of
 /// `REQ-TRS-PARAM-004`), shared by `validate` and `feature-check` so each reports
 /// them once:
@@ -914,6 +940,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
 
     // ── E229/E230/E750: binding windows (REQ-TRS-BT-006..009) ─────────────────
     f.extend(binding_window_findings(elements));
+    f.extend(parameter_contract_findings(elements));
 
     // ── E202: two-level bindTo propagation range ─────────────────────────────
     struct Bind<'a> {

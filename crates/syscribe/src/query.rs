@@ -1979,6 +1979,33 @@ pub fn cmd_trace(
         .map(|e| &e.frontmatter)
         .unwrap_or(fm);
 
+    // ── Parameter consumers (consumedBy, REQ-TRS-BT-027) ───────────────────
+    // A FeatureDef's parameters can name the elements or source files that read them.
+    if fm.element_type.as_ref() == Some(&ElementType::FeatureDef) {
+        let mut rows: Vec<(String, String)> = Vec::new();
+        for p in fm.parameters.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = p else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
+            let Some(name) = get("name").and_then(|v| v.as_str()) else { continue };
+            let by: Vec<String> = match get("consumedBy") {
+                Some(serde_yaml::Value::String(x)) => vec![x.clone()],
+                Some(serde_yaml::Value::Sequence(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_string)).collect(),
+                _ => continue,
+            };
+            rows.push((name.to_string(), by.join(", ")));
+        }
+        if !rows.is_empty() {
+            println!("## Parameter consumers (`consumedBy`)");
+            println!();
+            println!("| Parameter | Read by |");
+            println!("|---|---|");
+            for (n, by) in &rows {
+                println!("| {} | {} |", n, by);
+            }
+            println!();
+        }
+    }
+
     // ── Parents (derivedFrom) ─────────────────────────────────────────────
     let parents = cov_fm.derived_from.as_deref().unwrap_or(&[]);
     if !parents.is_empty() {

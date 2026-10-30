@@ -2,7 +2,7 @@
 id: TC-TRS-BT-024
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify the exported file is deterministic and stamped"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-024.sh
 verifies:

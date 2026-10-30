@@ -1544,6 +1544,15 @@ $ syscribe -m model/ configure <Configuration> --stage <stage> [--json]
 
 `residual` lists every feature and parameter with a binding window that the Configuration's effective selection and bindings do not decide, grouped by the stage each can next be bound at and by that stage's `binder`; items whose window already closed are listed apart, and each applicable `parameterConstraints:` entry is shown as `satisfied`, `violated` or `undetermined` on the partial binding (MCP equivalent: the read-only `residual` tool). `configure --stage` restricts the forced/free report to features whose window contains the stage. See `ADR-SYS-BT-001` and spec §9.8.
 
+### The late-bound parameter file (`params`)
+
+```
+$ syscribe -m model/ params export --config <Configuration> [--stage <stage>] [--out FILE] [--schema FILE] [--allow-open]
+$ syscribe -m model/ params check <FILE> --config <Configuration> [--stage <stage>] [--deny <CODES>]
+```
+
+`params export` generates a deterministic YAML values file — feature toggles and the parameters whose binding window contains the stage, keyed by stable `FEAT-*` id — from a Configuration, so a system that binds parameters at `load` or `runtime` has a file to read; `--schema` also writes its JSON Schema. It fails, naming each, when a required parameter has no value, default or fallback; `--allow-open` writes marked placeholders. `params check` validates a values file against the same contract (`E760`–`E762`, `E204`–`E206`) and reports a file generated from a different model state as `W751`. See spec §9.8, `ADR-SYS-BT-001`.
+
 ### List the binding-time stages (`binding-times`)
 
 ```

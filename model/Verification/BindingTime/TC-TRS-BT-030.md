@@ -2,7 +2,7 @@
 id: TC-TRS-BT-030
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify params check reports a stale file"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-030.sh
 verifies:

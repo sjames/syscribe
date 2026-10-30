@@ -2,7 +2,7 @@
 id: TC-TRS-BT-026
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify fallback is validated and exported"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-026.sh
 verifies:

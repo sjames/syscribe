@@ -2,7 +2,7 @@
 id: TC-TRS-BT-025
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify export fails on unresolved required parameters unless --allow-open"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-025.sh
 verifies:

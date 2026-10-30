@@ -6873,6 +6873,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     findings.extend(parameter_binding_findings(elements, config, &resolver));
     // E229/E230/E750 — binding windows (REQ-TRS-BT-006..009), shared with `feature-check`.
     findings.extend(crate::feature_model::binding_window_findings(elements));
+    // E759 (a fallback outside its parameter's constraints) and W023 (an unresolvable
+    // `consumedBy:`) — the late-bound parameter contract (REQ-TRS-BT-026/027).
+    findings.extend(crate::feature_model::parameter_contract_findings(elements));
+    findings.extend(consumed_by_findings(elements, config));
     // E751–E755 — staged Configurations (REQ-TRS-BT-011..014); E752/E756/E757 for parameters
     // are raised in `parameter_binding_findings` above.
     findings.extend(crate::staging::staged_configuration_findings(elements));
@@ -10666,6 +10670,37 @@ pub fn sub_configuration_findings(
     }
 
     own_findings
+}
+
+/// `W023` for a parameter's `consumedBy:` that names a local path which does not exist
+/// (`REQ-TRS-BT-027`). Resolved exactly like `implementedBy:` (§12.8): a local path is
+/// checked on disk, a remote URI or package-registry reference is accepted as external.
+fn consumed_by_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<Finding> {
+    let mut f = Vec::new();
+    for fd in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef))) {
+        if fd.frontmatter.status.as_deref() == Some("draft") {
+            continue;
+        }
+        for p in fd.frontmatter.parameters.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = p else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
+            let Some(name) = get("name").and_then(|v| v.as_str()) else { continue };
+            let paths: Vec<String> = match get("consumedBy") {
+                Some(serde_yaml::Value::String(s)) => vec![s.clone()],
+                Some(serde_yaml::Value::Sequence(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_string)).collect(),
+                _ => continue,
+            };
+            for path in paths {
+                if let crate::config::SourceLocation::Local(p) = config.classify_source(&path) {
+                    if !p.exists() {
+                        f.push(warning("W023", &fd.file_path, &format!(
+                            "parameter '{}.{}' consumedBy path '{}' does not exist on disk", fd.qualified_name, name, path)));
+                    }
+                }
+            }
+        }
+    }
+    f
 }
 
 /// Per-parameter metadata read off a `FeatureDef`'s `parameters:` entry, used

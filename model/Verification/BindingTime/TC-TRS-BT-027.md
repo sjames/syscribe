@@ -2,7 +2,7 @@
 id: TC-TRS-BT-027
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify consumedBy resolves and is shown"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-027.sh
 verifies:
