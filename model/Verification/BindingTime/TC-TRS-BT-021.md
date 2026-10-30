@@ -2,7 +2,7 @@
 id: TC-TRS-BT-021
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify the source and stage of each effective value is determined"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-021.sh
 verifies:

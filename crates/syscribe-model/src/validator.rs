@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
-use crate::binding_time::BindingTime;
+use crate::binding_time::{BindingTime, BindingWindow};
 use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
@@ -6873,6 +6873,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     findings.extend(parameter_binding_findings(elements, config, &resolver));
     // E229/E230/E750 — binding windows (REQ-TRS-BT-006..009), shared with `feature-check`.
     findings.extend(crate::feature_model::binding_window_findings(elements));
+    // E751–E755 — staged Configurations (REQ-TRS-BT-011..014); E752/E756/E757 for parameters
+    // are raised in `parameter_binding_findings` above.
+    findings.extend(crate::staging::staged_configuration_findings(elements));
 
     // W028: duplicate external references (§3, REQ-TRS-EXTREF-001).
     findings.extend(ext_ref_duplicate_findings(elements));
@@ -10677,6 +10680,9 @@ struct ParamMeta {
     /// Binding-time stage of the effective vocabulary; `None` when `bindingTime:`
     /// is absent (unspecified — the parameter opts out of binding-time checks).
     binding_time: Option<BindingTime>,
+    /// The parameter's full binding window (`bindingTime:`..`latestBindingTime:`), for the
+    /// staged-configuration rules (REQ-TRS-BT-012/015); `None` when unspecified or unusable.
+    window: Option<BindingWindow>,
 }
 
 /// A `FeatureDef` parameter reached through `subConfigurations:`, plus the
@@ -10756,9 +10762,14 @@ fn build_feature_params(elements: &[RawElement]) -> HashMap<String, HashMap<Stri
                 // The earliest stage of the parameter's binding window; an unknown value is
                 // reported once, by `feature_model::binding_window_findings` (E230).
                 let binding_time = get("bindingTime").and_then(|v| v.as_str()).and_then(BindingTime::parse);
+                let window = BindingWindow::read(
+                    get("bindingTime").and_then(|v| v.as_str()),
+                    get("latestBindingTime").and_then(|v| v.as_str()),
+                )
+                .0;
                 params.insert(
                     name.to_string(),
-                    ParamMeta { is_fixed, range, enum_values, is_required, has_default, binding_time },
+                    ParamMeta { is_fixed, range, enum_values, is_required, has_default, binding_time, window },
                 );
             }
         }
@@ -10978,11 +10989,16 @@ pub fn parameter_binding_findings(
     let config = &*with_repo_mounts(elements, config);
 
     let feature_params = build_feature_params(elements);
+    // Staged-configuration context (REQ-TRS-BT-011..015): `derivedFrom:` chains and stages.
+    let stage_ctx = crate::staging::StageContext::new(elements);
 
-    for cfg in elements
+    for (cfg_idx, cfg) in elements
         .iter()
-        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+        .enumerate()
+        .filter(|(_, e)| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
     {
+        // `None` for an unstaged Configuration, or one whose `bindingStage:` is unknown (E751).
+        let cfg_stage = stage_ctx.stage(cfg_idx);
         let sel = crate::variability::canon_selection(
             &cfg.frontmatter.feature_selections(),
             &crate::variability::feature_id_to_qname(elements),
@@ -11107,9 +11123,28 @@ pub fn parameter_binding_findings(
                         }
                     }
                 }
-                if meta.binding_time.is_some_and(BindingTime::is_runtime) {
-                    findings.push(warning("W027", file, &format!(
-                        "parameterBindings binds '{}' which has bindingTime: runtime (resolved by the running system, not at configuration time)", path)));
+                match (cfg_stage, meta.window) {
+                    // A staged Configuration may bind only what its stage can bind (E752);
+                    // a runtime parameter bound at `runtime` is then simply in its window.
+                    (Some(st), Some(w)) if !w.contains(st) => {
+                        findings.push(error("E752", file, &format!(
+                            "parameterBindings binds '{}' at bindingStage {}, but its binding window is {} — it cannot be bound at this stage",
+                            path, st.name(), w.describe())));
+                    }
+                    (Some(_), _) => {}
+                    (None, _) if meta.binding_time.is_some_and(BindingTime::is_runtime) => {
+                        findings.push(warning("W027", file, &format!(
+                            "parameterBindings binds '{}' which has bindingTime: runtime (resolved by the running system, not at configuration time)", path)));
+                    }
+                    (None, _) => {}
+                }
+                // E756: stay inside what an ancestor Configuration narrowed the parameter to.
+                if let Some(n) = stage_ctx.effective_narrowing(cfg_idx, &stage_ctx.canon_key(path)) {
+                    if !n.admits(val) {
+                        findings.push(error("E756", file, &format!(
+                            "parameterBindings '{}' = {} is outside {} — what the parameter was narrowed to along the derivedFrom chain",
+                            path, num(val).map(|x| x.to_string()).or_else(|| val.as_str().map(str::to_string)).unwrap_or_default(), n.describe())));
+                    }
                 }
             }
         }
@@ -11124,8 +11159,17 @@ pub fn parameter_binding_findings(
                 if meta.is_required && !meta.is_fixed && !meta.has_default && !meta.binding_time.is_some_and(BindingTime::is_runtime) {
                     let path = format!("{}.{}", feat, pname);
                     if !bound.contains(&path) {
-                        findings.push(warning("W017", file, &format!(
-                            "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat)));
+                        match (cfg_stage, meta.window) {
+                            // E757: the window closed before this stage and nothing in the
+                            // chain bound it, so no later stage can — a defect, not a warning.
+                            (Some(st), Some(w)) if w.latest < st => {
+                                findings.push(error("E757", file, &format!(
+                                    "required parameter '{}' of selected feature '{}' is unbound and its binding window ({}) closed before bindingStage {}",
+                                    path, feat, w.describe(), st.name())));
+                            }
+                            _ => findings.push(warning("W017", file, &format!(
+                                "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat))),
+                        }
                     }
                 }
             }

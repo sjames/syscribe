@@ -2,7 +2,7 @@
 id: TC-TRS-BT-022
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify provenance appears in show, configure and the JSON outputs"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-022.sh
 verifies:

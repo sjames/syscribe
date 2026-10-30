@@ -5523,6 +5523,8 @@ Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+$`. Like `FEAT-*` a
 | `parameterBindings` | map | optional | absent | Parameter value assignments keyed by the canonical dotted reference: `<FeatureDef qname>.<paramName>: <value>`. Resolves transitively through `subConfigurations:` (§14.7) at any depth, using the parameter's ordinary, already-mounted qname. |
 | `subConfigurations` | string or list | optional | absent | One or more other `Configuration` elements this one consolidates — reachable locally or via a `[repos]`-mounted peer repo (§14.7, `ADR-SYS-HPLE-001`). |
 | `satisfies` | list of strings | optional | absent | For component `Configuration` only: qualified names of system-level `FeatureDef` elements this configuration realises. This is the sole top-down binding in the two-level model. |
+| `bindingStage` | string | optional | absent | The binding-time stage at which this Configuration binds (see *Staged configuration* below). An unknown stage is `E751`. |
+| `parameterNarrowing` | map | optional | absent | `<FeatureDef qname>.<param>` → a narrower `range:` string or `enumValues` list (see *Staged configuration* below). |
 | `derivedFrom` | string | optional | absent | Qualified name or `CONF-*` id of **one** base `Configuration` in the same model that this one extends. Inherits the base's effective `features:` and `parameterBindings:`; entries in this file override the base (see *Configuration inheritance* below). |
 | `baselineRef` | string | optional | absent | Opaque external baseline reference (e.g., a Git tag, CM baseline ID). |
 | `tags` | list of strings | optional | absent | Free labels. |
@@ -5599,6 +5601,78 @@ Long-range variant using 2.4 GHz band for better penetration in forested areas.
 4. **Nothing else is inherited** — `status`, `featureModel`, `subConfigurations:`, `buildOverrides:`, `baselineRef`, `tags` stay per-file.
 5. **Everything reads the effective selection** — projection (`--config`), `matrix`, `configure`, `validate --config`/`--all-configs`, `feature-check` (incl. `--deep` configuration validity), `build-config`, the per-Configuration rules (`E203`–`E206`, `E219`/`E220`, `W015`–`W017`; `E216`–`E218` are never emitted — `feature-check --deep` reports group violations as `E225`) and `subConfigurations:` consolidation (a consolidated Configuration's inherited bindings close its parameters for `E523`/`W513`). `show` marks inherited entries. The authored file is never rewritten. The effective selection is a property of the **whole** model (it depends on the base chain), so a tool that re-parses a single `Configuration` on its own — such as the language server's rename-safety check — re-derives inheritance over the full element set rather than reading the re-parsed file in isolation.
 6. **Checks.** A Configuration's `derivedFrom:` is not a requirement derivation: it never raises `E105`/`E017` and never enters `derivedChildren`. Instead: `E234` the base does not resolve, `E235` it resolves to a non-`Configuration`, `E236` the configuration is on an inheritance cycle, `E237` more than one base is named (a child with any of these inherits nothing), and `E215` the base is not `approved`/`released`.
+
+### Staged configuration
+
+A `Configuration` may declare the **stage** at which it binds variability (`ADR-SYS-BT-001`), so a product line is specialised progressively — a compile-time Configuration, a deployment Configuration derived from it, a runtime Configuration derived from that. The stages are those of the binding-time vocabulary (§9.7: `compile < load < runtime` plus any declared in `[bindingTimes]`; list them with `binding-times`).
+
+A feature with a parameter that may be bound at build time or deferred to deployment:
+
+<!-- syscribe-example: path="SystemFeatures/Propulsion.md" -->
+```yaml
+---
+type: FeatureDef
+id: FEAT-UAV-PROP
+name: Propulsion
+groupKind: optional
+parameters:
+  - name: motorKV
+    type: ScalarValues::Real
+    range: "900..1200"
+    bindingTime: compile
+    latestBindingTime: load
+---
+```
+
+The compile-stage Configuration narrows the parameter without fixing it:
+
+```yaml
+---
+type: Configuration
+id: CONF-UAV-BUILD-001
+name: "UAV — build settings"
+status: approved
+featureModel: SystemFeatures
+bindingStage: compile
+features:
+  SystemFeatures::Propulsion: true
+parameterNarrowing:
+  SystemFeatures::Propulsion.motorKV: "900..1100"
+---
+```
+
+The deployment Configuration, derived from it, narrows further and binds the value:
+
+```yaml
+---
+type: Configuration
+id: CONF-UAV-LOAD-001
+name: "UAV — deployment settings"
+status: approved
+featureModel: SystemFeatures
+bindingStage: load             # this Configuration binds at the load stage
+derivedFrom: CONF-UAV-BUILD-001  # a compile-stage Configuration
+parameterNarrowing:            # shrink what is still open; never widen
+  SystemFeatures::Propulsion.motorKV: "950..1100"
+parameterBindings:
+  SystemFeatures::Propulsion.motorKV: 1000
+---
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `bindingStage` | string | The stage at which this Configuration binds. Absent = *unstaged*: checked exactly as before. An unknown stage is `E751` (and the Configuration is then checked as unstaged). |
+| `parameterNarrowing` | map | `<FeatureDef qname>.<param>` → a `lo..hi` / `lo..=hi` range string, or a list of enum values, shrinking what the parameter allows. |
+
+A staged Configuration is checked against the binding windows of §9.7 and against its `derivedFrom:` chain:
+
+1. **Window membership (`E752`).** It may select a feature (each entry of its own `features:` map) or bind a parameter (each `parameterBindings:` entry, including one reaching a `subConfigurations:` tier) only if the item's binding window contains its stage. A `runtime` parameter bound at stage `runtime` is within its window. For an *unstaged* Configuration, binding a `runtime` parameter keeps its `W027` warning; `W027` does not apply to a staged one, where `E752` says it precisely.
+2. **Monotonic chain (`E753`).** When a Configuration and its `derivedFrom:` base are both staged, the derived one binds at the same or a later stage.
+3. **Closed values (`E754`).** A value bound by a *staged* ancestor is closed: a descendant that sets the same `<feature>.<param>` to a **different** value, or flips a feature selection the ancestor decided, is an error. The nearest ancestor declaring the key decides, and an unstaged ancestor closes nothing. Restating the same value is harmless and silent.
+4. **Narrow only (`E755`, `E756`).** A `parameterNarrowing:` entry must be well-formed, name a declared parameter, and lie inside both the parameter's declared `range:`/`enumValues:` and every ancestor's narrowing (`E755`). A binding must lie inside the narrowing in force along the chain (`E756` — distinct from `E205`/`E206`, which judge it against the declaration).
+5. **Closed window, still unbound (`E757`).** A required parameter of a selected feature, with no default or fixed value and no binding anywhere in the chain, whose window closed *before* the Configuration's stage, can no longer be bound by any later stage; that is `E757`, reported in place of the `W017` warning. A parameter whose window is still open is *residual variability*, not an error.
+
+The effective value of every feature selection and parameter, with where it came from and the stage it was bound at, is shown by `show <Configuration>` and `configure <Configuration>` (`provenance` in `--json`): the sources are the Configuration's own binding, a named `derivedFrom:` ancestor, a `subConfigurations:` tier, `bindTo:` propagation, the parameter's `derivedFrom:` expression, its fixed `value:`, or its `default:`.
 
 ---
 
@@ -6806,13 +6880,20 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 | `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
 
-#### Binding times (E750, W750, §9.7)
+#### Binding times (E750–E757, W750, §9.7)
 
 Active only when `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
 
 | Code | Condition |
 |---|---|
 | `E750` | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| `E751` | A `Configuration`'s `bindingStage:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]`; the Configuration is then checked as unstaged (§9.8) |
+| `E752` | A staged `Configuration` selects a feature (a `features:` entry of its own) or binds a parameter (a `parameterBindings:` entry) whose binding window does not contain its `bindingStage:` (§9.8) |
+| `E753` | A staged `Configuration` is `derivedFrom:` a staged base whose `bindingStage:` is **later** than its own (§9.8) |
+| `E754` | A staged `Configuration` sets a `<feature>.<param>` binding to a different value, or flips a feature selection, that a staged `derivedFrom:` ancestor already decided — a value bound at an earlier stage is closed (§9.8) |
+| `E755` | A `parameterNarrowing:` entry is malformed, names no declared `FeatureDef` parameter, mismatches the parameter's kind (range vs `enumValues`), or **widens** the parameter's declared `range:`/`enumValues:` or an ancestor Configuration's narrowing (§9.8) |
+| `E756` | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
+| `E757` | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
 | `W750` | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 
 #### IEC 62443 Zone/Conduit validation (E950–E956, E925, E926, W950–W953, §13.5)

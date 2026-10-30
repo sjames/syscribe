@@ -12,7 +12,7 @@ tags:
   - binding-time
 ---
 
-When a Configuration and its `derivedFrom:` base (§9.8) are both staged, the derived Configuration's `bindingStage:` shall be the same as or later than the base's; an earlier one shall be an error.
+When a Configuration and its `derivedFrom:` base (§9.8) are both staged, the derived Configuration's `bindingStage:` shall be the same as or later than the base's; an earlier one shall be an error (`E753`).
 
 **Acceptance criteria:**
 - A `compile` Configuration derived from a `load` Configuration is an error; the reverse is clean.

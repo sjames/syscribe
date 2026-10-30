@@ -623,13 +623,20 @@ subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
 | W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a package declared with a qualified name, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097/-098/-100) |
 | W544 | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
-## Binding times (E750, W750, ADR-SYS-BT-001)
+## Binding times (E750–E757, W750, ADR-SYS-BT-001)
 
 The stage vocabulary behind `bindingTime:` is the built-in `compile < load < runtime`, refinable with `[bindingTimes.<name>]` tables in the model-root `.syscribe.toml` (keys `description`, `binder`, `after`, `before`; at least one of `after`/`before`). List it with `binding-times [--json]`.
 
 | Code | Condition |
 |---|---|
 | E750 | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| E751 | A `Configuration`'s `bindingStage:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]`; the Configuration is then checked as unstaged (§9.8) |
+| E752 | A staged `Configuration` selects a feature (a `features:` entry of its own) or binds a parameter (a `parameterBindings:` entry) whose binding window does not contain its `bindingStage:` (§9.8) |
+| E753 | A staged `Configuration` is `derivedFrom:` a staged base whose `bindingStage:` is **later** than its own (§9.8) |
+| E754 | A staged `Configuration` sets a `<feature>.<param>` binding to a different value, or flips a feature selection, that a staged `derivedFrom:` ancestor already decided — a value bound at an earlier stage is closed (§9.8) |
+| E755 | A `parameterNarrowing:` entry is malformed, names no declared `FeatureDef` parameter, mismatches the parameter's kind (range vs `enumValues`), or **widens** the parameter's declared `range:`/`enumValues:` or an ancestor Configuration's narrowing (§9.8) |
+| E756 | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
+| E757 | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
 | W750 | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below). The entry is ignored whole; the rest of the vocabulary stays in force. |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)

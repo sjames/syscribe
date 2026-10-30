@@ -1103,6 +1103,13 @@ pub fn cmd_show(
         }
     }
 
+    // Binding stage and parameter-value provenance (ADR-SYS-BT-001, REQ-TRS-BT-021/022).
+    if fm.element_type.as_ref() == Some(&ElementType::Configuration) {
+        if let Some(idx) = elements.iter().position(|e| std::ptr::eq(e, elem)) {
+            print_config_provenance(&syscribe_model::provenance::provenance(elements, idx), fm.binding_stage.as_deref());
+        }
+    }
+
     // subConfigurations (§14.7, ADR-SYS-HPLE-001) — the other Configuration(s)
     // this one consolidates, local or via a loaded peer repo.
     if let Some(ref subs) = fm.sub_configurations {
@@ -2957,6 +2964,40 @@ pub fn cmd_feature_check(
     }
 }
 
+/// The binding stage and the effective parameter values of a Configuration, each with
+/// where it came from and the stage it was bound at (REQ-TRS-BT-021/022).
+fn print_config_provenance(p: &syscribe_model::provenance::ConfigProvenance, declared_stage: Option<&str>) {
+    if let Some(st) = declared_stage {
+        let note = if p.stage.is_none() { " (not a stage of the vocabulary — E751)" } else { "" };
+        println!();
+        println!("**bindingStage:** {st}{note}");
+    }
+    if p.parameters.is_empty() {
+        return;
+    }
+    println!();
+    println!("## Parameter values");
+    println!();
+    println!("| Parameter | Value | Source | Stage |");
+    println!("|---|---|---|---|");
+    for q in &p.parameters {
+        let v = match &q.value {
+            serde_yaml::Value::String(s) => s.clone(),
+            other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
+        };
+        println!("| {} | {} | {} | {} |", q.key, v, q.source.describe(), q.stage.as_deref().unwrap_or("—"));
+    }
+}
+
+/// Provenance of the Configuration `conf` names (by id or qualified name), if there is one.
+fn provenance_for(elements: &[RawElement], conf: &str) -> Option<syscribe_model::provenance::ConfigProvenance> {
+    let idx = elements.iter().position(|e| {
+        e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration)
+            && (e.frontmatter.id.as_deref() == Some(conf) || e.qualified_name == conf)
+    })?;
+    Some(syscribe_model::provenance::provenance(elements, idx))
+}
+
 /// `configure <Configuration>`: assisted configuration (REQ-TRS-FMA-008). Treats
 /// the configuration's `features:` as a partial selection and reports
 /// satisfiability + forced/free features. Exit `1` if the partial selection is
@@ -2983,6 +3024,7 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
                     "forcedFalse": forced_false,
                     "free": free,
                     "explanation": explanation,
+                    "provenance": provenance_for(elements, conf).map(|p| syscribe_model::provenance::to_json(&p)),
                 });
                 println!("{}", serde_json::to_string_pretty(&doc).unwrap());
             } else {
@@ -2997,6 +3039,9 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
                     println!("- forced (true): {}", or_none(&forced_true));
                     println!("- forced (false): {}", or_none(&forced_false));
                     println!("- free: {}", or_none(&free));
+                }
+                if let Some(p) = provenance_for(elements, conf) {
+                    print_config_provenance(&p, None);
                 }
             }
             if !satisfiable {

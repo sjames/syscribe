@@ -1073,6 +1073,14 @@ pub struct ColdFrontmatter {
     pub binding_time: Option<String>,
     pub latest_binding_time: Option<String>,
 
+    /// `bindingStage:` (REQ-TRS-BT-011) — on a `Configuration`: the stage at which it
+    /// binds. Absent = unstaged, checked exactly as before.
+    pub binding_stage: Option<String>,
+    /// `parameterNarrowing:` (REQ-TRS-BT-014) — on a `Configuration`: `<feature>.<param>`
+    /// → a narrower `range:` string or `enumValues` list than the parameter declares
+    /// (or than an ancestor Configuration already narrowed it to).
+    pub parameter_narrowing: Option<serde_yaml::Value>,
+
     /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
     /// whole feature model as one **flat** list. Each entry is shaped like a
     /// `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`,
@@ -1900,6 +1908,14 @@ struct ColdWire {
     pub binding_time: Option<String>,
     pub latest_binding_time: Option<String>,
 
+    /// `bindingStage:` (REQ-TRS-BT-011) — on a `Configuration`: the stage at which it
+    /// binds. Absent = unstaged, checked exactly as before.
+    pub binding_stage: Option<String>,
+    /// `parameterNarrowing:` (REQ-TRS-BT-014) — on a `Configuration`: `<feature>.<param>`
+    /// → a narrower `range:` string or `enumValues` list than the parameter declares
+    /// (or than an ancestor Configuration already narrowed it to).
+    pub parameter_narrowing: Option<serde_yaml::Value>,
+
     /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
     /// whole feature model as one **flat** list. Each entry is shaped like a
     /// `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`,
@@ -2487,6 +2503,8 @@ impl ColdWire {
             mandatory: w.mandatory,
             binding_time: w.binding_time,
             latest_binding_time: w.latest_binding_time,
+            binding_stage: w.binding_stage,
+            parameter_narrowing: w.parameter_narrowing,
             feature_tree: w.feature_tree,
             cross_tree_constraints: w.cross_tree_constraints,
             parameter_constraints: w.parameter_constraints,

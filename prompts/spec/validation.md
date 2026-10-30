@@ -891,13 +891,20 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 
-## Binding times (E750, W750, ADR-SYS-BT-001)
+## Binding times (E750–E757, W750, ADR-SYS-BT-001)
 
 Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
 
 | Code | Condition |
 |---|---|
 | `E750` | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| `E751` | A `Configuration`'s `bindingStage:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]`; the Configuration is then checked as unstaged (§9.8) |
+| `E752` | A staged `Configuration` selects a feature (a `features:` entry of its own) or binds a parameter (a `parameterBindings:` entry) whose binding window does not contain its `bindingStage:` (§9.8) |
+| `E753` | A staged `Configuration` is `derivedFrom:` a staged base whose `bindingStage:` is **later** than its own (§9.8) |
+| `E754` | A staged `Configuration` sets a `<feature>.<param>` binding to a different value, or flips a feature selection, that a staged `derivedFrom:` ancestor already decided — a value bound at an earlier stage is closed (§9.8) |
+| `E755` | A `parameterNarrowing:` entry is malformed, names no declared `FeatureDef` parameter, mismatches the parameter's kind (range vs `enumValues`), or **widens** the parameter's declared `range:`/`enumValues:` or an ancestor Configuration's narrowing (§9.8) |
+| `E756` | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
+| `E757` | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
 | `W750` | A `[bindingTimes.<name>]` entry in `.syscribe.toml` is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)

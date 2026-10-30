@@ -2,7 +2,7 @@
 id: TC-TRS-BT-014
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify ancestor values are closed and ranges only narrow"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-014.sh
 verifies:

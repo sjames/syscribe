@@ -2,7 +2,7 @@
 id: TC-TRS-BT-013
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a derived Configuration's stage is not earlier than its base's"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-013.sh
 verifies:

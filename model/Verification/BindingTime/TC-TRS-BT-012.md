@@ -2,7 +2,7 @@
 id: TC-TRS-BT-012
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a staged Configuration binds only within its stage window"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-012.sh
 verifies:

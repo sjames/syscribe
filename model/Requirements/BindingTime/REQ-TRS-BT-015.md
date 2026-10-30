@@ -12,7 +12,7 @@ tags:
   - binding-time
 ---
 
-A required parameter with no default whose window closed before the Configuration's stage, and that no Configuration in the chain binds, shall be an error; a parameter whose window is still open shall be residual variability ([[REQ-TRS-BT-016]]), not an error.
+A required parameter with no default whose window closed before the Configuration's stage, and that no Configuration in the chain binds, shall be an error (`E757`, in place of the `W017` warning that parameter would otherwise get); a parameter whose window is still open shall be residual variability ([[REQ-TRS-BT-016]]), not an error.
 
 **Acceptance criteria:**
 - A `compile`-window required parameter unbound in a `load`-stage Configuration is an error.
