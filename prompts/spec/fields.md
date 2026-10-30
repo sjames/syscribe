@@ -202,6 +202,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `securityTestMethod` | string | optional (ISO/SAE 21434 §13.3) — `fuzz` · `penetration_test` · `security_regression` · `vulnerability_scan` · `threat_modeling` (W809 if other). Orthogonal to `testLevel`; lets `verification-depth`/`matrix` distinguish security-method tests from functional ones |
 | `sourceFile` | string | Path relative to model root (W004 if not found) |
 | `testFunctions` | list | Each entry a function-name string or `{function: name, scenario: "title"}` |
+| `coversVariability` | list | Late-bound features (FEAT id / qname) and parameters (`<feature>.<param>`) whose declared range or values this test exercises; clears the late-bound safety rule `W753` for a requirement it verifies; an entry naming nothing is `W754` (§9.8) |
 | `coverageTarget` | string | `statement` · `branch` · `MCDC` (`E021`) |
 | `tags` | list | Free-form tags |
 

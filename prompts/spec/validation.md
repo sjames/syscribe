@@ -109,6 +109,7 @@
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
 | `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |
+| `I750` | Informational (`validate --config`): an element is variant-retained — the staged Configuration's projection keeps it because its `appliesWhen:` depends on a feature still open at that stage; also listed by `residual` (§9.8). Never affects the exit status |
 | `I011` | Informational: plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
 
 ## Safety / ASPICE warnings (W701–W703)
@@ -891,7 +892,7 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 
-## Binding times (E750–E762, W750–W751, ADR-SYS-BT-001)
+## Binding times (E750–E762, W750–W754, I750, ADR-SYS-BT-001)
 
 Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
 
@@ -910,6 +911,9 @@ Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabula
 | `E760` | `params check`: the values file has a key the contract does not — an unknown top-level key, feature toggle, feature or parameter (§9.8) |
 | `E761` | `params check`: the values file is not valid YAML, is not a mapping where one is expected, or a value has the wrong type for the parameter (§9.8) |
 | `E762` | `params check`: a required parameter of the contract is missing from the values file or is still an open `null` placeholder (§9.8) |
+| `W752` | `validate --config` / `residual`: an element references a variant-retained one yet applies only where it does not (their `appliesWhen:` conditions can never hold together), so it relies on the absence of an element the staged projection keeps because its condition is still open (§9.8) |
+| `W753` | A non-draft requirement with a SIL/ASIL/CAL level is influenced — through its `appliesWhen:` or a `{{Feature.param}}` placeholder — by a feature or parameter bound at `load` or later, and no non-draft verifying `TestCase` lists it in `coversVariability:`. Opt-in (draft-suppressed, silent without binding windows); gate with `--deny W753` (§9.8) |
+| `W754` | A `TestCase`'s `coversVariability:` entry names no feature or parameter of the feature model (§9.8) |
 | `W750` | A `[bindingTimes.<name>]` entry in `.syscribe.toml` is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 | `W751` | `params check`: the values file was generated from a different model state (its `projection-hash` header differs from the contract's), or carries none — regenerate it with `params export`; gate with `--deny W751` (§9.8) |
 

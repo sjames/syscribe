@@ -6877,6 +6877,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // `consumedBy:`) — the late-bound parameter contract (REQ-TRS-BT-026/027).
     findings.extend(crate::feature_model::parameter_contract_findings(elements));
     findings.extend(consumed_by_findings(elements, config));
+    // W753/W754 — late-bound variability reaching a safety requirement (REQ-TRS-BT-034).
+    findings.extend(crate::late_safety::findings(elements));
     // E751–E755 — staged Configurations (REQ-TRS-BT-011..014); E752/E756/E757 for parameters
     // are raised in `parameter_binding_findings` above.
     findings.extend(crate::staging::staged_configuration_findings(elements));

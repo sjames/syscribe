@@ -2,7 +2,7 @@
 id: TC-TRS-BT-035
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify matrix --stage gives a per-stage coverage grid"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-035.sh
 verifies:

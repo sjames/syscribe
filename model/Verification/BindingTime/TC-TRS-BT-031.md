@@ -2,7 +2,7 @@
 id: TC-TRS-BT-031
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify projection retains elements depending on later-bound features"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-031.sh
 verifies:

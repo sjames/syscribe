@@ -2,7 +2,7 @@
 id: TC-TRS-BT-033
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify retained elements are listed and unstaged projection is unchanged"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-033.sh
 verifies:

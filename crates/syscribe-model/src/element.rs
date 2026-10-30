@@ -772,6 +772,10 @@ pub struct RawFrontmatter {
     pub test_level: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
+    /// `coversVariability:` (REQ-TRS-BT-034) — features (`FEAT-*` id or qualified name) and
+    /// parameters (`<feature>.<param>`) whose late-bound range or values this TestCase is
+    /// written to exercise. Read by the late-bound safety rule (`W753`).
+    pub covers_variability: Option<Vec<String>>,
 
     // Native TestPlan fields (GH #38; REQ-TRS-PLAN-001..004)
     /// `scope:` — free-form, recommended vocab unit|smoke|integration|hil|
@@ -928,6 +932,11 @@ pub struct RawFrontmatter {
     /// [`RawFrontmatter::effective_parameter_bindings`].
     #[serde(skip)]
     pub inherited: Option<Box<InheritedConfiguration>>,
+    /// Set on the clone of an element that a staged projection keeps although its
+    /// `appliesWhen:` depends on a feature still open at that stage (`REQ-TRS-BT-031`).
+    /// Never (de)serialized: it describes one projection, not the authored element.
+    #[serde(skip)]
+    pub variant_retained: bool,
     /// `applies_when` was copied from the owning TARA/FMEA sheet, not authored on this
     /// row (GH #229). The sheet already carries the authored declaration, so per-element
     /// validity and nesting checks skip the copy rather than repeat the finding.

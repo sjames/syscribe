@@ -276,6 +276,45 @@ pub fn feature_windows(elements: &[RawElement]) -> HashMap<String, BindingWindow
         .collect()
 }
 
+/// The features of Configuration `elements[cfg_idx]` that are still *open* as seen at
+/// stage `view`: they declare a binding window that extends beyond `view`, and no
+/// Configuration in the `derivedFrom:` chain has decided them by then (a Configuration
+/// decides at its own stage; an unstaged one is taken to decide immediately). Only real
+/// choices count — not abstract or mandatory features. A feature with no window, or whose
+/// window has closed by `view`, is decided.
+pub fn open_features_at(elements: &[RawElement], cfg_idx: usize, view: BindingTime) -> std::collections::HashSet<String> {
+    let ctx = StageContext::new(elements);
+    let chain: Vec<usize> = std::iter::once(cfg_idx).chain(ctx.ancestors(cfg_idx)).collect();
+    let mut open = std::collections::HashSet::new();
+    for fd in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef))) {
+        let fm = &fd.frontmatter;
+        if fm.is_abstract == Some(true) || fm.mandatory == Some(true) || fm.group_kind.as_deref() == Some("mandatory") {
+            continue;
+        }
+        let Some(w) = BindingWindow::read(fm.binding_time.as_deref(), fm.latest_binding_time.as_deref()).0 else { continue };
+        if w.latest <= view {
+            continue;
+        }
+        let decided = chain
+            .iter()
+            .find(|&&c| ctx.own_selection(c).contains_key(&fd.qualified_name))
+            .is_some_and(|&c| ctx.stage(c).map_or(true, |s| s <= view));
+        if !decided {
+            open.insert(fd.qualified_name.clone());
+        }
+    }
+    open
+}
+
+/// The features Configuration `elements[cfg_idx]` leaves open at its own stage; empty for an
+/// unstaged Configuration (it is projected exactly as before).
+pub fn open_features(elements: &[RawElement], cfg_idx: usize) -> std::collections::HashSet<String> {
+    match StageContext::new(elements).stage(cfg_idx) {
+        Some(st) => open_features_at(elements, cfg_idx, st),
+        None => std::collections::HashSet::new(),
+    }
+}
+
 /// Qualified names of the staged Configurations that a staged Configuration is derived
 /// from. Such a Configuration is deliberately *partial* — it decides only what its stage
 /// can, and a later stage completes it — so it is judged by whether a valid completion

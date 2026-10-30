@@ -12,7 +12,7 @@ tags:
   - binding-time
 ---
 
-Variant-retained elements shall be listed by `validate --config X` and `residual`, and projection of an unstaged Configuration, or of a model with no binding windows, shall be byte-identical to the current output.
+Variant-retained elements shall be listed by `validate --config X` (as `I750`, informational) and by `residual`, from the one retention report, and projection of an unstaged Configuration, or of a model with no binding windows, shall be byte-identical to the current output.
 
 **Acceptance criteria:**
 - The retained list is the same in `validate --config` and `residual`.

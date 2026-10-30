@@ -2,7 +2,7 @@
 id: TC-TRS-BT-034
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify late-bound variability reaching a safety requirement needs covering verification"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-034.sh
 verifies:

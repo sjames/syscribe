@@ -2,7 +2,7 @@
 id: TC-TRS-BT-039
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify every binding-time field, code and command is documented and registered"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-039.sh
 verifies:

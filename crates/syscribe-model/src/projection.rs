@@ -214,16 +214,46 @@ pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> 
     let alias = variability::feature_id_to_qname(elements);
     let sel = variability::canon_selection(sel, &alias);
     let resolver = Resolver::new(elements);
-    let gate = |e: &RawElement| is_active_canon(e, &sel, &pkg, &alias);
+    // A staged Configuration leaves later-bound features open; an element whose `appliesWhen:`
+    // they decide is retained rather than dropped (REQ-TRS-BT-031). Empty — and the original,
+    // two-valued gate — for an unstaged Configuration or a model with no binding windows.
+    let open = open_features_for(elements, &sel);
+    let gate = |e: &RawElement| {
+        if open.is_empty() {
+            is_active_canon(e, &sel, &pkg, &alias)
+        } else {
+            crate::retention::state(e, &sel, &pkg, &alias, &open) != Some(false)
+        }
+    };
     let plan_bound_here = |e: &RawElement| plan_bound_here(e, elements, &resolver, &pkg, &alias, &sel);
     let mut out: Vec<RawElement> =
         elements.iter().filter(|e| gate(e) && plan_bound_here(e) && !allocation_gated_off(e, elements, &resolver, &gate)).cloned().collect();
+    if !open.is_empty() {
+        for e in out.iter_mut().filter(|e| crate::retention::state(e, &sel, &pkg, &alias, &open).is_none()) {
+            e.frontmatter.variant_retained = true;
+        }
+    }
     // A stereotype application with its own `appliesWhen:` is part of this product only where it holds
     // (REQ-TRS-META-025); the element stays either way.
     for e in out.iter_mut().filter(|e| e.frontmatter.metadata.is_some()) {
         drop_inactive_applications(e, &sel, &alias);
     }
     out
+}
+
+/// The features still open for the stored staged Configuration whose selection is `sel`
+/// (found as placeholders find theirs); empty when there is none or nothing declares a window.
+fn open_features_for(elements: &[RawElement], sel: &Selection) -> HashSet<String> {
+    let windowed = elements.iter().any(|e| {
+        e.frontmatter.element_type.as_ref() == Some(&ElementType::FeatureDef) && e.frontmatter.binding_time.is_some()
+    });
+    if !windowed {
+        return HashSet::new();
+    }
+    crate::placeholders::matching_config(elements, sel)
+        .and_then(|cfg| elements.iter().position(|e| std::ptr::eq(e, cfg)))
+        .map(|i| crate::staging::open_features(elements, i))
+        .unwrap_or_default()
 }
 
 /// Remove from `e.metadata` the map applications whose `appliesWhen:` is false under `sel`.
@@ -414,6 +444,33 @@ fn allocation_gated_off(x: &RawElement, full: &[RawElement], resolver: &Resolver
     endpoints.iter().filter_map(|r| resolver.resolve_ref(full, r)).any(|t| !active(t))
 }
 
+/// `I750` for each element a staged projection retains and `W752` for each that relies on the
+/// absence of a retained one — the same report `residual` shows (`REQ-TRS-BT-033`).
+pub fn retention_findings(full: &[RawElement], cfg_idx: usize) -> Vec<Finding> {
+    let rep = crate::retention::report(full, cfg_idx);
+    let file_of = |q: &str| full.iter().find(|e| e.qualified_name == q).map(|e| e.file_path.clone()).unwrap_or_default();
+    let mut out = Vec::new();
+    for r in &rep.retained {
+        out.push(Finding {
+            code: "I750",
+            file: file_of(&r.qname),
+            message: format!(
+                "{} '{}' is variant-retained: its appliesWhen depends on {}, still open at this Configuration's stage",
+                r.kind, r.id.as_deref().unwrap_or(&r.qname), r.because.join(", ")
+            ),
+            severity: Severity::Info,
+        });
+    }
+    for r in &rep.reliances {
+        out.push(warn(
+            "W752",
+            &file_of(&r.dependent),
+            format!("'{}' relies on the absence of '{}', which is variant-retained (its condition is still open)", r.dependent, r.retained),
+        ));
+    }
+    out
+}
+
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the
 /// standard validator over the projected subset (minus the suppressed
 /// resolution codes).
@@ -423,6 +480,13 @@ pub fn validate_projected(
     sel: &Selection,
 ) -> Vec<Finding> {
     let mut findings = escaping_refs(full, sel);
+    // What the stage leaves undecided, and what relies on its absence (REQ-TRS-BT-032/033).
+    {
+        let canon = variability::canon_selection(sel, &variability::feature_id_to_qname(full));
+        if let Some(i) = crate::placeholders::matching_config(full, &canon).and_then(|c| full.iter().position(|e| std::ptr::eq(e, c))) {
+            findings.extend(retention_findings(full, i));
+        }
+    }
     let mut active = project_raw(full, sel);
     // Per-configuration findings (W015) are about the selected variant only: keep the
     // stored Configuration(s) whose selection is this one, drop the others so a

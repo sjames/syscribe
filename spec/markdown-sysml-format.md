@@ -2893,6 +2893,7 @@ The native `TestCase` type is a **first-class element** for structured, executab
 | `sourceFile` | string | optional | Workspace-relative path to the implementation file. Forward slashes. |
 | `verifiesElement` | string or list | optional | `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` elements verified directly (qname or id). `E102` unresolved, `E129` wrong kind; subject to `appliesWhen` escape analysis (`W019`). An active architecture element with no such link and no verified satisfied requirement raises `W104`; any architecture element may carry `testExempt: <rationale>` to suppress it. |
 | `testFunctions` | list | optional | Structured references to individual test functions (see below). |
+| `coversVariability` | list of strings | optional | Late-bound features (`FEAT-*` id or qualified name) and parameters (`<feature>.<param>`) whose declared range or values this test exercises; read by the late-bound safety rule `W753` (§9.8). An entry naming nothing is `W754`. |
 | `tags` | list of strings | optional | Free labels. |
 
 **Status values:**
@@ -5678,6 +5679,10 @@ A staged Configuration is checked against the binding windows of §9.7 and again
 7. **Partial binding (`feature-check`).** A staged Configuration is deliberately partial, so `parameterConstraints:` are evaluated three-valued on what it has bound: an open parameter spans the range it declares (everything, when it declares none), and a constraint that fails for *every* such value is `E221`/`W025` now, naming the open parameters; one that depends on them is silent. An unstaged Configuration is judged only when fully evaluable, as before.
 8. **A valid completion remains (`feature-check --deep`, `E758`).** At each staged Configuration, the choices made up to its stage (its effective selection restricted to features whose window opens no later) must leave at least one valid configuration; the earliest Configuration in a `derivedFrom:` chain to break that is reported, naming it. A staged Configuration that another staged Configuration is derived from is *partial*: it is judged by this check, not by completeness — `E225` does not apply to it, and `E219` is not raised for a required feature whose window is still open at its stage (`E220`, an excluded feature also selected, always applies). A Configuration nothing refines further is judged as before.
 
+9. **Projection at a stage (variant retention).** Projecting a staged Configuration evaluates `appliesWhen:` three-valued: a feature that declares a binding window extending beyond the Configuration's stage and that no Configuration in its `derivedFrom:` chain has decided is *unknown*, not false. An element whose condition the open features genuinely decide is **retained** and marked variant-retained rather than dropped (`A and B` is removed when `A` is false whatever `B` becomes; `A or B` is kept when `A` is true). An unstaged Configuration, or a model with no binding windows, is projected exactly as before. `validate --config` lists each retained element as `I750` (informational) and `residual` lists the same set; an element that references a retained one yet applies only where it does not — it can never hold together with it — is `W752`.
+10. **`matrix --stage <stage>`.** The Requirement × Configuration grid as it can be known at that stage: a feature whose window extends beyond the stage and that the column's chain has not decided by it is unknown, so a requirement (or covering test) depending on it is `open` (`?`) — neither covered nor a gap, and not counted as applicable. Without `--stage` the grid is as authored.
+11. **Late-bound variability reaching a safety requirement (`W753`).** A non-draft `Requirement` carrying a SIL/ASIL/CAL level that is influenced, through its effective `appliesWhen:` or a `{{Feature.param}}` placeholder in its text, by a feature or parameter whose binding window extends to `load` or later is flagged unless a non-draft `TestCase` that verifies it lists that item in `coversVariability:` — features by `FEAT-*` id or qualified name, parameters as `<feature>.<param>` — declaring that it exercises the item's declared range or values. Opt-in (silent without windows), draft-suppressed, gate with `--deny W753`. A `coversVariability:` entry naming no feature or parameter is `W754`.
+
 `residual --config <Configuration> [--json]` lists what a Configuration leaves open: every feature (a real choice, not abstract or mandatory) and every parameter (of a selected feature, not fixed or derived) that declares a binding window and that its effective selection and bindings do not decide, grouped by the stage it can next be bound at and by that stage's `binder`, with any whose window already closed listed apart, and the three-valued state of each applicable constraint. `configure <Configuration> --stage <stage>` restricts the forced/free report to features whose window contains the stage (a feature with no window is unrestricted).
 
 ### The late-bound parameter file
@@ -6911,7 +6916,7 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 | `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
 
-#### Binding times (E750–E762, W750–W751, §9.7)
+#### Binding times (E750–E762, W750–W754, I750, §9.7)
 
 Active only when `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
 
@@ -6930,6 +6935,9 @@ Active only when `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabu
 | `E760` | `params check`: the values file has a key the contract does not — an unknown top-level key, feature toggle, feature or parameter (§9.8) |
 | `E761` | `params check`: the values file is not valid YAML, is not a mapping where one is expected, or a value has the wrong type for the parameter (§9.8) |
 | `E762` | `params check`: a required parameter of the contract is missing from the values file or is still an open `null` placeholder (§9.8) |
+| `W752` | `validate --config` / `residual`: an element references a variant-retained one yet applies only where it does not (their `appliesWhen:` conditions can never hold together), so it relies on the absence of an element the staged projection keeps because its condition is still open (§9.8) |
+| `W753` | A non-draft requirement with a SIL/ASIL/CAL level is influenced — through its `appliesWhen:` or a `{{Feature.param}}` placeholder — by a feature or parameter bound at `load` or later, and no non-draft verifying `TestCase` lists it in `coversVariability:`. Opt-in (draft-suppressed, silent without binding windows); gate with `--deny W753` (§9.8) |
+| `W754` | A `TestCase`'s `coversVariability:` entry names no feature or parameter of the feature model (§9.8) |
 | `W750` | A `[bindingTimes.<name>]` entry is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
 | `W751` | `params check`: the values file was generated from a different model state (its `projection-hash` header differs from the contract's), or carries none — regenerate it with `params export`; gate with `--deny W751` (§9.8) |
 
@@ -7352,6 +7360,7 @@ Informational findings surface a fact without failing validation. They never cau
 | Code | Condition |
 |---|---|
 | `I010` | A planned `TestCase` (`status` `draft`/`review`/`approved`) has a `sourceFile`/`testFunctions[].function` that is not present yet (the planned-verification counterpart of `W004`/`W009`). |
+| `I750` | Informational (`validate --config`): an element is variant-retained — the staged Configuration's projection keeps it because its `appliesWhen:` depends on a feature still open at that stage; also listed by `residual` (§9.8). Never affects the exit status |
 | `I011` | Info | plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
 
 #### Function matchers (`W009`)

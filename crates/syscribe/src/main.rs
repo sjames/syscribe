@@ -1682,6 +1682,18 @@ fn main() {
                     }
                 }
                 matrix::set_select(selectors);
+                // `--stage S` (REQ-TRS-BT-035): the grid as it can be known at binding stage S.
+                let stage = match rest.windows(2).find(|w| w[0] == "--stage").map(|w| w[1].as_str()) {
+                    None => None,
+                    Some(name) => match syscribe_model::binding_time::BindingTime::parse(name) {
+                        Some(bt) => Some(bt),
+                        None => {
+                            eprintln!("Unknown stage '{name}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint());
+                            std::process::exit(2);
+                        }
+                    },
+                };
+                matrix::set_stage(stage);
                 let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 // --plan lens (REQ-TRS-PLAN-006), composing with --config.

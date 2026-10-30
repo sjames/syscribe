@@ -17,3 +17,4 @@ The format spec §9.7, `prompts/create-model.md`, `docs/model-guide/variability.
 **Acceptance criteria:**
 - The catalogue tests (`catalogue_tests`, `validation_docs_catalogue`) pass for every code added.
 - `examples/` contains a staged-configuration worked example that validates clean.
+- Every new code appears in the catalogue, `docs/validation/rules.md` and spec §11.12; every new command has a help page; the variability guide, the authoring prompt and the example describe the feature.

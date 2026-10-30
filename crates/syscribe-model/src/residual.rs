@@ -53,6 +53,9 @@ pub struct Residual {
     pub stage: Option<BindingTime>,
     pub groups: Vec<Group>,
     pub constraints: Vec<ConstraintState>,
+    /// Elements a projection at this stage keeps although their `appliesWhen:` is undecided,
+    /// and those that rely on one being absent (REQ-TRS-BT-033).
+    pub retention: crate::retention::RetentionReport,
 }
 
 /// The residual variability of `elements[cfg_idx]`.
@@ -143,7 +146,7 @@ pub fn residual(elements: &[RawElement], cfg_idx: usize) -> Residual {
         closed.sort_by(|a, b| a.key.cmp(&b.key));
         groups.push(Group { stage: None, binder: None, closed: true, items: closed });
     }
-    Residual { configuration: label(cfg), stage, groups, constraints: constraint_states(elements, cfg_idx) }
+    Residual { configuration: label(cfg), stage, groups, constraints: constraint_states(elements, cfg_idx), retention: crate::retention::report(elements, cfg_idx) }
 }
 
 impl Residual {
@@ -166,6 +169,12 @@ impl Residual {
                     "window": win(&i.window), "required": i.required, "hasDefault": i.has_default,
                 })).collect::<Vec<_>>(),
             })).collect::<Vec<_>>(),
+            "retained": self.retention.retained.iter().map(|r| serde_json::json!({
+                "qname": r.qname, "id": r.id, "type": r.kind, "because": r.because,
+            })).collect::<Vec<_>>(),
+            "reliances": self.retention.reliances.iter().map(|r| serde_json::json!({
+                "dependent": r.dependent, "retained": r.retained,
+            })).collect::<Vec<_>>(),
             "constraints": self.constraints.iter().map(|c| serde_json::json!({
                 "id": c.id, "expression": c.expression, "state": c.state.name(),
                 "severity": if c.warning { "warning" } else { "error" }, "open": c.open,
@@ -180,7 +189,7 @@ mod tests {
 
     #[test]
     fn json_shape_is_stable_for_an_empty_residual() {
-        let r = Residual { configuration: "CONF-X".into(), stage: None, groups: vec![], constraints: vec![] };
+        let r = Residual { configuration: "CONF-X".into(), stage: None, groups: vec![], constraints: vec![], retention: Default::default() };
         let j = r.to_json();
         assert_eq!(j["configuration"], "CONF-X");
         assert!(j["bindingStage"].is_null() && j["groups"].as_array().unwrap().is_empty());

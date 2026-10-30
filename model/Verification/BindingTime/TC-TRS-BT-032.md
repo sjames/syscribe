@@ -2,7 +2,7 @@
 id: TC-TRS-BT-032
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a dependent relying on a retained element's absence is reported"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-032.sh
 verifies:

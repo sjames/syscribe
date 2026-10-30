@@ -48,6 +48,24 @@ fn print_text(r: &Residual) {
         }
         println!();
     }
+    if !r.retention.retained.is_empty() {
+        println!("## Variant-retained elements");
+        println!();
+        println!("A projection at this stage keeps these although their `appliesWhen:` is not yet decided.");
+        println!();
+        println!("| Element | Type | Waiting on |");
+        println!("|---|---|---|");
+        for e in &r.retention.retained {
+            println!("| {} | {} | {} |", e.id.as_deref().unwrap_or(&e.qname), e.kind, e.because.join(", "));
+        }
+        println!();
+        for x in &r.retention.reliances {
+            println!("- `{}` relies on the absence of `{}`", x.dependent, x.retained);
+        }
+        if !r.retention.reliances.is_empty() {
+            println!();
+        }
+    }
     if !r.constraints.is_empty() {
         println!("## parameterConstraints");
         println!();

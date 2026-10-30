@@ -1544,6 +1544,14 @@ $ syscribe -m model/ configure <Configuration> --stage <stage> [--json]
 
 `residual` lists every feature and parameter with a binding window that the Configuration's effective selection and bindings do not decide, grouped by the stage each can next be bound at and by that stage's `binder`; items whose window already closed are listed apart, and each applicable `parameterConstraints:` entry is shown as `satisfied`, `violated` or `undetermined` on the partial binding (MCP equivalent: the read-only `residual` tool). `configure --stage` restricts the forced/free report to features whose window contains the stage. See `ADR-SYS-BT-001` and spec §9.8.
 
+### The coverage grid at a binding stage (`matrix --stage`)
+
+```
+$ syscribe -m model/ matrix --stage <stage> [--json]
+```
+
+Shows the Requirement × Configuration grid as it can be known at that stage: a requirement (or covering test) that depends on a feature whose window extends beyond the stage and that no Configuration in the column's chain has decided by then is `?` — neither covered nor a gap, and not counted as applicable. `validate --config` on a staged Configuration lists the elements its projection retains (`I750`) and the ones that rely on a retained element being absent (`W752`); `residual` lists the same set. See spec §9.8, `ADR-SYS-BT-001`.
+
 ### The late-bound parameter file (`params`)
 
 ```
