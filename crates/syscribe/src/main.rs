@@ -32,6 +32,9 @@ mod ftsearch;
 mod help;
 mod ingest;
 mod lint_docs;
+mod bindingtimes;
+mod params;
+mod residual;
 mod linktypes;
 mod lsp;
 mod matrix;
@@ -658,6 +661,11 @@ fn main() {
                     if let Some(section) = syscribe_model::link_types::agent_instructions_section(&reg) {
                         print!("{}", section);
                     }
+                    // REQ-TRS-BT-005 — likewise a refined binding-time vocabulary.
+                    let bt = syscribe_model::binding_time::BindingTimeVocab::load(std::path::Path::new(&root));
+                    if let Some(section) = bt.agent_instructions_section() {
+                        print!("{}", section);
+                    }
                 }
             }
             Some("magicgrid") => print!("{}", MAGICGRID_INSTRUCTIONS),
@@ -943,6 +951,30 @@ fn main() {
                 // REQ-TRS-LINKTYPE-008 — the declared link-type vocabulary. Read-only.
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
+            }
+            "params" => {
+                // REQ-TRS-BT-023..030 — the late-bound parameter file. Read-only on the model.
+                let code = params::cmd_params(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "residual" => {
+                // REQ-TRS-BT-016 — what a Configuration leaves open. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                let Some(conf) = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str()) else {
+                    eprintln!("Usage: syscribe -m <root> residual --config <Configuration> [--json]");
+                    std::process::exit(2);
+                };
+                let code = residual::cmd_residual(&elems, conf, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "binding-times" => {
+                // REQ-TRS-BT-005 — the effective binding-time vocabulary. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                bindingtimes::cmd_binding_times(&vcfg.binding_times, json);
             }
             "sysml" => {
                 // REQ-TRS-SYSMLV2-031 — SysMLv2 submodel inspection. Read-only.
@@ -1650,6 +1682,18 @@ fn main() {
                     }
                 }
                 matrix::set_select(selectors);
+                // `--stage S` (REQ-TRS-BT-035): the grid as it can be known at binding stage S.
+                let stage = match rest.windows(2).find(|w| w[0] == "--stage").map(|w| w[1].as_str()) {
+                    None => None,
+                    Some(name) => match syscribe_model::binding_time::BindingTime::parse(name) {
+                        Some(bt) => Some(bt),
+                        None => {
+                            eprintln!("Unknown stage '{name}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint());
+                            std::process::exit(2);
+                        }
+                    },
+                };
+                matrix::set_stage(stage);
                 let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 // --plan lens (REQ-TRS-PLAN-006), composing with --config.
@@ -2116,12 +2160,13 @@ fn main() {
             "configure" => {
                 let conf = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 if conf.is_empty() || conf.starts_with("--") {
-                    eprintln!("Usage: syscribe --model <root> configure <Configuration> [--json]");
+                    eprintln!("Usage: syscribe --model <root> configure <Configuration> [--stage <stage>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
-                query::cmd_configure(&elems, conf, json);
+                let stage = rest.windows(2).find(|w| w[0] == "--stage").map(|w| w[1].as_str());
+                query::cmd_configure(&elems, conf, json, stage);
             }
             "build-config" => {
                 let conf = subcommand_args.windows(2)

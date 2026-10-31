@@ -46,6 +46,27 @@ impl FeatureExpr {
         }
     }
 
+    /// Three-valued (Kleene) evaluation: `known(qname)` is `Some(selected)` for a feature
+    /// that is decided and `None` for one still open. The result is `None` only when the
+    /// open features genuinely decide it (`A and B` is false whatever `B` becomes if `A` is
+    /// false). Used by projection at a binding stage (`REQ-TRS-BT-031`).
+    pub fn eval_tri(&self, known: &impl Fn(&str) -> Option<bool>) -> Option<bool> {
+        match self {
+            FeatureExpr::Feat(q) => known(q),
+            FeatureExpr::Not(e) => e.eval_tri(known).map(|b| !b),
+            FeatureExpr::And(a, b) => match (a.eval_tri(known), b.eval_tri(known)) {
+                (Some(false), _) | (_, Some(false)) => Some(false),
+                (Some(true), Some(true)) => Some(true),
+                _ => None,
+            },
+            FeatureExpr::Or(a, b) => match (a.eval_tri(known), b.eval_tri(known)) {
+                (Some(true), _) | (_, Some(true)) => Some(true),
+                (Some(false), Some(false)) => Some(false),
+                _ => None,
+            },
+        }
+    }
+
     /// Every `FeatureDef` qualified name referenced by the expression, in source
     /// order. Used for cross-reference resolution (E209).
     pub fn operands(&self) -> Vec<String> {

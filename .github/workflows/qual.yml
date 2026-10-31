@@ -47,7 +47,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build syscribe
-        run: cargo build --package syscribe
+        run: cargo build --release --package syscribe
 
       # All Rust unit and integration tests across the workspace (#179).
       # Includes the guard tests: every documented YAML example validates
@@ -77,9 +77,9 @@ jobs:
           PLANTUML_JAR: ${{ github.workspace }}/plantuml.jar
         run: |
           # Regenerate all .puml source files from model elements
-          ./target/debug/syscribe -m model/ plantuml
+          ./target/release/syscribe -m model/ plantuml
           # Render every companion .puml → .svg
-          ./target/debug/syscribe -m model/ plantuml render
+          ./target/release/syscribe -m model/ plantuml render
 
       - name: Validate all models (gating — fails on any validation error)
         run: |
@@ -102,7 +102,7 @@ jobs:
             echo "::group::validate $m ${args}"
             # $args is intentionally unquoted so multi-word flags split into argv.
             # shellcheck disable=SC2086
-            if ./target/debug/syscribe -m "$m" validate $args > "validate-$m.md"; then
+            if ./target/release/syscribe -m "$m" validate $args > "validate-$m.md"; then
               warns=$(grep -cE '^\| W' "validate-$m.md" || true)
               echo "✓ $m: 0 errors, ${warns} warnings (args: ${args:-none})"
             else
@@ -114,14 +114,14 @@ jobs:
             echo "::endgroup::"
           done
           # Keep the full qual/ report as a self-check artifact.
-          ./target/debug/syscribe -m qual/ > qual-self-check.md || true
+          ./target/release/syscribe -m qual/ > qual-self-check.md || true
           exit $fail
 
       - name: Check the committed grid-tie diagram renders (gating, GH #339)
         run: |
           # model_gti/generated is what the model renders to today: an edit to a drawn element
           # without `diagram export --all` fails here, naming the file to regenerate.
-          ./target/debug/syscribe -m model_gti diagram export --all --check
+          ./target/release/syscribe -m model_gti diagram export --all --check
 
       - name: Run qualification test suite
         run: bash qual/tests/run_qual.sh --no-build

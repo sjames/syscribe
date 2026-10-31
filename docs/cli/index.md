@@ -1535,6 +1535,40 @@ $ syscribe -m model/ link-types [--json]
 
 Lists every valid `[linkTypes.<name>]` declaration in `.syscribe.toml` — description, inverse, `extends` base and relaxed codes, coverage, source → target types, cardinality, `acyclic`, `suspect` — with the number of instances in the model. Entries rejected with `W630` are not listed as usable. With none declared it says so, shows how to declare one, and exits zero. This is the command an LLM authoring agent should run before writing any `links:` entry (MCP equivalent: the read-only `link_types` tool; `follow` is also exposed over MCP).
 
+### What a Configuration leaves open (`residual`)
+
+```
+$ syscribe -m model/ residual --config <Configuration> [--json]
+$ syscribe -m model/ configure <Configuration> --stage <stage> [--json]
+```
+
+`residual` lists every feature and parameter with a binding window that the Configuration's effective selection and bindings do not decide, grouped by the stage each can next be bound at and by that stage's `binder`; items whose window already closed are listed apart, and each applicable `parameterConstraints:` entry is shown as `satisfied`, `violated` or `undetermined` on the partial binding (MCP equivalent: the read-only `residual` tool). `configure --stage` restricts the forced/free report to features whose window contains the stage. See `ADR-SYS-BT-001` and spec §9.8.
+
+### The coverage grid at a binding stage (`matrix --stage`)
+
+```
+$ syscribe -m model/ matrix --stage <stage> [--json]
+```
+
+Shows the Requirement × Configuration grid as it can be known at that stage: a requirement (or covering test) that depends on a feature whose window extends beyond the stage and that no Configuration in the column's chain has decided by then is `?` — neither covered nor a gap, and not counted as applicable. `validate --config` on a staged Configuration lists the elements its projection retains (`I750`) and the ones that rely on a retained element being absent (`W752`); `residual` lists the same set. See spec §9.8, `ADR-SYS-BT-001`.
+
+### The late-bound parameter file (`params`)
+
+```
+$ syscribe -m model/ params export --config <Configuration> [--stage <stage>] [--out FILE] [--schema FILE] [--allow-open]
+$ syscribe -m model/ params check <FILE> --config <Configuration> [--stage <stage>] [--deny <CODES>]
+```
+
+`params export` generates a deterministic YAML values file — feature toggles and the parameters whose binding window contains the stage, keyed by stable `FEAT-*` id — from a Configuration, so a system that binds parameters at `load` or `runtime` has a file to read; `--schema` also writes its JSON Schema. It fails, naming each, when a required parameter has no value, default or fallback; `--allow-open` writes marked placeholders. `params check` validates a values file against the same contract (`E760`–`E762`, `E204`–`E206`) and reports a file generated from a different model state as `W751`. See spec §9.8, `ADR-SYS-BT-001`.
+
+### List the binding-time stages (`binding-times`)
+
+```
+$ syscribe -m model/ binding-times [--json]
+```
+
+Lists the effective binding-time vocabulary, earliest first: the built-in `compile < load < runtime`, refined by `[bindingTimes.<name>]` tables in `.syscribe.toml` (`description`, `binder`, `after`, `before`). A `bindingTime:` that names none of these is `E230`; a malformed entry is `W750` and is ignored whole. Run it before authoring a `bindingTime:` (MCP equivalent: the read-only `binding_times` tool; `--agent-instructions -m <root>` also appends a "Project binding times" section when the vocabulary is refined). See `ADR-SYS-BT-001`.
+
 Custom links also appear in `links` (outbound under the type name, inbound under its `inverse`), `refs`, `trace`, `show`, and `impact` (whose `--kinds` accepts custom type names).
 
 ---

@@ -20,6 +20,7 @@ const INTERNAL: &[&str] = &[
     "tier3",
     "unknownFmeaKeys",
     "view", // the parsed mapping form of `include:`
+    "variantRetained", // set on a clone by a staged projection (REQ-TRS-BT-031)
 ];
 
 fn root() -> &'static Path {

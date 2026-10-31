@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
+use crate::binding_time::{BindingTime, BindingWindow};
 use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
@@ -1110,6 +1111,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         for msg in config.link_types.defects() {
             findings.push(warning("W630", &cfg_file, msg));
         }
+    }
+
+    // W750: malformed `[bindingTimes]` config (REQ-TRS-BT-003) — reported once against
+    // `.syscribe.toml`, same posture as W630. Each defective entry was ignored whole
+    // and the rest of the vocabulary stays in force.
+    for msg in config.binding_times.defects() {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W750", &cfg_file, msg));
     }
 
     // W640: malformed `[cyber]` config (GH #222) — reported once against
@@ -6858,6 +6871,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Shared with `feature-check` so a product line validated holistically gets
     // the same binding/range enforcement (GH #14).
     findings.extend(parameter_binding_findings(elements, config, &resolver));
+    // E229/E230/E750 — binding windows (REQ-TRS-BT-006..009), shared with `feature-check`.
+    findings.extend(crate::feature_model::binding_window_findings(elements));
+    // E759 (a fallback outside its parameter's constraints) and W023 (an unresolvable
+    // `consumedBy:`) — the late-bound parameter contract (REQ-TRS-BT-026/027).
+    findings.extend(crate::feature_model::parameter_contract_findings(elements));
+    findings.extend(consumed_by_findings(elements, config));
+    // W753/W754 — late-bound variability reaching a safety requirement (REQ-TRS-BT-034).
+    findings.extend(crate::late_safety::findings(elements));
+    // E751–E755 — staged Configurations (REQ-TRS-BT-011..014); E752/E756/E757 for parameters
+    // are raised in `parameter_binding_findings` above.
+    findings.extend(crate::staging::staged_configuration_findings(elements));
 
     // W028: duplicate external references (§3, REQ-TRS-EXTREF-001).
     findings.extend(ext_ref_duplicate_findings(elements));
@@ -10650,6 +10674,37 @@ pub fn sub_configuration_findings(
     own_findings
 }
 
+/// `W023` for a parameter's `consumedBy:` that names a local path which does not exist
+/// (`REQ-TRS-BT-027`). Resolved exactly like `implementedBy:` (§12.8): a local path is
+/// checked on disk, a remote URI or package-registry reference is accepted as external.
+fn consumed_by_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<Finding> {
+    let mut f = Vec::new();
+    for fd in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef))) {
+        if fd.frontmatter.status.as_deref() == Some("draft") {
+            continue;
+        }
+        for p in fd.frontmatter.parameters.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = p else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
+            let Some(name) = get("name").and_then(|v| v.as_str()) else { continue };
+            let paths: Vec<String> = match get("consumedBy") {
+                Some(serde_yaml::Value::String(s)) => vec![s.clone()],
+                Some(serde_yaml::Value::Sequence(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_string)).collect(),
+                _ => continue,
+            };
+            for path in paths {
+                if let crate::config::SourceLocation::Local(p) = config.classify_source(&path) {
+                    if !p.exists() {
+                        f.push(warning("W023", &fd.file_path, &format!(
+                            "parameter '{}.{}' consumedBy path '{}' does not exist on disk", fd.qualified_name, name, path)));
+                    }
+                }
+            }
+        }
+    }
+    f
+}
+
 /// Per-parameter metadata read off a `FeatureDef`'s `parameters:` entry, used
 /// by [`parameter_binding_findings`] and its HPLE transitive-lookup helper
 /// [`collect_reachable_feature_params`] below.
@@ -10659,9 +10714,12 @@ struct ParamMeta {
     enum_values: Option<Vec<String>>,
     is_required: bool,
     has_default: bool,
-    /// Binding-time rank (compile=0, load=1, runtime=2); `None` when `bindingTime:`
+    /// Binding-time stage of the effective vocabulary; `None` when `bindingTime:`
     /// is absent (unspecified — the parameter opts out of binding-time checks).
-    binding_time: Option<u8>,
+    binding_time: Option<BindingTime>,
+    /// The parameter's full binding window (`bindingTime:`..`latestBindingTime:`), for the
+    /// staged-configuration rules (REQ-TRS-BT-012/015); `None` when unspecified or unusable.
+    window: Option<BindingWindow>,
 }
 
 /// A `FeatureDef` parameter reached through `subConfigurations:`, plus the
@@ -10713,15 +10771,12 @@ fn parse_param_range(s: &str) -> Option<(f64, f64)> {
 }
 
 /// Build the `<FeatureDef qname> -> <param name> -> ParamMeta` table for every
-/// `FeatureDef` in `elements`, plus any `E230` (malformed `bindingTime:`)
-/// findings raised along the way. Shared by [`parameter_binding_findings`]
-/// for the local model and by [`collect_reachable_feature_params`] for each
-/// peer model reached through `subConfigurations:` — a peer's own `E230`s are
-/// its own model's problem (caught when that model is itself validated), so
-/// callers scanning a peer discard the returned findings rather than folding
-/// them into the consolidating model's report.
-fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<String, ParamMeta>>, Vec<Finding>) {
-    let mut findings: Vec<Finding> = Vec::new();
+/// `FeatureDef` in `elements`. Shared by [`parameter_binding_findings`] for the
+/// local model and by [`collect_reachable_feature_params`] for each peer model
+/// reached through `subConfigurations:`. Malformed `bindingTime:` values are not
+/// reported here (`E230` comes from `feature_model::binding_window_findings`, once
+/// per model, and a peer's own are its own model's problem).
+fn build_feature_params(elements: &[RawElement]) -> HashMap<String, HashMap<String, ParamMeta>> {
     let mut feature_params: HashMap<String, HashMap<String, ParamMeta>> = HashMap::new();
     for fd in elements
         .iter()
@@ -10741,28 +10796,23 @@ fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<Str
                     .map(|v| yaml_strings(v).into_iter().map(|s| s.to_string()).collect::<Vec<_>>());
                 let is_required = get("isRequired").and_then(|v| v.as_bool()).unwrap_or(false);
                 let has_default = get("default").is_some() || get("value").is_some();
-                // bindingTime: PLE triad (compile<load<runtime); E230 on an unknown value.
-                let binding_time = match get("bindingTime").and_then(|v| v.as_str()) {
-                    None => None,
-                    Some("compile") => Some(0),
-                    Some("load") => Some(1),
-                    Some("runtime") => Some(2),
-                    Some(other) => {
-                        findings.push(error("E230", &fd.file_path, &format!(
-                            "parameter '{}.{}' has bindingTime '{}' which is not one of compile/load/runtime",
-                            fd.qualified_name, name, other)));
-                        None
-                    }
-                };
+                // The earliest stage of the parameter's binding window; an unknown value is
+                // reported once, by `feature_model::binding_window_findings` (E230).
+                let binding_time = get("bindingTime").and_then(|v| v.as_str()).and_then(BindingTime::parse);
+                let window = BindingWindow::read(
+                    get("bindingTime").and_then(|v| v.as_str()),
+                    get("latestBindingTime").and_then(|v| v.as_str()),
+                )
+                .0;
                 params.insert(
                     name.to_string(),
-                    ParamMeta { is_fixed, range, enum_values, is_required, has_default, binding_time },
+                    ParamMeta { is_fixed, range, enum_values, is_required, has_default, binding_time, window },
                 );
             }
         }
         feature_params.insert(fd.qualified_name.clone(), params);
     }
-    (feature_params, findings)
+    feature_params
 }
 
 /// Human-readable label for a `Configuration` reached by the walk below, used
@@ -10898,7 +10948,7 @@ fn collect_reachable_feature_params(
             if !visiting.insert(key.clone()) {
                 continue; // already on the walk stack — cross-repo cycle, skip.
             }
-            let (peer_params, _peer_findings) = build_feature_params(&peer_elements);
+            let peer_params = build_feature_params(&peer_elements);
             let peer_sel = crate::variability::canon_selection(
                 &target.frontmatter.feature_selections(),
                 &crate::variability::feature_id_to_qname(&peer_elements),
@@ -10975,13 +11025,20 @@ pub fn parameter_binding_findings(
     let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
     let config = &*with_repo_mounts(elements, config);
 
-    let (feature_params, param_meta_findings) = build_feature_params(elements);
-    findings.extend(param_meta_findings);
+    let feature_params = build_feature_params(elements);
+    // Staged-configuration context (REQ-TRS-BT-011..015): `derivedFrom:` chains and stages.
+    let stage_ctx = crate::staging::StageContext::new(elements);
 
-    for cfg in elements
+    for (cfg_idx, cfg) in elements
         .iter()
-        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+        .enumerate()
+        .filter(|(_, e)| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
     {
+        // `None` for an unstaged Configuration, or one whose `bindingStage:` is unknown (E751).
+        let cfg_stage = stage_ctx.stage(cfg_idx);
+        // What this Configuration binds itself: an inherited binding was judged where it was
+        // made, so window membership (E752) and narrowing (E756) apply to own entries only.
+        let own_bound = stage_ctx.own_bindings(cfg_idx);
         let sel = crate::variability::canon_selection(
             &cfg.frontmatter.feature_selections(),
             &crate::variability::feature_id_to_qname(elements),
@@ -11106,9 +11163,29 @@ pub fn parameter_binding_findings(
                         }
                     }
                 }
-                if meta.binding_time == Some(2) {
-                    findings.push(warning("W027", file, &format!(
-                        "parameterBindings binds '{}' which has bindingTime: runtime (resolved by the running system, not at configuration time)", path)));
+                let is_own = own_bound.contains_key(&stage_ctx.canon_key(path));
+                match (cfg_stage, meta.window) {
+                    // A staged Configuration may bind only what its stage can bind (E752);
+                    // a runtime parameter bound at `runtime` is then simply in its window.
+                    (Some(st), Some(w)) if is_own && !w.contains(st) => {
+                        findings.push(error("E752", file, &format!(
+                            "parameterBindings binds '{}' at bindingStage {}, but its binding window is {} — it cannot be bound at this stage",
+                            path, st.name(), w.describe())));
+                    }
+                    (Some(_), _) => {}
+                    (None, _) if meta.binding_time.is_some_and(BindingTime::is_runtime) => {
+                        findings.push(warning("W027", file, &format!(
+                            "parameterBindings binds '{}' which has bindingTime: runtime (resolved by the running system, not at configuration time)", path)));
+                    }
+                    (None, _) => {}
+                }
+                // E756: stay inside what an ancestor Configuration narrowed the parameter to.
+                if let Some(n) = stage_ctx.effective_narrowing(cfg_idx, &stage_ctx.canon_key(path)).filter(|_| is_own) {
+                    if !n.admits(val) {
+                        findings.push(error("E756", file, &format!(
+                            "parameterBindings '{}' = {} is outside {} — what the parameter was narrowed to along the derivedFrom chain",
+                            path, num(val).map(|x| x.to_string()).or_else(|| val.as_str().map(str::to_string)).unwrap_or_default(), n.describe())));
+                    }
                 }
             }
         }
@@ -11120,11 +11197,23 @@ pub fn parameter_binding_findings(
             for (pname, meta) in params {
                 // A runtime parameter is legitimately unbound by a Configuration —
                 // the running system supplies its value (REQ-TRS-PARAM-004).
-                if meta.is_required && !meta.is_fixed && !meta.has_default && meta.binding_time != Some(2) {
+                if meta.is_required && !meta.is_fixed && !meta.has_default && !meta.binding_time.is_some_and(BindingTime::is_runtime) {
                     let path = format!("{}.{}", feat, pname);
                     if !bound.contains(&path) {
-                        findings.push(warning("W017", file, &format!(
-                            "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat)));
+                        match (cfg_stage, meta.window) {
+                            // REQ-TRS-BT-020: a window that extends beyond this stage is still open —
+                            // a later stage can bind it — so an unbound required parameter is not a defect yet.
+                            (Some(st), Some(w)) if w.latest > st => {}
+                            // E757: the window closed before this stage and nothing in the
+                            // chain bound it, so no later stage can — a defect, not a warning.
+                            (Some(st), Some(w)) if w.latest < st => {
+                                findings.push(error("E757", file, &format!(
+                                    "required parameter '{}' of selected feature '{}' is unbound and its binding window ({}) closed before bindingStage {}",
+                                    path, feat, w.describe(), st.name())));
+                            }
+                            _ => findings.push(warning("W017", file, &format!(
+                                "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat))),
+                        }
                     }
                 }
             }
@@ -11202,7 +11291,7 @@ pub fn open_parameter_findings(
                     || status.meta.is_fixed
                     || !status.meta.is_required
                     || status.meta.has_default
-                    || status.meta.binding_time == Some(2) // runtime — REQ-TRS-PARAM-004
+                    || status.meta.binding_time.is_some_and(BindingTime::is_runtime) // REQ-TRS-PARAM-004
                     || status.already_bound_by.is_some()
                 {
                     continue;

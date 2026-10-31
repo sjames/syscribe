@@ -79,6 +79,12 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `link_types {}` — the project's user-defined link types (`[linkTypes]` in
   `.syscribe.toml`) with their rules and instance counts; same data as
   `link-types --json`. Call it before authoring a `links:` field.
+- `residual {configuration}` — the variability a Configuration leaves open, grouped by the
+  stage it can next be bound at, with constraint states; same data as
+  `residual --config <id> --json`.
+- `binding_times {}` — the effective binding-time stage vocabulary, earliest first
+  (`[bindingTimes]` in `.syscribe.toml`); same data as `binding-times --json`. Call it
+  before authoring a `bindingTime:`.
 - `follow {element, link, reverse?, transitive?, depth?}` — walk one named link
   (a declared type, its inverse, or a built-in link/reverse-index name); same data
   as `follow --format json`.

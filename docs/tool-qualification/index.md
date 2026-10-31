@@ -98,8 +98,10 @@ The warnings are predominantly W005 ("possible orphan") — expected, because th
 
 The test runner discovers test cases by reading `qual/TestCases/TC-TRS-*.md` with `find` and extracting frontmatter (id, name, verifies) using `awk`. For each TC it sources the matching shell script in `qual/tests/tc/` and runs one or more `syscribe -m qual/fixtures/...` invocations, asserting on stdout content and exit codes. A TC with no script in `qual/tests/tc/` is printed as `SKIP` and counted as skipped: those are the test cases evidenced by Rust tests (`sourceFile: repo:crates/...`), which `cargo test --workspace` runs. The shell suite is therefore one half of the evidence, not all of it.
 
+The suite always runs the **release** binary (`target/release/syscribe`), the artifact users run, so the evidence is about the shipped build. `run_qual.sh` builds it with `cargo build --release` unless `--no-build` is given, and prints the binary path at the start of the run.
+
 ```bash
-# Build syscribe and run every test case
+# Build syscribe (release) and run every test case
 ./qual/tests/run_qual.sh
 
 # Skip rebuild if the binary is already current
@@ -278,7 +280,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build syscribe
-        run: cargo build --package syscribe
+        run: cargo build --release --package syscribe
 
       - name: Run workspace tests          # abridged: also FMI feature tests,
         run: cargo test --workspace        # Graphviz/PlantUML install + render
@@ -289,12 +291,12 @@ jobs:
           # "model_mg|--profile magicgrid", "model_sil|", "model_gti|", "qual|"
           fail=0
           for m in model model_auto model_mg model_sil model_gti qual; do
-            ./target/debug/syscribe -m "$m" validate > "validate-$m.md" || fail=1
+            ./target/release/syscribe -m "$m" validate > "validate-$m.md" || fail=1
           done
           exit $fail
 
       - name: Check committed grid-tie diagram renders
-        run: ./target/debug/syscribe -m model_gti diagram export --all --check
+        run: ./target/release/syscribe -m model_gti diagram export --all --check
 
       - name: Run qualification test suite
         run: bash qual/tests/run_qual.sh --no-build

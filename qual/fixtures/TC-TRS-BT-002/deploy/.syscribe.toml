@@ -1,0 +1,5 @@
+[bindingTimes.deploy]
+description = "installed on the target"
+binder = "installer"
+after = "compile"
+before = "load"
