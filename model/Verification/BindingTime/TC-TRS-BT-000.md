@@ -2,7 +2,7 @@
 id: TC-TRS-BT-000
 type: TestCase
 testLevel: L4
-status: draft
+status: active
 name: "Verify a staged product line end to end: compile, load and runtime Configurations, residual, exported parameter file and its check"
 sourceFile: repo:qual/tests/tc/TC-TRS-BT-000.sh
 verifies:
