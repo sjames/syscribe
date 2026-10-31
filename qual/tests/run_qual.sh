@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-export SYSCRIBE="$REPO_ROOT/target/debug/syscribe"
+export SYSCRIBE="$REPO_ROOT/target/release/syscribe"
 FIXTURES="$REPO_ROOT/qual/fixtures"
 TC_DIR="$SCRIPT_DIR/tc"
 TVR_DIR="$SCRIPT_DIR/tvr"
@@ -42,7 +42,7 @@ done
 if [ "$BUILD" -eq 1 ]; then
     printf "${BOLD}Building syscribe...${NC}\n"
     cd "$REPO_ROOT"
-    cargo build --package syscribe 2>&1 | tail -3
+    cargo build --release --package syscribe 2>&1 | tail -3
 fi
 
 if [ ! -x "$SYSCRIBE" ]; then
