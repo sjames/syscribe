@@ -116,3 +116,14 @@ with no evidence it's needed yet.
 - Subsequent requirements build on this decision in phases: v1 capabilities
   (`REQ-TRS-LSP-002`..`REQ-TRS-LSP-006`), with v2 (completion, rename) and v3 (codeLens,
   codeAction) requirements to follow once v1 ships.
+
+## Addendum: custom requests (ADR-SYS-LSP-004)
+
+The "Protocol: pure LSP, no custom methods" decision above is relaxed by `ADR-SYS-LSP-004`.
+Read-only, namespaced `syscribe/*` requests are now allowed for model views that no standard
+LSP method can express (feature model, configurator, residual variability, coverage matrix,
+variant diff and impact), versioned and advertised through the `initialize` result. Standard
+LSP stays the mechanism for everything it can express, the server never writes through a
+custom request, and the rest of this decision (placement, SDK, reload strategy, phasing) is
+unchanged.
+
