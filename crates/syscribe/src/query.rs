@@ -763,7 +763,7 @@ pub fn cmd_show(
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
         eprintln!("Tip: use `find` to search by partial name.");
-        return;
+        std::process::exit(1);
     };
     let fm = &elem.frontmatter;
     let type_str = tl(fm.element_type.as_ref());
@@ -1649,7 +1649,7 @@ pub fn cmd_list(
         let known = elements.iter().any(|e| {
             e.frontmatter.element_type.as_ref()
                 == Some(&syscribe_model::element::ElementType::FeatureDef)
-                && e.qualified_name == feat
+                && (e.qualified_name == feat || e.frontmatter.id.as_deref() == Some(feat))
         });
         if !known {
             eprintln!("Error: unknown feature '{}' (no matching FeatureDef)", feat);
@@ -1658,9 +1658,19 @@ pub fn cmd_list(
     }
     // Effective appliesWhen honours transitive package conditioning (REQ-TRS-VAR-006).
     let lpkg = syscribe_model::variability::package_conditions(elements);
-    let gates_feature = |e: &RawElement, feat: &str| -> bool {
+    // `appliesWhen:` operands may name the feature by qualified name or by `FEAT-*` id.
+    let feature_names: Vec<&str> = feature
+        .and_then(|feat| {
+            elements.iter().find(|e| {
+                e.frontmatter.element_type.as_ref() == Some(&syscribe_model::element::ElementType::FeatureDef)
+                    && (e.qualified_name == feat || e.frontmatter.id.as_deref() == Some(feat))
+            })
+        })
+        .map(|f| std::iter::once(f.qualified_name.as_str()).chain(f.frontmatter.id.as_deref()).collect())
+        .unwrap_or_default();
+    let gates_feature = |e: &RawElement, _feat: &str| -> bool {
         match syscribe_model::variability::effective_expr(e, &lpkg) {
-            Some(expr) => expr.operands().iter().any(|o| o == feat),
+            Some(expr) => expr.operands().iter().any(|o| feature_names.iter().any(|n| n == o)),
             None => false,
         }
     };
@@ -1948,7 +1958,7 @@ pub fn cmd_trace(
     let evidence = if linked_only { None } else { results };
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
     let fm = &elem.frontmatter;
 
@@ -2310,7 +2320,7 @@ pub fn cmd_trace(
 pub fn cmd_links(elements: &[RawElement], resolver: &Resolver, key: &str) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
 
     println!("# Links: {}", elem.qualified_name);
@@ -2401,7 +2411,7 @@ pub fn cmd_why(
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
 
     // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
@@ -2510,7 +2520,7 @@ pub fn cmd_who_verifies(
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
     let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
     let title = elem.frontmatter.name.as_deref().unwrap_or("(no name)");
