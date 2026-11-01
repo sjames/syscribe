@@ -15,6 +15,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
 
+/// Stop a spawned server: close its stdin so it sees EOF and exits normally, and only kill
+/// it if it has not exited after a grace period. A killed process never writes its
+/// instrumentation profile, so `cargo llvm-cov` would count none of what it ran.
+fn stop_child(child: &mut Child, stdin: Option<ChildStdin>) {
+    drop(stdin);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while std::time::Instant::now() < deadline {
+        if let Ok(Some(_)) = child.try_wait() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Recursively copy a directory tree.
@@ -234,8 +250,7 @@ impl Mcp {
 
 impl Drop for Mcp {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        stop_child(&mut self.child, self.stdin.take());
     }
 }
 
@@ -546,7 +561,6 @@ impl Lsp {
 
 impl Drop for Lsp {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        stop_child(&mut self.child, self.stdin.take());
     }
 }

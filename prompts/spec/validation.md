@@ -109,6 +109,7 @@
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
 | `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |
+| `I750` | Informational (`validate --config`): an element is variant-retained — the staged Configuration's projection keeps it because its `appliesWhen:` depends on a feature still open at that stage; also listed by `residual` (§9.8). Never affects the exit status |
 | `I011` | Informational: plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
 
 ## Safety / ASPICE warnings (W701–W703)
@@ -685,8 +686,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
 | `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `feature-check`; default severity) |
 | `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter); the message names the accepted form and the path or parameter it most likely meant |
-| `E229` | A parameter's `bindingTime:` is earlier than that of a `derivedFrom`/`bindTo` source it depends on (impossible ordering; checked when both ends declare a `bindingTime:`) |
-| `E230` | A parameter's `bindingTime:` is not `compile`/`load`/`runtime` (§9.7) |
+| `E229` | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
+| `E230` | A `FeatureDef`'s or parameter's `bindingTime:`/`latestBindingTime:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]` (§9.7) |
 | `E223` | (`feature-check --deep`) feature model is **void** — no valid configuration exists |
 | `E224` | (`feature-check --deep`) a **dead feature** — selectable in no valid configuration |
 | `E225` | (`feature-check --deep`) a `Configuration` is not a valid model of the feature model (mandatory/group/cardinality/parent violation) |
@@ -890,6 +891,31 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W059` | A `visibility: private` element is referenced (`supertype:`/`typedBy:`) from outside the namespace that owns it |
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
+
+## Binding times (E750–E762, W750–W754, I750, ADR-SYS-BT-001)
+
+Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabulary is `compile < load < runtime`.
+
+| Code | Condition |
+|---|---|
+| `E750` | `latestBindingTime:` is earlier than `bindingTime:` on a `FeatureDef` or one of its parameters — the binding window closes before it opens (§9.7) |
+| `E751` | A `Configuration`'s `bindingStage:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]`; the Configuration is then checked as unstaged (§9.8) |
+| `E752` | A staged `Configuration` selects a feature (a `features:` entry of its own) or binds a parameter (a `parameterBindings:` entry) whose binding window does not contain its `bindingStage:` (§9.8) |
+| `E753` | A staged `Configuration` is `derivedFrom:` a staged base whose `bindingStage:` is **later** than its own (§9.8) |
+| `E754` | A staged `Configuration` sets a `<feature>.<param>` binding to a different value, or flips a feature selection, that a staged `derivedFrom:` ancestor already decided — a value bound at an earlier stage is closed (§9.8) |
+| `E755` | A `parameterNarrowing:` entry is malformed, names no declared `FeatureDef` parameter, mismatches the parameter's kind (range vs `enumValues`), or **widens** the parameter's declared `range:`/`enumValues:` or an ancestor Configuration's narrowing (§9.8) |
+| `E756` | A `parameterBindings:` value lies outside what the parameter was narrowed to along the `derivedFrom:` chain (§9.8); `E205`/`E206` judge a value against the declaration, this against the narrowing |
+| `E757` | A required parameter (no default, not fixed) of a selected feature is unbound in a staged `Configuration`'s chain and its binding window closed **before** that Configuration's `bindingStage:` — no later stage can bind it; reported in place of `W017` (§9.8) |
+| `E758` | A staged `Configuration` closes the last valid completion: the choices made up to its `bindingStage:` (its effective selection restricted to features whose window opens no later) leave no valid configuration. Reported by `feature-check --deep` on the earliest Configuration of a `derivedFrom:` chain to do so; a partial Configuration is judged by this instead of `E225` (§9.8) |
+| `E759` | A parameter's `fallback:` — the safe value for a missing or invalid late binding — lies outside the parameter's own `range:` or `enumValues:` (§9.7). Reported once each by `validate` and `feature-check` |
+| `E760` | `params check`: the values file has a key the contract does not — an unknown top-level key, feature toggle, feature or parameter (§9.8) |
+| `E761` | `params check`: the values file is not valid YAML, is not a mapping where one is expected, or a value has the wrong type for the parameter (§9.8) |
+| `E762` | `params check`: a required parameter of the contract is missing from the values file or is still an open `null` placeholder (§9.8) |
+| `W752` | `validate --config` / `residual`: an element references a variant-retained one yet applies only where it does not (their `appliesWhen:` conditions can never hold together), so it relies on the absence of an element the staged projection keeps because its condition is still open (§9.8) |
+| `W753` | A non-draft requirement with a SIL/ASIL/CAL level is influenced — through its `appliesWhen:` or a `{{Feature.param}}` placeholder — by a feature or parameter bound at `load` or later, and no non-draft verifying `TestCase` lists it in `coversVariability:`. Opt-in (draft-suppressed, silent without binding windows); gate with `--deny W753` (§9.8) |
+| `W754` | A `TestCase`'s `coversVariability:` entry names no feature or parameter of the feature model (§9.8) |
+| `W750` | A `[bindingTimes.<name>]` entry in `.syscribe.toml` is malformed — a name that is not a basic name or that redeclares a built-in stage, an unknown key, a non-string value, neither `after:` nor `before:`, a neighbour that is not a declared stage (or is itself ignored), a cyclic order, `after:` not earlier than `before:`, or the same position as another stage (see below); the entry is ignored whole and the rest of the vocabulary stays in force |
+| `W751` | `params check`: the values file was generated from a different model state (its `projection-hash` header differs from the contract's), or carries none — regenerate it with `params export`; gate with `--deny W751` (§9.8) |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

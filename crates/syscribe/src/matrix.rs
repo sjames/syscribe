@@ -58,9 +58,17 @@ fn keys(e: &RawElement) -> Vec<String> {
 }
 
 thread_local! {
+    /// The `--stage` of this `matrix` run (REQ-TRS-BT-035): the grid is shown as it can be
+    /// known at that binding stage. Set once here for the same reason as `SELECT`.
+    static STAGE: std::cell::RefCell<Option<syscribe_model::binding_time::BindingTime>> = const { std::cell::RefCell::new(None) };
     /// The `--select` stereotype selectors of this `matrix` run (REQ-TRS-META-024). A run is one process,
     /// and the row filter sits several calls below the command, so the selectors are set once here.
     static SELECT: std::cell::RefCell<Vec<syscribe_model::tagged_values::Selector>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Show the grid as known at binding stage `stage` (`None`: as authored, the default).
+pub fn set_stage(stage: Option<syscribe_model::binding_time::BindingTime>) {
+    STAGE.with(|s| *s.borrow_mut() = stage);
 }
 
 /// Keep only the requirement rows that satisfy every selector.
@@ -192,30 +200,44 @@ fn cell_state(
     alias: &std::collections::HashMap<String, String>,
     tcs: &[(Option<FeatureExpr>, Vec<String>, TcVerdict, bool)],
     evidence: Option<&ResultsData>,
+    open: &std::collections::HashSet<String>,
 ) -> &'static str {
-    let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+    // A feature still open at the viewed stage is unknown, not false (REQ-TRS-BT-035). With
+    // nothing open this is the plain two-valued grid.
+    let known = |q: &str| if open.contains(q) { None } else { Some(sel.get(q).copied().unwrap_or(false)) };
     let rexpr = variability::effective_expr_canon(r, pkg, alias);
-    let active = rexpr.as_ref().is_none_or(|e| e.eval(&selected));
-    if !active {
-        return "na";
+    match rexpr.as_ref().map_or(Some(true), |e| e.eval_tri(&known)) {
+        Some(false) => return "na",
+        // Whether the requirement exists in this variant is not decided at this stage.
+        None => return "open",
+        Some(true) => {}
     }
     let rkeys = keys(r);
     let mut nondraft_covered = false;
     let mut draft_covered = false;
+    let mut maybe_covered = false;
     let mut any_pass = false;
     let mut any_fail = false;
     for (texpr, ver, verdict, is_draft) in tcs {
-        let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
-        if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
-            if *is_draft {
-                draft_covered = true;
-            } else {
-                nondraft_covered = true;
-                match verdict {
-                    TcVerdict::Pass => any_pass = true,
-                    TcVerdict::Fail => any_fail = true,
-                    _ => {}
-                }
+        if !ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
+            continue;
+        }
+        match texpr.as_ref().map_or(Some(true), |e| e.eval_tri(&known)) {
+            Some(false) => continue,
+            None => {
+                maybe_covered = true;
+                continue;
+            }
+            Some(true) => {}
+        }
+        if *is_draft {
+            draft_covered = true;
+        } else {
+            nondraft_covered = true;
+            match verdict {
+                TcVerdict::Pass => any_pass = true,
+                TcVerdict::Fail => any_fail = true,
+                _ => {}
             }
         }
     }
@@ -230,6 +252,9 @@ fn cell_state(
         }
     } else if draft_covered {
         "planned"
+    } else if maybe_covered {
+        // Only a TestCase whose own condition is still open could cover it.
+        "open"
     } else {
         "gap"
     }
@@ -311,6 +336,15 @@ fn active_grid(
         .iter()
         .map(|c| (disp_id(c), variability::canon_selection(&c.frontmatter.feature_selections(), &feat_alias)))
         .collect();
+    // What each column cannot yet know at the viewed stage (`--stage`); empty by default.
+    let view_stage = STAGE.with(|s| *s.borrow());
+    let open_sets: Vec<std::collections::HashSet<String>> = configs
+        .iter()
+        .map(|c| match (view_stage, elements.iter().position(|e| std::ptr::eq(e, *c))) {
+            (Some(st), Some(i)) => syscribe_model::staging::open_features_at(elements, i, st),
+            _ => std::collections::HashSet::new(),
+        })
+        .collect();
 
     // Rows: requirements (optionally tag- and status-filtered), sorted by id.
     let mut reqs: Vec<&RawElement> = elements
@@ -340,7 +374,8 @@ fn active_grid(
             let cells: Vec<&'static str> = cfg_sel
                 .iter()
                 .zip(col_tcs.iter())
-                .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &feat_alias, tcs, evidence))
+                .zip(open_sets.iter())
+                .map(|(((_, sel), tcs), open)| cell_state(r, sel, &pkg, &feat_alias, tcs, evidence, open))
                 .collect();
             (disp_id(r), cells)
         })
@@ -423,12 +458,16 @@ pub fn matrix_json(
             json!({ "id": id, "cells": cell_map })
         })
         .collect();
-    json!({
+    let mut doc = json!({
         "schemaVersion": SCHEMA_VERSION,
         "columns": columns,
         "rows": rows,
         "coverage": coverage.json(),
-    })
+    });
+    if let Some(st) = STAGE.with(|s| *s.borrow()) {
+        doc["stage"] = json!(st.name());
+    }
+    doc
 }
 
 /// Collapse the coverage grid to one verdict per requirement (keyed by `disp_id`):
@@ -460,7 +499,7 @@ pub fn requirement_rollup(
         let cells: Vec<&'static str> = cfgs
             .iter()
             .zip(col_tcs.iter())
-            .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &alias, tcs, results))
+            .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &alias, tcs, results, &std::collections::HashSet::new()))
             .collect();
         out.insert(disp_id(r), rollup_cells(&cells));
     }
@@ -536,6 +575,8 @@ fn cmd_matrix_inner(
         // evidence-less "covered" cell, and visually distinct from a true gap.
         "failing" => "▣",
         "gap" => "✗",
+        // Not decidable at the viewed stage (matrix --stage).
+        "open" => "?",
         _ => "—",
     };
     println!("# Coverage Matrix ({} requirements × {} configurations)", grid.len(), cfg_sel.len());
@@ -558,10 +599,11 @@ fn cmd_matrix_inner(
         println!();
     }
     println!();
+    let open_note = if STAGE.with(|s| s.borrow().is_some()) { " · ? not yet decided at this stage" } else { "" };
     if evidence.is_some() {
-        println!("Legend: ✓ covered, passing · ▣ covered, not passing · ✗ gap · — N/A");
+        println!("Legend: ✓ covered, passing · ▣ covered, not passing · ✗ gap · — N/A{open_note}");
     } else {
-        println!("Legend: ✓ covered · ✗ gap · — N/A");
+        println!("Legend: ✓ covered · ✗ gap · — N/A{open_note}");
     }
     println!();
     coverage.print_footer();
@@ -656,7 +698,7 @@ impl Coverage {
                 let cells: Vec<&'static str> = cfg_sel
                     .iter()
                     .zip(col_tcs.iter())
-                    .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &feat_alias, tcs, evidence))
+                    .map(|((_, sel), tcs)| cell_state(r, sel, &pkg, &feat_alias, tcs, evidence, &std::collections::HashSet::new()))
                     .collect();
                 (disp_id(r), cells)
             })

@@ -202,6 +202,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `securityTestMethod` | string | optional (ISO/SAE 21434 §13.3) — `fuzz` · `penetration_test` · `security_regression` · `vulnerability_scan` · `threat_modeling` (W809 if other). Orthogonal to `testLevel`; lets `verification-depth`/`matrix` distinguish security-method tests from functional ones |
 | `sourceFile` | string | Path relative to model root (W004 if not found) |
 | `testFunctions` | list | Each entry a function-name string or `{function: name, scenario: "title"}` |
+| `coversVariability` | list | Late-bound features (FEAT id / qname) and parameters (`<feature>.<param>`) whose declared range or values this test exercises; clears the late-bound safety rule `W753` for a requirement it verifies; an entry naming nothing is `W754` (§9.8) |
 | `coverageTarget` | string | `statement` · `branch` · `MCDC` (`E021`) |
 | `tags` | list | Free-form tags |
 
@@ -367,11 +368,15 @@ links:
 | `subConfigurations` | Configuration | string/list | **Optional** (§14.7, `ADR-SYS-HPLE-001`). One or more other `Configuration`s this one consolidates — reachable locally or via `[repos]` (peer-native qname, stable id, or `repoImports:` mount path), at any depth. Each entry must resolve to a real, internally-valid `Configuration` (`E516` dangling, `E517` wrong-type, `E518` not internally valid). A leaf tier with no lower tiers to consolidate simply omits it. |
 | `parameters` | FeatureDef | list | Typed parameters (§9.7): each `{name, type, range, enumValues, default, isFixed, isRequired, value, buildVar}`. Optional `buildVar:` maps the parameter's bound (or default) value to a named build variable emitted by `build-config`. |
 | `buildExports` | FeatureDef | list | **Optional.** Build variable declarations for `build-config`: each `{var, whenSelected, whenDeselected}`. `whenSelected` (default `1`) is emitted when the feature is selected; `whenDeselected` is emitted when not selected, or the variable is omitted when absent. Multiple entries allowed per feature. See E050/W050. |
+| `bindingStage` | Configuration | string | the binding-time stage this Configuration binds at — a stage of `binding-times`; absent = unstaged. Unknown is `E751`; binding outside an item's window is `E752`; earlier than the `derivedFrom` base is `E753` (§9.8) |
+| `parameterNarrowing` | Configuration | map | `<FeatureDef QName>.<param>` → a narrower `range` string (`"lo..hi"`) or `enumValues` list than the parameter (or an ancestor Configuration) allows; widening is `E755`, a binding outside it `E756` (§9.8) |
 | `parameterBindings` | Configuration | map | Bind feature parameters: `<FeatureDef QName>.<param>: <value>` (dotted member; validated: E203–E206, E222, W017). A dotted key also resolves transitively through `subConfigurations:` at any depth, using the parameter's ordinary qname (peer-native or through a `repoImports:` mount path) — no new syntax; the cross-tier legality checks are `E519`/`E523`, and the opt-in completeness warning for what's still left open anywhere in the subtree is `W513` (§14.7). |
 | `buildOverrides` | Configuration | map | **Optional.** Build variable overrides applied last by `build-config`, after `buildExports` and `parameterBindings`. Use for config-specific variables (version strings, SKU names) not tied to a feature. Wins on name collision. |
 | `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — `expression` is a comparison over dotted refs, `appliesWhen` a boolean predicate; checked by `feature-check` (E213/W014, E221/W025) |
 | `groupKind` | FeatureDef | string | child grouping: `optional` · `alternative` · `or` · `mandatory` (legacy member shorthand) |
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
+| `bindingTime` | FeatureDef | string | earliest stage at which the feature's selection may be bound — a stage of `binding-times` (built-in `compile` · `load` · `runtime`; unknown is `E230`); with `latestBindingTime` the *binding window* (§9.7). Parameters carry the same two keys inside their `parameters:` entry |
+| `latestBindingTime` | FeatureDef | string | latest stage at which the selection may still be bound; earlier than `bindingTime` is `E750`; alone it means "no later than this" |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
 | `isRequired` | FeatureDef parameter | bool | `W017` if unbound in a Configuration |

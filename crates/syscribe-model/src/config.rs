@@ -140,6 +140,14 @@ pub struct ValidateConfig {
     /// (`crate::link_types::install`) for graph building and suspect scanning.
     pub link_types: crate::link_types::LinkTypeRegistry,
 
+    /// REQ-TRS-BT-002 — the binding-time stage vocabulary: the built-in
+    /// `compile < load < runtime`, refined by the `[bindingTimes.<name>]` tables of
+    /// `<model_root>/.syscribe.toml`. Holds the `W750` defect messages for ignored
+    /// entries. The default is the built-in vocabulary, so a project without the
+    /// table behaves exactly as before. [`Self::with_model_root`] also installs it as
+    /// the process-wide active vocabulary (`crate::binding_time::install`).
+    pub binding_times: crate::binding_time::BindingTimeVocab,
+
     /// GH #216 — the `[audit]` table of `<model_root>/.syscribe.toml`: which
     /// finding codes fail the `audit` readiness verdict. Defaults to
     /// [`AuditConfig::default`] (W306 always; W033/W805 at ASIL C/D).
@@ -711,6 +719,10 @@ impl ValidateConfig {
         // vocabulary (an absent table installs the empty one, clearing any prior).
         let link_types = crate::link_types::LinkTypeRegistry::load(&root);
         crate::link_types::install(&link_types);
+        // REQ-TRS-BT-002 — likewise the binding-time vocabulary (an absent table
+        // installs the built-in one, clearing any prior).
+        let binding_times = crate::binding_time::BindingTimeVocab::load(&root);
+        crate::binding_time::install(&binding_times);
         let audit = AuditConfig::load(&root);
         let root_for_cyber = root.clone();
         let (breakdown_adr_optional, traceability_problems) = load_traceability(&root);
@@ -736,6 +748,7 @@ impl ValidateConfig {
             id_extra_prefixes,
             users,
             link_types,
+            binding_times,
             audit,
             coverage: CoveragePolicy::load(&root_for_cyber),
             cyber: crate::cyber_config::CyberConfig::load(&root_for_cyber),

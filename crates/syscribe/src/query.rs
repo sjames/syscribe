@@ -763,7 +763,7 @@ pub fn cmd_show(
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
         eprintln!("Tip: use `find` to search by partial name.");
-        return;
+        std::process::exit(1);
     };
     let fm = &elem.frontmatter;
     let type_str = tl(fm.element_type.as_ref());
@@ -1100,6 +1100,13 @@ pub fn cmd_show(
                 };
                 println!("| {} | {}{} |", feat, on, mark);
             }
+        }
+    }
+
+    // Binding stage and parameter-value provenance (ADR-SYS-BT-001, REQ-TRS-BT-021/022).
+    if fm.element_type.as_ref() == Some(&ElementType::Configuration) {
+        if let Some(idx) = elements.iter().position(|e| std::ptr::eq(e, elem)) {
+            print_config_provenance(&syscribe_model::provenance::provenance(elements, idx), fm.binding_stage.as_deref());
         }
     }
 
@@ -1642,7 +1649,7 @@ pub fn cmd_list(
         let known = elements.iter().any(|e| {
             e.frontmatter.element_type.as_ref()
                 == Some(&syscribe_model::element::ElementType::FeatureDef)
-                && e.qualified_name == feat
+                && (e.qualified_name == feat || e.frontmatter.id.as_deref() == Some(feat))
         });
         if !known {
             eprintln!("Error: unknown feature '{}' (no matching FeatureDef)", feat);
@@ -1651,9 +1658,19 @@ pub fn cmd_list(
     }
     // Effective appliesWhen honours transitive package conditioning (REQ-TRS-VAR-006).
     let lpkg = syscribe_model::variability::package_conditions(elements);
-    let gates_feature = |e: &RawElement, feat: &str| -> bool {
+    // `appliesWhen:` operands may name the feature by qualified name or by `FEAT-*` id.
+    let feature_names: Vec<&str> = feature
+        .and_then(|feat| {
+            elements.iter().find(|e| {
+                e.frontmatter.element_type.as_ref() == Some(&syscribe_model::element::ElementType::FeatureDef)
+                    && (e.qualified_name == feat || e.frontmatter.id.as_deref() == Some(feat))
+            })
+        })
+        .map(|f| std::iter::once(f.qualified_name.as_str()).chain(f.frontmatter.id.as_deref()).collect())
+        .unwrap_or_default();
+    let gates_feature = |e: &RawElement, _feat: &str| -> bool {
         match syscribe_model::variability::effective_expr(e, &lpkg) {
-            Some(expr) => expr.operands().iter().any(|o| o == feat),
+            Some(expr) => expr.operands().iter().any(|o| feature_names.iter().any(|n| n == o)),
             None => false,
         }
     };
@@ -1941,7 +1958,7 @@ pub fn cmd_trace(
     let evidence = if linked_only { None } else { results };
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
     let fm = &elem.frontmatter;
 
@@ -1971,6 +1988,33 @@ pub fn cmd_trace(
         .and_then(|&i| cov.get(i))
         .map(|e| &e.frontmatter)
         .unwrap_or(fm);
+
+    // ── Parameter consumers (consumedBy, REQ-TRS-BT-027) ───────────────────
+    // A FeatureDef's parameters can name the elements or source files that read them.
+    if fm.element_type.as_ref() == Some(&ElementType::FeatureDef) {
+        let mut rows: Vec<(String, String)> = Vec::new();
+        for p in fm.parameters.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = p else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
+            let Some(name) = get("name").and_then(|v| v.as_str()) else { continue };
+            let by: Vec<String> = match get("consumedBy") {
+                Some(serde_yaml::Value::String(x)) => vec![x.clone()],
+                Some(serde_yaml::Value::Sequence(items)) => items.iter().filter_map(|i| i.as_str().map(str::to_string)).collect(),
+                _ => continue,
+            };
+            rows.push((name.to_string(), by.join(", ")));
+        }
+        if !rows.is_empty() {
+            println!("## Parameter consumers (`consumedBy`)");
+            println!();
+            println!("| Parameter | Read by |");
+            println!("|---|---|");
+            for (n, by) in &rows {
+                println!("| {} | {} |", n, by);
+            }
+            println!();
+        }
+    }
 
     // ── Parents (derivedFrom) ─────────────────────────────────────────────
     let parents = cov_fm.derived_from.as_deref().unwrap_or(&[]);
@@ -2276,7 +2320,7 @@ pub fn cmd_trace(
 pub fn cmd_links(elements: &[RawElement], resolver: &Resolver, key: &str) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
 
     println!("# Links: {}", elem.qualified_name);
@@ -2367,7 +2411,7 @@ pub fn cmd_why(
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
 
     // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
@@ -2476,7 +2520,7 @@ pub fn cmd_who_verifies(
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
-        return;
+        std::process::exit(1);
     };
     let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
     let title = elem.frontmatter.name.as_deref().unwrap_or("(no name)");
@@ -2957,12 +3001,65 @@ pub fn cmd_feature_check(
     }
 }
 
+/// The binding stage and the effective parameter values of a Configuration, each with
+/// where it came from and the stage it was bound at (REQ-TRS-BT-021/022).
+fn print_config_provenance(p: &syscribe_model::provenance::ConfigProvenance, declared_stage: Option<&str>) {
+    if let Some(st) = declared_stage {
+        let note = if p.stage.is_none() { " (not a stage of the vocabulary — E751)" } else { "" };
+        println!();
+        println!("**bindingStage:** {st}{note}");
+    }
+    if p.parameters.is_empty() {
+        return;
+    }
+    println!();
+    println!("## Parameter values");
+    println!();
+    println!("| Parameter | Value | Source | Stage |");
+    println!("|---|---|---|---|");
+    for q in &p.parameters {
+        let v = match &q.value {
+            serde_yaml::Value::String(s) => s.clone(),
+            other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
+        };
+        println!("| {} | {} | {} | {} |", q.key, v, q.source.describe(), q.stage.as_deref().unwrap_or("—"));
+    }
+}
+
+/// Provenance of the Configuration `conf` names (by id or qualified name), if there is one.
+fn provenance_for(elements: &[RawElement], conf: &str) -> Option<syscribe_model::provenance::ConfigProvenance> {
+    let idx = elements.iter().position(|e| {
+        e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration)
+            && (e.frontmatter.id.as_deref() == Some(conf) || e.qualified_name == conf)
+    })?;
+    Some(syscribe_model::provenance::provenance(elements, idx))
+}
+
 /// `configure <Configuration>`: assisted configuration (REQ-TRS-FMA-008). Treats
 /// the configuration's `features:` as a partial selection and reports
 /// satisfiability + forced/free features. Exit `1` if the partial selection is
 /// contradictory; dormant (exit 0) with no feature model.
-pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
+pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool, stage: Option<&str>) {
     use syscribe_model::feature_model::{configure, ConfigureOutcome};
+    // REQ-TRS-BT-018: `--stage S` restricts the reported choices to features whose binding
+    // window contains S (a feature with no window is unrestricted).
+    let stage_bt = match stage {
+        None => None,
+        Some(s) => match syscribe_model::binding_time::BindingTime::parse(s) {
+            Some(bt) => Some(bt),
+            None => {
+                eprintln!("Unknown stage '{s}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint());
+                std::process::exit(2);
+            }
+        },
+    };
+    let windows = syscribe_model::staging::feature_windows(elements);
+    let at_stage = |names: Vec<String>| -> Vec<String> {
+        match stage_bt {
+            None => names,
+            Some(st) => names.into_iter().filter(|n| windows.get(n).map_or(true, |w| w.contains(st))).collect(),
+        }
+    };
     match configure(elements, conf) {
         ConfigureOutcome::Dormant => {
             if json {
@@ -2976,18 +3073,24 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
             std::process::exit(1);
         }
         ConfigureOutcome::Report { satisfiable, forced_true, forced_false, free, explanation } => {
+            let (forced_true, forced_false, free) = (at_stage(forced_true), at_stage(forced_false), at_stage(free));
             if json {
                 let doc = serde_json::json!({
                     "satisfiable": satisfiable,
                     "forcedTrue": forced_true,
                     "forcedFalse": forced_false,
                     "free": free,
+                    "stage": stage_bt.map(|s| s.name()),
                     "explanation": explanation,
+                    "provenance": provenance_for(elements, conf).map(|p| syscribe_model::provenance::to_json(&p)),
                 });
                 println!("{}", serde_json::to_string_pretty(&doc).unwrap());
             } else {
                 println!("# Configure: {}", conf);
                 println!();
+                if let Some(st) = stage_bt {
+                    println!("- stage: {} (only features whose binding window contains it are listed)", st.name());
+                }
                 println!("- satisfiable: {}", satisfiable);
                 if let Some(e) = &explanation {
                     println!("- conflict: {}", e);
@@ -2997,6 +3100,9 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
                     println!("- forced (true): {}", or_none(&forced_true));
                     println!("- forced (false): {}", or_none(&forced_false));
                     println!("- free: {}", or_none(&free));
+                }
+                if let Some(p) = provenance_for(elements, conf) {
+                    print_config_provenance(&p, None);
                 }
             }
             if !satisfiable {

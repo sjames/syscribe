@@ -772,6 +772,10 @@ pub struct RawFrontmatter {
     pub test_level: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
+    /// `coversVariability:` (REQ-TRS-BT-034) — features (`FEAT-*` id or qualified name) and
+    /// parameters (`<feature>.<param>`) whose late-bound range or values this TestCase is
+    /// written to exercise. Read by the late-bound safety rule (`W753`).
+    pub covers_variability: Option<Vec<String>>,
 
     // Native TestPlan fields (GH #38; REQ-TRS-PLAN-001..004)
     /// `scope:` — free-form, recommended vocab unit|smoke|integration|hil|
@@ -928,6 +932,11 @@ pub struct RawFrontmatter {
     /// [`RawFrontmatter::effective_parameter_bindings`].
     #[serde(skip)]
     pub inherited: Option<Box<InheritedConfiguration>>,
+    /// Set on the clone of an element that a staged projection keeps although its
+    /// `appliesWhen:` depends on a feature still open at that stage (`REQ-TRS-BT-031`).
+    /// Never (de)serialized: it describes one projection, not the authored element.
+    #[serde(skip)]
+    pub variant_retained: bool,
     /// `applies_when` was copied from the owning TARA/FMEA sheet, not authored on this
     /// row (GH #229). The sheet already carries the authored declaration, so per-element
     /// validity and nesting checks skip the copy rather than repeat the finding.
@@ -1066,6 +1075,20 @@ pub struct ColdFrontmatter {
     /// (forced on with its parent, or root-selected when top-level) independently
     /// of `groupKind`. Legacy `groupKind: mandatory` remains a shorthand.
     pub mandatory: Option<bool>,
+
+    /// `bindingTime:` / `latestBindingTime:` (REQ-TRS-BT-006) — on a `FeatureDef`: the
+    /// earliest and latest stage at which the feature's *selection* may be bound.
+    /// Parameters carry the same two keys inside their `parameters:` entry.
+    pub binding_time: Option<String>,
+    pub latest_binding_time: Option<String>,
+
+    /// `bindingStage:` (REQ-TRS-BT-011) — on a `Configuration`: the stage at which it
+    /// binds. Absent = unstaged, checked exactly as before.
+    pub binding_stage: Option<String>,
+    /// `parameterNarrowing:` (REQ-TRS-BT-014) — on a `Configuration`: `<feature>.<param>`
+    /// → a narrower `range:` string or `enumValues` list than the parameter declares
+    /// (or than an ancestor Configuration already narrowed it to).
+    pub parameter_narrowing: Option<serde_yaml::Value>,
 
     /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
     /// whole feature model as one **flat** list. Each entry is shaped like a
@@ -1888,6 +1911,20 @@ struct ColdWire {
     /// of `groupKind`. Legacy `groupKind: mandatory` remains a shorthand.
     pub mandatory: Option<bool>,
 
+    /// `bindingTime:` / `latestBindingTime:` (REQ-TRS-BT-006) — on a `FeatureDef`: the
+    /// earliest and latest stage at which the feature's *selection* may be bound.
+    /// Parameters carry the same two keys inside their `parameters:` entry.
+    pub binding_time: Option<String>,
+    pub latest_binding_time: Option<String>,
+
+    /// `bindingStage:` (REQ-TRS-BT-011) — on a `Configuration`: the stage at which it
+    /// binds. Absent = unstaged, checked exactly as before.
+    pub binding_stage: Option<String>,
+    /// `parameterNarrowing:` (REQ-TRS-BT-014) — on a `Configuration`: `<feature>.<param>`
+    /// → a narrower `range:` string or `enumValues` list than the parameter declares
+    /// (or than an ancestor Configuration already narrowed it to).
+    pub parameter_narrowing: Option<serde_yaml::Value>,
+
     /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
     /// whole feature model as one **flat** list. Each entry is shaped like a
     /// `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`,
@@ -2473,6 +2510,10 @@ impl ColdWire {
             objectives: w.objectives,
             annotates: w.annotates,
             mandatory: w.mandatory,
+            binding_time: w.binding_time,
+            latest_binding_time: w.latest_binding_time,
+            binding_stage: w.binding_stage,
+            parameter_narrowing: w.parameter_narrowing,
             feature_tree: w.feature_tree,
             cross_tree_constraints: w.cross_tree_constraints,
             parameter_constraints: w.parameter_constraints,

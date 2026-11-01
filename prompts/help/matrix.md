@@ -3,7 +3,7 @@
 ## SYNOPSIS
     syscribe -m <root> matrix [--json] [--tag <t>] [--select <sel>]...
         [--status <s>] [--gaps-only] [--linked-only]
-        [--config <C>] [--plan TP-X]
+        [--config <C>] [--plan TP-X] [--stage <stage>]
     syscribe -m <root> matrix --rollup [--json] [--tag <t>] [--status <s>] [--config <C>]
     syscribe -m <root> matrix --features [--json]
     syscribe -m <root> matrix --allocations [--json]
@@ -16,7 +16,14 @@ coverage-% footer is printed. With no feature model, falls back to a flat
 requirement/test view. A Configuration with a `derivedFrom:` base contributes
 its effective (inherited + own) selection, spec §9.8.
 
+`--stage <stage>` shows the grid as it can be known at that binding stage (ADR-SYS-BT-001):
+a feature whose binding window extends beyond the stage and that the column's
+`derivedFrom:` chain has not decided by it is unknown there, so a requirement (or
+covering test) depending on it is `?` — neither covered nor a gap, and not counted as
+applicable. Without `--stage` the grid is as authored.
+
 ## OPTIONS
+    --stage <stage> Show the grid as known at this binding stage (see above); unknown is a usage error.
     --tag <t>       Restrict rows to requirements tagged t.
     --select <sel>  Restrict rows to requirements a stereotype selector matches: `Safety`, or
                     `Safety where integrity >= 2` (a specialisation counts). Repeatable, ANDed.

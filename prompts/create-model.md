@@ -85,6 +85,10 @@ This prompt covers the core authoring workflow. Syscribe has more commands, elem
 | Format rules: directories, cross-references, multiplicity | `syscribe spec namespace`, `syscribe spec traceability`, `syscribe spec safety` |
 | A topic beyond those: executable models, evidence, plants, diagrams, placeholders | `syscribe spec behaviour`, `spec evidence`, `spec diagrams`, `spec variability` |
 | Which link types the project declares | `syscribe -m model/ link-types` |
+| Which binding-time stages a `bindingTime:` may name | `syscribe -m model/ binding-times` |
+| What a (staged) Configuration still leaves to later stages | `syscribe -m model/ residual --config CONF-X` |
+| The file a system reads its `load`/`runtime` parameters from | `syscribe -m model/ params export --config CONF-X` |
+| The coverage grid as known at a binding stage | `syscribe -m model/ matrix --stage load` |
 
 Rules of thumb:
 
@@ -152,6 +156,10 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ design-report <part> [--json]` | The detailed design of one software part: interface, behaviour, data, resources, code, requirements and tests |
 | `syscribe -m model/ meta [--def <Def>] [--group-by <key>] [--json]` | Stereotype report: who applies a `MetadataDef`, grouped by a tagged value (the compliance worklist) |
 | `syscribe -m model/ link-types [--json]` | The project's declared link types for `links:` (run **before** authoring any link — see §12.10 in Part 10) |
+| `syscribe -m model/ binding-times [--json]` | The project's binding-time stages for a parameter's `bindingTime:` (run **before** authoring one — the built-in `compile < load < runtime` may be refined in `.syscribe.toml`; an unknown stage is `E230`) |
+| `syscribe -m model/ residual --config <Configuration> [--json]` | What a Configuration leaves open, grouped by the stage each item can next be bound at (and that stage's binder), with the three-valued state of each `parameterConstraints:` entry; use it to see what a later stage must still decide |
+| `syscribe -m model/ params export --config <Configuration> [--stage <stage>] [--out FILE] [--schema FILE] [--allow-open]` / `params check <FILE> --config <Configuration>` | Generate the YAML file of late-bound parameter values (and its JSON Schema) from a Configuration, or validate such a file against the model; give a parameter a `fallback:` (safe value) and `consumedBy:` (who reads it) |
+| `syscribe -m model/ matrix --stage <stage> [--json]` | The Requirement × Configuration grid as it can be known at a binding stage (`?` = not yet decided). A `TestCase` that exercises a late-bound feature or parameter's declared range or values lists it in `coversVariability:`; a safety requirement influenced by one without such a test is `W753` |
 | `syscribe -m model/ follow <qname\|id> <link> [--reverse] [--transitive] [--depth N] [--format text\|json\|dot]` | Walk one link type (custom type, its `inverse`, or a built-in link / reverse index such as `satisfiedBy`) |
 
 **Reports & analysis:**

@@ -1,0 +1,4 @@
+[bindingTimes.a]
+after = "compile"
+[bindingTimes.b]
+after = "compile"

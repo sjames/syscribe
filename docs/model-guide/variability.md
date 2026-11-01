@@ -331,6 +331,30 @@ syscribe -m model/ why-active <element> --config CONF-X  # is this element activ
 
 ---
 
+### Binding time and staged configuration
+
+Not every choice is made at the same moment in a product's life. A feature's selection or a parameter's value can be fixed at build time (`compile`), at deployment (`load`), or by the running system (`runtime`) — or anywhere in a range of those. Declare when with a **binding window**, and configure in **stages** (`ADR-SYS-BT-001`, spec §9.7–§9.8). Everything here is opt-in: a model that declares no windows and no `bindingStage:` behaves exactly as it did.
+
+```yaml
+# FeatureDef — the window: earliest and latest stage the value may be bound
+parameters:
+  - { name: motorKV, type: ScalarValues::Real, range: "900..1200", isRequired: true,
+      bindingTime: compile, latestBindingTime: load }
+  - { name: rateHz, type: ScalarValues::Real, range: "1..50", default: 10, fallback: 5,
+      bindingTime: runtime, consumedBy: src/telemetry.c }
+# Configuration — the stage it binds at; derive later stages from earlier ones
+bindingStage: load
+derivedFrom: CONF-UAV-BUILD-001
+parameterNarrowing: { Features::Propulsion.motorKV: "950..1100" }   # shrink what is still open
+```
+
+- **Stages** are `compile < load < runtime`, refinable per project (`[bindingTimes]` in `.syscribe.toml`; list them with `binding-times`). A window is checked (`E230`, `E750`), a dependent may not close before what it depends on opens (`E229`), and a staged Configuration may bind only what its stage can (`E752`), not earlier than its base (`E753`), not rebind what a staged ancestor closed (`E754`), and only narrow (`E755`, `E756`).
+- **What is left.** `residual --config CONF-X` lists the features and parameters still open, grouped by the stage each can next be bound at and that stage's binder, with the three-valued state of each `parameterConstraints:` entry (a constraint the bound values already break is `E221`/`W025` now, whatever the open parameters become). `configure CONF-X --stage load` restricts the forced/free report to what that stage can decide. `feature-check --deep` reports the Configuration that closed the last valid completion (`E758`).
+- **Where a value came from.** `show` and `configure` give every effective value its source (own, inherited from a named ancestor, `bindTo:`, derived, fixed, default) and the stage it was bound at.
+- **Projecting at a stage.** `appliesWhen:` is evaluated three-valued: an element whose condition depends on a feature still open at the Configuration's stage is **retained** and marked variant-retained (`I750`, listed by `validate --config` and `residual`), not dropped; a test that applies only where a retained requirement is absent is `W752`. `matrix --stage S` shows the grid as it can be known at stage `S` (`?` where a feature is still undecided).
+- **Safety.** Late-bound (`load`/`runtime`) variability that reaches an ASIL/SIL/CAL requirement through its `appliesWhen:` or a `{{…}}` placeholder is `W753` unless a verifying `TestCase` lists it in `coversVariability:` (gate with `--deny W753`).
+- **The file the system reads.** `params export --config CONF-X` generates a deterministic YAML values file (and, with `--schema`, a JSON Schema) for the late-bound parameters; `params check` validates one. See `examples/staged-configuration`.
+
 ## 4. Projection — the `--config` lens
 
 The repository is the 150% superset; `--config` projects it onto one variant and runs the command over only the **active** elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set (`'Features::A,Features::B'`).
