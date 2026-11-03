@@ -20,6 +20,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("compliance", include_str!("../../../prompts/help/compliance.md")),
             ("changes", include_str!("../../../prompts/help/changes.md")),
             ("log", include_str!("../../../prompts/help/log.md")),
+            ("policy", include_str!("../../../prompts/help/policy.md")),
             ("agent-guide", include_str!("../../../prompts/help/agent-guide.md")),
             ("mechanisms", include_str!("../../../prompts/help/mechanisms.md")),
         ],
@@ -330,6 +331,7 @@ Options:
   --agent-instructions [topic]   Print the LLM authoring prompt; topic 'magicgrid' teaches MagicGrid modeling
   --dry-run                      Any command that writes files leaves the tree untouched (before or after the command)
   --by <actor> --reason <text> --commit   Attribute a change and commit just the files it wrote (see `help`)
+  --as-human                     A person is acting: the project's agent policy (`syscribe policy`) does not apply
   --expect-hash <hash>           Refuse a write if the file changed since it was read (`show` prints contentHash)
   --version, -V                  Print the tool version (also `syscribe [-m <root>] version`)
   --help, -h                     Show this help

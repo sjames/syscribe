@@ -121,6 +121,7 @@ pub fn cmd_claim(
 ) {
     let elem = require_planning_item(elements, resolver, target_key);
     crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
 
     if elem.frontmatter.status.as_deref() == Some("done") {
         eprintln!("{} is already 'done' — nothing to claim.", elem.qualified_name);
@@ -162,6 +163,7 @@ pub fn cmd_claim(
 pub fn cmd_release(model_root: &Path, elements: &[RawElement], resolver: &Resolver, target_key: &str, dry_run: bool) {
     let elem = require_planning_item(elements, resolver, target_key);
     crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
 
     if elem.frontmatter.claimed_by.is_none() && elem.frontmatter.claimed_at.is_none() {
         crate::say!("{} is not claimed — nothing to release.", elem.qualified_name);

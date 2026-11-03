@@ -105,6 +105,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--skip-configs", Switch),
             ("--install-hook", Switch),
         ],
+        "policy" => &[("--json", Switch)],
         "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--json", Switch)],
         "questions" => &[("--open", Switch), ("--status", Value), ("--item", Value), ("--json", Switch)],
         "steps" => &[("--open", Switch), ("--depth", Value), ("--json", Switch)],
@@ -368,7 +369,7 @@ pub fn or_exit<T>(r: Result<T, String>) -> T {
 mod tests {
     /// Global write options (GH #443/#444): accepted by every command and read by `main` before dispatch
     /// (`provenance::extract`), so no command's own option spec lists them.
-    const GLOBAL_FLAGS: &[&str] = &["--dry-run", "--by", "--reason", "--commit", "--expect-hash"];
+    const GLOBAL_FLAGS: &[&str] = &["--dry-run", "--by", "--reason", "--commit", "--expect-hash", "--as-human"];
 
     use super::*;
 

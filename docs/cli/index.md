@@ -2009,3 +2009,32 @@ syscribe -m model/ log --unattributed --since 2026-11-01                       #
 **`--json`** on `set`, `claim`, `release` and `move` prints one envelope instead of text: `{schemaVersion, ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}`. Other commands' `--json` output is unchanged.
 
 **Exit codes.** `0` success. `1` a usage error, an unknown element, or a refused write (a stale `--expect-hash`, an invalid value, a failed commit). `2` a tripped gate (`validate --deny …`, `check-staged`, `impact --fail-on-unreviewed`). `connectivity`, `follow` and `impact` also exit `2` on a usage error; every other command exits `1`. There is no other code.
+
+
+## The agent policy: `[agents]` and `policy`
+
+Conventions for automated editors — a planning item is not `done` without evidence, `approved` is a person's call, some paths are not for tools — can be declared once and enforced by the tool, instead of by convention.
+
+```toml
+# .syscribe.toml
+[agents]
+protected_paths     = ["model/Safety/**"]                       # repository-relative globs
+human_only_status   = { Requirement = ["approved"], ADR = ["accepted"] }
+require_before_done = ["validate", "evidence"]                  # before an agent sets a PlanningItem done
+require_by          = true                                      # every model-writing command names its actor
+actors              = ["agent-*"]                               # git authors the audit counts as agents
+audit_limit         = 200                                       # recent commits `validate` inspects
+```
+
+```bash
+syscribe -m model/ policy                                        # the rules in plain words, and how this call is treated
+syscribe -m model/ set REQ-X status=approved --by agent-1        # refused: a Requirement is approved by a person
+syscribe -m model/ set REQ-X status=approved --as-human          # a person: allowed (recorded as Syscribe-As: human)
+syscribe -m model/ validate --deny W760,W761                     # fail on violations found in git history
+```
+
+**Who is an agent.** A change that names an actor (`--by`) and does not pass `--as-human`; over MCP every client is an agent, with no `--as-human`. The policy binds agents and leaves a person's edit alone, so a person at a terminal who names no actor is unaffected — which also means an agent that forgets `--by` is not bound. Always pass `--by` from an agent, or set `require_by`, which refuses any write to the model that names neither `--by` nor `--as-human` (checked up front for the known writers, and in the write layer for everything else). `--as-human` is a declaration, not a proof: this stops the mistakes automation makes, not a determined actor.
+
+**What is refused** (exit 1, nothing written, the rule named, and how a person proceeds — also under `--dry-run`, so a dry run reports what a real run would be refused): writing a `protected_paths` match (a `move` is checked across every file it rewrites, and each operation of an `apply_changes` batch separately; the write layer guards the rest as a backstop), setting a `human_only_status`, and marking a PlanningItem `done` while `require_before_done` is unmet — `evidence` needs the item to raise no `E719`, `validate` needs the change to introduce no error.
+
+**What `validate` audits.** From the last `audit_limit` commits that touched the model, agent-made ones (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`) that changed a protected path (`W760`) or set a human-only status (`W761`); and `W762` for a malformed `[agents]` entry, which is ignored on its own while the rest still applies (a status the type does not have counts as malformed, so a typo cannot silently protect nothing). They are warnings — gate them with `--deny`. `agent-guide` and the MCP instructions state the policy to the agents it governs. The decision is `ADR-SYS-AGENTPOLICY-001`.

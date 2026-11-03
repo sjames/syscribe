@@ -133,6 +133,7 @@ pub fn cmd_applies_when(
     let file_path = target.file_path.clone();
     let qname = target.qualified_name.clone();
     crate::provenance::check_expect_hash(std::path::Path::new(&file_path));
+    crate::policy_gate::check_path(target);
 
     let content = match std::fs::read_to_string(&file_path) {
         Ok(c) => c,

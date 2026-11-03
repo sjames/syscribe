@@ -15,7 +15,7 @@ pub const BEGIN: &str = "<!-- syscribe:agent-guide -->";
 pub const END: &str = "<!-- /syscribe:agent-guide -->";
 
 /// Sections of the guide, in output order.
-pub const SECTIONS: &[&str] = &["ids", "types", "gates", "rules"];
+pub const SECTIONS: &[&str] = &["ids", "types", "gates", "rules", "policy"];
 
 /// Types always described (the ones agents author and move through a lifecycle).
 const CORE_TYPES: &[&str] = &["Requirement", "TestCase", "TestPlan", "ADR", "PlanningItem"];
@@ -60,6 +60,8 @@ pub struct Guide {
     /// Commands to run, and what each checks, before declaring work finished.
     pub validate: Vec<(String, String)>,
     pub gates: Vec<String>,
+    /// The `[agents]` policy in plain words (empty when none is configured).
+    pub policy: Vec<String>,
 }
 
 /// How a command line should name the model root: relative to the git root when the model is
@@ -158,7 +160,8 @@ pub fn build(model_root: &Path, elements: &[RawElement]) -> Guide {
         );
         validate.push((format!("syscribe -m {root} validate --profile {name}"), what));
     }
-    Guide { root, ids, types, validate, gates }
+    let policy = syscribe_model::agent_policy::load(model_root).map(|p| p.describe()).unwrap_or_default();
+    Guide { root, ids, types, validate, gates, policy }
 }
 
 /// The safe-mutation rules. Every command named here exists (a test checks that).
@@ -220,6 +223,12 @@ pub fn markdown(g: &Guide, sections: &[String]) -> String {
             }
         }
     }
+    if !g.policy.is_empty() && want(sections, "policy") {
+        o.push_str("\n### Project policy\n\nThese rules apply to a change that names an actor (`--by`); a person edits the file or passes `--as-human`. A refused change exits 1 and says which rule.\n\n");
+        for r in &g.policy {
+            o.push_str(&format!("- {r}\n"));
+        }
+    }
     if want(sections, "rules") {
         o.push_str("\n### Safe mutation\n\n");
         for r in rules(&g.root) {
@@ -254,6 +263,9 @@ pub fn json(g: &Guide, sections: &[String]) -> Value {
     }
     if want(sections, "rules") {
         o.insert("rules".into(), json!(rules(&g.root)));
+    }
+    if want(sections, "policy") {
+        o.insert("policy".into(), json!(g.policy));
     }
     Value::Object(o)
 }
@@ -347,6 +359,11 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
         parts.extend(g.validate.iter().skip(1).map(|(c, _)| c.rsplit("validate ").next().unwrap_or("").to_string()).map(|p| format!("profile run `validate {p}`")));
         o.push_str(&parts.join("; "));
         o.push_str(".\n");
+    }
+    if !g.policy.is_empty() {
+        o.push_str("Project policy (every MCP write is held to it; a refusal names the rule): ");
+        o.push_str(&g.policy.join(" "));
+        o.push('\n');
     }
     o.push_str("Workflow prompts: `add-requirement-with-test`, `record-test-evidence`, `review-change-set`, `close-planning-item`, `check-variant`.");
     o

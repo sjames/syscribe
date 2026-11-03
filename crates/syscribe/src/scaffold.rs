@@ -58,6 +58,7 @@ pub fn cmd_scaffold_gherkin(elements: &[RawElement], resolver: &Resolver, key: &
 
     if fix {
         crate::provenance::check_expect_hash(std::path::Path::new(&elem.file_path));
+        crate::policy_gate::check_path(elem);
     }
     let titles = scenario_titles(elem);
     if titles.is_empty() {

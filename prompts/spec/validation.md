@@ -435,6 +435,14 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W700` | A `status: closed` review has an `items[]` with `disposition: open` |
 | `W704` | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (opt-in; `--deny W704`) |
 
+## Agent policy (W760–W762, ADR-SYS-AGENTPOLICY-001)
+
+| Code | Condition |
+|---|---|
+| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front |
+| `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
+| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type, an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
+
 ## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W318, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |

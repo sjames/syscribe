@@ -6584,6 +6584,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
 | `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
+| `W760`–`W762` | Agent policy (`[agents]` in `.syscribe.toml`) | catalogue; `syscribe policy`; `ADR-SYS-AGENTPOLICY-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |

@@ -16,6 +16,9 @@ pub struct Globals {
     /// `--json` was given: writers that report through [`say!`] emit one result envelope instead of text.
     pub json: bool,
     pub dry_run: bool,
+    /// `--as-human`: a person is making this change, so the agent policy does not apply to it. A declaration,
+    /// not a proof; recorded as a `Syscribe-As: human` trailer when committed.
+    pub as_human: bool,
     pub commit: bool,
     pub by: Option<String>,
     pub reason: Option<String>,
@@ -97,7 +100,7 @@ pub fn valid_actor(s: &str) -> bool {
     !s.is_empty() && s.len() <= 64 && s.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-/// Pull the global flags out of `args`. `--commit`, `--reason` and `--expect-hash` are always removed;
+/// Pull the global flags out of `args`. `--commit`, `--as-human`, `--reason` and `--expect-hash` are always removed;
 /// `--by` is removed unless the command is `claim` (where it already names the claimant) or `log` (where it
 /// filters by actor); `--dry-run` is always left where commands that read it themselves look for it — after
 /// the command; if it was given before the command it is moved to the end. A value-taking flag with no value
@@ -121,6 +124,7 @@ pub fn extract(args: Vec<String>) -> (Vec<String>, Globals) {
         };
         match a.as_str() {
             "--commit" => g.commit = true,
+            "--as-human" => g.as_human = true,
             "--dry-run" => {
                 g.dry_run = true;
                 if seen_command {
@@ -221,6 +225,9 @@ pub fn commit_message(argv: &[String], g: &Globals) -> (String, Option<String>, 
     let mut trailers = vec![format!("Syscribe-Command: {}", one_line(&line))];
     if let Some(by) = &g.by {
         trailers.push(format!("Syscribe-Actor: {by}"));
+    }
+    if g.as_human {
+        trailers.push("Syscribe-As: human".to_string());
     }
     if let Some(r) = &g.reason {
         trailers.push(format!("Syscribe-Reason: {}", one_line(r)));

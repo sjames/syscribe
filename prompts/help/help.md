@@ -37,6 +37,9 @@ Accepted by every command, before or after its name:
     --commit               Commit the files this command wrote, and only those, so another actor's
                            pending work in the same tree is never swept in. Also on when
                            `[provenance] commit = true` in .syscribe.toml. Never on a dry run.
+    --as-human             Declare that a person is making this change, so the project's agent policy
+                           (`[agents]` in .syscribe.toml, see `policy`) does not apply to it. A declaration,
+                           not a proof; recorded as a `Syscribe-As: human` trailer when committed.
     --expect-hash <hash>   Refuse (exit 1, nothing written) if the target file's content hash is not
                            this one — the `contentHash` from `show` or the MCP `get_element` detail.
                            Accepted by set, claim, release, move, applies-when and scaffold-gherkin --fix;

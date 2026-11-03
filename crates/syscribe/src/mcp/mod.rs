@@ -1073,6 +1073,51 @@ fn prov_precheck(p: &ProvArgs, target: Option<&Path>) -> Result<(), String> {
     Ok(())
 }
 
+/// The project's agent policy as it applies to an MCP write (GH #442). Every MCP client is an agent, so the
+/// rules always apply; there is no `--as-human` here — a person edits the file or uses the CLI.
+struct PolicyCtx {
+    policy: syscribe_model::agent_policy::Policy,
+    /// The model root relative to the git root, with a trailing `/` (empty when they coincide).
+    prefix: String,
+}
+
+impl PolicyCtx {
+    fn load(model_root: &Path) -> Option<PolicyCtx> {
+        let policy = syscribe_model::agent_policy::load(model_root)?;
+        let prefix = std::fs::canonicalize(model_root)
+            .ok()
+            .and_then(|a| syscribe_model::config::detect_git_root(&a).and_then(|g| a.strip_prefix(&g).ok().map(|r| r.to_string_lossy().replace('\\', "/"))))
+            .filter(|r| !r.is_empty())
+            .map(|r| format!("{r}/"))
+            .unwrap_or_default();
+        Some(PolicyCtx { policy, prefix })
+    }
+
+    /// A write to `rel` (relative to the model root) may not touch a protected path.
+    fn check_rel(&self, rel: &str) -> Result<(), String> {
+        self.policy.check_path(&[format!("{}{}", self.prefix, rel), rel.to_string()]).map_err(|r| r.to_string())
+    }
+
+    fn check_status(&self, element_type: &str, status: &str) -> Result<(), String> {
+        self.policy.check_status(element_type, status).map_err(|r| r.to_string())
+    }
+
+    /// A new element created already `done` must carry the evidence `require_before_done` asks for.
+    fn check_created(&self, element_type: &str, status: &str, fields: Option<&Value>) -> Result<(), String> {
+        let has_evidence = fields.and_then(|f| f.get("evidence")).and_then(|e| e.as_array()).is_some_and(|a| !a.is_empty());
+        self.policy.check_created_done(element_type, status, has_evidence).map_err(|r| r.to_string())
+    }
+}
+
+fn rel_in(root: &Path, p: &Path) -> String {
+    p.strip_prefix(root).unwrap_or(p).to_string_lossy().replace('\\', "/")
+}
+
+/// The `status` a `fields` object sets, if any.
+fn fields_status(fields: Option<&Value>) -> Option<String> {
+    fields.and_then(|f| f.get("status")).and_then(|s| s.as_str()).map(String::from)
+}
+
 /// The git-dirty files under the model root and a hash of each one's content (`None`: deleted), keyed by
 /// path relative to the repository root. Taken before and after a write to find the files it changed.
 type Dirty = std::collections::BTreeMap<String, Option<String>>;
@@ -1153,7 +1198,7 @@ fn refuse_synthesized(root: &Path, target: &syscribe_model::element::RawElement,
 
 /// Apply one batch operation against the working model root `root`, re-reading
 /// the current on-disk state so a later op can depend on an earlier one.
-fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
+fn apply_op(root: &Path, op: &BatchOp, policy: Option<&PolicyCtx>) -> Result<(), String> {
     match op.op.as_str() {
         "create" => {
             if op.qname.is_none() && op.parent.is_none() {
@@ -1163,6 +1208,13 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let plan = plan_create_in(&elems, op.parent.as_deref(), op.qname.as_deref(), ty, op.fields.as_ref(), op.doc.as_deref())
                 .map_err(|e| e.to_string())?;
+            if let Some(ctx) = policy {
+                ctx.check_rel(&plan.rel)?;
+                if let Some(st) = fields_status(op.fields.as_ref()) {
+                    ctx.check_status(ty, &st)?;
+                    ctx.check_created(ty, &st, op.fields.as_ref())?;
+                }
+            }
             write_confined(root, &plan.rel, &plan.content).map_err(|e| e.to_string())
         }
         "update" => {
@@ -1172,6 +1224,15 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
             refuse_synthesized(root, target, r, "a field update here would patch the sheet's own top-level frontmatter, not this entry")?;
             let file = target.file_path.clone();
+            if let Some(ctx) = policy {
+                ctx.check_rel(&rel_in(root, Path::new(&file)))?;
+                if let Some(st) = fields_status(op.fields.as_ref()) {
+                    let ty = target.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+                    ctx.check_status(&ty, &st)?;
+                    let config = syscribe_model::config::ValidateConfig::with_model_root(root);
+                    ctx.policy.check_before_done(&elems, &config, &target.qualified_name, &st).map_err(|e| e.to_string())?;
+                }
+            }
             apply_update(Path::new(&file), op.fields.as_ref(), op.doc.as_deref())
         }
         "move" => {
@@ -1183,6 +1244,13 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             }
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let resolver = Resolver::new(&elems);
+            if let Some(ctx) = policy {
+                if let Ok(plan) = mv::move_element(root, &elems, &resolver, r, &dest_n, true) {
+                    for f in [plan.from_path.clone(), plan.to_path.clone()].into_iter().chain(plan.rewritten_files.iter().cloned()) {
+                        ctx.check_rel(&rel_in(root, &f))?;
+                    }
+                }
+            }
             mv::move_element(root, &elems, &resolver, r, &dest_n, false).map(|_| ())
         }
         "delete" => {
@@ -1192,6 +1260,9 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
             refuse_synthesized(root, target, r, "deleting it would delete every sibling entry in that file")?;
             let file = target.file_path.clone();
+            if let Some(ctx) = policy {
+                ctx.check_rel(&rel_in(root, Path::new(&file)))?;
+            }
             std::fs::remove_file(&file).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown op: {other}")),
@@ -1859,6 +1930,9 @@ impl SyscribeMcp {
             return tool_error(m);
         }
         let rel = rel_file(&target.file_path, &store.model_root);
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
         let summary_line = format!("question {} {} {}", args.op, args.item, plan.id);
         let extra = extra_map(json!({ "item": args.item, "question": plan.id, "summary": plan.summary }));
         let apply = move |root: &Path| -> Result<(), String> {
@@ -2928,6 +3002,7 @@ impl SyscribeMcp {
         if let Err(m) = prov_precheck(&args.prov, None) {
             return tool_error(m);
         }
+        let policy = PolicyCtx::load(&store.model_root);
         let mut extra = extra_map(json!({
             "qname": args.qname.as_deref().map(|q| q.replace('/', "::")),
             "parent": args.parent,
@@ -2944,6 +3019,15 @@ impl SyscribeMcp {
             Ok(p) => p,
             Err(e) => return ok(refuse(extra, &e.to_string())),
         };
+        if let Some(ctx) = &policy {
+            let checked = ctx.check_rel(&plan.rel).and_then(|_| match fields_status(args.fields.as_ref()) {
+                Some(st) => ctx.check_status(&args.r#type, &st).and_then(|_| ctx.check_created(&args.r#type, &st, args.fields.as_ref())),
+                None => Ok(()),
+            });
+            if let Err(m) = checked {
+                return tool_error(m);
+            }
+        }
         extra.insert("id".into(), plan.id.clone());
         extra.insert("qname".into(), Value::String(plan.qname.clone()));
         extra.insert("path".into(), Value::String(plan.rel.clone()));
@@ -2990,6 +3074,18 @@ impl SyscribeMcp {
         }
         if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
             return tool_error(m);
+        }
+        if let Some(ctx) = PolicyCtx::load(&store.model_root) {
+            let checked = ctx.check_rel(&rel).and_then(|_| match fields_status(args.fields.as_ref()) {
+                Some(st) => {
+                    let ty = target.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+                    ctx.check_status(&ty, &st).and_then(|_| ctx.policy.check_before_done(&store.elements, &store.config, &target.qualified_name, &st).map_err(|r| r.to_string()))
+                }
+                None => Ok(()),
+            });
+            if let Err(m) = checked {
+                return tool_error(m);
+            }
         }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let fields = args.fields.clone();
@@ -3050,6 +3146,17 @@ impl SyscribeMcp {
         let extra = extra_map(json!({ "ref": args.r#ref, "dest": dest }));
         if !mv::valid_move_dest(&dest) {
             return ok(refuse(extra, "not a valid basic destination qualified name"));
+        }
+        // A move rewrites every file that refers to the element: the policy has to see all of them.
+        if let Some(ctx) = PolicyCtx::load(&store.model_root) {
+            if let Ok(plan) = mv::move_element(&store.model_root, &store.elements, &store.resolver, &args.r#ref, &dest, true) {
+                let files = std::iter::once(plan.from_path.clone()).chain(std::iter::once(plan.to_path.clone())).chain(plan.rewritten_files.iter().cloned());
+                for f in files {
+                    if let Err(m) = ctx.check_rel(&rel_in(&store.model_root, &f)) {
+                        return tool_error(m);
+                    }
+                }
+            }
         }
         // `mv::move_element` itself refuses a synthesized source (an FMEA/TARA
         // entry or a FeatureModel sheet's featureTree: entry) — no separate
@@ -3115,6 +3222,9 @@ impl SyscribeMcp {
         if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
             return tool_error(m);
         }
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let rel_c = rel.clone();
         let apply = move |root: &Path| -> Result<(), String> {
@@ -3143,9 +3253,12 @@ impl SyscribeMcp {
         let mut store = self.store.write().await;
         let extra = extra_map(json!({ "operations": args.operations.len() }));
         let ops = args.operations;
+        // Each operation is checked against the candidate state it is applied to, so a later operation can
+        // depend on an earlier one and still be judged on the file it really touches.
+        let policy = PolicyCtx::load(&store.model_root);
         let apply = move |root: &Path| -> Result<(), String> {
             for op in &ops {
-                apply_op(root, op)?;
+                apply_op(root, op, policy.as_ref())?;
             }
             Ok(())
         };
@@ -3629,7 +3742,7 @@ impl SyscribeMcp {
     fn instructions(&self) -> String {
         let guide = match self.store.try_read() {
             Ok(s) => crate::agentguide::build(&s.model_root, &s.elements),
-            Err(_) => crate::agentguide::Guide { root: String::new(), ids: vec![], types: vec![], validate: vec![], gates: vec![] },
+            Err(_) => crate::agentguide::Guide { root: String::new(), ids: vec![], types: vec![], validate: vec![], gates: vec![], policy: vec![] },
         };
         crate::agentguide::mcp_instructions(&guide, self.read_only)
     }

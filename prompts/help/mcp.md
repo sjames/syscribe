@@ -244,6 +244,11 @@ actor id), `reason`, `commit` (commit exactly the files the write changed, with 
 `get_element`; the write is refused if the file has changed since). A committed write returns `commit`;
 a failed commit leaves the write in place and returns `commitError`. `apply_changes` does not take them.
 
+When the project declares an `[agents]` policy (`syscribe policy`), every write tool is held to it: a
+`protected_paths` match, a `human_only_status`, or a PlanningItem set `done` before `require_before_done`
+holds is refused with the rule named, in each operation of an `apply_changes` batch too. There is no
+`--as-human` over MCP — a person uses the CLI or edits the file.
+
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit.
 

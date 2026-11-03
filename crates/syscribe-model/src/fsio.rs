@@ -10,6 +10,23 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+type Guard = Box<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
+static GUARD: std::sync::OnceLock<Guard> = std::sync::OnceLock::new();
+
+/// Install a check consulted before every write or removal; an `Err` refuses it (an `io::Error` of kind
+/// `PermissionDenied` carrying the message). The agent policy uses it so protected paths cannot be written by
+/// any command, including ones that have no check of their own. Set once, by the CLI.
+pub fn set_guard(g: impl Fn(&Path) -> Result<(), String> + Send + Sync + 'static) {
+    let _ = GUARD.set(Box::new(g));
+}
+
+fn guarded(path: &Path) -> std::io::Result<()> {
+    match GUARD.get() {
+        Some(g) => g(path).map_err(|m| std::io::Error::new(std::io::ErrorKind::PermissionDenied, m)),
+        None => Ok(()),
+    }
+}
+
 static DRY_RUN: AtomicBool = AtomicBool::new(false);
 static RECORD: AtomicBool = AtomicBool::new(false);
 static WRITTEN: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
@@ -72,6 +89,8 @@ fn declined(path: &Path, what: &str) {
 /// `std::fs::write`, or a recorded no-op under `--dry-run`.
 pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
     let path = path.as_ref();
+    // Refused even in a dry run: a dry run must report what a real run would be refused.
+    guarded(path)?;
     if is_dry_run() {
         declined(path, "write");
         return Ok(());
@@ -83,6 +102,7 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Res
 
 /// `std::fs::create_dir_all`, or a no-op under `--dry-run`.
 pub fn create_dir_all(path: impl AsRef<Path>) -> std::io::Result<()> {
+    guarded(path.as_ref())?;
     if is_dry_run() {
         return Ok(());
     }
@@ -92,6 +112,7 @@ pub fn create_dir_all(path: impl AsRef<Path>) -> std::io::Result<()> {
 /// `std::fs::remove_file`, or a recorded no-op under `--dry-run`.
 pub fn remove_file(path: impl AsRef<Path>) -> std::io::Result<()> {
     let path = path.as_ref();
+    guarded(path)?;
     if is_dry_run() {
         declined(path, "remove");
         return Ok(());

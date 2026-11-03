@@ -66,6 +66,7 @@ mod suggest;
 mod typehelp;
 mod explain;
 mod qset;
+mod policy_gate;
 mod provenance;
 mod questions;
 mod steps;
@@ -646,6 +647,7 @@ fn build_cli() -> clap::Command {
         // Global flags (GH #443/#444), read by `provenance::extract` before dispatch.
         .arg(clap::Arg::new("dry-run").long("dry-run").num_args(0).global(true))
         .arg(clap::Arg::new("commit").long("commit").num_args(0).global(true))
+        .arg(clap::Arg::new("as-human").long("as-human").num_args(0).global(true))
         .arg(clap::Arg::new("by").long("by").num_args(1).global(true))
         .arg(clap::Arg::new("reason").long("reason").num_args(1).global(true))
         .arg(clap::Arg::new("expect-hash").long("expect-hash").num_args(1).global(true));
@@ -988,6 +990,10 @@ fn main() {
     }
 
     provenance::set_context(model_root, subcommand_args);
+    if let Err(m) = policy_gate::init(model_root, subcommand_args.first().map(String::as_str).unwrap_or(""), subcommand_args.get(1..).unwrap_or(&[])) {
+        eprintln!("Refusing: {m}");
+        std::process::exit(1);
+    }
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     // `report` (and a bare invocation with no subcommand) fall through to the default
     // full validation report below (REQ-TRS-CLI-008).
@@ -2379,6 +2385,12 @@ fn main() {
                 let dry_run = rest.iter().any(|a| a == "--dry-run");
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
+            }
+            "policy" => {
+                let code = policy_gate::cmd_policy(model_root, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "log" => {
                 let code = logcmd::cmd_log(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));

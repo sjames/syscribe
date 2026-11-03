@@ -3437,7 +3437,13 @@ pub fn cmd_validate(
     json: bool,
 ) {
     let result = syscribe_model::validator::validate_with_config(elements, config);
-    let (findings, view) = apply_baseline(&result.findings, gate, elements, config, file_filter, &|e, c| {
+    // The agent policy's audit (GH #442): malformed `[agents]` entries, and agent commits that changed a
+    // protected path or set a human-only status. Plain validation only — it reads git history.
+    let mut all = result.findings;
+    if let Some(root) = &config.model_root {
+        all.extend(crate::policy_gate::audit_findings(root));
+    }
+    let (findings, view) = apply_baseline(&all, gate, elements, config, file_filter, &|e, c| {
         syscribe_model::validator::validate_with_config(e, c).findings
     });
     let eval = evaluate_gate(&findings, gate, profile, elements);

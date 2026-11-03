@@ -44,6 +44,15 @@ pub fn cmd_move(
     if let Some(src) = resolver.resolve_ref(elements, source_key) {
         crate::provenance::check_expect_hash(std::path::Path::new(&src.file_path));
     }
+    // A move rewrites every file that refers to the element; an agent policy has to see all of them before any
+    // is touched, so plan it first.
+    if crate::policy_gate::agent_active() {
+        if let Ok(plan) = move_element(model_root, elements, resolver, source_key, dest, true) {
+            let mut files = vec![plan.from_path.clone(), plan.to_path.clone()];
+            files.extend(plan.rewritten_files.iter().cloned());
+            crate::policy_gate::check_paths(&files);
+        }
+    }
     let report = match move_element(model_root, elements, resolver, source_key, dest, dry_run) {
         Ok(r) => r,
         Err(e) => {

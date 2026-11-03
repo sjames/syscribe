@@ -478,6 +478,14 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
+## Agent policy (W760–W762, ADR-SYS-AGENTPOLICY-001)
+
+| Code | Meaning |
+|---|---|
+| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. |
+| W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
+| W762 | A malformed `[agents]` entry in `.syscribe.toml`; ignored, the rest of the policy still applies. |
+
 ## Native PlanningItem (E706–E717, E719–E727, W308–W311, W315, W317–W318, §23, ADR-SYS-PLANITEM-001)
 
 A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) — or goal, ADR, argument, plan or baseline — it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).

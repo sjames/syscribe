@@ -217,6 +217,8 @@ fn cmd_set_status(
         }
     }
 
+    crate::policy_gate::check_status(model_root, elements, elem, value);
+
     // PlanningItem.status=done: reuse the exact W310 check (issue #114) against
     // an in-memory candidate, rather than re-deriving it — non-blocking (matches
     // W310's own warning severity): the write still proceeds, but the agent
@@ -588,6 +590,7 @@ pub fn cmd_set(
     }
 
     crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
 
     let Some(&op) = op_args.first() else {
         eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>");

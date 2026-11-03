@@ -6,6 +6,7 @@ pub mod act_ir;
 pub mod act_mut;
 pub mod act_run;
 pub mod act_scen;
+pub mod agent_policy;
 pub mod annotations;
 pub mod arch_rules;
 pub mod operations;
