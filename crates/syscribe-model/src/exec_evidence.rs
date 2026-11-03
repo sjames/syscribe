@@ -381,9 +381,9 @@ pub fn record_mutation(model_root: &Path, records: Vec<MutationRecord>) -> std::
     }
     let path = mutation_sidecar(model_root);
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+        crate::fsio::create_dir_all(dir)?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&all).expect("serialises"))?;
+    crate::fsio::write(&path, serde_json::to_string_pretty(&all).expect("serialises"))?;
     Ok(path)
 }
 

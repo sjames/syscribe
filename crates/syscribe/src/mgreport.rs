@@ -219,7 +219,7 @@ pub fn cmd_magicgrid_svg(elems: &[RawElement], output_file: Option<&str>) {
     let svg = render_grid_svg(&grid, soi.as_deref());
     match output_file {
         Some(path) => {
-            if let Err(e) = std::fs::write(path, &svg) {
+            if let Err(e) = syscribe_model::fsio::write(path, &svg) {
                 eprintln!("error writing output file '{}': {}", path, e);
                 std::process::exit(1);
             }

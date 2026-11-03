@@ -774,6 +774,10 @@ pub fn cmd_show(
     println!("|---|---|");
     println!("| **type** | {} |", type_str);
     println!("| **file** | {} |", elem.file_path);
+    // The hash to pass to a writing command's `--expect-hash` so an edit fails if the file changed since this read.
+    if let Some(h) = syscribe_model::fsio::file_hash(std::path::Path::new(&elem.file_path)) {
+        println!("| **contentHash** | {} |", h);
+    }
     if let Some(ref id) = fm.id { println!("| **id** | {} |", id); }
     if let Some(ref t) = fm.title { println!("| **title** | {} |", t); }
     if let Some(ref s) = fm.status { println!("| **status** | {} |", s); }
@@ -3390,10 +3394,10 @@ fn apply_baseline<'a>(
     if let Some(path) = &gate.write_baseline {
         let refs: Vec<&VFinding> = all.iter().collect();
         let text = fb::to_json(&fb::entries_for(&refs, elements));
-        if let Err(e) = std::fs::write(path, text) {
+        if let Err(e) = syscribe_model::fsio::write(path, text) {
             die(format!("cannot write {}: {e}", path.display()));
         }
-        eprintln!("Wrote {} finding(s) to {}", all.len(), path.display());
+        eprintln!("{} {} finding(s) to {}", syscribe_model::fsio::wrote(), all.len(), path.display());
     }
     let source = match (&gate.new_since, &gate.baseline_file) {
         (Some(rev), _) => Some((fb::Source::Rev(rev.clone()), format!("`{rev}`"))),

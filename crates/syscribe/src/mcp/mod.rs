@@ -202,10 +202,26 @@ struct QuestionArgs {
     recommended: Option<String>,
     /// `answer` / `defer`: the question id (`Q1`).
     id: Option<String>,
-    /// `answer`: who answered (an opaque actor id).
-    by: Option<String>,
     #[serde(default = "default_true")]
     dry_run: bool,
+    /// `by` here is both the commit author (with `commit`) and, for `answer`, the recorded `answeredBy`.
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct LogArgs {
+    /// Follow one element's file and say what each commit changed in it. Omit for the whole model.
+    element: Option<String>,
+    /// Only commits by this author or `Syscribe-Actor`.
+    by: Option<String>,
+    /// Only commits after this date (anything `git log --since` accepts).
+    since: Option<String>,
+    /// Only commits that touched the model without syscribe's trailers (hand edits).
+    #[serde(default)]
+    unattributed: bool,
+    /// At most this many commits (default 50).
+    limit: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -357,6 +373,20 @@ struct RunReportArgs {
     format: Option<String>,
 }
 
+/// Provenance for a write (GH #443/#444), shared by the write tools.
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ProvArgs {
+    /// Who is making the change (an actor id: letters, digits, `.`, `_`, `-`). With `commit`, it is the commit author.
+    by: Option<String>,
+    /// Why — recorded in the commit message.
+    reason: Option<String>,
+    /// Commit the files this write changed (only those) with `Syscribe-*` trailers. Also on when
+    /// `[provenance] commit = true` in `.syscribe.toml`. Ignored for a dry run.
+    commit: Option<bool>,
+    /// A `contentHash` from `get_element`: refuse the write if the target file has changed since that read.
+    expect_hash: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CreateElementArgs {
     /// Qualified name. For id-identified types it may end in the id
@@ -372,6 +402,8 @@ struct CreateElementArgs {
     doc: Option<String>,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -382,6 +414,8 @@ struct UpdateElementArgs {
     doc: Option<String>,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -413,6 +447,8 @@ struct MoveElementArgs {
     dest: String,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -422,6 +458,8 @@ struct DeleteElementArgs {
     force: bool,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1019,6 +1057,73 @@ fn check_metadata_clauses(elements: &[syscribe_model::element::RawElement], clau
 }
 
 /// The message for a write to an element built into the tool (REQ-TRS-META-064).
+/// Refuse a write whose provenance arguments are unusable: a bad actor id, or a stale `expect_hash`.
+fn prov_precheck(p: &ProvArgs, target: Option<&Path>) -> Result<(), String> {
+    if let Some(by) = &p.by {
+        if !crate::provenance::valid_actor(by) {
+            return Err(format!("`by` '{by}' is not a valid actor id (letters, digits, '.', '_' and '-', at most 64)"));
+        }
+    }
+    if let (Some(want), Some(path)) = (&p.expect_hash, target) {
+        let have = syscribe_model::fsio::file_hash(path).unwrap_or_else(|| "(unreadable)".to_string());
+        if &have != want {
+            return Err(format!("{} has changed since it was read (expected {want}, found {have}); re-read it and retry", path.display()));
+        }
+    }
+    Ok(())
+}
+
+/// The git-dirty files under the model root and a hash of each one's content (`None`: deleted), keyed by
+/// path relative to the repository root. Taken before and after a write to find the files it changed.
+type Dirty = std::collections::BTreeMap<String, Option<String>>;
+
+fn dirty_snapshot(model_root: &Path) -> Dirty {
+    let mut out = Dirty::new();
+    let Ok(abs) = std::fs::canonicalize(model_root) else { return out };
+    let Some(root) = syscribe_model::config::detect_git_root(&abs) else { return out };
+    let rel = abs.strip_prefix(&root).unwrap_or(Path::new("")).to_string_lossy().replace('\\', "/");
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("-C").arg(&root).args(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--"]).arg(if rel.is_empty() { "." } else { rel.as_str() });
+    let Ok(o) = cmd.output() else { return out };
+    for entry in String::from_utf8_lossy(&o.stdout).split('\0').filter(|e| e.len() > 3) {
+        let path = entry[3..].to_string();
+        let hash = syscribe_model::fsio::file_hash(&root.join(&path));
+        out.insert(path, hash);
+    }
+    out
+}
+
+/// The snapshot to compare against, only when this write is going to be committed.
+fn prov_snapshot(model_root: &Path, p: &ProvArgs) -> Option<Dirty> {
+    (p.commit == Some(true) || crate::provenance::config_commit(model_root)).then(|| dirty_snapshot(model_root))
+}
+
+/// After a committed write: when asked (or configured), commit exactly the files it changed — those whose
+/// content differs from before the write, byte for byte — with the actor as author and `Syscribe-*`
+/// trailers. The result gains `commit` (the short id) or `commitError`.
+fn prov_commit(model_root: &Path, res: &mut Value, p: &ProvArgs, tool: &str, summary: &str, before: Option<Dirty>) {
+    if res.get("written").and_then(|w| w.as_bool()) != Some(true) {
+        return;
+    }
+    let Some(before) = before else { return };
+    let after = dirty_snapshot(model_root);
+    let Some(root) = std::fs::canonicalize(model_root).ok().and_then(|a| syscribe_model::config::detect_git_root(&a)) else { return };
+    let changed: Vec<std::path::PathBuf> = before
+        .keys()
+        .chain(after.keys())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .filter(|k| before.get(*k) != after.get(*k))
+        .map(|k| root.join(k))
+        .collect();
+    let g = crate::provenance::Globals { by: p.by.clone(), reason: p.reason.clone(), ..Default::default() };
+    match crate::provenance::commit_paths(&changed, &[tool.to_string(), summary.to_string()], &g) {
+        Ok(Some(sha)) => res["commit"] = json!(sha),
+        Ok(None) => {}
+        Err(m) => res["commitError"] = json!(format!("the change was written, but committing it failed: {m}")),
+    }
+}
+
 fn builtin_refusal(e: &syscribe_model::element::RawElement) -> Option<String> {
     e.file_path.starts_with(syscribe_model::tagged_values::BUILTIN_PREFIX).then(|| {
         format!("'{}' is built into the tool and read-only; specialise it in a package of your own project instead", e.qualified_name)
@@ -1738,7 +1843,7 @@ impl SyscribeMcp {
         let need = |v: &Option<String>, what: &str| v.clone().ok_or_else(|| format!("op={} needs `{what}`", args.op));
         let op = match args.op.as_str() {
             "add" => need(&args.text, "text").map(|text| crate::qset::Op::Add { text, recommended: args.recommended.clone() }),
-            "answer" => need(&args.id, "id").and_then(|id| need(&args.text, "text").map(|text| crate::qset::Op::Answer { id, text, by: args.by.clone() })),
+            "answer" => need(&args.id, "id").and_then(|id| need(&args.text, "text").map(|text| crate::qset::Op::Answer { id, text, by: args.prov.by.clone() })),
             "defer" => need(&args.id, "id").map(|id| crate::qset::Op::Defer { id }),
             other => Err(format!("unknown op '{other}' (add, answer, defer)")),
         };
@@ -1750,7 +1855,11 @@ impl SyscribeMcp {
             Ok(p) => p,
             Err(m) => return tool_error(m),
         };
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
         let rel = rel_file(&target.file_path, &store.model_root);
+        let summary_line = format!("question {} {} {}", args.op, args.item, plan.id);
         let extra = extra_map(json!({ "item": args.item, "question": plan.id, "summary": plan.summary }));
         let apply = move |root: &Path| -> Result<(), String> {
             let path = root.join(&rel);
@@ -1758,10 +1867,33 @@ impl SyscribeMcp {
             let new_content = crate::qset::edit_content(&content, &path.to_string_lossy(), &plan)?;
             std::fs::write(&path, new_content).map_err(|e| e.to_string())
         };
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "question", &summary_line, snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
+    }
+
+    #[tool(
+        description = "The model's history as git records it: commits with author, date, the syscribe command, actor and reason \
+        (from the commit trailers a write made with `commit` leaves), and for one element what each commit changed in it. \
+        `unattributed` lists commits that touched the model without those trailers. Same data as `syscribe log --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn log(&self, Parameters(args): Parameters<LogArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let q = crate::logcmd::Query {
+            element: args.element.as_deref(),
+            by: args.by.as_deref(),
+            since: args.since.as_deref(),
+            unattributed: args.unattributed,
+            limit: args.limit.map(|l| l as usize).unwrap_or(50),
+        };
+        match crate::logcmd::collect(&store.model_root, &store.elements, &q) {
+            Ok(l) => ok(json!({ "schemaVersion": "1.0", "scope": l.scope, "uncommitted": l.uncommitted, "entries": l.entries })),
+            Err(m) => tool_error(m),
+        }
     }
 
     #[tool(
@@ -2793,6 +2925,9 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
+        if let Err(m) = prov_precheck(&args.prov, None) {
+            return tool_error(m);
+        }
         let mut extra = extra_map(json!({
             "qname": args.qname.as_deref().map(|q| q.replace('/', "::")),
             "parent": args.parent,
@@ -2813,13 +2948,17 @@ impl SyscribeMcp {
         extra.insert("qname".into(), Value::String(plan.qname.clone()));
         extra.insert("path".into(), Value::String(plan.rel.clone()));
 
+        let plan_id = plan.id.as_str().map(String::from).unwrap_or_else(|| plan.id.to_string());
         let rel = plan.rel.clone();
         let content = plan.content.clone();
         let apply = move |root: &Path| -> Result<(), String> {
             write_confined(root, &rel, &content).map_err(|e| e.to_string())
         };
 
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let summary = format!("create {} {}", args.r#type, plan_id);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "create_element", &summary, snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2849,13 +2988,18 @@ impl SyscribeMcp {
                 args.r#ref, target.file_path
             ));
         }
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let fields = args.fields.clone();
         let doc = args.doc.clone();
         let apply = move |root: &Path| -> Result<(), String> {
             apply_update(&root.join(&rel), fields.as_ref(), doc.as_deref())
         };
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "update_element", &format!("update {}", args.r#ref), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2898,6 +3042,10 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
+        let src_file = store.resolver.resolve_ref(&store.elements, &args.r#ref).map(|e| e.file_path.clone());
+        if let Err(m) = prov_precheck(&args.prov, src_file.as_deref().map(Path::new)) {
+            return tool_error(m);
+        }
         let dest = args.dest.replace('/', "::");
         let extra = extra_map(json!({ "ref": args.r#ref, "dest": dest }));
         if !mv::valid_move_dest(&dest) {
@@ -2914,7 +3062,9 @@ impl SyscribeMcp {
             let resolver = Resolver::new(&elems);
             mv::move_element(root, &elems, &resolver, &source, &dest_c, false).map(|_| ())
         };
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "move_element", &format!("move {} {}", args.r#ref, dest), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2962,6 +3112,9 @@ impl SyscribeMcp {
             }
         }
 
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let rel_c = rel.clone();
         let apply = move |root: &Path| -> Result<(), String> {
@@ -2969,7 +3122,9 @@ impl SyscribeMcp {
         };
         // gate=false: deletion may legitimately orphan a reference (esp. under force);
         // the reference-impact guard above is delete's safety mechanism.
-        let res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "delete_element", &format!("delete {}", args.r#ref), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)

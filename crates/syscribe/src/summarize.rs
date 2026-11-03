@@ -140,11 +140,11 @@ impl Cache {
             return;
         }
         if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
+            let _ = syscribe_model::fsio::create_dir_all(dir);
         }
         let doc = json!({ "version": CACHE_VERSION, "entries": Value::Object(self.map.clone()) });
         if let Ok(s) = serde_json::to_string(&doc) {
-            let _ = std::fs::write(path, s);
+            let _ = syscribe_model::fsio::write(path, s);
         }
     }
 }

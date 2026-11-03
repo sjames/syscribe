@@ -93,12 +93,12 @@ fn install_hook(git_root: &Path, model_rel: &str) -> i32 {
          cd \"$(git rev-parse --show-toplevel)\" || exit 0\nexec syscribe -m '{root}' check-staged\n"
     );
     if let Some(dir) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(dir) {
+        if let Err(e) = syscribe_model::fsio::create_dir_all(dir) {
             eprintln!("check-staged: cannot create {}: {e}", dir.display());
             return 1;
         }
     }
-    if let Err(e) = std::fs::write(&path, script) {
+    if let Err(e) = syscribe_model::fsio::write(&path, script) {
         eprintln!("check-staged: cannot write {}: {e}", path.display());
         return 1;
     }
@@ -107,7 +107,7 @@ fn install_hook(git_root: &Path, model_rel: &str) -> i32 {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
     }
-    println!("Installed the pre-commit hook at {}.", path.display());
+    println!("{} the pre-commit hook at {}.", syscribe_model::fsio::verb("Installed", "Would install"), path.display());
     0
 }
 

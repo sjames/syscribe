@@ -73,6 +73,12 @@ The Markdown body is never touched.
 
 ## OPTIONS
     --dry-run        Preview the unified diff without writing.
+    --json           One result envelope instead of text: {ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}.
+
+Also accepts the global write options (see `syscribe help`): `--by <actor>`, `--reason <text>`,
+`--commit` (commit just this change, with the actor as author and `Syscribe-*` trailers) and
+`--expect-hash <hash>` (refuse if the file has changed since `show` printed that `contentHash`).
+`question.answer` records `--by` as `answeredBy`.
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)

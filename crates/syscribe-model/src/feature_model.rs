@@ -2540,14 +2540,14 @@ pub fn write_proofs(elements: &[RawElement], dir: &std::path::Path) -> std::io::
     if fdefs.is_empty() || fdefs.len() > MAX_DEEP_FEATURES {
         return Ok(Vec::new());
     }
-    std::fs::create_dir_all(dir)?;
+    crate::fsio::create_dir_all(dir)?;
     let enc = build_encoding(&fdefs);
     let cnf = enc.cnf();
     let mut sat = crate::solver::Solver::from_cnf(&cnf);
     let mut written = Vec::new();
 
     if !sat.is_sat(&[]) {
-        std::fs::write(dir.join("void.cnf"), dimacs(&cnf))?;
+        crate::fsio::write(dir.join("void.cnf"), dimacs(&cnf))?;
         written.push("void.cnf".to_string());
         return Ok(written); // void dominates
     }
@@ -2556,7 +2556,7 @@ pub fn write_proofs(elements: &[RawElement], dir: &std::path::Path) -> std::io::
             let mut c2 = cnf.clone();
             c2.add(vec![Lit::pos(i)]);
             let fname = format!("dead-{}.cnf", name.replace("::", "_"));
-            std::fs::write(dir.join(&fname), dimacs(&c2))?;
+            crate::fsio::write(dir.join(&fname), dimacs(&c2))?;
             written.push(fname);
         }
     }

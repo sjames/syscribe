@@ -124,6 +124,10 @@ stable id, a qualified name, or a display name. List/grid tools accept
   `since` revision: each file is mapped to the elements that own, implement, test or cite it and
   the result is reported with `changed` flags, `unmapped` files and the `unreviewed` requirements/tests
   (default both directions, depth 2). Same data as `syscribe impact --files … --format json`.
+- `log {element?, by?, since?, unattributed?, limit?}` — the model's history as git records it: commits
+  with author, date, the syscribe command, actor and reason (the trailers a `commit` write leaves) and,
+  for one `element`, what each commit changed in it. `unattributed` lists commits without the trailers
+  (hand edits). Same data as `syscribe log --json`.
 - `changes {from, to?, types?, package?}` — the element-level difference between two git revisions
   (or a revision and the working tree): added/removed/moved/modified elements, status transitions,
   links and evidence added or removed, references that broke or were repaired. Same data as
@@ -233,6 +237,12 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 
 An element built into the tool (the `StdMetadata` library) is read-only: `update_element`,
 `delete_element`, `move_element` and `apply_changes` refuse it with a message saying so.
+
+`create_element`, `update_element`, `move_element`, `delete_element` and `question` also take `by` (an
+actor id), `reason`, `commit` (commit exactly the files the write changed, with `by` as author and
+`Syscribe-*` trailers; also on when `[provenance] commit = true`) and `expect_hash` (a `contentHash` from
+`get_element`; the write is refused if the file has changed since). A committed write returns `commit`;
+a failed commit leaves the write in place and returns `commitError`. `apply_changes` does not take them.
 
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit.

@@ -359,7 +359,7 @@ pub fn cmd_import_reqif(model_root: &std::path::Path, elems: &[RawElement], opts
                 failed += 1;
                 continue;
             };
-            if let Err(err) = std::fs::write(&e.file_path, new) {
+            if let Err(err) = syscribe_model::fsio::write(&e.file_path, new) {
                 eprintln!("import-reqif: cannot write {}: {err}", e.file_path);
                 failed += 1;
                 continue;

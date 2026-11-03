@@ -163,6 +163,7 @@ fn parse_with_plugin(model_root: &Path, alias: &str, file: &str, run: Option<&st
 }
 
 pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, run: Option<&str>, config: Option<&str>, opts: &RecordOpts, elems: &[syscribe_model::element::RawElement]) {
+    syscribe_model::fsio::dry_banner();
     let (replace, strict, environment) = (opts.replace, opts.strict, opts.environment);
     let fmt_owned = match pick_format(format, file) {
         Some(f) => f,

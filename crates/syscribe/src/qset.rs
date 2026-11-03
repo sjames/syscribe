@@ -244,6 +244,12 @@ pub fn edit_content(content: &str, file_path: &str, plan: &Plan) -> Result<Strin
 
 /// Run `op` on `elem` and write (or, with `dry_run`, preview) the result. Exits 1 on refusal.
 pub fn run(model_root: &Path, elem: &RawElement, op: &Op, dry_run: bool) {
+    // `--by <actor>` is who answered, unless `by=` says otherwise.
+    let op = match op {
+        Op::Answer { id, text, by: None } => Op::Answer { id: id.clone(), text: text.clone(), by: crate::provenance::get().by.clone() },
+        other => other.clone(),
+    };
+    let op = &op;
     let plan = match plan(elem, op, &crate::claim::iso8601_now()) {
         Ok(p) => p,
         Err(m) => {
@@ -260,7 +266,7 @@ pub fn run(model_root: &Path, elem: &RawElement, op: &Op, dry_run: bool) {
         }
     };
     if preview_or_write(model_root, elem, &new_content, dry_run) {
-        println!("{}", plan.summary);
+        crate::say!("{}", plan.summary);
     }
 }
 

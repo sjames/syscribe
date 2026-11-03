@@ -161,7 +161,7 @@ fn cmd_accept(
 
     match write_baseline(Path::new(&plan.source_file), &plan.authored_key, &plan.hash) {
         Ok(()) => {
-            println!("baselined {} → {} ({})", plan.source_file, plan.authored_key, plan.hash);
+            println!("{} {} → {} ({})", syscribe_model::fsio::verb("baselined", "would baseline"), plan.source_file, plan.authored_key, plan.hash);
             0
         }
         Err(e) => {
@@ -237,7 +237,7 @@ fn accept_all(elems: &[RawElement], resolver: &Resolver) -> i32 {
             count += 1;
         }
     }
-    println!("re-baselined {count} suspect link(s)");
+    println!("{} {count} suspect link(s)", syscribe_model::fsio::verb("re-baselined", "would re-baseline"));
     0
 }
 
@@ -281,7 +281,7 @@ fn accept_all_unbaselined(elems: &[RawElement], resolver: &Resolver) -> i32 {
             count += 1;
         }
     }
-    println!("baselined {count} previously-unbaselined link(s)");
+    println!("{} {count} previously-unbaselined link(s)", syscribe_model::fsio::verb("baselined", "would baseline"));
     0
 }
 
@@ -299,7 +299,7 @@ pub fn write_baseline(file: &Path, target_key: &str, hash: &str) -> anyhow::Resu
         Some(c) if baseline_present(&c, target_key, hash) => c,
         _ => roundtrip_insert(&content, target_key, hash)?,
     };
-    std::fs::write(file, new_content)?;
+    syscribe_model::fsio::write(file, new_content)?;
     Ok(())
 }
 

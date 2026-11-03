@@ -178,18 +178,18 @@ pub(crate) fn preview_or_write(model_root: &Path, elem: &RawElement, new_content
     let old = std::fs::read_to_string(&elem.file_path).ok();
     let diff = file_unified_diff(rel, old.as_deref(), Some(new_content));
     if diff.is_empty() {
-        println!("{}: no change.", elem.qualified_name);
+        crate::say!("{}: no change.", elem.qualified_name);
         return false;
     }
     if dry_run {
-        print!("{diff}");
+        crate::provenance::record_diff(&diff);
         return false;
     }
-    if let Err(e) = std::fs::write(&elem.file_path, new_content) {
+    if let Err(e) = syscribe_model::fsio::write(&elem.file_path, new_content) {
         eprintln!("Write failed for {}: {e}", elem.file_path);
         std::process::exit(1);
     }
-    print!("{diff}");
+    crate::provenance::record_diff(&diff);
     true
 }
 
@@ -266,7 +266,7 @@ fn cmd_set_status(
 
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Set status: {value} on {}", elem.qualified_name);
+        crate::say!("Set status: {value} on {}", elem.qualified_name);
     }
 }
 
@@ -298,7 +298,7 @@ fn cmd_achieves_add(
 
     let mut list = elem.frontmatter.achieves.clone().unwrap_or_default();
     if list.iter().any(|s| s == req_ref) {
-        println!("{} already achieves '{}' — nothing to do.", elem.qualified_name, req_ref);
+        crate::say!("{} already achieves '{}' — nothing to do.", elem.qualified_name, req_ref);
         return;
     }
     list.push(req_ref.to_string());
@@ -313,7 +313,7 @@ fn cmd_achieves_add(
     );
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Added achieves: {req_ref} on {}", elem.qualified_name);
+        crate::say!("Added achieves: {req_ref} on {}", elem.qualified_name);
     }
 }
 
@@ -390,7 +390,7 @@ fn cmd_evidence_add(
             .and_then(|v| v.as_str())
             == Some(target)
     }) {
-        println!(
+        crate::say!(
             "{} already has evidence {}='{}' — nothing to do.",
             elem.qualified_name, target_key, target
         );
@@ -412,7 +412,7 @@ fn cmd_evidence_add(
     let new_content = append_to_list_field(&content, &elem.file_path, "evidence", &[entry_lines], json!(list));
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Added evidence entry on {}", elem.qualified_name);
+        crate::say!("Added evidence entry on {}", elem.qualified_name);
     }
 }
 
@@ -473,6 +473,8 @@ fn validate_candidate(
         false,
         true,
         move |root: &Path| {
+            // A planning copy, not a user-visible write: it must happen under `--dry-run` too, or the dry run would
+            // validate an unchanged copy and approve edits a real run refuses.
             std::fs::write(root.join(&rel_apply), &content).map_err(|e| e.to_string())
         },
         Some(&inspect),
@@ -510,7 +512,7 @@ fn cmd_set_generic(
     let new_content = if list_add {
         let existing = elem_list_value(elem, field);
         if existing.iter().any(|v| v == value) {
-            println!("{} already has {field} '{value}' — nothing to do.", elem.qualified_name);
+            crate::say!("{} already has {field} '{value}' — nothing to do.", elem.qualified_name);
             return;
         }
         let mut list: Vec<Value> = existing.iter().map(|s| Value::String(s.clone())).collect();
@@ -550,7 +552,7 @@ fn cmd_set_generic(
     }
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Set {field} on {}", elem.qualified_name);
+        crate::say!("Set {field} on {}", elem.qualified_name);
     }
 }
 
@@ -584,6 +586,8 @@ pub fn cmd_set(
         eprintln!("{} is built into the tool and read-only; specialise it in your own package instead.", elem.qualified_name);
         std::process::exit(1);
     }
+
+    crate::provenance::check_expect_hash(Path::new(&elem.file_path));
 
     let Some(&op) = op_args.first() else {
         eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>");

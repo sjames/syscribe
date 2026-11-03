@@ -19,6 +19,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("coverage", include_str!("../../../prompts/help/coverage.md")),
             ("compliance", include_str!("../../../prompts/help/compliance.md")),
             ("changes", include_str!("../../../prompts/help/changes.md")),
+            ("log", include_str!("../../../prompts/help/log.md")),
             ("agent-guide", include_str!("../../../prompts/help/agent-guide.md")),
             ("mechanisms", include_str!("../../../prompts/help/mechanisms.md")),
         ],
@@ -327,6 +328,9 @@ value outside its documented set (e.g. impact --direction, --format), or a non-i
 Options:
   -m, --model <path>             Model root directory
   --agent-instructions [topic]   Print the LLM authoring prompt; topic 'magicgrid' teaches MagicGrid modeling
+  --dry-run                      Any command that writes files leaves the tree untouched (before or after the command)
+  --by <actor> --reason <text> --commit   Attribute a change and commit just the files it wrote (see `help`)
+  --expect-hash <hash>           Refuse a write if the file changed since it was read (`show` prints contentHash)
   --version, -V                  Print the tool version (also `syscribe [-m <root>] version`)
   --help, -h                     Show this help
 

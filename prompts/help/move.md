@@ -14,6 +14,9 @@ last segment differs from the id; check `validate` afterwards.
 
 ## OPTIONS
     --dry-run   Show what would change without writing.
+    --json      One result envelope instead of text: {ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}.
+
+Also accepts the global write options `--by`, `--reason`, `--commit`, `--expect-hash` (see `syscribe help`).
 
 ## EXAMPLES
     syscribe -m model/ move UAV::Avionics::FlightController UAV::Avionics::FlightComputer --dry-run

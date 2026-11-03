@@ -167,6 +167,7 @@ fn rules(root: &str) -> Vec<String> {
         format!("Never invent an id: `syscribe -m {root} next-id <PREFIX>-<AREA>` returns the next free one; start a new element from `syscribe template <Type>` (no model needed)."),
         format!("Change an existing field with `syscribe -m {root} set <id> status=<value>` (also `evidence.add`, `achieves.add`, `<list>.add`) rather than editing YAML: the value is checked before anything is written."),
         format!("When blocked on a decision, record it instead of guessing: `syscribe -m {root} set <PI> question.add text=\"…\" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`."),
+        format!("Attribute and record a change: add `--by <you> --reason \"<why>\" --commit` to a writing command and it commits just the files it changed, you as author; `syscribe -m {root} log <element>` shows who changed what. `--expect-hash <contentHash>` (from `show`) refuses an edit based on a stale read."),
         format!("Rename or move with `syscribe -m {root} move <src> <dest>`, which rewrites every reference."),
         format!("Own shared work with `syscribe -m {root} claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`."),
         "Preview before writing where the command allows it: `--dry-run` on `set`, `move`, `claim`, `release` and `applies-when`.".to_string(),
@@ -315,7 +316,7 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
     } else {
         o.push_str("when blocked on a decision record it with the `question` tool instead of guessing (`questions` lists the open ones, `steps` shows a PlanningItem's breakdown); ");
     }
-    o.push_str("a `status` outside the type's vocabulary is refused.\n\n");
+    o.push_str("a `status` outside the type's vocabulary is refused; pass `by`, `reason`, `commit` and `expect_hash` to a write tool to attribute it, commit just that change and refuse a stale edit (`log` reads the history).\n\n");
     o.push_str("Id prefixes: ");
     o.push_str(
         &g.ids
@@ -408,11 +409,11 @@ pub fn cmd_agent_guide(model_root: &Path, elements: &[RawElement], args: &[Strin
             println!("{path} is already up to date.");
             return 0;
         }
-        if let Err(e) = std::fs::write(path, updated) {
+        if let Err(e) = syscribe_model::fsio::write(path, updated) {
             eprintln!("agent-guide: cannot write {path}: {e}");
             return 1;
         }
-        println!("Updated the agent-guide region of {path}.");
+        println!("{} the agent-guide region of {path}.", syscribe_model::fsio::verb("Updated", "Would update"));
         return 0;
     }
     if let Some(path) = check {

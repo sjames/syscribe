@@ -41,6 +41,9 @@ pub fn cmd_move(
     dest: &str,
     dry_run: bool,
 ) {
+    if let Some(src) = resolver.resolve_ref(elements, source_key) {
+        crate::provenance::check_expect_hash(std::path::Path::new(&src.file_path));
+    }
     let report = match move_element(model_root, elements, resolver, source_key, dest, dry_run) {
         Ok(r) => r,
         Err(e) => {
@@ -49,25 +52,31 @@ pub fn cmd_move(
         }
     };
 
+    if !dry_run {
+        // The model crate did the writing; tell the write layer which files changed.
+        syscribe_model::fsio::note_written(
+            [report.from_path.clone(), report.to_path.clone()].into_iter().chain(report.rewritten_files.iter().cloned()),
+        );
+    }
     let kind = if report.is_package { "package" } else { "element" };
     if dry_run {
-        println!("[dry-run] move {kind} {} -> {}", report.from, report.to);
-        println!(
+        crate::say!("[dry-run] move {kind} {} -> {}", report.from, report.to);
+        crate::say!(
             "[dry-run]   relocate {} -> {}",
             report.from_path.display(),
             report.to_path.display()
         );
         if report.rewritten_files.is_empty() {
-            println!("[dry-run]   no reference updates needed");
+            crate::say!("[dry-run]   no reference updates needed");
         } else {
             for p in &report.rewritten_files {
-                println!("[dry-run]   update references in {}", p.display());
+                crate::say!("[dry-run]   update references in {}", p.display());
             }
         }
         return;
     }
 
-    println!("Moved {kind} {} -> {}", report.from, report.to);
-    println!("  {} -> {}", report.from_path.display(), report.to_path.display());
-    println!("  updated references in {} file(s)", report.rewritten_files.len());
+    crate::say!("Moved {kind} {} -> {}", report.from, report.to);
+    crate::say!("  {} -> {}", report.from_path.display(), report.to_path.display());
+    crate::say!("  updated references in {} file(s)", report.rewritten_files.len());
 }

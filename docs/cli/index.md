@@ -1980,3 +1980,32 @@ syscribe -m model/ list PlanningItem --open-questions
 **Questions** are the decisions a `PlanningItem` is waiting on, kept inline in its `questions:` list (`{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}`, `status` `open | answered | deferred`). They are detected from that field, never inferred from prose; each is private to its item and addressed `PI-X#Q1`. `questions` lists them across the model (`--open`, `--status`, `--item`, `--json`); `show` prints an item's; `list PlanningItem --open-questions` keeps items with an open one. `validate` checks them (`E724`–`E727`) and warns (`W317`) when an item is `done` with an open one — answer it, or `question.defer` it to say the gap is deliberate. An open question does not make an item `blocked`. `set … question.*` edits only the affected entry and leaves comments and order alone; `--dry-run` previews. An unknown `Qn`, an empty text or a non-PlanningItem exits 1 and writes nothing.
 
 **Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.
+
+## Writing safely: `--dry-run`, provenance in git, `log`, `--expect-hash`
+
+Several people and agents can change one model on the mainline. These options are global — accepted by every command, before or after its name — and make each change previewable, attributable and safe against a concurrent edit.
+
+```bash
+syscribe -m model/ set REQ-X status=approved --dry-run                       # preview; nothing is written
+syscribe -m model/ set REQ-X status=approved --by agent-1 \
+    --reason "evidence TC-3 passed" --commit                                   # write it and commit just that change
+syscribe -m model/ set REQ-X status=done --expect-hash blake3:ab12…            # refuse if REQ-X changed since it was read
+syscribe -m model/ log REQ-X                                                   # who changed it, and why
+syscribe -m model/ log --unattributed --since 2026-11-01                       # commits that bypassed the tool
+```
+
+| Option | Meaning |
+|---|---|
+| `--dry-run` | A command that writes files leaves the tree byte-identical and says what it would have written (`Would write …`, never `Wrote …`). Covers model edits, sidecars, generated exports and caches, and the pre-commit hook. |
+| `--by <actor>` | Who is making the change (letters, digits, `.`, `_`, `-`; optional). With `--commit` it is the commit **author**; the committer stays the configured git user. `claim` and `log` keep their own meaning (the claimant; a filter). |
+| `--reason <text>` | Why — recorded in the commit message. |
+| `--commit` | Commit the files this command wrote, **and only those**, as one commit — so another actor's staged or unstaged work in the same working tree is never swept in. Also on when `.syscribe.toml` has `[provenance]` `commit = true`. Never on a dry run. A commit that fails leaves the change written and exits 1. |
+| `--expect-hash <hash>` | Refuse (exit 1, nothing written) if the target file's BLAKE3 content hash differs — the `contentHash` shown by `show` and by the MCP `get_element` detail. Accepted by `set`, `claim`, `release`, `move`, `applies-when` and `scaffold-gherkin --fix` (anywhere else it is a usage error, not silently ignored); a check before the write, not a lock. |
+
+**Git is the record.** A committed change reads `syscribe: set REQ-X status=approved`, the reason, and trailers `Syscribe-Command`, `Syscribe-Actor` and `Syscribe-Reason` (the actor and reason only when given). There is no separate log file. `log` lists the commits that touched the model; `log <element>` follows that element's file through renames and says what each commit changed in it (status moves, links, evidence). `--by`, `--since`, `--limit` and `--json` filter; `--unattributed` lists commits without the trailers — edits made by hand or without `--commit`. Committing is at file granularity, so two actors editing the same file before either commits share one commit. The decision and its rejected alternatives (a `changes.jsonl` file, sharded logs) are in `ADR-SYS-PROVENANCE-001`.
+
+**Over MCP**, `create_element`, `update_element`, `move_element`, `delete_element` and `question` take `by`, `reason`, `commit` and `expect_hash`, and a committed write returns `commit`; `log` is a read tool. `mcp --read-only` hides exactly the tools not annotated read-only.
+
+**`--json`** on `set`, `claim`, `release` and `move` prints one envelope instead of text: `{schemaVersion, ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}`. Other commands' `--json` output is unchanged.
+
+**Exit codes.** `0` success. `1` a usage error, an unknown element, or a refused write (a stale `--expect-hash`, an invalid value, a failed commit). `2` a tripped gate (`validate --deny …`, `check-staged`, `impact --fail-on-unreviewed`). `connectivity`, `follow` and `impact` also exit `2` on a usage error; every other command exits `1`. There is no other code.

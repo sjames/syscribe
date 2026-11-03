@@ -375,3 +375,31 @@ pub fn diff(old: &[RawElement], new: &[RawElement], filter: &Filter) -> ChangeSe
         newly_resolved: od.difference(&nd).cloned().collect(),
     }
 }
+
+/// One element parsed from the text of its file alone (no directory context): enough to compare two
+/// versions of the same file in a history view. `None` when the file has no readable frontmatter.
+fn element_from_content(file: &str, content: &str) -> Option<RawElement> {
+    let (yaml, body) = crate::frontmatter::split_frontmatter(content);
+    let fm = crate::frontmatter::parse_frontmatter(yaml?).ok()?;
+    // The same name on both sides, so a version of a file is always compared with the previous one.
+    Some(RawElement {
+        qualified_name: file.to_string(),
+        file_path: file.to_string(),
+        frontmatter: fm,
+        doc: body.to_string(),
+        parse_issue: None,
+        derived: Default::default(),
+        derive_findings: Vec::new(),
+        locale_docs: Default::default(),
+        about_notes: Vec::new(),
+    })
+}
+
+/// What changed in an element's file between two versions (`None` = the file did not exist): status
+/// transition, links and evidence added or removed, other fields, body. `None` when nothing normative
+/// differs (or neither side parses).
+pub fn change_between(file: &str, old: Option<&str>, new: Option<&str>) -> Option<Change> {
+    let o: Vec<RawElement> = old.and_then(|c| element_from_content(file, c)).into_iter().collect();
+    let n: Vec<RawElement> = new.and_then(|c| element_from_content(file, c)).into_iter().collect();
+    diff(&o, &n, &Filter::default()).changes.into_iter().next()
+}

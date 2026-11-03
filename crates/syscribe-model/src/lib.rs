@@ -17,6 +17,7 @@ pub mod unit_level;
 pub mod attack_tree;
 pub mod baseline;
 pub mod finding_baseline;
+pub mod fsio;
 pub mod gitrev;
 pub mod hints;
 pub mod modeldiff;

@@ -19,6 +19,9 @@ raise `W311` on the next `validate` — the same signal, surfaced automatically.
 ## OPTIONS
     --by <agent-id>   Required. Opaque claimant id (an agent/session id).
     --dry-run         Preview the unified diff without writing.
+    --json            One result envelope instead of text (see `help`).
+
+`--by` is also the actor for `--commit`: with it, the claim is committed with this agent as author.
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)

@@ -431,14 +431,14 @@ fn cmd_export_all(elements: &[RawElement], model_root: &Path, config: &ValidateC
     for (rel, text) in &fresh {
         let path = out_dir.join(rel);
         if let Some(parent) = path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
+            if let Err(e) = syscribe_model::fsio::create_dir_all(parent) {
                 eprintln!("error: cannot create {}: {e}", parent.display());
                 return 1;
             }
         }
         // rewrite only what changed, so an unchanged file keeps its timestamp
         if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-            if let Err(e) = std::fs::write(&path, text) {
+            if let Err(e) = syscribe_model::fsio::write(&path, text) {
                 eprintln!("error: cannot write {}: {e}", path.display());
                 return 1;
             }
@@ -460,7 +460,7 @@ fn cmd_export_all(elements: &[RawElement], model_root: &Path, config: &ValidateC
         };
         match p.symlink_metadata() {
             Ok(m) if m.file_type().is_file() && inside => {
-                if let Err(e) = std::fs::remove_file(&p) {
+                if let Err(e) = syscribe_model::fsio::remove_file(&p) {
                     eprintln!("error: cannot remove {}: {e}", p.display());
                     return 1;
                 }
@@ -473,7 +473,7 @@ fn cmd_export_all(elements: &[RawElement], model_root: &Path, config: &ValidateC
         eprintln!("error: cannot write {}: {e}", out_dir.join(MANIFEST).display());
         return 1;
     }
-    eprintln!("wrote {} diagram file(s) under {}", fresh.len(), out_dir.display());
+    eprintln!("{} {} diagram file(s) under {}", syscribe_model::fsio::verb("wrote", "would write"), fresh.len(), out_dir.display());
     0
 }
 
@@ -494,12 +494,12 @@ fn manifest_text(entries: &std::collections::BTreeSet<String>) -> String {
 }
 
 fn write_manifest(out_dir: &Path, text: &str) -> std::io::Result<()> {
-    std::fs::create_dir_all(out_dir)?;
+    syscribe_model::fsio::create_dir_all(out_dir)?;
     let path = out_dir.join(MANIFEST);
     if std::fs::read_to_string(&path).ok().as_deref() == Some(text) {
         return Ok(());
     }
-    std::fs::write(path, text)
+    syscribe_model::fsio::write(path, text)
 }
 
 /// A manifest entry that stays inside the output directory: relative, with no `..`.
@@ -545,16 +545,16 @@ fn emit(result: Result<String, String>, out_file: Option<&str>) -> i32 {
             Some(path) => {
                 let p = Path::new(path);
                 if let Some(parent) = p.parent().filter(|d| !d.as_os_str().is_empty()) {
-                    if let Err(e) = std::fs::create_dir_all(parent) {
+                    if let Err(e) = syscribe_model::fsio::create_dir_all(parent) {
                         eprintln!("error: cannot create {}: {e}", parent.display());
                         return 1;
                     }
                 }
-                if let Err(e) = std::fs::write(p, &text) {
+                if let Err(e) = syscribe_model::fsio::write(p, &text) {
                     eprintln!("error: cannot write {}: {e}", p.display());
                     return 1;
                 }
-                eprintln!("wrote {}", p.display());
+                eprintln!("{} {}", syscribe_model::fsio::verb("wrote", "would write"), p.display());
                 0
             }
             None => {

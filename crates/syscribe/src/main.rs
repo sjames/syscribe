@@ -20,6 +20,7 @@ mod reqif_import;
 mod compliance;
 mod exec_cmd;
 mod evidence_cmd;
+mod logcmd;
 mod mechanisms;
 mod cyberrisk;
 mod connectivity;
@@ -65,6 +66,7 @@ mod suggest;
 mod typehelp;
 mod explain;
 mod qset;
+mod provenance;
 mod questions;
 mod steps;
 mod agentguide;
@@ -640,7 +642,13 @@ fn build_cli() -> clap::Command {
                 .long("model")
                 .num_args(1)
                 .global(true),
-        );
+        )
+        // Global flags (GH #443/#444), read by `provenance::extract` before dispatch.
+        .arg(clap::Arg::new("dry-run").long("dry-run").num_args(0).global(true))
+        .arg(clap::Arg::new("commit").long("commit").num_args(0).global(true))
+        .arg(clap::Arg::new("by").long("by").num_args(1).global(true))
+        .arg(clap::Arg::new("reason").long("reason").num_args(1).global(true))
+        .arg(clap::Arg::new("expect-hash").long("expect-hash").num_args(1).global(true));
     for (name, about) in help::commands() {
         cmd = cmd.subcommand(
             clap::Command::new(name).about(about).arg(
@@ -840,7 +848,19 @@ fn main() {
         .or_else(discover_model_root)
         .unwrap_or_else(|| "model".to_string());
 
+    // Global flags (GH #443/#444): `--dry-run`, `--by`, `--reason`, `--commit`, `--expect-hash`.
+    let (remaining, globals) = provenance::extract(remaining);
+    syscribe_model::fsio::set_dry_run(globals.dry_run);
+    if let Err(m) = provenance::init(globals) {
+        eprintln!("Error: {m}");
+        std::process::exit(1);
+    }
     let subcommand_args: &[String] = &remaining;
+    if let Err(m) = provenance::check_supported(subcommand_args.first().map(String::as_str)) {
+        eprintln!("Error: {m}");
+        std::process::exit(1);
+    }
+    syscribe_model::fsio::enable_recording();
 
     // Model-free commands: re-check after -m stripping so `syscribe -m <root> spec`
     // and `syscribe -m <root> help` work even when the model flag precedes the subcommand.
@@ -967,6 +987,7 @@ fn main() {
         }
     }
 
+    provenance::set_context(model_root, subcommand_args);
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     // `report` (and a bare invocation with no subcommand) fall through to the default
     // full validation report below (REQ-TRS-CLI-008).
@@ -2359,6 +2380,12 @@ fn main() {
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
             }
+            "log" => {
+                let code = logcmd::cmd_log(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "questions" => {
                 let code = questions::cmd_questions(&elems, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
@@ -2625,6 +2652,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        provenance::finish(model_root, subcommand_args);
         return;
     }
 

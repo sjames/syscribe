@@ -10,6 +10,9 @@ handoff to another agent. Clears both fields regardless of the item's current
 
 ## OPTIONS
     --dry-run   Preview the unified diff without writing.
+    --json      One result envelope instead of text: {ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}.
+
+Also accepts the global write options `--by`, `--reason`, `--commit`, `--expect-hash` (see `syscribe help`).
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)

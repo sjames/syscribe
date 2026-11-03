@@ -25,6 +25,30 @@ claim work, compare variants, gate CI) to commands. `help <code>` (e.g. `help E1
 
 A mistyped command or topic lists the three nearest commands with their purpose.
 
+## GLOBAL WRITE OPTIONS
+Accepted by every command, before or after its name:
+
+    --dry-run              Any command that writes files leaves the tree untouched and says what it
+                           would have written. A status line reads "Would write", never "Wrote".
+    --by <actor>           Who is making the change (letters, digits, '.', '_', '-'). Optional. With
+                           --commit it is the commit author. (`claim` and `log` give --by their own
+                           meaning: the claimant, and a filter.)
+    --reason <text>        Why — recorded in the commit message.
+    --commit               Commit the files this command wrote, and only those, so another actor's
+                           pending work in the same tree is never swept in. Also on when
+                           `[provenance] commit = true` in .syscribe.toml. Never on a dry run.
+    --expect-hash <hash>   Refuse (exit 1, nothing written) if the target file's content hash is not
+                           this one — the `contentHash` from `show` or the MCP `get_element` detail.
+                           Accepted by set, claim, release, move, applies-when and scaffold-gherkin --fix;
+                           anywhere else it is a usage error, never silently ignored. It is a check before
+                           the write, not a lock.
+
+Git is the only record of who changed what: a committed change carries `Syscribe-Command`,
+`Syscribe-Actor` and `Syscribe-Reason` trailers, and `syscribe log` reads them back.
+
+Exit codes: 0 success; 1 a usage error, an unknown element or a refused write; 2 a tripped gate.
+`connectivity`, `follow` and `impact` also exit 2 on a usage error.
+
 ## EXAMPLES
     syscribe help
     syscribe help validate

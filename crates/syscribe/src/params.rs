@@ -67,7 +67,7 @@ fn export(elements: &[RawElement], rest: &[String]) -> i32 {
     let yaml = c.to_yaml(env!("CARGO_PKG_VERSION"));
     match value_of(rest, "--out") {
         Some(path) => {
-            if let Err(e) = std::fs::write(path, &yaml) {
+            if let Err(e) = syscribe_model::fsio::write(path, &yaml) {
                 eprintln!("Cannot write {path}: {e}");
                 return 1;
             }
@@ -76,7 +76,7 @@ fn export(elements: &[RawElement], rest: &[String]) -> i32 {
     }
     if let Some(path) = value_of(rest, "--schema") {
         let text = serde_json::to_string_pretty(&c.schema()).unwrap_or_default() + "\n";
-        if let Err(e) = std::fs::write(path, text) {
+        if let Err(e) = syscribe_model::fsio::write(path, text) {
             eprintln!("Cannot write {path}: {e}");
             return 1;
         }

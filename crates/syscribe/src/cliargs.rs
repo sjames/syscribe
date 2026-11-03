@@ -105,15 +105,16 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--skip-configs", Switch),
             ("--install-hook", Switch),
         ],
+        "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--json", Switch)],
         "questions" => &[("--open", Switch), ("--status", Value), ("--item", Value), ("--json", Switch)],
         "steps" => &[("--open", Switch), ("--depth", Value), ("--json", Switch)],
         "agent-guide" => &[("--format", Value), ("--sections", Value), ("--write", Value), ("--check", Value)],
         "changes" => &[("--json", Switch), ("--types", ValueOrEq), ("--package", ValueOrEq)],
-        "claim" => &[("--by", Value), ("--dry-run", Switch)],
+        "claim" => &[("--by", Value), ("--dry-run", Switch), ("--json", Switch)],
         "meta" => &[("--def", Value), ("--group-by", Value), ("--json", Switch)],
         "budgets" => &[("--json", Switch)],
         "design-report" => &[("--json", Switch)],
-        "release" | "move" | "set" => &[("--dry-run", Switch)],
+        "release" | "move" | "set" => &[("--dry-run", Switch), ("--json", Switch)],
         "scaffold-gherkin" => &[("--fix", Switch)],
         "plantuml" => &[("--dry-run", Switch), ("--output", ValueOrEq), ("-o", Value), ("--jar", ValueOrEq)],
         "repos" => &[("--json", Switch), ("--all", Switch)],
@@ -285,6 +286,11 @@ pub fn check_known_options(cmd: &str, args: &[String]) -> Result<(), String> {
             i += 1;
             continue;
         }
+        // Global flags (GH #444) are accepted by every command; `main` has already read them.
+        if a == "--dry-run" {
+            i += 1;
+            continue;
+        }
         if let Some(&(name, arity)) = spec.iter().find(|(n, _)| *n == a) {
             if arity != Switch {
                 if args.get(i + 1).is_none() {
@@ -360,6 +366,10 @@ pub fn or_exit<T>(r: Result<T, String>) -> T {
 
 #[cfg(test)]
 mod tests {
+    /// Global write options (GH #443/#444): accepted by every command and read by `main` before dispatch
+    /// (`provenance::extract`), so no command's own option spec lists them.
+    const GLOBAL_FLAGS: &[&str] = &["--dry-run", "--by", "--reason", "--commit", "--expect-hash"];
+
     use super::*;
 
     fn s(v: &[&str]) -> Vec<String> {
@@ -405,7 +415,7 @@ mod tests {
                     continue;
                 }
                 assert!(
-                    spec.iter().any(|(n, _)| *n == tok),
+                    GLOBAL_FLAGS.contains(&tok) || spec.iter().any(|(n, _)| *n == tok),
                     "`{cmd}` documents {tok} but cliargs::spec_for does not accept it"
                 );
             }
