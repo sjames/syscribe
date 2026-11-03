@@ -226,6 +226,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ set <qname\|id> status=<v>` / `evidence.add ref=<id>` / `achieves.add <req-id>` | Validated single-field edit (value checked **before** writing); `--dry-run` previews |
 | `syscribe -m model/ applies-when <element> [--set "<expr>" \| --clear]` | Show (with inheritance) or edit an element's `appliesWhen:` gate |
 | `syscribe -m model/ move <src> <dest> [--dry-run]` | Move/rename an element or package, rewriting every reference to it |
+| `syscribe -m model/ changes <revA> [<revB>]` / `validate --new-since <rev>` | Element-level diff between git revisions (status moves, links, evidence, broken refs); gate `validate` only on findings not present at `<rev>` |
 | `syscribe -m model/ claim <PI-id> --by <agent-id>` / `release <PI-id>` | Advisory ownership of a `PlanningItem` when several agents share a model (see Part 6e) |
 | `syscribe -m model/ scripts list\|run\|validate` | User-authored Rhai extension scripts from the `[scripts]` directory (tooling, not model content) |
 | `syscribe -m model/ mcp [--read-only]` / `lsp` | Run the MCP server / language server for this model |

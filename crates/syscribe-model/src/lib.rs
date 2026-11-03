@@ -18,6 +18,7 @@ pub mod attack_tree;
 pub mod baseline;
 pub mod finding_baseline;
 pub mod gitrev;
+pub mod modeldiff;
 pub mod binding_time;
 pub mod build_config;
 pub mod config;

@@ -1,4 +1,5 @@
-//! TC-TRS-VALBASE-001 (GH #431): `validate --new-since` / `--baseline-file`, against a throwaway repository.
+//! TC-TRS-MODELDIFF-001 (GH #433) and TC-TRS-VALBASE-001 (GH #431): git-revision-aware
+//! `changes` and `validate --new-since` / `--baseline-file`, against a throwaway repository.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -63,6 +64,102 @@ fn base() -> Repo {
     r.write("model/R/REQ-AAA-003.md", &req("REQ-AAA-003", "approved")); // pre-existing warnings (uncovered)
     r.commit("base");
     r
+}
+
+// ── GH #433: changes ─────────────────────────────────────────────────────────
+
+#[test]
+fn two_status_flips_and_one_new_test_are_exactly_three_entries() {
+    let r = base();
+    r.write("model/R/REQ-AAA-001.md", &req("REQ-AAA-001", "approved"));
+    r.write("model/R/REQ-AAA-002.md", &req("REQ-AAA-002", "approved"));
+    r.write("model/R/TC-AAA-001.md", &tc("TC-AAA-001", "REQ-AAA-001"));
+    r.commit("change");
+    let (out, err, code) = r.run(&["changes", "HEAD~1", "HEAD", "--json"]);
+    assert_eq!(code, 0, "{err}");
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let changes = v["changes"].as_array().unwrap();
+    assert_eq!(changes.len(), 3, "{out}");
+    let by = |id: &str| changes.iter().find(|c| c["id"] == id).unwrap_or_else(|| panic!("{id} missing in {out}"));
+    assert_eq!(by("REQ-AAA-001")["kind"], "modified");
+    assert_eq!(by("REQ-AAA-001")["status"], serde_json::json!(["draft", "approved"]));
+    assert_eq!(by("REQ-AAA-002")["status"], serde_json::json!(["draft", "approved"]));
+    let t = by("TC-AAA-001");
+    assert_eq!(t["kind"], "added");
+    assert_eq!(t["linksAdded"], serde_json::json!([{ "field": "verifies", "target": "REQ-AAA-001" }]));
+}
+
+#[test]
+fn text_output_is_one_line_per_element() {
+    let r = base();
+    r.write("model/R/REQ-AAA-001.md", &req("REQ-AAA-001", "approved"));
+    r.commit("change");
+    let (out, _e, code) = r.run(&["changes", "HEAD~1"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("`REQ-AAA-001` (Requirement) status draft → approved"), "{out}");
+}
+
+#[test]
+fn frontmatter_formatting_only_changes_produce_no_entry() {
+    let r = base();
+    // Same data: quoted values, reordered keys, extra blank lines, CRLF-free body re-wrapped.
+    r.write(
+        "model/R/REQ-AAA-001.md",
+        "---\ntype: \"Requirement\"\nreqClass: system\nreqDomain: software\nstatus:   draft\nname: \"REQ-AAA-001 name\"\nid: REQ-AAA-001\n---\n\n\nThe system shall do REQ-AAA-001.\n\n",
+    );
+    r.commit("reformat");
+    let (out, _e, code) = r.run(&["changes", "HEAD~1", "HEAD", "--json"]);
+    assert_eq!(code, 0);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert!(v["changes"].as_array().unwrap().is_empty(), "{out}");
+    let (text, _e, _c) = r.run(&["changes", "HEAD~1", "HEAD"]);
+    assert!(text.starts_with("No model changes"), "{text}");
+}
+
+#[test]
+fn a_moved_id_element_is_one_moved_entry_and_the_working_tree_is_the_default_target() {
+    let r = base();
+    std::fs::create_dir_all(r.root.join("model/R2")).unwrap();
+    r.git(&["mv", "model/R/REQ-AAA-001.md", "model/R2/REQ-AAA-001.md"]);
+    // Uncommitted: compared against the working tree.
+    let (out, _e, code) = r.run(&["changes", "HEAD", "--json"]);
+    assert_eq!(code, 0);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let ch = v["changes"].as_array().unwrap();
+    assert_eq!(ch.len(), 1, "{out}");
+    assert_eq!(ch[0]["kind"], "moved");
+    assert_eq!(ch[0]["id"], "REQ-AAA-001");
+}
+
+#[test]
+fn newly_broken_and_resolved_references_are_listed() {
+    let r = base();
+    r.write("model/R/TC-AAA-001.md", &tc("TC-AAA-001", "REQ-AAA-001"));
+    r.commit("tc");
+    std::fs::remove_file(r.root.join("model/R/REQ-AAA-001.md")).unwrap();
+    r.commit("drop req");
+    let (out, _e, _c) = r.run(&["changes", "HEAD~1", "HEAD", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["newlyBroken"], serde_json::json!([{ "element": "TC-AAA-001", "field": "verifies", "target": "REQ-AAA-001" }]), "{out}");
+    let (out, _e, _c) = r.run(&["changes", "HEAD", "HEAD~1", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["newlyResolved"].as_array().unwrap().len(), 1, "{out}");
+}
+
+#[test]
+fn type_and_package_filters_and_errors() {
+    let r = base();
+    r.write("model/R/REQ-AAA-001.md", &req("REQ-AAA-001", "approved"));
+    r.write("model/R/TC-AAA-001.md", &tc("TC-AAA-001", "REQ-AAA-001"));
+    r.commit("change");
+    let (out, _e, _c) = r.run(&["changes", "HEAD~1", "HEAD", "--types", "TestCase", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["changes"].as_array().unwrap().len(), 1, "{out}");
+    let (_o, e, c) = r.run(&["changes", "no-such-rev"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("does not name a commit"), "{e}");
+    let (_o, _e, c) = r.run(&["changes"]);
+    assert_eq!(c, 1);
 }
 
 // ── GH #431: validate --new-since / --baseline-file ──────────────────────────

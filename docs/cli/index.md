@@ -1910,3 +1910,11 @@ syscribe -m <root> lsp
 
 If you prefer not to run the built-in server, any MCP host that can execute shell commands can wrap individual `syscribe` commands as tools (one tool per command, `SYSCRIBE_MODEL` set once). Each handler runs the command, captures stdout, and returns it; the agent calls `syscribe validate --json` after every write and proceeds only on `[]`.
 
+
+## `changes` — what changed between two revisions
+
+```bash
+syscribe -m model/ changes <revA> [<revB>] [--types T1,T2] [--package <qname>] [--json]
+```
+
+Element-level diff of the model between two git revisions (`<revB>` defaults to the working tree), with no sealed baseline needed. Elements are paired by stable `id:` (else qualified name): each entry is `added`, `removed`, `moved` or `modified`, and a modified one names the `status` transition, links added/removed, `evidence:` added/removed, other changed fields and whether the body changed. Reformatting YAML or re-wrapping whitespace produces no entry. References that stopped (or started) resolving are listed after the entries. Exit `0` whether or not anything changed; `1` for an unknown revision, a non-git directory, or a model directory absent at a revision.
