@@ -183,6 +183,16 @@ struct QuestionsArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ContextArgs {
+    /// The element (id or qualified name).
+    element: String,
+    /// How far to follow links in each direction (default 1).
+    depth: Option<u32>,
+    /// Upper bound on the returned JSON, in bytes (default 16000, minimum 1024).
+    max_bytes: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -1870,6 +1880,27 @@ impl SyscribeMcp {
         let status = if args.open.unwrap_or(false) { Some("open".to_string()) } else { args.status };
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "One bounded briefing bundle for an element or PlanningItem: its summary and body, upstream and downstream \
+        neighbours to `depth` (id, type, status, relationship, one-line summary), verifying tests with the latest verdict and the \
+        environment it ran on, for a PlanningItem its parent/children, achieves, evidence, claim and open questions, and the \
+        validation findings on those elements. The output never exceeds `max_bytes`; `truncated` says what was left out. Prefer this \
+        to several show/trace/links calls. Same data as `syscribe context --format json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn context(&self, Parameters(args): Parameters<ContextArgs>) -> Result<CallToolResult, ErrorData> {
+        let max = args.max_bytes.map(|m| m as usize).unwrap_or(crate::context::DEFAULT_MAX_BYTES);
+        if max < crate::context::MIN_MAX_BYTES {
+            return tool_error(format!("max_bytes must be at least {}", crate::context::MIN_MAX_BYTES));
+        }
+        let store = self.store.read().await;
+        let result = validate_with_config(&store.elements, &store.config);
+        match crate::context::build(&store.elements, store.config.results.as_ref(), &result.findings, &args.element, args.depth.unwrap_or(1) as usize) {
+            Ok(b) => Ok(CallToolResult::success(vec![Content::text(crate::context::render(b, crate::context::Format::Json, max))])),
             Err(m) => tool_error(m),
         }
     }

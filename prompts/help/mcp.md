@@ -118,6 +118,10 @@ stable id, a qualified name, or a display name. List/grid tools accept
   and message, not file or line).
 - `questions {open?, status?, item?}` — a PlanningItem's inline questions (the decisions awaiting an
   answer) across the model or for one item. Same data as `syscribe questions --json`.
+- `context {element, depth?, max_bytes?}` — one bounded briefing bundle: the element's summary and body,
+  upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
+  state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
+  several show/trace/links calls. Same data as `syscribe context --format json`.
 - `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
   open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
 - `impact {ref | files | since, direction?, depth?}` — from one element, or from changed `files` / a git

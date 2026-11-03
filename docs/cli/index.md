@@ -242,6 +242,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 ### Ingesting executed test results (`ingest-results`)
 
+`context <ref> [--depth N] [--max-bytes N] [--format text|markdown|json]` (GH #435) is one bounded briefing bundle for an element or `PlanningItem`: summary and body, upstream and downstream neighbours to `--depth`, the verifying tests with their latest verdict and the environment they ran on, for a `PlanningItem` its parent, children, `achieves`, evidence, claim and open questions, and the findings on those elements. The output never exceeds `--max-bytes` (default 16000); when it would, the least important items are dropped first and a notice names what was left out. The MCP tool `context` returns the same JSON.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1966,6 +1968,14 @@ Projects that let scripts or LLM agents edit the model usually hand-write the sa
 
 The output is deterministic — no timestamps, no tool version — so it changes only when the model or its configuration does. The Markdown is wrapped in `<!-- syscribe:agent-guide -->` … `<!-- /syscribe:agent-guide -->`. `--write` replaces only that region (creating the file, or appending the region to a file that has none) and never touches text outside it; repeated or unbalanced markers are refused and the file left as it was. `--check` exits `1` when the region is missing or differs from what would be generated. The MCP server's `initialize` instructions come from the same data.
 
+
+## `context` — a bounded briefing on one element
+
+```bash
+syscribe -m model/ context REQ-X-001 [--depth N] [--max-bytes N] [--format text|markdown|json]
+```
+
+See the paragraph near the top of this page for what the bundle holds; `syscribe help context` has the options and the order in which a too-large bundle is cut down.
 
 ## `questions` and `steps` — a PlanningItem's decisions and breakdown
 

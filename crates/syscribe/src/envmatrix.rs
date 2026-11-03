@@ -197,11 +197,11 @@ fn rank(v: Verdict) -> u8 {
     }
 }
 
-fn env_of(r: &ResultRecord) -> Option<&str> {
+pub(crate) fn env_of(r: &ResultRecord) -> Option<&str> {
     r.provenance.as_ref().and_then(|p| p.environment.as_deref())
 }
 
-fn record_time(r: &ResultRecord) -> Option<i64> {
+pub(crate) fn record_time(r: &ResultRecord) -> Option<i64> {
     let p = r.provenance.as_ref()?;
     p.finished_at.as_deref().or(p.started_at.as_deref()).and_then(rfc3339_epoch)
 }

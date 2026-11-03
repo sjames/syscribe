@@ -556,7 +556,7 @@ pub fn fuzzy_score(elem: &RawElement, pattern: &str) -> u32 {
 
 /// Collect (relationship_label, target_qname) pairs from a single element's
 /// frontmatter: the built-in fields, then its user-defined `links:` entries.
-fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
+pub(crate) fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     let mut out = builtin_outbound_refs(elem);
     out.extend(custom_outbound_refs(elem));
     out

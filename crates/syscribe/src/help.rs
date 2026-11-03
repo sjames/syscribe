@@ -167,6 +167,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
     (
         "Planning items (multi-agent coordination)",
         &[
+            ("context", include_str!("../../../prompts/help/context.md")),
             ("steps", include_str!("../../../prompts/help/steps.md")),
             ("questions", include_str!("../../../prompts/help/questions.md")),
             ("claim", include_str!("../../../prompts/help/claim.md")),

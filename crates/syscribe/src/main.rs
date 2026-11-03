@@ -64,6 +64,7 @@ mod scripting;
 mod set;
 mod suggest;
 mod typehelp;
+mod context;
 mod envmatrix;
 mod explain;
 mod qset;
@@ -2402,6 +2403,14 @@ fn main() {
             }
             "log" => {
                 let code = logcmd::cmd_log(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "context" => {
+                let results = runhist::load_results(model_root);
+                let findings = validator::validate_with_config(&elems, &vcfg).findings;
+                let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }
