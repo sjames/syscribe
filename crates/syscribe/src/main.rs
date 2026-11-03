@@ -59,6 +59,9 @@ mod claim;
 mod scaffold;
 mod scripting;
 mod set;
+mod suggest;
+mod typehelp;
+mod explain;
 mod stats;
 mod summarize;
 mod suspect;
@@ -243,6 +246,33 @@ fn top_level_package(file_path: &str, model_root: &str) -> String {
         // File is directly in the model root (no subdirectory).
         "(root)".to_string()
     }
+}
+
+/// `template <type> [--prefix P]`. The skeleton does not depend on the model; the root is read only
+/// for configured `[ids.prefixes]`, so a missing root is fine (GH #438).
+fn run_template(model_root: &std::path::Path, subcommand_args: &[String]) {
+    // The type is the first argument that is neither `--prefix` nor its value,
+    // so `template --prefix SYS Requirement` works too.
+    let mut ty = "";
+    let mut it = subcommand_args.iter().skip(1);
+    while let Some(a) = it.next() {
+        if a == "--prefix" {
+            it.next();
+        } else if !a.starts_with("--") {
+            ty = a.as_str();
+            break;
+        }
+    }
+    if ty.is_empty() {
+        eprintln!("Usage: syscribe [--model <root>] template <type> [--prefix <id-prefix>]");
+        std::process::exit(1);
+    }
+    let prefix = subcommand_args
+        .iter()
+        .position(|a| a == "--prefix")
+        .and_then(|i| subcommand_args.get(i + 1))
+        .map(|s| s.as_str());
+    query::cmd_template(ty, model_root, prefix);
 }
 
 const AGENT_INSTRUCTIONS: &str = include_str!("../../../prompts/create-model.md");
@@ -708,8 +738,18 @@ fn main() {
         return;
     }
     if args.get(1).map(|a| a == "help").unwrap_or(false) {
-        help::cmd_help(args.get(2).map(|s| s.as_str()));
+        help::cmd_help(args.get(2..).unwrap_or(&[]));
         return;
+    }
+
+    if args.get(1).map(|a| a == "explain").unwrap_or(false) {
+        match args.get(2) {
+            Some(code) => std::process::exit(explain::cmd_explain(code)),
+            None => {
+                eprintln!("Usage: syscribe explain <code>");
+                std::process::exit(1);
+            }
+        }
     }
 
     if args.get(1).map(|a| a == "spec").unwrap_or(false) {
@@ -732,6 +772,15 @@ fn main() {
     // hand-rolled dispatch below runs unchanged (per-command flags pass through as
     // trailing args).
     if let Err(e) = build_cli().try_get_matches_from(&args) {
+        // An unknown command lists the three nearest with their purpose (GH #439), instead of
+        // clap's single "similar subcommand" tip. The exit status is unchanged.
+        if e.kind() == clap::error::ErrorKind::InvalidSubcommand {
+            let word = args.iter().skip(1).find(|a| !a.starts_with('-') && !help::is_command(a) && !std::path::Path::new(a).exists());
+            if let Some(word) = word {
+                eprintln!("error: unrecognized command '{word}'{}", help::unknown_hint(word));
+                std::process::exit(e.exit_code());
+            }
+        }
         e.exit();
     }
 
@@ -795,8 +844,15 @@ fn main() {
             spec::cmd_spec(section);
             return;
         }
+        Some("explain") => match subcommand_args.get(1) {
+            Some(code) => std::process::exit(explain::cmd_explain(code)),
+            None => {
+                eprintln!("Usage: syscribe explain <code>");
+                std::process::exit(1);
+            }
+        },
         Some("help") => {
-            help::cmd_help(subcommand_args.get(1).map(String::as_str));
+            help::cmd_help(subcommand_args.get(1..).unwrap_or(&[]));
             return;
         }
         _ => {}
@@ -812,6 +868,11 @@ fn main() {
     let model_root = std::path::Path::new(&model_root_arg);
     let model_root_str = model_root.to_string_lossy().into_owned();
 
+    // `template` needs no model: with no model directory it still prints the skeleton.
+    if subcommand_args.first().map(String::as_str) == Some("template") && !model_root.is_dir() {
+        run_template(model_root, &subcommand_args);
+        return;
+    }
     if !model_root.exists() {
         eprintln!("Error: model path does not exist: {}", model_root_str);
         std::process::exit(1);
@@ -1085,6 +1146,8 @@ fn main() {
                 // REQ-TRS-MG-*: a magicgrid-enabled profile (`magicgrid = true`)
                 // turns on the gated MagicGrid validation pass for this run.
                 vcfg_run.magicgrid = profile_ref.is_some_and(|p| p.magicgrid);
+                // GH #439: opt-in workflow hints (I910–I912).
+                vcfg_run.hints = rest.iter().any(|a| a == "--hints");
                 if let Some(rf) = results_file {
                     let inferred = if rf.ends_with(".xml") { "junit" } else { "cargo-json" };
                     let fmt = cliargs::or_exit(cliargs::enum_value(
@@ -2238,30 +2301,7 @@ fn main() {
                 }
                 query::cmd_next_id(&elems, key);
             }
-            "template" => {
-                // The type is the first argument that is neither `--prefix` nor its value,
-                // so `template --prefix SYS Requirement` works too.
-                let mut ty = "";
-                let mut it = subcommand_args.iter().skip(1);
-                while let Some(a) = it.next() {
-                    if a == "--prefix" {
-                        it.next();
-                    } else if !a.starts_with("--") {
-                        ty = a.as_str();
-                        break;
-                    }
-                }
-                if ty.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> template <type> [--prefix <id-prefix>]");
-                    std::process::exit(1);
-                }
-                let prefix = subcommand_args
-                    .iter()
-                    .position(|a| a == "--prefix")
-                    .and_then(|i| subcommand_args.get(i + 1))
-                    .map(|s| s.as_str());
-                query::cmd_template(ty, model_root, prefix);
-            }
+            "template" => run_template(model_root, &subcommand_args),
             "move" => {
                 let dest = subcommand_args.get(2).map(|s| s.as_str()).unwrap_or("");
                 if key.is_empty() || dest.is_empty() {

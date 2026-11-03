@@ -795,6 +795,25 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("breakdownAdr", false, "ref", None),
             field_spec("verificationMethod", false, "string", None),
         ],
+        "PlanningItem" => vec![
+            field_spec("id", true, "string", None),
+            field_spec("name", true, "string", None),
+            field_spec("status", true, "enum", Some(&["todo", "in_progress", "blocked", "done"])),
+            field_spec("itemType", false, "enum", Some(&["bug", "task", "feature"])),
+            field_spec("parent", false, "ref", None),
+            field_spec("achieves", false, "list<ref>", None),
+            field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
+            field_spec("blockedBy", false, "list<ref>", None),
+            field_spec("assignedTo", false, "string", None),
+            field_spec("claimedBy", false, "string (set by `claim`)", None),
+            field_spec("claimedAt", false, "timestamp (set by `claim`)", None),
+        ],
+        "ADR" => vec![
+            field_spec("id", true, "string", None),
+            field_spec("name", true, "string", None),
+            field_spec("status", true, "enum", Some(&["proposed", "accepted", "deprecated", "superseded"])),
+            field_spec("supersedes", false, "list<ref>", None),
+        ],
         "TestCase" => vec![
             field_spec("id", true, "string", None),
             field_spec("name", true, "string", None),
@@ -1598,7 +1617,19 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         match args.r#type.as_deref().filter(|t| !t.is_empty()) {
             None => ok(json!({ "types": known_type_names() })),
-            Some(t) => ok(json!({ "type": t, "fields": type_field_specs(t) })),
+            Some(t) => {
+                // The same discovery data `syscribe help <Type>` prints (GH #438).
+                let canonical = crate::typehelp::resolve_type(t).unwrap_or(t);
+                let commands: Vec<Value> = crate::typehelp::commands_for(canonical)
+                    .into_iter()
+                    .map(|(name, summary, specific)| json!({ "command": name, "summary": summary, "specific": specific }))
+                    .collect();
+                let codes: Vec<Value> = crate::typehelp::codes_for(canonical)
+                    .into_iter()
+                    .map(|(code, summary)| json!({ "code": code, "summary": summary }))
+                    .collect();
+                ok(json!({ "type": t, "fields": type_field_specs(canonical), "commands": commands, "codes": codes }))
+            }
         }
     }
 

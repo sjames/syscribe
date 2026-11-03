@@ -8924,6 +8924,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // OPT-IN: workflow hints (GH #439) — informational, only under `validate --hints`.
+    if config.hints {
+        findings.extend(crate::hints::hint_findings(elements));
+    }
+
     // GATED: the MG### checks fire only under the MagicGrid profile.
     if config.magicgrid {
         // True if a type may carry use-case-style `actors:` for MG-002.

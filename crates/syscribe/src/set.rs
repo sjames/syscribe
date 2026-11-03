@@ -28,23 +28,9 @@ use syscribe_model::mutate::{apply_update_fields, file_unified_diff};
 use syscribe_model::resolver::Resolver;
 use syscribe_model::{config::ValidateConfig, validator};
 
-/// Per-type `status:` enum, mirroring the validator's own E007 (Requirement/
-/// TestCase)/E604 (TestPlan)/E304 (ADR)/E708 (PlanningItem) checks. There is no
-/// single shared source of truth for these today (each lives inline in its own
-/// validator pass) so this list is kept in sync by hand. `None` means the
-/// type's `status:` is free text in this format — write it unvalidated, same
-/// as `validate` itself does for those types.
+/// Per-type `status:` enum — shared with `validate --hints` (`syscribe_model::hints`).
 fn status_enum_for(et: &ElementType) -> Option<&'static [&'static str]> {
-    match et {
-        ElementType::Requirement => Some(&["draft", "review", "approved", "implemented", "verified"]),
-        ElementType::TestCase => Some(&["draft", "review", "approved", "active", "retired"]),
-        ElementType::TestPlan => Some(&["draft", "review", "approved", "active", "retired"]),
-        ElementType::ADR => Some(&["proposed", "accepted", "deprecated", "superseded"]),
-        ElementType::PlanningItem => Some(&["todo", "in_progress", "blocked", "done"]),
-        ElementType::ReviewRecord => Some(&["open", "closed", "waived"]),
-        ElementType::ResidualRisk => Some(syscribe_model::residual_risk::STATUSES),
-        _ => None,
-    }
+    syscribe_model::hints::status_vocabulary(et)
 }
 
 fn yaml_to_json(v: &serde_yaml::Value) -> Value {
@@ -219,11 +205,12 @@ fn cmd_set_status(
         if let Some(allowed) = status_enum_for(et) {
             if !allowed.contains(&value) {
                 eprintln!(
-                    "Refusing to set status='{}' on {} — not a valid status for {:?}. Allowed: {}",
+                    "Refusing to set status='{}' on {} — not a valid status for {:?}. Allowed: {}.{}",
                     value,
                     elem.qualified_name,
                     et,
-                    allowed.join(", ")
+                    allowed.join(", "),
+                    crate::suggest::did_you_mean(value, allowed.iter().copied())
                 );
                 std::process::exit(1);
             }
@@ -624,8 +611,9 @@ pub fn cmd_set(
             cmd_set_generic(model_root, elements, elem, field, value, false, dry_run);
             return;
         }
+        let hint = crate::suggest::did_you_mean(field, std::iter::once("status").chain(SCALAR_FIELDS.iter().copied()));
         eprintln!(
-            "Unsupported field '{field}' for `set`. Scalar fields: status, {}. List fields (`<field>.add <value>`): evidence, achieves, {}.",
+            "Unsupported field '{field}' for `set`.{hint} Scalar fields: status, {}. List fields (`<field>.add <value>`): evidence, achieves, {}.",
             SCALAR_FIELDS.join(", "),
             LIST_FIELDS.join(", ")
         );
@@ -637,8 +625,14 @@ pub fn cmd_set(
         cmd_set_generic(model_root, elements, elem, field, value, true, dry_run);
         return;
     } else {
+        let stem = op.strip_suffix(".add").unwrap_or(op);
+        let hint = crate::suggest::did_you_mean(
+            stem,
+            ["evidence", "achieves"].into_iter().chain(LIST_FIELDS.iter().copied()),
+        );
+        let hint = if hint.is_empty() || !op.ends_with(".add") { hint } else { format!("{hint} (as '<field>.add')") };
         eprintln!(
-            "Unrecognized `set` operation '{op}' — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
+            "Unrecognized `set` operation '{op}'{hint} — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
             SCALAR_FIELDS.join(", "),
             LIST_FIELDS.join(", ")
         );

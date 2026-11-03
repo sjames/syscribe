@@ -135,6 +135,7 @@ $ syscribe -m model_auto/ validate --json
 |---|---|
 | `--deny <CODES>` | Treat each comma-separated warning code as a gate failure. |
 | `--max-warnings <N>` | Fail when the warning count exceeds `N`. |
+| `--hints` | Also report informational workflow hints `I910`–`I912` (hand-edited claim, duplicate evidence, status outside the type's vocabulary), each naming the command that does it properly. |
 | `--new-since <rev>` | Gate and list only findings absent at git revision `<rev>` (see below). |
 | `--baseline-file <file>` / `--write-baseline <file>` | The same against a saved list of accepted findings; `--write-baseline` saves the current ones. |
 | `--warnings-as-errors` | Treat every warning as a gate failure. |
@@ -1918,3 +1919,20 @@ syscribe -m model/ changes <revA> [<revB>] [--types T1,T2] [--package <qname>] [
 ```
 
 Element-level diff of the model between two git revisions (`<revB>` defaults to the working tree), with no sealed baseline needed. Elements are paired by stable `id:` (else qualified name): each entry is `added`, `removed`, `moved` or `modified`, and a modified one names the `status` transition, links added/removed, `evidence:` added/removed, other changed fields and whether the body changed. Reformatting YAML or re-wrapping whitespace produces no entry. References that stopped (or started) resolving are listed after the entries. Exit `0` whether or not anything changed; `1` for an unknown revision, a non-git directory, or a model directory absent at a revision.
+
+## Finding your way: `help`, `explain`, `template`
+
+Discovery works without a model directory.
+
+```bash
+syscribe help                        # every command, grouped
+syscribe help PlanningItem           # a type: fields, enums, skeleton, validation codes, commands that act on it
+syscribe help --search evidence      # rank commands, options, types and spec sections by keyword (-k works too)
+syscribe help tasks                  # common jobs → the command for each
+syscribe explain E106                # what a finding means and the commands it points to (help E106 is the same)
+syscribe template Requirement        # a skeleton; no model needed (a configured id prefix is used when a model is present)
+```
+
+`help <Type>` accepts any element type, case-insensitively. Its command list is derived from the man pages (every page that names the type, plus the commands that act on any element), so it follows the commands rather than a hand-kept table. `describe_type` over MCP returns the same `commands` and `codes`.
+
+**Typos.** A mistyped command lists the three nearest with their one-line purpose; an unknown option, `set` field, `set status=` value or `template` type is answered with `Did you mean '…'?`. Only the message changes — exit codes are unchanged.

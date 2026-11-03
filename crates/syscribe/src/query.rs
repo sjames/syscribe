@@ -5210,7 +5210,8 @@ pub fn cmd_template(type_name: &str, model_root: &std::path::Path, prefix: Optio
     match found {
         Some(out) => print!("{}", out),
         None => {
-            eprintln!("Unknown type '{}'. Known types:", type_name);
+            let near = crate::suggest::did_you_mean(type_name, template_type_names().into_iter());
+            eprintln!("Unknown type '{}'.{} Known types:", type_name, near);
             // Generated from the same inventory the templates are keyed by, so
             // the list can never omit a supported type (GH #135); the grouping
             // only orders it.

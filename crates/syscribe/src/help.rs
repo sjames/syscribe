@@ -196,12 +196,13 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         &[
             ("spec", include_str!("../../../prompts/help/spec.md")),
             ("help", include_str!("../../../prompts/help/help.md")),
+            ("explain", include_str!("../../../prompts/help/explain.md")),
         ],
     ),
 ];
 
 /// Every `(command name, man page)` in registry order.
-fn entries() -> impl Iterator<Item = (&'static str, &'static str)> {
+pub(crate) fn entries() -> impl Iterator<Item = (&'static str, &'static str)> {
     HELP.iter().flat_map(|(_, cmds)| cmds.iter().copied())
 }
 
@@ -223,7 +224,7 @@ pub fn is_command(cmd: &str) -> bool {
 }
 
 /// One-line summary extracted from a page's H1 (`# name — summary`).
-fn summary(body: &str) -> &str {
+pub(crate) fn summary(body: &str) -> &str {
     let first = body.lines().next().unwrap_or("");
     // Split on the em dash used in every H1; fall back to the whole line.
     first.split_once('—').map(|(_, s)| s.trim()).unwrap_or(first.trim_start_matches("# ").trim())
@@ -347,20 +348,57 @@ Examples (against the bundled model/ demo):
 Detailed help: `syscribe help <command>` or `syscribe <command> --help` (e.g. `syscribe help audit`).
 ";
 
-/// `syscribe help [<command>]`.
-pub fn cmd_help(arg: Option<&str>) {
-    match arg {
-        None => print_index(),
-        Some(cmd) => match page(cmd) {
-            Some(body) => print!("{}", body),
-            None => {
-                eprintln!("No detailed help for command: {cmd}");
-                eprintln!();
-                print_index_to(&mut std::io::stderr());
-                std::process::exit(1);
-            }
-        },
+/// `syscribe help [<command> | <Type> | tasks | <code> | --search <keyword>]`.
+pub fn cmd_help(rest: &[String]) {
+    let Some(first) = rest.first().map(String::as_str) else {
+        print_index();
+        return;
+    };
+    if first == "--search" || first == "-k" {
+        let keyword = rest[1..].join(" ");
+        if keyword.trim().is_empty() {
+            eprintln!("Usage: syscribe help --search <keyword>");
+            std::process::exit(1);
+        }
+        print!("{}", crate::typehelp::search_page(&keyword));
+        return;
     }
+    if let Some(body) = page(first) {
+        print!("{}", body);
+    } else if first == "tasks" {
+        print!("{}", crate::typehelp::TASKS);
+    } else if let Some(ty) = crate::typehelp::resolve_type(first) {
+        print!("{}", crate::typehelp::type_page(ty));
+    } else if crate::explain::looks_like_code(first) {
+        std::process::exit(crate::explain::cmd_explain(first));
+    } else {
+        eprintln!("No help for '{first}'.{}", unknown_hint(first));
+        std::process::exit(1);
+    }
+}
+
+/// The three commands nearest to a mistyped `word`, each with its one-line purpose (GH #439).
+pub fn nearest_commands(word: &str) -> Vec<(&'static str, &'static str)> {
+    crate::suggest::nearest(word, commands().map(|(n, _)| n), 3)
+        .into_iter()
+        .filter_map(|n| commands().find(|(name, _)| *name == n))
+        .collect()
+}
+
+/// A multi-line "did you mean" block for an unknown command/topic, or a pointer to search.
+pub fn unknown_hint(word: &str) -> String {
+    let near = nearest_commands(word);
+    let mut out = String::new();
+    if near.is_empty() {
+        out.push_str("\nTry `syscribe help` for the command index or `syscribe help --search <keyword>`.");
+    } else {
+        out.push_str("\n\nDid you mean:");
+        for (name, summary) in near {
+            out.push_str(&format!("\n  {name:<18} {summary}"));
+        }
+        out.push_str("\n\n`syscribe help --search <keyword>` searches by what a command does.");
+    }
+    out
 }
 
 fn print_index() {

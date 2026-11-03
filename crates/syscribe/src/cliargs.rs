@@ -43,6 +43,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--deny", ValueOrEq),
             ("--deny-meta", Value),
             ("--max-warnings", ValueOrEq),
+            ("--hints", Switch),
             ("--new-since", ValueOrEq),
             ("--baseline-file", ValueOrEq),
             ("--write-baseline", ValueOrEq),
@@ -255,6 +256,12 @@ pub fn check_known_options(cmd: &str, args: &[String]) -> Result<(), String> {
         names.sort_unstable();
         if names.is_empty() { "(none)".to_string() } else { names.join(", ") }
     };
+    // `--dney` → "Did you mean '--deny'?" (GH #439); the `=value` part is not compared.
+    let unknown = |a: &str| {
+        let flag = a.split_once('=').map_or(a, |(f, _)| f);
+        let hint = crate::suggest::did_you_mean(flag, spec.iter().map(|(n, _)| *n));
+        format!("{cmd}: unknown option '{a}';{hint} valid options: {}", known())
+    };
     let mut i = 0;
     while i < args.len() {
         let a = args[i].as_str();
@@ -277,10 +284,10 @@ pub fn check_known_options(cmd: &str, args: &[String]) -> Result<(), String> {
                         "{cmd}: option '{a}' — pass the value as a separate argument: {name} <value>"
                     ))
                 }
-                None => return Err(format!("{cmd}: unknown option '{a}'; valid options: {}", known())),
+                None => return Err(unknown(a)),
             }
         } else {
-            return Err(format!("{cmd}: unknown option '{a}'; valid options: {}", known()));
+            return Err(unknown(a));
         }
         i += 1;
     }

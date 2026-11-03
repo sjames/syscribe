@@ -3,7 +3,7 @@
 ## SYNOPSIS
     syscribe -m <root> validate [--file <path>] [--json]
         [--deny <CODES>] [--deny-meta <Def.key=value>]... [--max-warnings <N>] [--warnings-as-errors] [--summary]
-        [--new-since <rev> | --baseline-file <file>] [--write-baseline <file>]
+        [--new-since <rev> | --baseline-file <file>] [--write-baseline <file>] [--hints]
         [--profile <name>] [--config <C>] [--all-configs]
         [--results <file> [--format <fmt>]] [--fetch-remote]
 
@@ -33,6 +33,9 @@ gating flags promote chosen warnings to build failures.
     --write-baseline <file> Save every current finding as an accepted list (the run itself is unchanged).
                             --new-since and --baseline-file are exclusive and do not combine with
                             --all-configs; with --config the same variant is judged at <rev>.
+    --hints                 Also report informational workflow hints (I910–I912): a hand-edited claim, a duplicate
+                            evidence entry, a status outside the type's vocabulary — each names the command
+                            that does it properly. Info only; never changes the exit status unless --deny'd.
     --summary               Print finding counts per code and severity instead of each
                             finding (with --json: [{code, severity, count}]). Gating and
                             the exit code are unchanged. With --all-configs the per-variant

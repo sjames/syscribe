@@ -53,6 +53,9 @@ This page groups every finding code by feature area, with context. The same code
 | I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 | I750 | Informational (`validate --config`): an element is variant-retained — the staged Configuration's projection keeps it because its `appliesWhen:` depends on a feature still open at that stage; also listed by `residual` (§9.8). Never affects the exit status |
 | I011 | Info | plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
+| I910 | Info | (`validate --hints` only) a `PlanningItem` has `claimedBy` without `claimedAt` — `claim` always writes both, so the claim was hand-edited; use `claim <id> --by <agent>` / `release <id>` |
+| I911 | Info | (`validate --hints` only) the same `evidence:` entry (same `ref:` or `path:`) is listed more than once |
+| I912 | Info | (`validate --hints` only) `status` is outside the type's vocabulary; names the nearest valid value and the `set <id> status=<value>` command that applies it |
 
 ## Cross-reference errors (E101–E106, E110–E128)
 
