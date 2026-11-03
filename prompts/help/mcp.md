@@ -6,6 +6,7 @@ client query and guard-write the Syscribe model bound at `-m`.
 
 ## SYNOPSIS
     syscribe -m <root> mcp [--read-only] [--no-watch]
+    syscribe -m <root> mcp --print-instructions [--read-only]
 
 ## USAGE
 
@@ -20,6 +21,20 @@ MCP client (an editor, an agent runtime, …), not invoked interactively.
 - The server advertises `tools`, `resources`, `prompts`, `completions`, and
   `logging` capabilities, and emits a `resources/list_changed` notification after
   any committed write, a `reload`, or an automatic reload.
+
+- `--print-instructions` prints the server instructions a client receives in `initialize` (and
+  exits), so they can be pasted into other agent configuration.
+
+## Server instructions
+
+The `initialize` response carries instructions **generated from the loaded model and
+`.syscribe.toml`**: the tool order for common jobs (orient → `next_id` → `template` →
+`create_element` → `validate_element`; `validate` and `gates` before calling work done), the safe-
+mutation rules (never invent an id, never set `claimedBy`/`claimedAt` through a tool — ownership
+is the CLI `claim`/`release`), the project's real id prefixes (including `[ids.prefixes]` extras),
+the status vocabulary of each lifecycle type, and the configured gates and profiles. A
+`--read-only` server says so and advertises no write sequence. The same data produces
+`syscribe agent-guide`.
 
 ## Live reload
 
@@ -97,7 +112,14 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `export_sysml {package?}` — the model (or one package's subtree) as SysML v2 textual
   notation, one-way and lossy (unsupported elements become `// skipped:` comments);
   same text as `export-sysml [<package>]`. Returns text; never writes to disk.
-- `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
+- `validate {file?, severity?, limit?, new_since?}` / `validate_element {ref}` — findings.
+  `new_since: "<git-rev>"` reports only the findings absent at that revision and states how many
+  were `preexisting` (the CLI's `validate --new-since`; a finding is identified by code, element
+  and message, not file or line).
+- `changes {from, to?, types?, package?}` — the element-level difference between two git revisions
+  (or a revision and the working tree): added/removed/moved/modified elements, status transitions,
+  links and evidence added or removed, references that broke or were repaired. Same data as
+  `syscribe changes --json`.
 - `reload {}` — re-read the model from disk now (normally unnecessary: the
   server reloads automatically on file changes, see **Live reload**).
 
@@ -260,6 +282,9 @@ they do in the real tree.
 - Resources: the format spec sections (`syscribe://spec/<section>`), the project
   config (`syscribe://config`), and each element via the
   `syscribe://element/{qname}` template; element references support completion.
-- Prompts: `create-model`, `create-magicgrid-model`, and the task prompts
+- Prompts: `create-model`, `create-magicgrid-model`, the task prompts
   `add-requirement`, `break-down-requirement`, `add-testcase-for`,
-  `traceability-review`.
+  `traceability-review`, and the workflows, each with arguments and the exact tool
+  sequence: `add-requirement-with-test` (`statement?`, `parent?`), `record-test-evidence`
+  (`results_path`, `format?`), `review-change-set` (`since`, `until?`), `close-planning-item`
+  (`item`) and `check-variant` (`config`). A missing required argument is an error.

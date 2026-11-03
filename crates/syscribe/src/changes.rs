@@ -9,6 +9,48 @@ use syscribe_model::walker;
 
 const USAGE: &str = "Usage: syscribe -m <root> changes <revA> [<revB>] [--types T1,T2] [--package <qname>] [--json]";
 
+/// Compare the model as of `from` with `to` (a revision, or the working tree when `None`).
+/// Files are reported relative to their model root. Shared by the CLI and the MCP `changes` tool.
+pub fn compute(
+    model_root: &Path,
+    working: &[RawElement],
+    from: &str,
+    to: Option<&str>,
+    filter: &Filter,
+) -> Result<(modeldiff::ChangeSet, String), String> {
+    let load = |rev: &str| -> Result<(gitrev::RevModel, Vec<RawElement>), String> {
+        let m = gitrev::materialize(model_root, rev)?;
+        let elems = walker::walk_model(&m.root).map_err(|e| format!("cannot load the model at `{rev}`: {e}"))?;
+        Ok((m, elems))
+    };
+    let (old_guard, old) = load(from)?;
+    let mut new_guard: Option<gitrev::RevModel> = None;
+    let mut new_loaded: Vec<RawElement> = Vec::new();
+    let to_label = match to {
+        Some(r) => {
+            let (g, e) = load(r)?;
+            new_guard = Some(g);
+            new_loaded = e;
+            r.to_string()
+        }
+        None => "working tree".to_string(),
+    };
+    let new: &[RawElement] = if to.is_some() { &new_loaded } else { working };
+    let mut set = modeldiff::diff(&old, new, filter);
+    // A revision is exported to a temporary directory; show every file relative to its model root.
+    let roots: Vec<String> = [Some(old_guard.root.clone()), new_guard.as_ref().map(|g| g.root.clone())]
+        .into_iter()
+        .flatten()
+        .map(|p| format!("{}/", p.display()))
+        .collect();
+    for c in &mut set.changes {
+        if let Some(r) = roots.iter().find(|r| c.file.starts_with(r.as_str())) {
+            c.file = c.file[r.len()..].to_string();
+        }
+    }
+    Ok((set, to_label))
+}
+
 /// `args` are the tokens after `changes`. Returns the process exit code.
 pub fn cmd_changes(model_root: &Path, working: &[RawElement], args: &[String]) -> i32 {
     let mut revs: Vec<&str> = Vec::new();
@@ -48,49 +90,13 @@ pub fn cmd_changes(model_root: &Path, working: &[RawElement], args: &[String]) -
         return 1;
     }
 
-    let load = |rev: &str| -> Result<(gitrev::RevModel, Vec<RawElement>), String> {
-        let m = gitrev::materialize(model_root, rev)?;
-        let elems = walker::walk_model(&m.root).map_err(|e| format!("cannot load the model at `{rev}`: {e}"))?;
-        Ok((m, elems))
-    };
-    let (_old_guard, old) = match load(revs[0]) {
+    let (set, to_label) = match compute(model_root, working, revs[0], revs.get(1).copied(), &filter) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("Error: {e}");
             return 1;
         }
     };
-    let old_root = _old_guard.root.clone();
-    let mut _new_guard: Option<gitrev::RevModel> = None;
-    let mut new_loaded: Vec<RawElement> = Vec::new();
-    let to_label = match revs.get(1) {
-        Some(r) => match load(r) {
-            Ok((g, e)) => {
-                _new_guard = Some(g);
-                new_loaded = e;
-                (*r).to_string()
-            }
-            Err(e) => {
-                eprintln!("Error: {e}");
-                return 1;
-            }
-        },
-        None => "working tree".to_string(),
-    };
-    let new: &[RawElement] = if revs.len() == 2 { &new_loaded } else { working };
-
-    let mut set = modeldiff::diff(&old, new, &filter);
-    // A revision is exported to a temporary directory; show every file relative to its model root.
-    let roots: Vec<String> = [Some(old_root.clone()), _new_guard.as_ref().map(|g| g.root.clone())]
-        .into_iter()
-        .flatten()
-        .map(|p| format!("{}/", p.display()))
-        .collect();
-    for c in &mut set.changes {
-        if let Some(r) = roots.iter().find(|r| c.file.starts_with(r.as_str())) {
-            c.file = c.file[r.len()..].to_string();
-        }
-    }
 
     if json {
         let doc = serde_json::json!({

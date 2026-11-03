@@ -292,6 +292,58 @@ pub fn region(text: &str) -> Result<Option<(usize, usize)>, String> {
     }
 }
 
+/// The MCP `initialize` instructions: a short, model-specific orientation (GH #440).
+pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
+    let mut o = String::new();
+    o.push_str("Query and guard-write a Syscribe systems model over MCP. Read tools are token-efficient; ");
+    o.push_str("write tools default to dry_run and refuse commits that leave a dangling reference or link-type error; ");
+    o.push_str("every other new error is listed in the delta with gating:false, so read newErrors. ");
+    o.push_str("Relationship vocabulary is per-project: call the `link_types` tool to discover the project's declared link types before authoring a `links:` field, and never invent an undeclared one (E630); use `follow` to traverse any link. ");
+    o.push_str("The server watches the model files and reloads automatically when they change on disk (unless started with --no-watch); call `reload` only to force a re-read.\n\n");
+    if read_only {
+        o.push_str("This server is READ-ONLY: it exposes no tool that writes.\n\n");
+    }
+    o.push_str("Orient first: `describe_type` (fields, status vocabulary, the commands that act on a type), `gates`, `link_types`, `explain_finding`.\n");
+    if !read_only {
+        o.push_str("Add an element: `next_id` → `template` → `create_element` (dry_run, read the delta, then dry_run:false) → `validate_element`. Change one: `update_element` (dry_run first). ");
+    }
+    o.push_str("Before calling work done run `validate` and `gates`; neither may report an error or a tripped gate.\n");
+    o.push_str("Rules: never invent an id (`next_id`); never set `claimedBy`/`claimedAt` through a tool — ownership is the CLI `syscribe claim`/`release`; a `status` outside the type's vocabulary is refused.\n\n");
+    o.push_str("Id prefixes: ");
+    o.push_str(
+        &g.ids
+            .iter()
+            .map(|r| {
+                if r.extras.is_empty() {
+                    format!("{} {}", r.ty, r.prefix)
+                } else {
+                    format!("{} {} (also {})", r.ty, r.prefix, r.extras.join(", "))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("; "),
+    );
+    o.push_str(".\nStatus vocabularies: ");
+    o.push_str(
+        &g.types
+            .iter()
+            .filter(|t| !t.statuses.is_empty())
+            .map(|t| format!("{} {}", t.ty, t.statuses.join("|")))
+            .collect::<Vec<_>>()
+            .join("; "),
+    );
+    o.push_str(".\n");
+    if !g.gates.is_empty() || g.validate.len() > 1 {
+        o.push_str("Gates: ");
+        let mut parts: Vec<String> = g.gates.clone();
+        parts.extend(g.validate.iter().skip(1).map(|(c, _)| c.rsplit("validate ").next().unwrap_or("").to_string()).map(|p| format!("profile run `validate {p}`")));
+        o.push_str(&parts.join("; "));
+        o.push_str(".\n");
+    }
+    o.push_str("Workflow prompts: `add-requirement-with-test`, `record-test-evidence`, `review-change-set`, `close-planning-item`, `check-variant`.");
+    o
+}
+
 /// `agent-guide [--format markdown|json] [--sections a,b] [--write <file> | --check <file>]`.
 /// Returns the process exit code: `0` ok / up to date, `1` usage error, unwritable file, or a stale region.
 pub fn cmd_agent_guide(model_root: &Path, elements: &[RawElement], args: &[String]) -> i32 {

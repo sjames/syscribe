@@ -206,6 +206,11 @@ impl Mcp {
         self.request("prompts/get", json!({"name": name, "arguments": {}}))
     }
 
+    /// `prompts/get` with arguments (the raw response, so a missing-argument error is visible).
+    pub fn prompts_get_with(&mut self, name: &str, arguments: Value) -> Value {
+        self.request("prompts/get", json!({"name": name, "arguments": arguments}))
+    }
+
     pub fn resource_templates_list(&mut self) -> Value {
         self.request("resources/templates/list", json!({}))
     }

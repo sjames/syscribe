@@ -160,6 +160,21 @@ struct ValidateArgs {
     file: Option<String>,
     severity: Option<String>,
     limit: Option<u32>,
+    /// Git revision: report only the findings absent at that revision (pre-existing ones are
+    /// counted in `preexisting`, not listed).
+    new_since: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangesArgs {
+    /// Git revision to compare from.
+    from: String,
+    /// Git revision to compare to (default: the working tree).
+    to: Option<String>,
+    /// Only these element types (e.g. `["Requirement"]`).
+    types: Option<Vec<String>>,
+    /// Only elements under this package (qualified name).
+    package: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1518,8 +1533,29 @@ impl SyscribeMcp {
         &self,
         Parameters(args): Parameters<ValidateArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let store = self.store.read().await;
+        // `new_since` re-validates the model at another revision, which installs that model's
+        // process-wide vocabularies for a moment; take the write lock so no other tool runs meanwhile.
+        let write_guard;
+        let read_guard;
+        let store: &McpStore = if args.new_since.is_some() {
+            write_guard = self.store.write().await;
+            &write_guard
+        } else {
+            read_guard = self.store.read().await;
+            &read_guard
+        };
         let result = validate_with_config(&store.elements, &store.config);
+        let mut is_new: Vec<bool> = vec![true; result.findings.len()];
+        let mut preexisting = 0u64;
+        if let Some(rev) = &args.new_since {
+            let source = syscribe_model::finding_baseline::Source::Rev(rev.clone());
+            match syscribe_model::finding_baseline::mark_new(&source, &result.findings, &store.elements, &store.config, &|e, c| {
+                validate_with_config(e, c).findings
+            }) {
+                Ok(marks) => is_new = marks,
+                Err(m) => return tool_error(m),
+            }
+        }
         let rank = |s: &str| match s {
             "error" => 2,
             "warning" => 1,
@@ -1530,9 +1566,13 @@ impl SyscribeMcp {
         let file_filter = args.file.as_deref();
         let mut included: Vec<Value> = Vec::new();
         let (mut ce, mut cw, mut ci) = (0u64, 0u64, 0u64);
-        for f in &result.findings {
+        for (f, new) in result.findings.iter().zip(&is_new) {
             let sev = severity_str(&f.severity);
             if rank(sev) < threshold {
+                continue;
+            }
+            if !*new {
+                preexisting += 1;
                 continue;
             }
             if let Some(target) = file_filter {
@@ -1550,10 +1590,36 @@ impl SyscribeMcp {
         if let Some(limit) = args.limit {
             included.truncate(limit as usize);
         }
-        ok(json!({
+        let mut out = json!({
             "findings": included,
             "counts": { "error": ce, "warning": cw, "info": ci },
-        }))
+        });
+        if args.new_since.is_some() {
+            out["preexisting"] = json!(preexisting);
+        }
+        ok(out)
+    }
+
+    #[tool(
+        description = "Element-level difference of the model between two git revisions (or a revision and the working tree), \
+        with no sealed baseline: added/removed/moved/modified elements, status transitions, links and evidence \
+        added/removed, and references that broke or were repaired. Same data as `syscribe changes --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn changes(&self, Parameters(args): Parameters<ChangesArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let filter = syscribe_model::modeldiff::Filter { types: args.types.unwrap_or_default(), package: args.package };
+        match crate::changes::compute(&store.model_root, &store.elements, &args.from, args.to.as_deref(), &filter) {
+            Ok((set, to)) => ok(json!({
+                "schemaVersion": "1.0",
+                "from": args.from,
+                "to": to,
+                "changes": set.changes,
+                "newlyBroken": set.newly_broken,
+                "newlyResolved": set.newly_resolved,
+            })),
+            Err(m) => tool_error(m),
+        }
     }
 
     #[tool(
@@ -3237,6 +3303,19 @@ impl SyscribeMcp {
     }
 }
 
+impl SyscribeMcp {
+    /// The `initialize` instructions: generated from the loaded model and `.syscribe.toml`
+    /// (GH #440), so they name the project's real id prefixes, statuses and gates. If a reload
+    /// holds the store, the model-independent part is still returned.
+    fn instructions(&self) -> String {
+        let guide = match self.store.try_read() {
+            Ok(s) => crate::agentguide::build(&s.model_root, &s.elements),
+            Err(_) => crate::agentguide::Guide { root: String::new(), ids: vec![], types: vec![], validate: vec![], gates: vec![] },
+        };
+        crate::agentguide::mcp_instructions(&guide, self.read_only)
+    }
+}
+
 #[tool_handler]
 impl ServerHandler for SyscribeMcp {
     #[allow(deprecated)] // `enable_logging` is soft-deprecated upstream but still the
@@ -3254,18 +3333,7 @@ impl ServerHandler for SyscribeMcp {
                 .build(),
         )
         .with_server_info(Implementation::new("syscribe-mcp", env!("CARGO_PKG_VERSION")))
-        .with_instructions(
-            "Query and guard-write a Syscribe systems model over MCP. Read tools are \
-             token-efficient; write tools default to dry_run and refuse commits that \
-             leave a dangling reference or link-type error; every other new error is \
-             listed in the delta with gating:false, so read newErrors. Relationship vocabulary is per-project: call \
-             the `link_types` tool to discover the project's declared link types before \
-             authoring a `links:` field, and never invent an undeclared one (E630); use \
-             `follow` to traverse any link. The server watches the model files and \
-             reloads automatically when they change on disk (unless started with \
-             --no-watch); call `reload` only to force a re-read."
-                .to_string(),
-        )
+        .with_instructions(self.instructions())
     }
 
     // Accept logging/setLevel (the level is advisory; we always emit at Info).
@@ -3463,6 +3531,56 @@ impl ServerHandler for SyscribeMcp {
                 Some("Review requirement→test→architecture traceability for gaps"),
                 None,
             ),
+            Prompt::new(
+                "add-requirement-with-test",
+                Some("Add a Requirement and the TestCase that verifies it, with the exact tool sequence"),
+                Some(vec![
+                    PromptArgument::new("statement")
+                        .with_description("The requirement's normative statement (optional)")
+                        .with_required(false),
+                    PromptArgument::new("parent")
+                        .with_description("Id of the requirement it is derived from (optional)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "record-test-evidence",
+                Some("Record the results of a test run as evidence, previewing before committing"),
+                Some(vec![
+                    PromptArgument::new("results_path")
+                        .with_description("Path of the results file to ingest")
+                        .with_required(true),
+                    PromptArgument::new("format")
+                        .with_description("junit | cargo-json | session-log | records (default: inferred)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "review-change-set",
+                Some("Review what a set of changes did to the model: changed elements, impact, new findings"),
+                Some(vec![
+                    PromptArgument::new("since")
+                        .with_description("Git revision to compare against (e.g. main, a tag or a commit)")
+                        .with_required(true),
+                    PromptArgument::new("until")
+                        .with_description("Git revision to compare to (default: the working tree)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "close-planning-item",
+                Some("Close a PlanningItem: check its evidence, set it done, hand back the claim"),
+                Some(vec![PromptArgument::new("item")
+                    .with_description("Stable id of the PlanningItem")
+                    .with_required(true)]),
+            ),
+            Prompt::new(
+                "check-variant",
+                Some("Open a variant check: configure, project and validate one Configuration"),
+                Some(vec![PromptArgument::new("config")
+                    .with_description("Configuration id (CONF-*) or qualified name")
+                    .with_required(true)]),
+            ),
         ];
         Ok(ListPromptsResult::with_all_items(prompts))
     }
@@ -3478,6 +3596,12 @@ impl ServerHandler for SyscribeMcp {
             .and_then(|m| m.get("target"))
             .and_then(|v| v.as_str())
             .unwrap_or("<target>");
+        let arg = |k: &str| {
+            request.arguments.as_ref().and_then(|m| m.get(k)).and_then(|v| v.as_str()).filter(|v| !v.is_empty())
+        };
+        let req_arg = |k: &str| {
+            arg(k).ok_or_else(|| ErrorData::invalid_params(format!("prompt `{}` requires the argument `{k}`", request.name), None))
+        };
         let text: String = match request.name.as_str() {
             "create-model" => crate::AGENT_INSTRUCTIONS.to_string(),
             "create-magicgrid-model" => crate::MAGICGRID_INSTRUCTIONS.to_string(),
@@ -3509,6 +3633,69 @@ impl ServerHandler for SyscribeMcp {
                  Report requirements lacking a verifying TestCase and any `derivedFrom` without a \
                  `breakdownAdr`."
                 .to_string(),
+            "add-requirement-with-test" => {
+                let statement = arg("statement").unwrap_or("<one normative `shall` sentence>");
+                let parent = match arg("parent") {
+                    Some(p) => format!(
+                        "It is derived from '{p}': set `derivedFrom: [{p}]` and `breakdownAdr:` to the accepted ADR that records the breakdown. "
+                    ),
+                    None => String::new(),
+                };
+                format!(
+                    "Add a Requirement and the TestCase that verifies it. Follow this sequence:\n\
+                     1. `next_id` with the project's requirement prefix (see the server instructions) for the requirement id, and again for the TestCase id.\n\
+                     2. `template` with type=Requirement, then type=TestCase, for the skeletons.\n\
+                     3. `create_element` type=Requirement with dry_run:true. Statement: \"{statement}\". {parent}Read the delta and `newErrors`; when clean, repeat with dry_run:false.\n\
+                     4. `create_element` type=TestCase with `verifies: [<the requirement id>]`, a `testLevel` and a Gherkin body, dry_run:true then dry_run:false.\n\
+                     5. `validate_element` on both new elements, then `validate`; fix every new error before finishing.\n\
+                     6. `trace` on the requirement and confirm the test appears under verifiedBy."
+                )
+            }
+            "record-test-evidence" => {
+                let path = req_arg("results_path")?;
+                let fmt = arg("format").map(|f| format!(" format={f}")).unwrap_or_default();
+                format!(
+                    "Record the results in '{path}' as evidence. Follow this sequence:\n\
+                     1. `ingest_results` path={path}{fmt} dry_run:true. Read which TestCases and verdicts it would record and anything it could not match to a TestCase.\n\
+                     2. If that is what you expect, repeat with dry_run:false; otherwise stop and report the mismatch.\n\
+                     3. `evidence` for each requirement the tests verify, to see its executable and recorded evidence.\n\
+                     4. `coverage` to see what is still unverified, then `validate`: a result recorded for an element that has since changed is flagged (W091).\n\
+                     Results are recorded, not asserted: do not edit a TestCase's `status` to reflect a verdict."
+                )
+            }
+            "review-change-set" => {
+                let since = req_arg("since")?;
+                let until = arg("until").map(|u| format!(" to={u}")).unwrap_or_default();
+                format!(
+                    "Review what the change set since '{since}' did to the model. Follow this sequence:\n\
+                     1. `changes` from={since}{until}: added, removed, moved and modified elements, status transitions, links and evidence added or removed, and references that broke or were repaired.\n\
+                     2. `validate` new_since={since}: only the findings the change introduced. Pre-existing ones are counted, not listed.\n\
+                     3. For each changed requirement or architecture element, `impact` ref=<id> direction=both, and `trace` to check it is still verified.\n\
+                     4. Report: status moves without evidence, new links to ADRs that are not accepted, newly broken references and every new finding."
+                )
+            }
+            "close-planning-item" => {
+                let item = req_arg("item")?;
+                format!(
+                    "Close PlanningItem '{item}'. Follow this sequence:\n\
+                     1. `get_element` ref={item} detail:true: its status, `achieves`, `evidence`, `blockedBy` and children.\n\
+                     2. `evidence` on each requirement it achieves. A leaf item claiming done needs at least one non-waived, resolving `evidence` entry (E719), and the achieved requirement must meet the verification bar (W310).\n\
+                     3. `update_element` ref={item} with fields {{evidence: [...]}} and dry_run:true. The field is replaced, so send every existing entry plus the new one.\n\
+                     4. `update_element` ref={item} with fields {{status: done}}, dry_run:true; read `newErrors` and the warnings, then dry_run:false.\n\
+                     5. `validate_element` ref={item}.\n\
+                     Ownership is not a tool: hand the claim back with the CLI `syscribe release {item}`, and never set `claimedBy`/`claimedAt` through `update_element`."
+                )
+            }
+            "check-variant" => {
+                let cfg = req_arg("config")?;
+                format!(
+                    "Check variant '{cfg}'. Follow this sequence:\n\
+                     1. `configure` config={cfg}: the features it forces, the ones still free and any parameter left open.\n\
+                     2. `project` config={cfg}: the model as that variant sees it; read its findings.\n\
+                     3. `feature_check` for problems in the feature model itself.\n\
+                     4. `diff_configs` a={cfg} b=<another configuration> to see what differs, and `why_active` ref=<element> config={cfg} for any element that is unexpectedly present or absent."
+                )
+            }
             other => {
                 return Err(ErrorData::invalid_params(
                     format!("unknown prompt: {other}"),

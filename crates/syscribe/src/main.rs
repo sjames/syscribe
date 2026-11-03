@@ -893,6 +893,20 @@ fn main() {
         eprintln!("--results-as-of does not apply to `{}`.", subcommand_args[0]);
         std::process::exit(1);
     }
+    if subcommand_args.first().map(String::as_str) == Some("mcp") && subcommand_args.iter().any(|a| a == "--print-instructions") {
+        // The text a client receives in `initialize`, for pasting into other agent configuration.
+        let read_only = subcommand_args.iter().any(|a| a == "--read-only");
+        let elems = match walker::walk_model(model_root) {
+            Ok(e) => e,
+            Err(err) => {
+                eprintln!("Error walking model: {err}");
+                std::process::exit(1);
+            }
+        };
+        let _ = ValidateConfig::with_model_root(model_root);
+        println!("{}", agentguide::mcp_instructions(&agentguide::build(model_root, &elems), read_only));
+        return;
+    }
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
         let read_only = subcommand_args.iter().any(|a| a == "--read-only");
         let watch = !subcommand_args.iter().any(|a| a == "--no-watch");
