@@ -96,6 +96,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--summary", Switch),
         ],
         "applies-when" => &[("--set", Value), ("--clear", Switch), ("--dry-run", Switch), ("--json", Switch)],
+        "agent-guide" => &[("--format", Value), ("--sections", Value), ("--write", Value), ("--check", Value)],
         "changes" => &[("--json", Switch), ("--types", ValueOrEq), ("--package", ValueOrEq)],
         "claim" => &[("--by", Value), ("--dry-run", Switch)],
         "meta" => &[("--def", Value), ("--group-by", Value), ("--json", Switch)],

@@ -62,6 +62,7 @@ mod set;
 mod suggest;
 mod typehelp;
 mod explain;
+mod agentguide;
 mod stats;
 mod summarize;
 mod suspect;
@@ -2328,6 +2329,12 @@ fn main() {
                 let dry_run = rest.iter().any(|a| a == "--dry-run");
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
+            }
+            "agent-guide" => {
+                let code = agentguide::cmd_agent_guide(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "changes" => {
                 let code = changes::cmd_changes(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));

@@ -1936,3 +1936,17 @@ syscribe template Requirement        # a skeleton; no model needed (a configured
 `help <Type>` accepts any element type, case-insensitively. Its command list is derived from the man pages (every page that names the type, plus the commands that act on any element), so it follows the commands rather than a hand-kept table. `describe_type` over MCP returns the same `commands` and `codes`.
 
 **Typos.** A mistyped command lists the three nearest with their one-line purpose; an unknown option, `set` field, `set status=` value or `template` type is answered with `Did you mean '…'?`. Only the message changes — exit codes are unchanged.
+
+
+## `agent-guide` — an instruction block for agents, generated from the model
+
+```bash
+syscribe -m model/ agent-guide                          # print the block
+syscribe -m model/ agent-guide --write CLAUDE.md        # update only the marked region of CLAUDE.md
+syscribe -m model/ agent-guide --check CLAUDE.md        # CI: exit 1 if the region is out of date
+syscribe -m model/ agent-guide --format json --sections types
+```
+
+Projects that let scripts or LLM agents edit the model usually hand-write the same guidance (id prefixes, what each status means, which command does which job, which gates must pass), and it goes stale. `agent-guide` builds it from the loaded model and `.syscribe.toml`: the **ids** in use and their `next-id` command (with any `[ids.prefixes]` extras), per lifecycle **type** its status vocabulary, required fields and working commands, the exact **gates** to run (`validate`, plus `validate --profile <name>` per profile, and the `[gates]` they enforce) and the safe-mutation **rules** (`next-id`/`template`, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews). `--sections ids,types,gates,rules` selects a subset.
+
+The output is deterministic — no timestamps, no tool version — so it changes only when the model or its configuration does. The Markdown is wrapped in `<!-- syscribe:agent-guide -->` … `<!-- /syscribe:agent-guide -->`. `--write` replaces only that region (creating the file, or appending the region to a file that has none) and never touches text outside it; repeated or unbalanced markers are refused and the file left as it was. `--check` exits `1` when the region is missing or differs from what would be generated. The MCP server's `initialize` instructions come from the same data.

@@ -830,7 +830,8 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             if id_identified {
                 v.push(field_spec("id", true, "string", None));
             }
-            v.push(field_spec("name", !id_identified, "string", None));
+            // `name` is the label on every type; id-identified types (whose identity is the id) require it.
+            v.push(field_spec("name", true, "string", None));
             v
         }
     }

@@ -18,6 +18,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("coverage", include_str!("../../../prompts/help/coverage.md")),
             ("compliance", include_str!("../../../prompts/help/compliance.md")),
             ("changes", include_str!("../../../prompts/help/changes.md")),
+            ("agent-guide", include_str!("../../../prompts/help/agent-guide.md")),
             ("mechanisms", include_str!("../../../prompts/help/mechanisms.md")),
         ],
     ),
