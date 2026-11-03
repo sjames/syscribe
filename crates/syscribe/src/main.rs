@@ -64,6 +64,7 @@ mod scripting;
 mod set;
 mod suggest;
 mod typehelp;
+mod envmatrix;
 mod explain;
 mod qset;
 mod policy_gate;
@@ -1855,6 +1856,13 @@ fn main() {
                     }
                 } else if rest.iter().any(|a| a == "--features") {
                     matrix::cmd_matrix_features(&view, json);
+                } else if let Some(by) = rest.windows(2).find(|w| w[0] == "--by").map(|w| w[1].as_str()) {
+                    if by != "environment" {
+                        eprintln!("Unknown --by '{by}'; the only grouping is: environment");
+                        std::process::exit(2);
+                    }
+                    let results = runhist::load_results(model_root);
+                    envmatrix::cmd_env_matrix(&view, results.as_ref(), model_root, &envmatrix::Options { status, tag, gaps_only }, json);
                 } else {
                     // Surface executed-evidence by default when a sidecar exists
                     // (issue #21); absent results, behaves exactly as before.

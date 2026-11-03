@@ -242,6 +242,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 ### Ingesting executed test results (`ingest-results`)
 
+`matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
+
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
 
 `--config <CONF-id>` records the ingest as one Configuration's evidence (results stay under that configuration; global verdicts are untouched). A configuration is judged on the global results overlaid with its own — its own verdict wins — by every `matrix` column and, under `--config`, by `validate`, `audit`, `trace`, `safety-case` and `coverage tree`. See `syscribe help ingest-results`.

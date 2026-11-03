@@ -545,6 +545,8 @@ struct IngestResultsArgs {
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct CoverageMatrixArgs {
+    /// `environment`: the Requirement × TestEnvironment verification matrix instead of the Configuration grid.
+    by: Option<String>,
     config: Option<String>,
     status: Option<String>,
     tag: Option<String>,
@@ -2365,6 +2367,18 @@ impl SyscribeMcp {
         Parameters(args): Parameters<CoverageMatrixArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
+        if let Some(by) = args.by.as_deref() {
+            if by != "environment" {
+                return Err(ErrorData::invalid_params(format!("unknown `by` '{by}'; the only grouping is: environment"), None));
+            }
+            let m = crate::envmatrix::build(
+                &store.elements,
+                store.config.results.as_ref(),
+                Some(&store.model_root),
+                &crate::envmatrix::Options { status: args.status.as_deref(), tag: args.tag.as_deref(), gaps_only: args.gaps_only.unwrap_or(false) },
+            );
+            return Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&crate::envmatrix::to_json(&m)).unwrap())]));
+        }
         // REQ-TRS-LINKTYPE-006 — same reporting view as `matrix --json`.
         let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let mut v = matrix_json(

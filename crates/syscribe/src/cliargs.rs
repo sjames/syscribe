@@ -65,6 +65,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "export-html" => &[("--out", Value), ("--css", Value)],
         "matrix" => &[
             ("--json", Switch),
+            ("--by", Value),
             ("--allocations", Switch),
             ("--gaps-only", Switch),
             ("--linked-only", Switch),

@@ -112,7 +112,7 @@ pub fn extract(args: Vec<String>) -> (Vec<String>, Globals) {
     g.json = args.iter().any(|a| a == "--json");
     let mut it = args.into_iter();
     // `--by` keeps its own meaning for these commands, so the flag and its value stay in place.
-    let keeps_by = |rest: &[String]| matches!(rest.first().map(String::as_str), Some("claim" | "log"));
+    let keeps_by = |rest: &[String]| matches!(rest.first().map(String::as_str), Some("claim" | "log" | "matrix"));
     while let Some(a) = it.next() {
         // The value of `--flag value`, or of `--flag=value`; an error if there is none.
         let mut value = |flag: &str, inline: Option<&str>, g: &mut Globals| -> Option<String> {
