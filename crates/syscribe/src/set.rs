@@ -33,7 +33,7 @@ fn status_enum_for(et: &ElementType) -> Option<&'static [&'static str]> {
     syscribe_model::hints::status_vocabulary(et)
 }
 
-fn yaml_to_json(v: &serde_yaml::Value) -> Value {
+pub(crate) fn yaml_to_json(v: &serde_yaml::Value) -> Value {
     serde_json::to_value(v).unwrap_or(Value::Null)
 }
 
@@ -42,7 +42,7 @@ fn yaml_to_json(v: &serde_yaml::Value) -> Value {
 /// never re-typed on the next parse) — the same choice the full
 /// re-serialisation made. A value that would need a multi-line block scalar
 /// is written as a JSON (= YAML double-quoted) string instead.
-fn line_scalar(value: &str) -> String {
+pub(crate) fn line_scalar(value: &str) -> String {
     match serde_yaml::to_string(&serde_yaml::Value::String(value.to_string())) {
         Ok(s) if !s.trim_end_matches('\n').contains('\n') => s.trim_end_matches('\n').to_string(),
         _ => serde_json::to_string(value).unwrap_or_else(|_| yaml_scalar(value)),
@@ -143,7 +143,7 @@ fn append_list_items(yaml: &str, key: &str, new_items: &[Vec<String>]) -> Option
 /// Append `new_items` to list `key:` in `content`'s frontmatter, line-wise
 /// ([`append_list_items`]) when possible, else by re-serialising the
 /// frontmatter with `full_list` as the field's new value.
-fn append_to_list_field(
+pub(crate) fn append_to_list_field(
     content: &str,
     file_path: &str,
     key: &str,
@@ -169,7 +169,7 @@ fn append_to_list_field(
 
 /// Print the would-be file content as a unified diff (or, on commit, write it),
 /// returning whether anything actually changed.
-fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry_run: bool) -> bool {
+pub(crate) fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry_run: bool) -> bool {
     let rel = elem
         .file_path
         .strip_prefix(&*model_root.to_string_lossy())
@@ -592,6 +592,16 @@ pub fn cmd_set(
 
     if let Some(value) = op.strip_prefix("status=") {
         cmd_set_status(model_root, elements, elem, value, dry_run);
+        return;
+    }
+    if op.starts_with("question.") {
+        match crate::qset::parse_op(op, &op_args[1..]) {
+            Ok(parsed) => crate::qset::run(model_root, elem, &parsed, dry_run),
+            Err(m) => {
+                eprintln!("{m}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
     if op == "evidence.add" {

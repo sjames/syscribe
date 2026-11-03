@@ -135,7 +135,7 @@ $ syscribe -m model_auto/ validate --json
 |---|---|
 | `--deny <CODES>` | Treat each comma-separated warning code as a gate failure. |
 | `--max-warnings <N>` | Fail when the warning count exceeds `N`. |
-| `--hints` | Also report informational workflow hints `I910`–`I912` (hand-edited claim, duplicate evidence, status outside the type's vocabulary), each naming the command that does it properly. |
+| `--hints` | Also report informational workflow hints `I910`–`I913` (hand-edited claim, duplicate evidence, status outside the type's vocabulary, a prose Questions section), each naming the command that does it properly. |
 | `--new-since <rev>` | Gate and list only findings absent at git revision `<rev>` (see below). |
 | `--baseline-file <file>` / `--write-baseline <file>` | The same against a saved list of accepted findings; `--write-baseline` saves the current ones. |
 | `--warnings-as-errors` | Treat every warning as a gate failure. |
@@ -1950,3 +1950,20 @@ syscribe -m model/ agent-guide --format json --sections types
 Projects that let scripts or LLM agents edit the model usually hand-write the same guidance (id prefixes, what each status means, which command does which job, which gates must pass), and it goes stale. `agent-guide` builds it from the loaded model and `.syscribe.toml`: the **ids** in use and their `next-id` command (with any `[ids.prefixes]` extras), per lifecycle **type** its status vocabulary, required fields and working commands, the exact **gates** to run (`validate`, plus `validate --profile <name>` per profile, and the `[gates]` they enforce) and the safe-mutation **rules** (`next-id`/`template`, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews). `--sections ids,types,gates,rules` selects a subset.
 
 The output is deterministic — no timestamps, no tool version — so it changes only when the model or its configuration does. The Markdown is wrapped in `<!-- syscribe:agent-guide -->` … `<!-- /syscribe:agent-guide -->`. `--write` replaces only that region (creating the file, or appending the region to a file that has none) and never touches text outside it; repeated or unbalanced markers are refused and the file left as it was. `--check` exits `1` when the region is missing or differs from what would be generated. The MCP server's `initialize` instructions come from the same data.
+
+
+## `questions` and `steps` — a PlanningItem's decisions and breakdown
+
+```bash
+syscribe -m model/ questions --open                      # every open question, with its owning item
+syscribe -m model/ questions --item PI-RTH-001 --json
+syscribe -m model/ set PI-RTH-001 question.add text="Which UART?" recommended=UART2
+syscribe -m model/ set PI-RTH-001 question.answer Q1 text=UART2 by=alice
+syscribe -m model/ set PI-RTH-001 question.defer Q2
+syscribe -m model/ steps PI-RTH-001 [--open] [--depth N] [--json]
+syscribe -m model/ list PlanningItem --open-questions
+```
+
+**Questions** are the decisions a `PlanningItem` is waiting on, kept inline in its `questions:` list (`{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}`, `status` `open | answered | deferred`). They are detected from that field, never inferred from prose; each is private to its item and addressed `PI-X#Q1`. `questions` lists them across the model (`--open`, `--status`, `--item`, `--json`); `show` prints an item's; `list PlanningItem --open-questions` keeps items with an open one. `validate` checks them (`E724`–`E727`) and warns (`W317`) when an item is `done` with an open one — answer it, or `question.defer` it to say the gap is deliberate. An open question does not make an item `blocked`. `set … question.*` edits only the affected entry and leaves comments and order alone; `--dry-run` previews. An unknown `Qn`, an empty text or a non-PlanningItem exits 1 and writes nothing.
+
+**Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.

@@ -33,7 +33,7 @@ gating flags promote chosen warnings to build failures.
     --write-baseline <file> Save every current finding as an accepted list (the run itself is unchanged).
                             --new-since and --baseline-file are exclusive and do not combine with
                             --all-configs; with --config the same variant is judged at <rev>.
-    --hints                 Also report informational workflow hints (I910–I912): a hand-edited claim, a duplicate
+    --hints                 Also report informational workflow hints (I910–I913): a hand-edited claim, a duplicate
                             evidence entry, a status outside the type's vocabulary — each names the command
                             that does it properly. Info only; never changes the exit status unless --deny'd.
     --summary               Print finding counts per code and severity instead of each

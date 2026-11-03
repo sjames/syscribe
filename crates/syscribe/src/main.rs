@@ -62,6 +62,9 @@ mod set;
 mod suggest;
 mod typehelp;
 mod explain;
+mod qset;
+mod questions;
+mod steps;
 mod agentguide;
 mod stats;
 mod summarize;
@@ -1687,6 +1690,7 @@ fn main() {
                     .find(|w| w[0] == "--sil")
                     .map(|w| w[1].as_str());
                 let has_wcet = rest.iter().any(|a| a == "--has-wcet");
+                let open_questions = rest.iter().any(|a| a == "--open-questions");
                 let json = rest.iter().any(|a| a == "--json");
                 let wheres = parse_where_options(rest);
                 // `--rate-status <s>` (GH #343): fault-tree events and FMEA rows whose `rateStatus` is s
@@ -1728,14 +1732,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json),
+                    None => query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json),
                     Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json)
+                            query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json);
+                            query::cmd_list(&view, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");
@@ -2343,6 +2347,18 @@ fn main() {
                 let dry_run = rest.iter().any(|a| a == "--dry-run");
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
+            }
+            "questions" => {
+                let code = questions::cmd_questions(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "steps" => {
+                let code = steps::cmd_steps(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "agent-guide" => {
                 let code = agentguide::cmd_agent_guide(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));

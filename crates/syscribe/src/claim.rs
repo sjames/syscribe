@@ -31,7 +31,7 @@ fn civil_from_days(z: i64) -> (i64, i64, i64) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
-fn iso8601_now() -> String {
+pub(crate) fn iso8601_now() -> String {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
     let (y, m, d) = civil_from_days(days);

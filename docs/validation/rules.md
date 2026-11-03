@@ -56,6 +56,7 @@ This page groups every finding code by feature area, with context. The same code
 | I910 | Info | (`validate --hints` only) a `PlanningItem` has `claimedBy` without `claimedAt` — `claim` always writes both, so the claim was hand-edited; use `claim <id> --by <agent>` / `release <id>` |
 | I911 | Info | (`validate --hints` only) the same `evidence:` entry (same `ref:` or `path:`) is listed more than once |
 | I912 | Info | (`validate --hints` only) `status` is outside the type's vocabulary; names the nearest valid value and the `set <id> status=<value>` command that applies it |
+| I913 | Info | (`validate --hints` only) a `PlanningItem` body has a *Questions* heading while `questions:` is empty — record each with `set <id> question.add text=…`. |
 
 ## Cross-reference errors (E101–E106, E110–E128)
 
@@ -477,7 +478,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
-## Native PlanningItem (E706–E717, E719–E723, W308–W311, W315, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E727, W308–W311, W315, W317–W318, §23, ADR-SYS-PLANITEM-001)
 
 A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) — or goal, ADR, argument, plan or baseline — it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
 
@@ -504,6 +505,12 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | W309 | A `[users]` key in `.syscribe.toml` is not a valid username — the entry is ignored (excluded from the roster `E722` checks against). |
 | W310 | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly on its own file — an active `TestCase` for a leaf Requirement, an active integration-level (`L3`/`L4`/`L5`) `TestCase` for a parent one (mirrors `W002`/`W305` exactly, just scoped to the specific `PlanningItem` about to claim `done` — a distinct finding, not a duplicate, since it lands on the `PlanningItem`'s own file). Never fires for `todo`/`in_progress`/`blocked`, and never re-flags an `E714`/`E715` target. |
 | W311 | Two `PlanningItem`s that are both "active" (`status: in_progress`, or explicitly claimed via `claimedBy:`) share an `achieves:` Requirement, or an `evidence[].path` resolving to the same repo-relative path — very likely two agents about to (or already) step on the same work. Fires once per overlapping pair, per overlap kind, attached to the lexically-first item's file (by stable id). |
+| E724 | `questions:` is not a list of mappings, or an entry lacks `id`/`text` or has an `id` that is not `Q<n>`. |
+| E725 | Two `questions:` entries on one item share an `id`. |
+| E726 | A question's `status` is absent or outside `open · answered · deferred`. |
+| E727 | A question is `answered` but has no non-empty `answer`. |
+| W317 | An item at `status: done` has an `open` question — answer or defer it. |
+| W318 | A `questions:` field on an element that is not a `PlanningItem` — ignored there; move it to the PlanningItem that owns the decision. |
 | W315 | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 
 `blockedBy:` is resolved permissively, like `evidence.ref:` — any model element, not restricted to `PlanningItem` — since an undecided `ADR` or any other unmet dependency is an equally legitimate blocker. It is graded the opposite way from `evidence:`: `status: blocked` with an **empty** `blockedBy:` raises nothing (being blocked needs no proof), while `status: done` on a leaf with no evidence does (`E719`).

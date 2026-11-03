@@ -31,7 +31,7 @@ pub(crate) fn type_commands(ty: &str) -> &'static [&'static str] {
         "TestCase" => &["next-id", "set", "scaffold-gherkin", "ingest-results", "who-verifies"],
         "TestPlan" => &["next-id", "set", "testplan"],
         "ADR" => &["next-id", "set"],
-        "PlanningItem" => &["next-id", "set", "claim", "release"],
+        "PlanningItem" => &["next-id", "set", "claim", "release", "steps", "questions"],
         "ReviewRecord" => &["reviews", "set"],
         "ResidualRisk" => &["residual", "set"],
         _ => &[],
@@ -166,6 +166,7 @@ fn rules(root: &str) -> Vec<String> {
     vec![
         format!("Never invent an id: `syscribe -m {root} next-id <PREFIX>-<AREA>` returns the next free one; start a new element from `syscribe template <Type>` (no model needed)."),
         format!("Change an existing field with `syscribe -m {root} set <id> status=<value>` (also `evidence.add`, `achieves.add`, `<list>.add`) rather than editing YAML: the value is checked before anything is written."),
+        format!("When blocked on a decision, record it instead of guessing: `syscribe -m {root} set <PI> question.add text=\"…\" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`."),
         format!("Rename or move with `syscribe -m {root} move <src> <dest>`, which rewrites every reference."),
         format!("Own shared work with `syscribe -m {root} claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`."),
         "Preview before writing where the command allows it: `--dry-run` on `set`, `move`, `claim`, `release` and `applies-when`.".to_string(),
@@ -308,7 +309,13 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
         o.push_str("Add an element: `next_id` → `template` → `create_element` (dry_run, read the delta, then dry_run:false) → `validate_element`. Change one: `update_element` (dry_run first). ");
     }
     o.push_str("Before calling work done run `validate` and `gates`; neither may report an error or a tripped gate.\n");
-    o.push_str("Rules: never invent an id (`next_id`); never set `claimedBy`/`claimedAt` through a tool — ownership is the CLI `syscribe claim`/`release`; a `status` outside the type's vocabulary is refused.\n\n");
+    o.push_str("Rules: never invent an id (`next_id`); never set `claimedBy`/`claimedAt` through a tool — ownership is the CLI `syscribe claim`/`release`; ");
+    if read_only {
+        o.push_str("`questions` lists the PlanningItems' open decisions and `steps` shows a PlanningItem's breakdown; ");
+    } else {
+        o.push_str("when blocked on a decision record it with the `question` tool instead of guessing (`questions` lists the open ones, `steps` shows a PlanningItem's breakdown); ");
+    }
+    o.push_str("a `status` outside the type's vocabulary is refused.\n\n");
     o.push_str("Id prefixes: ");
     o.push_str(
         &g.ids

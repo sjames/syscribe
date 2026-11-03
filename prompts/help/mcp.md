@@ -116,6 +116,10 @@ stable id, a qualified name, or a display name. List/grid tools accept
   `new_since: "<git-rev>"` reports only the findings absent at that revision and states how many
   were `preexisting` (the CLI's `validate --new-since`; a finding is identified by code, element
   and message, not file or line).
+- `questions {open?, status?, item?}` — a PlanningItem's inline questions (the decisions awaiting an
+  answer) across the model or for one item. Same data as `syscribe questions --json`.
+- `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
+  open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
 - `changes {from, to?, types?, package?}` — the element-level difference between two git revisions
   (or a revision and the working tree): added/removed/moved/modified elements, status transitions,
   links and evidence added or removed, references that broke or were repaired. Same data as
@@ -228,6 +232,10 @@ An element built into the tool (the `StdMetadata` library) is read-only: `update
 
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit.
+
+`question {item, op: add|answer|defer, text?, recommended?, id?, by?}` records, answers or defers a
+PlanningItem's inline question (see `questions`) through the same guarded write. It edits only the
+affected entry, which `update_element` cannot (it replaces the whole `questions:` list).
 
 The delta (`validationDelta`) lists every finding the change introduces or
 resolves: `newErrors` / `resolvedErrors` / `newWarnings` / `resolvedWarnings`.

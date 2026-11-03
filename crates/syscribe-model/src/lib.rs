@@ -62,6 +62,7 @@ pub mod typecheck;
 pub mod plugins;
 pub mod projection;
 pub mod provenance;
+pub mod questions;
 pub mod remote;
 pub mod plantuml;
 pub mod residual_risk;

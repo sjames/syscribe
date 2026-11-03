@@ -165,6 +165,42 @@ struct ValidateArgs {
     new_since: Option<String>,
 }
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct QuestionsArgs {
+    /// Only `open` questions.
+    open: Option<bool>,
+    /// `open` | `answered` | `deferred`.
+    status: Option<String>,
+    /// Only this PlanningItem's questions (id or qualified name).
+    item: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct StepsArgs {
+    /// The PlanningItem (id or qualified name).
+    item: String,
+    /// Hide subtrees that are entirely done.
+    open: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct QuestionArgs {
+    /// The PlanningItem (id or qualified name).
+    item: String,
+    /// `add` | `answer` | `defer`.
+    op: String,
+    /// `add`: the question; `answer`: the answer.
+    text: Option<String>,
+    /// `add`: an optional proposal.
+    recommended: Option<String>,
+    /// `answer` / `defer`: the question id (`Q1`).
+    id: Option<String>,
+    /// `answer`: who answered (an opaque actor id).
+    by: Option<String>,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ChangesArgs {
     /// Git revision to compare from.
@@ -820,6 +856,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
             field_spec("blockedBy", false, "list<ref>", None),
             field_spec("assignedTo", false, "string", None),
+            field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?}> (edit with `question`)", None),
             field_spec("claimedBy", false, "string (set by `claim`)", None),
             field_spec("claimedAt", false, "timestamp (set by `claim`)", None),
         ],
@@ -1053,6 +1090,7 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
 const WRITE_TOOLS: &[&str] = &[
     "create_element",
     "update_element",
+    "question",
     "move_element",
     "delete_element",
     "apply_changes",
@@ -1598,6 +1636,88 @@ impl SyscribeMcp {
             out["preexisting"] = json!(preexisting);
         }
         ok(out)
+    }
+
+    #[tool(
+        description = "A PlanningItem's inline questions (the decisions awaiting an answer), across the model or for one item, \
+        with owning item, status, text, recommendation and answer. Same data as `syscribe questions --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn questions(&self, Parameters(args): Parameters<QuestionsArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let status = if args.open.unwrap_or(false) { Some("open".to_string()) } else { args.status };
+        match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
+            Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "A PlanningItem's breakdown: its child items (its steps) as a tree with status, owner, claim, blockers, \
+        open questions and a roll-up of leaves done. Hints (a parent disagreeing with its leaves) are notes, not findings. \
+        Same data as `syscribe steps --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn steps(&self, Parameters(args): Parameters<StepsArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::steps::tree(&store.elements, &args.item) {
+            Ok(full) => {
+                let roll = crate::steps::rollup(&full);
+                let notes = crate::steps::hints(&full);
+                let shown = if args.open.unwrap_or(false) { crate::steps::prune_done(&full, true).unwrap_or_else(|| full.clone()) } else { full };
+                ok(json!({ "schemaVersion": "1.0", "rollup": roll, "hints": notes, "tree": shown }))
+            }
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Record, answer or defer a PlanningItem's inline question through the guarded write (dry_run defaults to true). \
+        op=add needs `text` (and optionally `recommended`) and allocates the next Q<n>; op=answer needs `id` and `text` (optionally `by`); \
+        op=defer needs `id`. Prefer this to update_element, which replaces the whole list. When blocked on a decision, record a question \
+        instead of guessing.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn question(
+        &self,
+        Parameters(args): Parameters<QuestionArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let target = match store.resolver.resolve_ref(&store.elements, &args.item) {
+            Some(e) => e.clone(),
+            None => return tool_error(format!("unresolved reference: {}", args.item)),
+        };
+        if let Some(m) = builtin_refusal(&target) {
+            return tool_error(m);
+        }
+        let need = |v: &Option<String>, what: &str| v.clone().ok_or_else(|| format!("op={} needs `{what}`", args.op));
+        let op = match args.op.as_str() {
+            "add" => need(&args.text, "text").map(|text| crate::qset::Op::Add { text, recommended: args.recommended.clone() }),
+            "answer" => need(&args.id, "id").and_then(|id| need(&args.text, "text").map(|text| crate::qset::Op::Answer { id, text, by: args.by.clone() })),
+            "defer" => need(&args.id, "id").map(|id| crate::qset::Op::Defer { id }),
+            other => Err(format!("unknown op '{other}' (add, answer, defer)")),
+        };
+        let op = match op {
+            Ok(o) => o,
+            Err(m) => return tool_error(m),
+        };
+        let plan = match crate::qset::plan(&target, &op, &crate::claim::iso8601_now()) {
+            Ok(p) => p,
+            Err(m) => return tool_error(m),
+        };
+        let rel = rel_file(&target.file_path, &store.model_root);
+        let extra = extra_map(json!({ "item": args.item, "question": plan.id, "summary": plan.summary }));
+        let apply = move |root: &Path| -> Result<(), String> {
+            let path = root.join(&rel);
+            let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            let new_content = crate::qset::edit_content(&content, &path.to_string_lossy(), &plan)?;
+            std::fs::write(&path, new_content).map_err(|e| e.to_string())
+        };
+        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(

@@ -870,6 +870,13 @@ pub fn cmd_show(
     // multi-agent work, written/cleared by `syscribe claim`/`syscribe release`.
     if let Some(ref who) = fm.claimed_by { println!("| **claimedBy** | {} |", who); }
     if let Some(ref at) = fm.claimed_at { println!("| **claimedAt** | {} |", at); }
+    // Inline questions (GH #436): one row each, so an open decision is visible without opening the file.
+    for q in syscribe_model::questions::parse(elem).0 {
+        let mut cell = q.text.replace('|', "\\|");
+        if let Some(r) = &q.recommended { cell.push_str(&format!(" — recommended: {}", r.replace('|', "\\|"))); }
+        if let Some(a) = &q.answer { cell.push_str(&format!(" — answer: {}", a.replace('|', "\\|"))); }
+        println!("| **{} ({})** | {} |", q.id, q.status, cell);
+    }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g.join(", ")); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
@@ -1640,6 +1647,7 @@ pub fn cmd_list(
     status: Option<&str>,
     sil: Option<&str>,
     has_wcet: bool,
+    open_questions: bool,
     wheres: &[CustomWhere],
     json: bool,
 ) {
@@ -1703,6 +1711,8 @@ pub fn cmd_list(
         })
         // `--has-wcet`: keep only elements that declare a non-empty `wcet:`.
         .filter(|e| !has_wcet || e.frontmatter.wcet.as_deref().is_some_and(|w| !w.trim().is_empty()))
+        // `--open-questions` (GH #436): only PlanningItems with at least one `open` question.
+        .filter(|e| !open_questions || syscribe_model::questions::parse(e).0.iter().any(|q| q.status == "open"))
         // `--where custom.<key>…` (GH #39): custom-field predicates, ANDed.
         .filter(|e| wheres.iter().all(|w| where_matches(elements, e, w, false)))
         .collect();
@@ -1772,6 +1782,10 @@ pub fn cmd_list(
                     obj.as_object_mut().unwrap().extend([
                         ("claimedBy".into(), serde_json::json!(e.frontmatter.claimed_by)),
                         ("claimedAt".into(), serde_json::json!(e.frontmatter.claimed_at)),
+                        (
+                            "openQuestions".into(),
+                            serde_json::json!(syscribe_model::questions::parse(e).0.iter().filter(|q| q.status == "open").count()),
+                        ),
                     ]);
                 }
                 obj

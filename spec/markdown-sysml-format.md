@@ -6585,9 +6585,9 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
-| `I910`–`I912` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
+| `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
-| `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
+| `W308`–`W311`, `W317`–`W318`, `E706`–`E727` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
 | `E400`–`E405`, `W400`–`W421` | Diagram elements | §8.16.2, §8.16.7, §8.16.8.2, §8.16.9, §8.16.10 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
@@ -9162,6 +9162,7 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
 | `claimedBy` | string | optional | absent | Advisory claimant (agent/session) id — see §23.9. Never format-validated; written/cleared by `syscribe claim`/`syscribe release`. |
 | `claimedAt` | string | optional | absent | Opaque timestamp paired with `claimedBy` — see §23.9. Conventionally ISO-8601, never itself parsed/validated. |
+| `questions` | list of mappings | optional | absent | Inline decisions awaiting an answer — `{id, text, recommended?, status: open \| answered \| deferred, answer?, answeredBy?, answeredAt?}`; see §23.10. A question is private to its item, not a cross-reference target. Only a `PlanningItem` has questions (`W318` elsewhere). |
 | `tags` | list of strings | optional | absent | Free labels. |
 
 `appliesWhen:` (product-line gating) needs no new mechanism — it is already a universal, type-agnostic field; a `PlanningItem` implementing a product-line feature sets it exactly like any other element.
@@ -9219,7 +9220,7 @@ Mirroring `Requirement.derivedChildren`, the validator computes `children` for e
 
 ### 23.6 CLI and MCP Surface
 
-The only `PlanningItem`-specific commands are `syscribe claim` and `syscribe release`, which set and clear the advisory `claimedBy:`/`claimedAt:` markers (§23.9). There is no other dedicated CLI subcommand and no dedicated MCP tool — deliberately: the ADR holds the rest of the feature to schema + validation. Every other field is authored, listed, and inspected via the existing generic surface:
+The `PlanningItem`-specific commands are `syscribe claim` and `syscribe release` (the advisory `claimedBy:`/`claimedAt:` markers, §23.9), `syscribe questions` and the `set … question.*` operations (§23.10), and the read-only `syscribe steps` view (§23.10). There is no other dedicated CLI subcommand and no dedicated MCP tool — deliberately: the ADR holds the rest of the feature to schema + validation. Every other field is authored, listed, and inspected via the existing generic surface:
 
 - `syscribe list PlanningItem` / `syscribe show <PI-id>` / `syscribe ls Planning` / `syscribe find <text>` — discovery and inspection, same as any other element type.
 - `syscribe refs <PI-id-or-Requirement-id>` — inbound `parent:`/`achieves:` references (§23.5).
@@ -9298,6 +9299,28 @@ counterpart to `claim`/`release`: it fires whether or not either item was ever a
 since `status: in_progress` alone already signals active work.
 
 ---
+
+
+### 23.10 Inline `questions:` and the `steps` view (GH #436, `REQ-TRS-PIQ-*`, `REQ-TRS-PISTEP-001`)
+
+**Steps are child items.** A step is a child `PlanningItem` (`parent:`, §23.2); there is no `steps:` field. `syscribe steps <PI> [--open] [--depth N] [--json]` (and the MCP `steps` tool) is a read-only view: the children recursively, each with status, `assignedTo`, `claimedBy`, `blockedBy`, the number of open questions and — for a `done` leaf — whether it has evidence, under a roll-up (`N of M leaves done` and the counts still in progress, blocked or not started). A parent's status is **not** derived from its children and no validation rule ties them together; where a composite item disagrees with its leaves the view notes it as a hint only.
+
+**Questions are inline.** A `PlanningItem` may carry a `questions:` list — the decisions awaiting an answer:
+
+```yaml
+questions:
+  - id: Q1                      # local to the item: Q<n>
+    text: Which UART does the debug console use?
+    recommended: UART2          # optional: a proposal
+    status: open                # open | answered | deferred
+    answer: UART2               # required when answered
+    answeredBy: alice           # optional, an opaque actor id
+    answeredAt: 2026-11-03T10:00:00Z   # optional, free timestamp text
+```
+
+A question is private to its item (`PI-X#Q1` in messages) and is not a cross-reference target. It is detected from the field, never inferred from prose. Validation: `E724` (`questions:` not a list of mappings, or an entry lacking `id`/`text` or with an `id` that is not `Q<n>`), `E725` (duplicate `id`), `E726` (`status` absent or outside the vocabulary), `E727` (`answered` with no `answer`), `W317` (an item at `status: done` with an `open` question; `deferred` and `answered` raise nothing) and `W318` (a `questions:` field on an element that is not a `PlanningItem` — it is ignored there; a warning rather than silence so a misplaced decision is not lost). An open question does not make an item `blocked` — `blockedBy:` stays for dependencies. `validate --hints` raises `I913` for a body with a *Questions* heading and an empty `questions:`.
+
+**Surface.** `syscribe questions [--open] [--status S] [--item PI] [--json]` lists them across the model; `list PlanningItem --open-questions` keeps items with an open one; `show` prints them. `syscribe set <PI> question.add text=… [recommended=…]`, `question.answer <Qn> text=… [by=…]` and `question.defer <Qn>` edit only the affected entry, keeping comments and order; the MCP `questions` and `steps` tools read, and the guarded `question` tool writes (dry-run by default; hidden under `--read-only`).
 
 ## Appendix A: Frontmatter Field Reference
 

@@ -65,6 +65,17 @@ fn evidence_key(v: &serde_yaml::Value) -> Option<String> {
     }
 }
 
+/// A Markdown heading whose text is "Questions" or "Open questions" (any level, any case).
+fn has_questions_heading(doc: &str) -> bool {
+    doc.lines().any(|l| {
+        let t = l.trim_start();
+        t.starts_with('#') && {
+            let h = t.trim_start_matches('#').trim().trim_end_matches(':').to_lowercase();
+            h == "questions" || h == "open questions" || h == "open questions and decisions"
+        }
+    })
+}
+
 /// All hints for `elements`.
 pub fn hint_findings(elements: &[RawElement]) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -98,6 +109,15 @@ pub fn hint_findings(elements: &[RawElement]) -> Vec<Finding> {
                     }
                 }
             }
+        }
+
+        // I913 — a prose "Questions" section while the structured field is empty (GH #436).
+        if *et == ElementType::PlanningItem && has_questions_heading(&e.doc) && crate::questions::parse(e).0.is_empty() {
+            out.push(hint(
+                "I913",
+                &e.file_path,
+                format!("{id} has a Questions heading in its body but no `questions:` entries; record each with `syscribe set {id} question.add text=…` so `syscribe questions` can list and track it"),
+            ));
         }
 
         // I912 — a status outside the type's vocabulary: name the nearest valid value and the command.
