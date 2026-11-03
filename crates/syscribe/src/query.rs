@@ -2713,6 +2713,12 @@ pub struct GateOptions {
     pub warnings_as_errors: bool,
     /// `--summary`: print finding counts per code instead of each finding (GH #245).
     pub summary: bool,
+    /// `--new-since <rev>`: gate only findings absent at this git revision (GH #431).
+    pub new_since: Option<String>,
+    /// `--baseline-file <file>`: gate only findings absent from this saved list (GH #431).
+    pub baseline_file: Option<std::path::PathBuf>,
+    /// `--write-baseline <file>`: save the current findings as an accepted list (GH #431).
+    pub write_baseline: Option<std::path::PathBuf>,
 }
 
 impl GateOptions {
@@ -3216,6 +3222,7 @@ fn print_gated_report(
     gate: &GateOptions,
     json: bool,
     clean_msg: &str,
+    baseline: Option<&BaselineView<'_>>,
 ) -> i32 {
     use syscribe_model::validator::Severity;
     let exit_code = eval.exit_code;
@@ -3262,8 +3269,8 @@ fn print_gated_report(
     }
 
     if json {
-        let items: Vec<serde_json::Value> = findings.iter().map(|f| {
-            serde_json::json!({
+        let item = |f: &VFinding, new: Option<bool>| {
+            let mut v = serde_json::json!({
                 "code": f.code,
                 "severity": match f.severity {
                     Severity::Error => "error",
@@ -3272,8 +3279,17 @@ fn print_gated_report(
                 },
                 "file": f.file,
                 "message": f.message,
-            })
-        }).collect();
+            });
+            if let Some(n) = new {
+                v["new"] = serde_json::json!(n);
+            }
+            v
+        };
+        // With a baseline every finding is listed, flagged `new`; only the new ones were gated.
+        let items: Vec<serde_json::Value> = match baseline {
+            Some(b) => b.flagged.iter().map(|(f, n)| item(f, Some(*n))).collect(),
+            None => findings.iter().map(|f| item(f, None)).collect(),
+        };
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
         if exit_code == 2 {
             for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
@@ -3283,8 +3299,16 @@ fn print_gated_report(
         return exit_code;
     }
 
+    let note = |b: &BaselineView<'_>| {
+        if b.preexisting > 0 {
+            println!("{} pre-existing finding(s) accepted by {} — not shown, not gated.", b.preexisting, b.label);
+        }
+    };
     if findings.is_empty() {
         println!("{clean_msg}");
+        if let Some(b) = baseline {
+            note(b);
+        }
         return exit_code;
     }
 
@@ -3308,6 +3332,10 @@ fn print_gated_report(
     table("Errors", &eval.errors);
     table("Warnings", &eval.warnings);
     table("Informational", &eval.infos);
+    if let Some(b) = baseline {
+        note(b);
+        println!();
+    }
 
     if exit_code == 2 {
         for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
@@ -3315,6 +3343,59 @@ fn print_gated_report(
         }
     }
     exit_code
+}
+
+/// What `--new-since` / `--baseline-file` decided about each finding (GH #431).
+struct BaselineView<'a> {
+    /// Every (file-filtered) finding in original order, with whether it is new.
+    flagged: Vec<(&'a VFinding, bool)>,
+    preexisting: usize,
+    label: String,
+}
+
+/// Apply the baseline options of `gate` to `all`: returns the findings to gate/print (the new
+/// ones, after `--file`) and the view for the report. With no baseline option the findings are just
+/// the `--file`-filtered ones. `--write-baseline` saves the full current list first. Any failure is a
+/// usage error: exit 1.
+fn apply_baseline<'a>(
+    all: &'a [VFinding],
+    gate: &GateOptions,
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    file_filter: Option<&str>,
+    validate_old: &dyn Fn(&[RawElement], &syscribe_model::config::ValidateConfig) -> Vec<VFinding>,
+) -> (Vec<&'a VFinding>, Option<BaselineView<'a>>) {
+    use syscribe_model::finding_baseline as fb;
+    let die = |m: String| -> ! {
+        eprintln!("Error: {m}");
+        std::process::exit(1)
+    };
+    if gate.new_since.is_some() && gate.baseline_file.is_some() {
+        die("--new-since and --baseline-file are mutually exclusive".into());
+    }
+    if let Some(path) = &gate.write_baseline {
+        let refs: Vec<&VFinding> = all.iter().collect();
+        let text = fb::to_json(&fb::entries_for(&refs, elements));
+        if let Err(e) = std::fs::write(path, text) {
+            die(format!("cannot write {}: {e}", path.display()));
+        }
+        eprintln!("Wrote {} finding(s) to {}", all.len(), path.display());
+    }
+    let source = match (&gate.new_since, &gate.baseline_file) {
+        (Some(rev), _) => Some((fb::Source::Rev(rev.clone()), format!("`{rev}`"))),
+        (_, Some(p)) => Some((fb::Source::File(p.clone()), format!("`{}`", p.display()))),
+        _ => None,
+    };
+    let Some((source, label)) = source else {
+        return (filter_by_file(all, file_filter), None);
+    };
+    let marks = fb::mark_new(&source, all, elements, config, validate_old).unwrap_or_else(|m| die(m));
+    let in_scope = |f: &VFinding| file_filter.is_none_or(|ff| f.file.contains(ff));
+    let flagged: Vec<(&VFinding, bool)> =
+        all.iter().zip(marks).filter(|(f, _)| in_scope(f)).collect();
+    let gated: Vec<&VFinding> = flagged.iter().filter(|(_, n)| *n).map(|(f, _)| *f).collect();
+    let preexisting = flagged.len() - gated.len();
+    (gated, Some(BaselineView { flagged, preexisting, label }))
 }
 
 /// Findings whose file matches the optional `--file` filter.
@@ -3338,9 +3419,11 @@ pub fn cmd_validate(
     json: bool,
 ) {
     let result = syscribe_model::validator::validate_with_config(elements, config);
-    let findings = filter_by_file(&result.findings, file_filter);
+    let (findings, view) = apply_baseline(&result.findings, gate, elements, config, file_filter, &|e, c| {
+        syscribe_model::validator::validate_with_config(e, c).findings
+    });
     let eval = evaluate_gate(&findings, gate, profile, elements);
-    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — model is valid.");
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — model is valid.", view.as_ref());
     if code != 0 {
         std::process::exit(code);
     }
@@ -3364,9 +3447,12 @@ pub fn cmd_validate_projected(
     sel: &syscribe_model::projection::Selection,
 ) {
     let all = syscribe_model::projection::validate_projected(elements, config, sel);
-    let findings = filter_by_file(&all, file_filter);
+    // The same variant (feature selection) is judged at the earlier revision.
+    let (findings, view) = apply_baseline(&all, gate, elements, config, file_filter, &|e, c| {
+        syscribe_model::projection::validate_projected(e, c, sel)
+    });
     let eval = evaluate_gate(&findings, gate, profile, elements);
-    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — variant is valid.");
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — variant is valid.", view.as_ref());
     if code != 0 {
         std::process::exit(code);
     }
@@ -3395,6 +3481,10 @@ pub fn cmd_validate_all_configs(
     file_filter: Option<&str>,
     json: bool,
 ) {
+    if gate.new_since.is_some() || gate.baseline_file.is_some() || gate.write_baseline.is_some() {
+        eprintln!("Error: --new-since, --baseline-file and --write-baseline do not combine with --all-configs; use --config <C> for one variant");
+        std::process::exit(1);
+    }
     let mut configs: Vec<&RawElement> = elements
         .iter()
         .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration))

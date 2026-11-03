@@ -135,10 +135,14 @@ $ syscribe -m model_auto/ validate --json
 |---|---|
 | `--deny <CODES>` | Treat each comma-separated warning code as a gate failure. |
 | `--max-warnings <N>` | Fail when the warning count exceeds `N`. |
+| `--new-since <rev>` | Gate and list only findings absent at git revision `<rev>` (see below). |
+| `--baseline-file <file>` / `--write-baseline <file>` | The same against a saved list of accepted findings; `--write-baseline` saves the current ones. |
 | `--warnings-as-errors` | Treat every warning as a gate failure. |
 | `--profile <name>` | Apply a named `[profiles.<name>]` policy from `.syscribe.toml` (see below). |
 
 Exit-code contract: `0` clean · `1` one or more `Error`-severity findings (errors always dominate) · `2` warnings tripped a gate. All four flags compose additively.
+
+**Gating on new findings only** (`--new-since`, `--baseline-file`). A finding is identified by its code, the element it is raised on (stable `id:` else qualified name) and a hash of its message — never by file or line — so moving or renaming a file does not make its findings new; matching is a multiset, so a second copy of an accepted finding is new. Only new findings are listed and gated (exit `1`/`2`/`0` as above, judged over them); the count of pre-existing ones is printed. With `--json` every finding is listed with `"new": true|false`. `--new-since` validates the model exported from `<rev>` with `git archive` (the working tree is untouched); `--config <C>` judges the same variant there; the two sources are mutually exclusive and do not combine with `--all-configs`.
 
 The contract holds in every mode. `validate --config <C>` applies the flags (and `--file`) to the projected variant's findings; `validate --all-configs` evaluates the gate **per variant** (so `--max-warnings N` is a per-variant budget), marks each variant `pass` / `gate` / `error` in its summary (`result` in `--json`), and exits with the worst variant under `1` > `2` > `0`.
 
@@ -1905,3 +1909,4 @@ syscribe -m <root> lsp
 ### Wrapping CLI commands instead
 
 If you prefer not to run the built-in server, any MCP host that can execute shell commands can wrap individual `syscribe` commands as tools (one tool per command, `SYSCRIBE_MODEL` set once). Each handler runs the command, captures stdout, and returns it; the agent calls `syscribe validate --json` after every write and proceeds only on `[]`.
+

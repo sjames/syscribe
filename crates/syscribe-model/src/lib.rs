@@ -16,6 +16,8 @@ pub mod design_report;
 pub mod unit_level;
 pub mod attack_tree;
 pub mod baseline;
+pub mod finding_baseline;
+pub mod gitrev;
 pub mod binding_time;
 pub mod build_config;
 pub mod config;

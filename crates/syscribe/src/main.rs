@@ -289,6 +289,21 @@ fn parse_gate_options(args: &[String]) -> query::GateOptions {
                 }
                 i += 1;
             }
+        } else if let Some((flag, val)) = ["--new-since", "--baseline-file", "--write-baseline"].iter().find_map(|f| {
+            if a == f {
+                args.get(i + 1).map(|v| (*f, v.as_str()))
+            } else {
+                a.strip_prefix(&format!("{f}=")).map(|v| (*f, v))
+            }
+        }) {
+            match flag {
+                "--new-since" => gate.new_since = Some(val.to_string()),
+                "--baseline-file" => gate.baseline_file = Some(val.into()),
+                _ => gate.write_baseline = Some(val.into()),
+            }
+            if a == flag {
+                i += 1;
+            }
         } else if let Some(val) = a.strip_prefix("--max-warnings=") {
             match val.parse::<usize>() {
                 Ok(n) => gate.max_warnings = Some(n),

@@ -3,6 +3,7 @@
 ## SYNOPSIS
     syscribe -m <root> validate [--file <path>] [--json]
         [--deny <CODES>] [--deny-meta <Def.key=value>]... [--max-warnings <N>] [--warnings-as-errors] [--summary]
+        [--new-since <rev> | --baseline-file <file>] [--write-baseline <file>]
         [--profile <name>] [--config <C>] [--all-configs]
         [--results <file> [--format <fmt>]] [--fetch-remote]
 
@@ -24,6 +25,14 @@ gating flags promote chosen warnings to build failures.
                             matrix roll-up sense; a shortfall is listed and exits 2, a malformed entry exits 1.
     --max-warnings <N>      Fail when the warning count exceeds N.
     --warnings-as-errors    Treat every warning as a gate failure.
+    --new-since <rev>       Gate (and list) only findings absent at git revision <rev>. A finding is
+                            identified by code + owning element + message, not file/line, so moving or
+                            renaming a file does not make its findings new. Pre-existing findings are
+                            counted, not listed. With --json every finding is listed with "new": true|false.
+    --baseline-file <file>  The same against a list of accepted findings saved by --write-baseline.
+    --write-baseline <file> Save every current finding as an accepted list (the run itself is unchanged).
+                            --new-since and --baseline-file are exclusive and do not combine with
+                            --all-configs; with --config the same variant is judged at <rev>.
     --summary               Print finding counts per code and severity instead of each
                             finding (with --json: [{code, severity, count}]). Gating and
                             the exit code are unchanged. With --all-configs the per-variant
