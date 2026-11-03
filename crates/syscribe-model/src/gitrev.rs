@@ -74,3 +74,54 @@ pub fn materialize(model_root: &Path, rev: &str) -> Result<RevModel, String> {
     }
     Ok(out)
 }
+
+/// Export the model directory as it is in the git *index* (what a commit would record), into a
+/// temporary directory. Used by `check-staged` when the working tree differs from the index, so the
+/// check judges the content that would actually be committed.
+pub fn materialize_index(model_root: &Path) -> Result<RevModel, String> {
+    let abs = std::fs::canonicalize(model_root).map_err(|e| format!("{}: {e}", model_root.display()))?;
+    let git_root = crate::config::detect_git_root(&abs)
+        .ok_or_else(|| format!("{} is not inside a git repository", model_root.display()))?;
+    let rel = abs.strip_prefix(&git_root).unwrap_or(Path::new("")).to_string_lossy().replace('\\', "/");
+
+    let mut ls = Command::new("git");
+    ls.arg("-C").arg(&git_root).args(["ls-files", "-z"]);
+    if !rel.is_empty() {
+        ls.arg("--").arg(&rel);
+    }
+    let listed = ls.output().map_err(|e| format!("cannot run git: {e}"))?;
+    if !listed.status.success() {
+        return Err(format!("git ls-files failed: {}", String::from_utf8_lossy(&listed.stderr).trim()));
+    }
+
+    static N: AtomicU64 = AtomicU64::new(0);
+    let tmp = std::env::temp_dir().join(format!("syscribe-index-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
+    std::fs::create_dir_all(&tmp).map_err(|e| format!("cannot create {}: {e}", tmp.display()))?;
+    let root = if rel.is_empty() { tmp.clone() } else { tmp.join(&rel) };
+    let out = RevModel { root, tmp: tmp.clone() };
+
+    let mut prefix = tmp.to_string_lossy().into_owned();
+    if !prefix.ends_with('/') {
+        prefix.push('/');
+    }
+    let mut co = Command::new("git")
+        .arg("-C")
+        .arg(&git_root)
+        .args(["checkout-index", "-z", "--stdin", "-f"])
+        .arg(format!("--prefix={prefix}"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    {
+        use std::io::Write;
+        let mut stdin = co.stdin.take().ok_or("git checkout-index has no stdin")?;
+        stdin.write_all(&listed.stdout).map_err(|e| format!("git checkout-index: {e}"))?;
+    }
+    let done = co.wait_with_output().map_err(|e| format!("git checkout-index: {e}"))?;
+    if !done.status.success() {
+        return Err(format!("git checkout-index failed: {}", String::from_utf8_lossy(&done.stderr).trim()));
+    }
+    Ok(out)
+}

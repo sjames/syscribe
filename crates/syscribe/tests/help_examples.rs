@@ -17,7 +17,7 @@
 //! * `suspect accept <src> <tgt>` is checked by resolving both ends with
 //!   `check-ref`; `scaffold-gherkin --fix` runs in preview mode;
 //! * commands needing a live client, the network, git state or an external tool
-//!   (`mcp`, `lsp`, `repos sync`, `baseline create`, `ingest-results`,
+//!   (`mcp`, `lsp`, `repos sync`, `baseline create`, `ingest-results`, `check-staged`,
 //!   `plantuml render` without `--dry-run`, `suspect accept --all*`) are skipped.
 //!
 //! (`summarize` refreshes its content-hash cache under `<root>/.syscribe/cache/`,
@@ -148,6 +148,9 @@ fn plan(ex: &Example, tmp: &Path, n: usize) -> Plan {
     match cmd.as_str() {
         "mcp" | "lsp" => return Plan::Skip("needs a live stdio client"),
         "ingest-results" => return Plan::Skip("needs an external results file"),
+        // `--install-hook` writes into `.git/hooks` of the repository the tests run in, and the verdict
+        // depends on whatever happens to be staged: neither belongs in an example run.
+        "check-staged" => return Plan::Skip("depends on staged git state; --install-hook writes .git/hooks"),
         "repos" if sub == "sync" => return Plan::Skip("needs the network / peer git repos"),
         "baseline" if sub == "create" => return Plan::Skip("seals git state"),
         "plantuml" if sub == "render" && !has(&a, "--dry-run") => return Plan::Skip("needs PlantUML"),

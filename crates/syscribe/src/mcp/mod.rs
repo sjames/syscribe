@@ -148,11 +148,18 @@ struct TraceArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ImpactArgs {
-    r#ref: String,
-    /// "downstream" (default) | "upstream" | "both".
+    /// The element to start from. Omit it when giving `files` or `since`.
+    r#ref: Option<String>,
+    /// "downstream" (default) | "upstream" | "both". With `files`/`since` the default is "both".
     direction: Option<String>,
+    /// With `files`/`since` the default is 2 (unit → requirement → verifying test).
     depth: Option<u32>,
     edges: Option<Vec<String>>,
+    /// Start from changed files (paths relative to the repository root or the working directory)
+    /// instead of one element: each is mapped to the elements that own, implement, test or cite it.
+    files: Option<Vec<String>>,
+    /// Start from the files that differ between this git revision and the working tree.
+    since: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1523,7 +1530,11 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Reachability/impact analysis over the model graph from an element. \
-        downstream = dependents; upstream = dependencies.",
+        downstream = dependents; upstream = dependencies. Or start from changed files instead: `files` \
+        (paths) and/or `since` (a git revision, compared with the working tree) map each file to the \
+        elements that own, implement, test or cite it, then report what they reach (default both \
+        directions, depth 2), grouped with `changed` flags, files that map to nothing under `unmapped`, \
+        and the requirements/tests affected but not changed under `unreviewed`.",
         annotations(read_only_hint = true)
     )]
     async fn impact(
@@ -1531,9 +1542,42 @@ impl SyscribeMcp {
         Parameters(args): Parameters<ImpactArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
-        let from = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+        if args.files.is_some() || args.since.is_some() {
+            if args.r#ref.is_some() {
+                return tool_error("give either `ref` or `files`/`since`, not both".to_string());
+            }
+            let Some(git_root) = syscribe_model::config::detect_git_root(&store.model_root) else {
+                return tool_error("the model is not inside a git repository, which `files`/`since` need".to_string());
+            };
+            let mut changed: Vec<String> = args
+                .files
+                .iter()
+                .flatten()
+                .map(|f| crate::impactfiles::to_git_rel(&git_root, Path::new(f)).unwrap_or_else(|| f.clone()))
+                .collect();
+            if let Some(rev) = &args.since {
+                match crate::impactfiles::changed_since(&git_root, rev) {
+                    Ok(mut more) => changed.append(&mut more),
+                    Err(m) => return tool_error(m),
+                }
+            }
+            changed.sort();
+            changed.dedup();
+            let direction = match args.direction.as_deref().unwrap_or("both") {
+                "upstream" => crate::impact::Direction::Upstream,
+                "downstream" => crate::impact::Direction::Downstream,
+                _ => crate::impact::Direction::Both,
+            };
+            let depth = Some(args.depth.map(|d| d as usize).unwrap_or(crate::impactfiles::DEFAULT_DEPTH));
+            let report = crate::impactfiles::analyse(&store.elements, &store.config, &git_root, &changed, direction, depth);
+            return ok(json!({ "schemaVersion": "1.0", "report": report }));
+        }
+        let Some(root_ref) = args.r#ref.as_deref() else {
+            return tool_error("`ref` is required unless `files` or `since` is given".to_string());
+        };
+        let from = match store.resolver.resolve_ref(&store.elements, root_ref) {
             Some(e) => e.qualified_name.clone(),
-            None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
+            None => return tool_error(format!("unresolved reference: {root_ref}")),
         };
         // Edges point from the referencing element to its referent (e.g. Derived
         // --supertype--> Base), so a node's *dependents* are reached by walking

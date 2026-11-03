@@ -3,6 +3,7 @@
 mod annotations;
 mod budgetcmd;
 mod changes;
+mod checkstaged;
 mod designreportcmd;
 mod metacmd;
 mod audit;
@@ -46,6 +47,7 @@ mod mgreport;
 mod mv;
 mod bcov;
 mod impact;
+mod impactfiles;
 mod n2;
 mod plantuml;
 mod query;
@@ -895,6 +897,11 @@ fn main() {
     if results_as_of.is_some() && matches!(subcommand_args.first().map(String::as_str), Some("mcp") | Some("lsp") | Some("ingest-results")) {
         eprintln!("--results-as-of does not apply to `{}`.", subcommand_args[0]);
         std::process::exit(1);
+    }
+    // `check-staged` decides from `git` alone whether there is anything to check, so a commit that
+    // stages no model file never pays for loading the model (GH #445).
+    if subcommand_args.first().map(String::as_str) == Some("check-staged") {
+        std::process::exit(checkstaged::cmd_check_staged(model_root, subcommand_args.get(1..).unwrap_or(&[])));
     }
     if subcommand_args.first().map(String::as_str) == Some("mcp") && subcommand_args.iter().any(|a| a == "--print-instructions") {
         // The text a client receives in `initialize`, for pasting into other agent configuration.
@@ -2148,6 +2155,10 @@ fn main() {
             "impact" => {
                 // Change impact analysis (§17, GH #65). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                // GH #434: start from changed files or a revision instead of one element.
+                if rest.iter().any(|a| a == "--files" || a == "--since") {
+                    std::process::exit(impactfiles::cmd_impact_files(model_root, &elems, &vcfg, rest));
+                }
                 let root = match first_positional(rest, &["--direction", "--depth", "--format", "--kinds"]) {
                     Some(r) => r,
                     None => {

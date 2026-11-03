@@ -1920,6 +1920,19 @@ syscribe -m model/ changes <revA> [<revB>] [--types T1,T2] [--package <qname>] [
 
 Element-level diff of the model between two git revisions (`<revB>` defaults to the working tree), with no sealed baseline needed. Elements are paired by stable `id:` (else qualified name): each entry is `added`, `removed`, `moved` or `modified`, and a modified one names the `status` transition, links added/removed, `evidence:` added/removed, other changed fields and whether the body changed. Reformatting YAML or re-wrapping whitespace produces no entry. References that stopped (or started) resolving are listed after the entries. Exit `0` whether or not anything changed; `1` for an unknown revision, a non-git directory, or a model directory absent at a revision.
 
+## `impact --files` and `check-staged` — review and commit time
+
+```bash
+syscribe -m model/ impact --files src/sched.c                  # what does this file touch?
+syscribe -m model/ impact --since main --fail-on-unreviewed    # CI: the model must move with the code
+syscribe -m model/ check-staged [--fix-hints] [--json]         # pre-commit: only what is staged
+syscribe -m model/ check-staged --install-hook
+```
+
+**`impact --files` / `--since <rev>`** starts from changed files instead of one element. Each path is mapped to the elements bound to it — an element's own file, `implementedBy:` (a file or a directory), a `TestCase`'s `sourceFile:` and a `PlanningItem`'s `evidence[].path`, resolved like `W023` — and the traversal runs from that set (default both directions, depth 2: unit → requirement → verifying tests). Output groups the affected elements by type and marks each `changed` or `not changed`; files that map to nothing are listed separately. `--fail-on-unreviewed` exits `2` when an affected requirement or test was not itself changed. The MCP `impact` tool takes `files` and `since` the same way.
+
+**`check-staged`** validates only what the commit touches: the staged model files plus the elements that directly reference them, checked on the unprojected model and under each `Configuration` a touched element is active in (`--skip-configs` omits those), reporting only findings on touched elements. It judges the staged content — the working tree when it matches the index, otherwise an export of the index — and, for a staged deletion or rename, also everything the commit newly breaks compared with `HEAD`. A commit that stages no model file exits `0` without loading the model. Exit `1` on an error, `2` on a warning gated by `--deny`/`--max-warnings`/`--warnings-as-errors`. `--fix-hints` explains each code and names the commands that fix it; `--install-hook` writes a `pre-commit` hook (honouring `core.hooksPath`), refusing to overwrite one it did not write, and the hook lets a commit through, with a message, if `syscribe` is not on `PATH`.
+
 ## Finding your way: `help`, `explain`, `template`
 
 Discovery works without a model directory.

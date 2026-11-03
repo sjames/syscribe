@@ -13,6 +13,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         &[
             ("report", include_str!("../../../prompts/help/report.md")),
             ("validate", include_str!("../../../prompts/help/validate.md")),
+            ("check-staged", include_str!("../../../prompts/help/check-staged.md")),
             ("audit", include_str!("../../../prompts/help/audit.md")),
             ("lint-docs", include_str!("../../../prompts/help/lint-docs.md")),
             ("coverage", include_str!("../../../prompts/help/coverage.md")),

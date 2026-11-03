@@ -120,6 +120,10 @@ stable id, a qualified name, or a display name. List/grid tools accept
   answer) across the model or for one item. Same data as `syscribe questions --json`.
 - `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
   open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
+- `impact {ref | files | since, direction?, depth?}` — from one element, or from changed `files` / a git
+  `since` revision: each file is mapped to the elements that own, implement, test or cite it and
+  the result is reported with `changed` flags, `unmapped` files and the `unreviewed` requirements/tests
+  (default both directions, depth 2). Same data as `syscribe impact --files … --format json`.
 - `changes {from, to?, types?, package?}` — the element-level difference between two git revisions
   (or a revision and the working tree): added/removed/moved/modified elements, status transitions,
   links and evidence added or removed, references that broke or were repaired. Same data as
