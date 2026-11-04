@@ -61,6 +61,9 @@ Advertised in `initialize`:
   refreshes only what moved. A burst of reloads is reported once after a quiet period (150 ms; override with
   `SYSCRIBE_LSP_NOTIFY_DEBOUNCE_MS`), a burst that ends where it began is not reported, and `sequence`
   increases by one per notification. The schema is `syscribe schema model-changed`.
+- **Propagation request** (`syscribe/propagate`, GH #416) — read-only; params `{from?, select?, stage?}`, result
+  the `propagate` payload (`syscribe schema propagate`): features forced on, forced off or free for a partial
+  selection, without writing a file.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

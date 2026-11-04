@@ -109,6 +109,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "policy" => &[("--json", Switch)],
         "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--json", Switch)],
         "questions" => &[("--open", Switch), ("--status", Value), ("--item", Value), ("--json", Switch)],
+        "propagate" => &[("--from", Value), ("--select", Value), ("--stage", Value), ("--json", Switch)],
         "context" => &[("--depth", Value), ("--max-bytes", Value), ("--format", Value), ("--json", Switch)],
         "steps" => &[("--open", Switch), ("--depth", Value), ("--json", Switch)],
         "agent-guide" => &[("--format", Value), ("--sections", Value), ("--write", Value), ("--check", Value)],

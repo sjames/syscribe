@@ -37,6 +37,7 @@ mod ingest;
 mod lint_docs;
 mod bindingtimes;
 mod params;
+mod propagate;
 mod residual;
 mod linktypes;
 mod lsp;
@@ -2420,6 +2421,12 @@ fn main() {
                 let results = runhist::load_results(model_root);
                 let findings = validator::validate_with_config(&elems, &vcfg).findings;
                 let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "propagate" => {
+                let code = propagate::cmd_propagate(&elems, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

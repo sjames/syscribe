@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/propagate.schema.json",
+  "title": "syscribe propagate --json / MCP propagate / LSP syscribe/propagate",
+  "description": "Stable contract (GH #416). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": ["schemaVersion", "hasFeatureModel", "satisfiable", "features", "forcedTrue", "forcedFalse", "free", "stage", "selection"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "hasFeatureModel": { "type": "boolean" },
+    "satisfiable": { "type": "boolean", "description": "False when the choices clash; see conflict." },
+    "stage": { "type": ["string", "null"] },
+    "selection": { "type": "object", "additionalProperties": { "type": "boolean" }, "description": "The effective choices (seeded by from, overridden by select), keyed by qualified name." },
+    "features": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["state"],
+        "properties": {
+          "state": { "enum": ["selected", "deselected", "forcedOn", "forcedOff", "free"] },
+          "deferred": { "const": true, "description": "Bound at another stage than the one asked for." }
+        }
+      }
+    },
+    "forcedTrue": { "type": "array", "items": { "type": "string" } },
+    "forcedFalse": { "type": "array", "items": { "type": "string" } },
+    "free": { "type": "array", "items": { "type": "string" } },
+    "conflict": {
+      "type": ["object", "null"],
+      "properties": {
+        "choices": { "type": "array", "items": { "type": "object", "required": ["feature", "selected"], "properties": { "feature": { "type": "string" }, "selected": { "type": "boolean" } } } },
+        "constraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "products": { "type": ["object", "null"], "properties": { "count": { "type": "integer" }, "capped": { "type": "boolean" } } },
+    "completion": { "type": "object", "additionalProperties": { "type": "boolean" } },
+    "unknown": { "type": "array", "items": { "type": "string" } },
+    "skipped": { "type": ["string", "null"] },
+    "featureModel": { "type": "string" }
+  }
+}

@@ -233,6 +233,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ check-staged [--install-hook]` / `impact --files <path>... \| --since <rev>` | Validate only what is staged (a pre-commit gate), or see what changed files affect — the elements bound to them and what those reach, marked changed or not |
 | `syscribe -m model/ changes <revA> [<revB>]` / `validate --new-since <rev>` | Element-level diff between git revisions (status moves, links, evidence, broken refs); gate `validate` only on findings not present at `<rev>` |
 | `syscribe capabilities --json` / `syscribe schema [<name>]` | What this binary supports and the JSON Schema of each stable `--json` form (no model needed) |
+| `syscribe -m model/ propagate [--from CONF] [--select FEAT-X=true]` | What a partial feature selection forces on, off or leaves free, with clashes explained — no file written |
 | `syscribe -m model/ context <ref> [--depth N] [--max-bytes N]` | One bounded briefing on an element: neighbours, verifying tests with verdict and rig, a PlanningItem's work state, findings — use it before starting work instead of several show/trace calls |
 | `syscribe -m model/ questions [--open]` / `steps <PI>` / `set <PI> question.add\|answer\|defer` | A PlanningItem's decisions awaiting an answer (record one instead of guessing when blocked) and its child-item breakdown with a roll-up |
 | `syscribe -m model/ claim <PI-id> --by <agent-id>` / `release <PI-id>` | Advisory ownership of a `PlanningItem` when several agents share a model (see Part 6e) |

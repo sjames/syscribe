@@ -193,6 +193,16 @@ struct ContextArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct PropagateArgs {
+    /// Seed the choices from this Configuration (id or qualified name).
+    from: Option<String>,
+    /// Explicit choices: feature (qualified name or FEAT-* id) -> selected. Overrides `from`.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+    /// Report only the choices still open at this binding stage.
+    stage: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -1888,6 +1898,23 @@ impl SyscribeMcp {
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "What a partial feature selection forces, without writing a file: every feature forced on, forced off or free, \
+        whether the choices can be completed (else the smallest clashing choices and the constraints they clash with), the number of \
+        products that remain and one completion. `from` seeds the choices from a Configuration (the result then equals `configure`), \
+        `select` adds or overrides single choices, `stage` leaves features bound at another stage out of the lists (marked deferred). \
+        Same data as `syscribe propagate --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn propagate(&self, Parameters(args): Parameters<PropagateArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: args.from, select: args.select.unwrap_or_default(), stage: args.stage };
+        match crate::propagate::compute(&store.elements, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
         }
     }
 

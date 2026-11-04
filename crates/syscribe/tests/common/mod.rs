@@ -456,6 +456,11 @@ impl Lsp {
         res
     }
 
+    /// Send a custom (non-standard) request and return its result.
+    pub fn custom_request(&mut self, method: &str, params: Value) -> Value {
+        self.request(method, params)
+    }
+
     pub fn did_open(&mut self, path: &Path, language_id: &str, text: &str) {
         self.notify(
             "textDocument/didOpen",

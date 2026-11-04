@@ -122,6 +122,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
   upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
   state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
   several show/trace/links calls. Same data as `syscribe context --format json`.
+- `propagate {from?, select?, stage?}` — forced-on / forced-off / free features for a partial feature
+  selection, whether it can be completed, the products that remain and one completion; read-only. Same data
+  as `syscribe propagate --json`.
 - `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
   open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
 - `impact {ref | files | since, direction?, depth?}` — from one element, or from changed `files` / a git
