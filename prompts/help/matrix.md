@@ -30,6 +30,11 @@ passing result there, including a retired or out-of-calibration rig. `stale` is 
 test or requirement changed since ingest (`W091`), or the result's build predates the last git change to either.
 The roll-up is "verified on every declared environment". `--gaps-only` keeps gap, failing and stale rows.
 
+`--json` adds a `gaps` list (GH #424): one entry per cell that is `gap`, `planned`, `failing` or `open`, with the
+requirement and its file, the configuration (null without a feature model), the `action` (`create-test`,
+`activate-test`, `fix-failing-test`, `decide-binding`, `widen-test`), the linked `tests` (id, status, file) and, for
+`create-test`, a `suggestedTestId` (the next free id in the requirement's area).
+
 ## OPTIONS
     --by environment  Group by TestEnvironment (see above); any other value is a usage error.
     --stage <stage> Show the grid as known at this binding stage (see above); unknown is a usage error.

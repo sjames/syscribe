@@ -71,6 +71,81 @@
     },
     "schemaVersion": {
       "const": "1.0"
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Every cell that needs work (state gap, planned, failing or open) with what to do and the ids needed to do it (GH #424). In the flat view (no feature model) configuration is null.",
+      "items": {
+        "type": "object",
+        "required": [
+          "requirement",
+          "requirementFile",
+          "configuration",
+          "state",
+          "action",
+          "tests"
+        ],
+        "properties": {
+          "requirement": {
+            "type": "string"
+          },
+          "requirementFile": {
+            "type": "string"
+          },
+          "configuration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "gap",
+              "planned",
+              "failing",
+              "open"
+            ]
+          },
+          "action": {
+            "enum": [
+              "create-test",
+              "activate-test",
+              "fix-failing-test",
+              "decide-binding",
+              "widen-test"
+            ]
+          },
+          "tests": {
+            "type": "array",
+            "description": "Tests already linked to the requirement, whatever their status.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "file"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "suggestedTestId": {
+            "type": "string",
+            "description": "The next free test id in the requirement's area; present for create-test."
+          }
+        }
+      }
     }
   }
 }

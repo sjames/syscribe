@@ -21,6 +21,10 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `explain-feature` | `explain-feature --json`, MCP `explain_feature`, LSP `syscribe/explainFeature` | 1.0 |
 | `model-changed` | LSP notification `syscribe/modelChanged` | 1.0 |
 
+## Additive changes within 1.0
+
+- `matrix` gained `gaps` (GH #424): one entry per cell needing work, with the action to take, the linked tests and, for `create-test`, a suggested test id. Existing properties are unchanged.
+
 ## 1.0 — first published version
 
 - `features`, `feature`, `configure`, `residual` and `diff` gained `schemaVersion: "1.0"`; the other fields are unchanged.

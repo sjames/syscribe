@@ -2493,6 +2493,9 @@ impl SyscribeMcp {
                     }
                 }
             }
+            if let Some(gaps) = v.get_mut("gaps").and_then(|g| g.as_array_mut()) {
+                gaps.retain(|g| g["configuration"].as_str() == Some(cfg));
+            }
         }
         // Optional row paging.
         if let Some(rows) = v.get_mut("rows").and_then(|r| r.as_array_mut()) {
