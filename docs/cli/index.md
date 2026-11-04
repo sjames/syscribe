@@ -252,6 +252,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `matrix --json` also carries a `gaps` list (GH #424): each cell that needs work with the action to take (`create-test`, `activate-test`, `fix-failing-test`, `decide-binding`, `widen-test`), the tests already linked (id, status, file) and, to create one, the next free test id in the requirement's area. The MCP `coverage_matrix` tool returns it, filtered by `config`.
 
+`children [<node>] [--view containment|configurations] [--offset N] [--limit N] [--json]` (GH #425) returns one tree node's direct children for an explorer: id, type, status, file, package/has-children flags and counters (children, derived children, verifying tests, errors and warnings; a package's are those of its subtree), one page per call with `nextOffset`. `--view configurations` is the Configuration tree along `derivedFrom:` and `subConfigurations:`. The MCP tool `children` and the LSP request `syscribe/children` return the same payload.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1985,6 +1987,14 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `children` — explorer tree data
+
+```bash
+syscribe -m model/ children [<node>] [--view configurations] [--offset N] [--limit N] [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help children` has the details.
 
 ## `explain-feature` — why a feature is in its state
 

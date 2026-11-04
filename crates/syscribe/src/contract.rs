@@ -42,6 +42,7 @@ pub const SCHEMAS: &[Contract] = &[
     c!("feature-check", "feature-check [--deep] --json"),
     c!("params-check", "params check <FILE> --config <Configuration> --json"),
     c!("propagate", "propagate [--from <Configuration>] [--select <f>=<bool>] --json"),
+    c!("children", "children [<node>] [--view containment|configurations] --json"),
     c!("explain-feature", "explain-feature <feature> [--from <Configuration>] --json"),
     c!("model-changed", "syscribe/modelChanged", lsp),
 ];
@@ -53,6 +54,7 @@ const OPTIONAL_FEATURES: &[(&str, &[&str])] = &[
     ("assistedConfiguration", &["configure"]),
     ("interactiveConfiguration", &["propagate"]),
     ("featureExplanation", &["explain-feature"]),
+    ("treeChildren", &["children"]),
     ("stagedConfiguration", &["residual", "params", "binding-times"]),
     ("paramsExport", &["params"]),
     ("variantDiff", &["diff"]),

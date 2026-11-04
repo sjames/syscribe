@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/children.schema.json",
+  "title": "syscribe children --json / MCP children / LSP syscribe/children",
+  "description": "Stable contract (GH #425). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "view",
+    "total",
+    "offset",
+    "limit",
+    "nextOffset",
+    "children"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "view": {
+      "enum": [
+        "containment",
+        "configurations"
+      ]
+    },
+    "of": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "total": {
+      "type": "integer"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "limit": {
+      "type": "integer"
+    },
+    "nextOffset": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Pass as offset for the next page; null on the last."
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "qualifiedName",
+          "id",
+          "type",
+          "package",
+          "hasChildren",
+          "counters"
+        ],
+        "properties": {
+          "qualifiedName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "package": {
+            "type": "boolean"
+          },
+          "virtual": {
+            "type": "boolean",
+            "description": "A directory package with no _index.md of its own."
+          },
+          "hasChildren": {
+            "type": "boolean"
+          },
+          "relation": {
+            "enum": [
+              "root",
+              "derivedFrom",
+              "subConfiguration"
+            ],
+            "description": "Configurations view only."
+          },
+          "bindingStage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counters": {
+            "type": "object",
+            "required": [
+              "children",
+              "errors",
+              "warnings"
+            ],
+            "properties": {
+              "children": {
+                "type": "integer"
+              },
+              "derivedChildren": {
+                "type": "integer"
+              },
+              "verifyingTests": {
+                "type": "integer"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "warnings": {
+                "type": "integer"
+              }
+            },
+            "description": "For a package, errors and warnings are those of its whole subtree."
+          }
+        }
+      }
+    }
+  }
+}

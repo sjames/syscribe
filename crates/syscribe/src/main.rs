@@ -65,6 +65,7 @@ mod scripting;
 mod set;
 mod suggest;
 mod typehelp;
+mod children;
 mod context;
 mod contract;
 mod envmatrix;
@@ -2422,6 +2423,13 @@ fn main() {
                 let results = runhist::load_results(model_root);
                 let findings = validator::validate_with_config(&elems, &vcfg).findings;
                 let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "children" => {
+                let findings = validator::validate_with_config(&elems, &vcfg).findings;
+                let code = children::cmd_children(&elems, &findings, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

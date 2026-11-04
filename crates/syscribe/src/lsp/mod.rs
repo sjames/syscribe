@@ -65,6 +65,16 @@ struct ExplainParams {
     select: Option<std::collections::BTreeMap<String, bool>>,
 }
 
+/// Parameters of the `syscribe/children` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChildrenParams {
+    of: Option<String>,
+    view: Option<String>,
+    offset: Option<usize>,
+    limit: Option<usize>,
+}
+
 /// The notification a front end listens to (GH #415): what a reload changed.
 enum ModelChanged {}
 impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
@@ -348,6 +358,14 @@ impl Backend {
         crate::explainfeature::compute(&store.elements, &params.feature, &req).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/children` (GH #425): read-only; the same payload as `syscribe children --json`.
+    async fn children(&self, params: ChildrenParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let findings = validate_with_config(&store.elements, &store.config).findings;
+        let req = crate::children::Request { of: params.of, view: params.view, offset: params.offset.unwrap_or(0), limit: params.limit };
+        crate::children::compute(&store.elements, &findings, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
     /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
     /// ends where it began (an edit and its undo) reports nothing.
     fn schedule_model_changed(&self) {
@@ -376,7 +394,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -614,6 +632,7 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
         })
         .custom_method("syscribe/propagate", Backend::propagate)
         .custom_method("syscribe/explainFeature", Backend::explain_feature)
+        .custom_method("syscribe/children", Backend::children)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

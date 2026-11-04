@@ -68,6 +68,9 @@ Advertised in `initialize`:
   result the `explain-feature` payload (`syscribe schema explain-feature`): a feature's state for a partial
   selection, the choices and constraints (with kind, declaring feature and file) that cause it, and what would
   have to change to select it.
+- **Tree request** (`syscribe/children`, GH #425) — read-only; params `{of?, view?, offset?, limit?}`, result the
+  `children` payload (`syscribe schema children`): the direct children of a node with counters, one page per call,
+  for the containment tree or the Configuration tree.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

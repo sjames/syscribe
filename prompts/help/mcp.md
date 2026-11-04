@@ -122,6 +122,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
   upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
   state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
   several show/trace/links calls. Same data as `syscribe context --format json`.
+- `children {of?, view?, offset?, limit?}` — one page of a tree node's direct children with id, type, status, file and
+  counters (children, derived children, verifying tests, errors, warnings); `view=configurations` is the
+  Configuration tree. Same data as `syscribe children --json`.
 - `explain_feature {feature, from?, select?}` — why a feature is forced on/off, free or in conflict for a partial
   selection (the choices and constraints behind it, with kind, declaring feature and file) and what would have to
   change to select it; read-only. Same data as `syscribe explain-feature --json`.

@@ -213,6 +213,16 @@ struct ExplainFeatureArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChildrenArgs {
+    /// The node to expand (qualified name or id); omit for the root of the view.
+    of: Option<String>,
+    /// `containment` (default) or `configurations` (following derivedFrom and subConfigurations).
+    view: Option<String>,
+    offset: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -1908,6 +1918,23 @@ impl SyscribeMcp {
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "The direct children of a tree node, one page per call: id, type, status, file and counters (children, derived \
+        children, verifying tests, errors and warnings; for a package those of its subtree). view=configurations walks Configurations \
+        along derivedFrom and subConfigurations. Paginated with offset/limit (nextOffset is null on the last page). Same data as \
+        `syscribe children --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn children(&self, Parameters(args): Parameters<ChildrenArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let findings = validate_with_config(&store.elements, &store.config).findings;
+        let req = crate::children::Request { of: args.of, view: args.view, offset: args.offset.unwrap_or(0) as usize, limit: args.limit.map(|l| l as usize) };
+        match crate::children::compute(&store.elements, &findings, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
         }
     }
 
