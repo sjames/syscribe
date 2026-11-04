@@ -2,6 +2,31 @@
 
 `RELEASES`
 
+## 0.58.0 — 2026-11-04
+
+**Working with agents and a team**
+
+- **New:** a project agent policy (`[agents]` in `.syscribe.toml`, #442, REQ-TRS-AGENTPOL-001..003). `protected_paths`, `human_only_status`, `require_before_done` and `require_by` bind a change that names its actor (`--by`); the writers, the MCP tools and the write layer refuse a violation, and `validate` audits git history for ones that got round them (`W760`, `W761`; `W762` for a malformed entry). `syscribe policy` prints the rules.
+- **New:** provenance lives in git (#443, #444). `--by`, `--reason`, `--commit` and `--expect-hash` are global flags on writing commands; a `--commit` records just the files the command changed, with the actor as author and `Syscribe-*` trailers, and `syscribe log` reads the history back. `--dry-run` is global and reports what would be written.
+- **New:** `validate --new-since <rev>` / `--baseline-file` gate only on findings that are new (#431); `changes <revA> [<revB>]` reports an element-level difference between revisions (#433); `impact --files/--since` and `check-staged` (#434, #445); `context <ref>`, a bounded briefing bundle (#435); `matrix --by environment` (#437).
+- **New:** type-centric `help`, `help --search`, `explain`, did-you-mean for workflows and `validate --hints` (#438, #439, `I910`–`I913`); `agent-guide` generates a project-specific instruction block (#441); the MCP server ships instructions and workflow prompts (#440). PlanningItems record inline `questions:` with `set question.*`, `questions` and `steps` (#436).
+
+**Product-line front-end support (#411)**
+
+- **New:** every `--json` form a front end depends on has a `schemaVersion` and a published JSON Schema (`syscribe schema [<name>]`), and `syscribe capabilities --json` reports the version, commands, contracts and optional features (#413, #414). `docs/releases/json-contract.md` records the compatibility rules.
+- **New:** read-only views, each as a CLI command, an MCP tool and a `syscribe/*` LSP request: `propagate` (forced and free features for a partial selection), `explain-feature` (why, and what would select it), `change-impact` (which Configurations an edit affects, evaluated on a copy), `children` (explorer tree data with counters), `health` (a status-bar summary), `timeline` (what each stage decided) (#416, #417, #423, #425, #428, #418). `matrix --json` lists actionable `gaps` and `diff --json` gives file and line (#424, #423).
+- **New:** checked writes: `bind` puts one binding or selection into a Configuration and `new feature|configuration|parameter` scaffolds one that is right the first time. Both are previewed on a candidate copy, edit only the affected lines and are refused if they add an error (#418, #427). Over the language server, `syscribe/preview` returns the diff, the findings and a `WorkspaceEdit` with its undo, and `syscribe.apply` commits a clean one (#426).
+- **New:** the language server announces what a reload changed (`syscribe/modelChanged`, debounced; opt in at `initialize`), completes features, parameter paths, enumerations and stages with documentation, hovers and lenses variability, offers validated quick fixes for `E222`, `E751`, `E752`, `E754`, `E756`, `W016` and `E201`, and serves semantic tokens for feature, parameter and stage references (#415, #419–#422).
+- **New:** `examples/ple-fixture/` and contract tests that run the real binary against it over the CLI, LSP and MCP (#430); `docs/guides/frontend-ci.md`.
+- **New:** `syscribe timing` measures load and validation. The largest model of this project loads and validates in 79 ms in a release build, so incremental revalidation (#429) is deferred; `docs/design/incremental-validation.md` records the measurements and the trigger.
+
+**Changed (behaviour)**
+
+- `features`, `feature`, `configure`, `residual` and `diff` `--json` gained `schemaVersion: "1.0"` and `params check` gained `--json`; nothing else in those documents changed.
+- `--by`, `--reason`, `--commit`, `--expect-hash`, `--as-human` and `--dry-run` are accepted by every writing command; `claim`, `log` and `matrix` keep their own `--by`.
+- New findings you may meet in an existing model: `W318` (`questions:` on a type that does not take it), `E724`–`E727` (malformed question entries), `W317` (a done item with an open question) and, when `[agents]` is configured, `W760`–`W762`.
+- The MCP server gains write tools `bind` and `scaffold` (hidden under `--read-only`) and read tools for the views above.
+
 ## 0.57.0 — 2026-10-28
 
 - **New:** a `TestCase` can verify architecture elements directly (REQ-TRS-TCELEM-001, #408). `verifiesElement:` names the `PartDef`, `InterfaceDef`, `ActionDef` or `StateDef` elements a test exercises (`E102` unresolved, `E129` wrong kind, `W019` when a variant removes the element). A test with only `verifiesElement:` satisfies `E013`.
