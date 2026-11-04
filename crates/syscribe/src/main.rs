@@ -69,6 +69,7 @@ mod context;
 mod contract;
 mod envmatrix;
 mod explain;
+mod explainfeature;
 mod qset;
 mod policy_gate;
 mod provenance;
@@ -2421,6 +2422,12 @@ fn main() {
                 let results = runhist::load_results(model_root);
                 let findings = validator::validate_with_config(&elems, &vcfg).findings;
                 let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "explain-feature" => {
+                let code = explainfeature::cmd_explain_feature(&elems, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

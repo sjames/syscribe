@@ -203,6 +203,16 @@ struct PropagateArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ExplainFeatureArgs {
+    /// The feature (qualified name or FEAT-* id).
+    feature: String,
+    /// Seed the choices from this Configuration.
+    from: Option<String>,
+    /// Explicit choices: feature -> selected. Overrides `from`.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -1898,6 +1908,23 @@ impl SyscribeMcp {
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Why one feature is forced on, forced off, free or in conflict for a partial selection, and what would have to \
+        change to select it: the smallest set of the user's choices and the model's constraints (kind, label, declaring feature, file) \
+        that cause the state, the choices any one of which can be dropped to make the feature selectable (or that the model alone \
+        prevents it), and with `from` the Configuration's parameter constraints that mention the feature. Same data as \
+        `syscribe explain-feature --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn explain_feature(&self, Parameters(args): Parameters<ExplainFeatureArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: args.from, select: args.select.unwrap_or_default(), stage: None };
+        match crate::explainfeature::compute(&store.elements, &args.feature, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
         }
     }
 

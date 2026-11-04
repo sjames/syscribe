@@ -36,13 +36,8 @@ pub fn parse_choice(s: &str) -> Result<(String, bool), String> {
     Ok((k.trim().to_string(), v))
 }
 
-pub fn compute(elements: &[RawElement], req: &Request) -> Result<Value, Fail> {
-    let stage = match req.stage.as_deref() {
-        None => None,
-        Some(s) => Some(syscribe_model::binding_time::BindingTime::parse(s).ok_or_else(|| {
-            (2, format!("Unknown stage '{s}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint()))
-        })?),
-    };
+/// The effective choices of `req`: the Configuration's own selection, overridden by `select`, in canonical keys.
+pub fn seed(elements: &[RawElement], req: &Request) -> Result<BTreeMap<String, bool>, Fail> {
     let alias = syscribe_model::variability::feature_id_to_qname(elements);
     let mut selection: BTreeMap<String, bool> = BTreeMap::new();
     if let Some(conf) = &req.from {
@@ -55,6 +50,17 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Result<Value, Fail> {
     for (k, v) in &req.select {
         selection.insert(syscribe_model::variability::canon_feature_ref(k, &alias), *v);
     }
+    Ok(selection)
+}
+
+pub fn compute(elements: &[RawElement], req: &Request) -> Result<Value, Fail> {
+    let stage = match req.stage.as_deref() {
+        None => None,
+        Some(s) => Some(syscribe_model::binding_time::BindingTime::parse(s).ok_or_else(|| {
+            (2, format!("Unknown stage '{s}'; the vocabulary is: {}", syscribe_model::binding_time::active().names_hint()))
+        })?),
+    };
+    let selection = seed(elements, req)?;
 
     let mut out = syscribe_model::feature_model::configure_selection(elements, &selection);
     let windows = syscribe_model::staging::feature_windows(elements);

@@ -18,6 +18,7 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `feature-check` | `feature-check [--deep] --json` | 1.0 |
 | `params-check` | `params check <FILE> --config <Configuration> --json` | 1.0 |
 | `propagate` | `propagate --json`, MCP `propagate`, LSP `syscribe/propagate` | 1.0 |
+| `explain-feature` | `explain-feature --json`, MCP `explain_feature`, LSP `syscribe/explainFeature` | 1.0 |
 | `model-changed` | LSP notification `syscribe/modelChanged` | 1.0 |
 
 ## 1.0 — first published version

@@ -56,6 +56,15 @@ struct PropagateParams {
     stage: Option<String>,
 }
 
+/// Parameters of the `syscribe/explainFeature` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExplainParams {
+    feature: String,
+    from: Option<String>,
+    select: Option<std::collections::BTreeMap<String, bool>>,
+}
+
 /// The notification a front end listens to (GH #415): what a reload changed.
 enum ModelChanged {}
 impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
@@ -332,6 +341,13 @@ impl Backend {
         crate::propagate::compute(&store.elements, &req).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/explainFeature` (GH #417): read-only; the same payload as `syscribe explain-feature --json`.
+    async fn explain_feature(&self, params: ExplainParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: params.from, select: params.select.unwrap_or_default(), stage: None };
+        crate::explainfeature::compute(&store.elements, &params.feature, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
     /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
     /// ends where it began (an edit and its undo) reports nothing.
     fn schedule_model_changed(&self) {
@@ -360,7 +376,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -597,6 +613,7 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
             sequence: Arc::new(AtomicU64::new(0)),
         })
         .custom_method("syscribe/propagate", Backend::propagate)
+        .custom_method("syscribe/explainFeature", Backend::explain_feature)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

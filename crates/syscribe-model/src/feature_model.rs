@@ -1200,8 +1200,24 @@ enum CKind {
     Excludes,
 }
 
+impl CKind {
+    fn name(self) -> &'static str {
+        match self {
+            CKind::ChildParent => "childImpliesParent",
+            CKind::Mandatory => "mandatory",
+            CKind::Root => "rootMandatory",
+            CKind::GroupAtLeast => "groupAtLeast",
+            CKind::GroupAtMost => "groupAtMost",
+            CKind::Requires => "requires",
+            CKind::Excludes => "excludes",
+        }
+    }
+}
+
 struct Constraint {
     kind: CKind,
+    /// The feature whose declaration produced it (for navigation).
+    owner: String,
     label: String,
     clauses: Vec<Vec<Lit>>,
 }
@@ -1491,12 +1507,14 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         if let Some(p) = &p {
             cons.push(Constraint {
                 kind: CKind::ChildParent,
+                owner: n.clone(),
                 label: format!("feature '{}' implies parent '{}'", n, p),
                 clauses: vec![vec![nv(n), v(p)]],
             });
             if is_mandatory {
                 cons.push(Constraint {
                     kind: CKind::Mandatory,
+                    owner: n.clone(),
                     label: format!("feature '{}' is mandatory under '{}'", n, p),
                     clauses: vec![vec![nv(p), v(n)]],
                 });
@@ -1504,6 +1522,7 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         } else if is_mandatory {
             cons.push(Constraint {
                 kind: CKind::Root,
+                owner: n.clone(),
                 label: format!("root feature '{}' is mandatory", n),
                 clauses: vec![vec![v(n)]],
             });
@@ -1522,6 +1541,7 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
                         }
                         cons.push(Constraint {
                             kind: CKind::GroupAtLeast,
+                            owner: n.clone(),
                             label: format!("group '{}' requires at least {} selected child(ren)", n, m),
                             clauses: vec![cl],
                         });
@@ -1533,6 +1553,7 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
                             let cl: Vec<Lit> = combo.iter().map(|c| nv(c)).collect();
                             cons.push(Constraint {
                                 kind: CKind::GroupAtMost,
+                                owner: n.clone(),
                                 label: format!("group '{}' allows at most {} selected child(ren)", n, nm),
                                 clauses: vec![cl],
                             });
@@ -1548,6 +1569,7 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
                 if fdef_set.contains(rq) {
                     cons.push(Constraint {
                         kind: CKind::Requires,
+                        owner: n.clone(),
                         label: format!("'{}' requires '{}'", n, rq),
                         clauses: vec![vec![nv(n), v(rq)]],
                     });
@@ -1560,6 +1582,7 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
                 if fdef_set.contains(xq) {
                     cons.push(Constraint {
                         kind: CKind::Excludes,
+                        owner: n.clone(),
                         label: format!("'{}' excludes '{}'", n, xq),
                         clauses: vec![vec![nv(n), nv(xq)]],
                     });
@@ -2340,6 +2363,137 @@ pub fn configure_selection(elements: &[RawElement], selection: &std::collections
         "products": { "count": count, "capped": capped }, "completion": completion,
         "unknown": unknown, "skipped": null, "featureModel": package,
     })
+}
+
+/// Why a feature is in the state a partial selection leaves it in, and what would have to change to select it
+/// (`REQ-TRS-EXPLAIN-001`, GH #417). The causes are the user's own choices and the model's constraints, each
+/// named by feature and file so a front end can link to it. Agrees with `feature-check --deep`: a constraint set
+/// here is a minimal core of the same encoding that reports a void model's conflicts.
+pub fn explain_feature(elements: &[RawElement], selection: &std::collections::BTreeMap<String, bool>, feature: &str) -> serde_json::Value {
+    use serde_json::json;
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if fdefs.is_empty() || fdefs.len() > MAX_DEEP_FEATURES {
+        return json!({ "found": false, "hasFeatureModel": !fdefs.is_empty(), "feature": feature, "state": null, "because": null, "toSelect": null,
+            "skipped": if fdefs.is_empty() { serde_json::Value::Null } else { json!(format!("explanation skipped: {} features exceeds the limit of {}", fdefs.len(), MAX_DEEP_FEATURES)) } });
+    }
+    let enc = build_encoding(&fdefs);
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let target = crate::variability::canon_feature_ref(feature, &alias);
+    let Some(&t) = enc.var_of.get(&target) else {
+        return json!({ "found": false, "hasFeatureModel": true, "feature": feature, "state": null, "because": null, "toSelect": null, "skipped": null });
+    };
+    let mut chosen: Vec<(usize, bool)> = selection
+        .iter()
+        .filter_map(|(k, v)| enc.var_of.get(&crate::variability::canon_feature_ref(k, &alias)).map(|i| (*i, *v)))
+        .collect();
+    chosen.sort();
+    chosen.dedup();
+    let lit = |(i, v): (usize, bool)| if v { Lit::pos(i) } else { Lit::neg(i) };
+    let mut sat = Probe::new(&enc.cnf());
+    // The smallest subset of `from` that, with `extra`, cannot be satisfied (deletion-based, so minimal).
+    let shrink = |sat: &mut Probe, from: &[(usize, bool)], extra: &[Lit]| -> Vec<(usize, bool)> {
+        let mut keep = from.to_vec();
+        let mut i = 0;
+        while i < keep.len() {
+            let trial: Vec<Lit> = keep.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, c)| lit(*c)).chain(extra.iter().copied()).collect();
+            if !sat.sat(&trial) {
+                keep.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        keep
+    };
+    let choice_json = |c: &(usize, bool)| json!({ "feature": enc.names[c.0], "selected": c.1, "file": enc.files.get(&enc.names[c.0]) });
+    let constraints_json = |lits: &[Lit]| -> Vec<serde_json::Value> {
+        let core = enc.unsat_core(lits);
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        for c in core {
+            let con = &enc.cons[c];
+            if !seen.insert(con.label.clone()) {
+                continue;
+            }
+            let mut feats: Vec<String> = con.clauses.iter().flatten().filter(|l| l.var < enc.names.len()).map(|l| enc.names[l.var].clone()).collect();
+            feats.sort();
+            feats.dedup();
+            out.push(json!({ "kind": con.kind.name(), "label": con.label, "owner": con.owner, "features": feats, "file": enc.files.get(&con.owner) }));
+        }
+        out.sort_by(|a, b| a["label"].as_str().cmp(&b["label"].as_str()));
+        out
+    };
+    let all: Vec<Lit> = chosen.iter().map(|c| lit(*c)).collect();
+    let own: Option<bool> = chosen.iter().find(|(i, _)| *i == t).map(|(_, v)| *v);
+    let base = json!({ "found": true, "hasFeatureModel": true, "feature": enc.names[t], "file": enc.files.get(&enc.names[t]), "skipped": null });
+    let mut out = base.as_object().unwrap().clone();
+
+    // The choices clash among themselves: nothing about this feature can be said until that is resolved.
+    if !sat.sat(&all) {
+        let k = shrink(&mut sat, &chosen, &[]);
+        let kl: Vec<Lit> = k.iter().map(|c| lit(*c)).collect();
+        out.insert("state".into(), json!("conflict"));
+        out.insert("because".into(), json!({ "choices": k.iter().map(&choice_json).collect::<Vec<_>>(), "constraints": constraints_json(&kl) }));
+        out.insert("toSelect".into(), json!(null));
+        return serde_json::Value::Object(out);
+    }
+
+    // Why it is in the state it is in.
+    let others: Vec<(usize, bool)> = chosen.iter().filter(|(i, _)| *i != t).cloned().collect();
+    let other_lits: Vec<Lit> = others.iter().map(|c| lit(*c)).collect();
+    let can_on = {
+        let mut a = all.clone();
+        if own.is_none() {
+            a.push(Lit::pos(t));
+        }
+        sat.sat(&a)
+    };
+    let can_off = {
+        let mut a = all.clone();
+        if own.is_none() {
+            a.push(Lit::neg(t));
+        }
+        sat.sat(&a)
+    };
+    let state = match own {
+        Some(true) => "selected",
+        Some(false) => "deselected",
+        None if !can_off => "forcedOn",
+        None if !can_on => "forcedOff",
+        None => "free",
+    };
+    let because = match state {
+        "forcedOn" | "forcedOff" => {
+            let against = if state == "forcedOn" { Lit::neg(t) } else { Lit::pos(t) };
+            let k = shrink(&mut sat, &chosen, &[against]);
+            let mut lits: Vec<Lit> = k.iter().map(|c| lit(*c)).collect();
+            lits.push(against);
+            json!({ "choices": k.iter().map(&choice_json).collect::<Vec<_>>(), "constraints": constraints_json(&lits) })
+        }
+        _ => json!(null),
+    };
+
+    // What would have to change to select it.
+    let to_select = if state == "selected" {
+        json!({ "needed": false })
+    } else if sat.sat(&[other_lits.clone(), vec![Lit::pos(t)]].concat()) {
+        // Possible once the user's own deselection is dropped (or nothing blocks it).
+        json!({ "needed": true, "options": if own == Some(false) { vec![json!({ "drop": choice_json(&(t, false)), "note": "the feature is deselected by this choice alone" })] } else { vec![] } })
+    } else {
+        let k = shrink(&mut sat, &others, &[Lit::pos(t)]);
+        if k.is_empty() {
+            // Blocked by the model alone: it cannot be selected in any product.
+            let constraints = constraints_json(&[Lit::pos(t)]);
+            json!({ "needed": true, "options": [], "modelLevel": true, "constraints": constraints })
+        } else {
+            // K is minimal, so dropping any one of its choices makes the feature selectable.
+            let options: Vec<_> = k.iter().map(|c| json!({ "drop": choice_json(c) })).collect();
+            json!({ "needed": true, "options": options, "modelLevel": false })
+        }
+    };
+    out.insert("state".into(), json!(state));
+    out.insert("because".into(), because);
+    out.insert("toSelect".into(), to_select);
+    serde_json::Value::Object(out)
 }
 
 /// What a feature affects (`REQ-TRS-FMED-005`): the elements whose `appliesWhen:`

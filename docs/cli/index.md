@@ -248,6 +248,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `propagate [--from <Configuration>] [--select <feature>=<bool>]... [--stage <stage>] [--json]` (GH #416) is live propagation for a partial selection: the features forced on, forced off or free, whether the choices can be completed (else which choices clash and the constraints they clash with), the products that remain and one completion, without writing a file. For a Configuration's own selection it equals `configure`; `--stage` defers features bound at another stage. The MCP tool `propagate` and the LSP request `syscribe/propagate` return the same payload (schema `propagate`). The engine is the web configurator's, so a 2,000-feature model stays interactive (`REQ-TRS-FMED-007`).
 
+`explain-feature <feature> [--from <Configuration>] [--select <feature>=<bool>]... [--json]` (GH #417) says why a feature is forced on, forced off, free or in conflict for a partial selection, and what would have to change to select it: the smallest set of choices and constraints (each with kind, label, declaring feature and file) behind the state, the choices any one of which can be dropped, or that the model alone prevents it (as `feature-check --deep` reports for a dead feature). With a Configuration it also lists the parameter constraints that mention the feature. The MCP tool `explain_feature` and the LSP request `syscribe/explainFeature` return the same payload.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1981,6 +1983,14 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `explain-feature` — why a feature is in its state
+
+```bash
+syscribe -m model/ explain-feature <feature> [--from CONF] [--select FEAT-X=true]... [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help explain-feature` has the options.
 
 ## `propagate` — what a partial selection forces
 

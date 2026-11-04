@@ -64,6 +64,10 @@ Advertised in `initialize`:
 - **Propagation request** (`syscribe/propagate`, GH #416) — read-only; params `{from?, select?, stage?}`, result
   the `propagate` payload (`syscribe schema propagate`): features forced on, forced off or free for a partial
   selection, without writing a file.
+- **Explanation request** (`syscribe/explainFeature`, GH #417) — read-only; params `{feature, from?, select?}`,
+  result the `explain-feature` payload (`syscribe schema explain-feature`): a feature's state for a partial
+  selection, the choices and constraints (with kind, declaring feature and file) that cause it, and what would
+  have to change to select it.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never
