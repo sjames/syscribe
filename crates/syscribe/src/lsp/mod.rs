@@ -75,6 +75,21 @@ struct ChildrenParams {
     limit: Option<usize>,
 }
 
+/// Parameters of the `syscribe/changeImpact` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImpactParams {
+    element: String,
+    set: Option<serde_json::Value>,
+    parameter: Option<ImpactParameter>,
+}
+
+#[derive(serde::Deserialize)]
+struct ImpactParameter {
+    name: String,
+    set: serde_json::Value,
+}
+
 /// The notification a front end listens to (GH #415): what a reload changed.
 enum ModelChanged {}
 impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
@@ -366,6 +381,13 @@ impl Backend {
         crate::children::compute(&store.elements, &findings, &req).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/changeImpact` (GH #423): evaluated on a candidate copy, nothing is written.
+    async fn change_impact(&self, params: ImpactParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let req = crate::changeimpact::Request { element: params.element, set: params.set, parameter: params.parameter.map(|p| (p.name, p.set)) };
+        crate::changeimpact::compute(&store.model_root, &store.elements, &store.config, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
     /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
     /// ends where it began (an edit and its undo) reports nothing.
     fn schedule_model_changed(&self) {
@@ -394,7 +416,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -633,6 +655,7 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
         .custom_method("syscribe/propagate", Backend::propagate)
         .custom_method("syscribe/explainFeature", Backend::explain_feature)
         .custom_method("syscribe/children", Backend::children)
+        .custom_method("syscribe/changeImpact", Backend::change_impact)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

@@ -18,6 +18,7 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `feature-check` | `feature-check [--deep] --json` | 1.0 |
 | `params-check` | `params check <FILE> --config <Configuration> --json` | 1.0 |
 | `propagate` | `propagate --json`, MCP `propagate`, LSP `syscribe/propagate` | 1.0 |
+| `change-impact` | `change-impact --json`, MCP `change_impact`, LSP `syscribe/changeImpact` | 1.0 |
 | `children` | `children --json`, MCP `children`, LSP `syscribe/children` | 1.0 |
 | `explain-feature` | `explain-feature --json`, MCP `explain_feature`, LSP `syscribe/explainFeature` | 1.0 |
 | `model-changed` | LSP notification `syscribe/modelChanged` | 1.0 |
@@ -25,6 +26,8 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 ## Additive changes within 1.0
 
 - `matrix` gained `gaps` (GH #424): one entry per cell needing work, with the action to take, the linked tests and, for `create-test`, a suggested test id. Existing properties are unchanged.
+
+- `diff` gained `changes` (GH #423): each differing element with its type, side and `location` (file and line).
 
 ## 1.0 — first published version
 

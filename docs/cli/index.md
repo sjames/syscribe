@@ -254,6 +254,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `children [<node>] [--view containment|configurations] [--offset N] [--limit N] [--json]` (GH #425) returns one tree node's direct children for an explorer: id, type, status, file, package/has-children flags and counters (children, derived children, verifying tests, errors and warnings; a package's are those of its subtree), one page per call with `nextOffset`. `--view configurations` is the Configuration tree along `derivedFrom:` and `subConfigurations:`. The MCP tool `children` and the LSP request `syscribe/children` return the same payload.
 
+`change-impact <element> [--set <field>=<yaml>]... [--param <name> --param-set <field>=<yaml>]... [--json]` (GH #423) says which Configurations a proposed edit to a feature, constraint or parameter range would affect, before it is made. The edit is applied to a candidate copy by the guarded-write engine in dry-run mode, so nothing on disk changes. Per Configuration it reports errors before and after (its variant's findings and its feature-model validity), whether it became invalid or valid, the new and resolved errors and the elements entering or leaving its projection, with the unified diff and the element's file and line. `diff --config A --config B --json` also lists each differing element with its location. The MCP tool `change_impact` and the LSP request `syscribe/changeImpact` return the same payload.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1987,6 +1989,15 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `change-impact` — what an edit would affect
+
+```bash
+syscribe -m model/ change-impact <element> --set requires='[Features::B]' [--json]
+syscribe -m model/ change-impact FEAT-X --param motorKV --param-set range="900..1000"
+```
+
+See the paragraph near the top of this page; `syscribe help change-impact` has the options.
 
 ## `children` — explorer tree data
 

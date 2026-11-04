@@ -3651,10 +3651,26 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
     }
 
     if json {
+        // Where each differing element lives (GH #423), so a front end can jump to it.
+        let change = |side: &str, ids: &[&String], view: &[RawElement]| -> Vec<serde_json::Value> {
+            ids.iter()
+                .filter_map(|id| view.iter().find(|e| &id_or_qn(e) == *id))
+                .map(|e| serde_json::json!({
+                    "element": id_or_qn(e),
+                    "qualifiedName": e.qualified_name,
+                    "type": type_label(e.frontmatter.element_type.as_ref().unwrap_or(&ElementType::Unknown)),
+                    "side": side,
+                    "location": crate::changeimpact::location(e),
+                }))
+                .collect()
+        };
+        let mut changes = change("onlyInA", &only_a, &view_a);
+        changes.extend(change("onlyInB", &only_b, &view_b));
         let mut out = serde_json::json!({
             "schemaVersion": "1.0",
             "onlyInA": only_a,
             "onlyInB": only_b,
+            "changes": changes,
         });
         if !meta_diff.is_empty() {
             out["metadata"] = serde_json::json!(meta_diff

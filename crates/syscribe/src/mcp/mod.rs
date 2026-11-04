@@ -223,6 +223,22 @@ struct ChildrenArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangeImpactArgs {
+    /// The element to edit (qualified name or id).
+    element: String,
+    /// Frontmatter fields to set (null removes a key).
+    set: Option<serde_json::Value>,
+    /// Edit one entry of the element's `parameters:` list.
+    parameter: Option<ChangeImpactParameter>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangeImpactParameter {
+    name: String,
+    set: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -1918,6 +1934,22 @@ impl SyscribeMcp {
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Which Configurations change validity or projection if a feature, constraint or parameter is edited as proposed. \
+        The edit is applied to a candidate copy by the guarded-write engine in dry-run mode; nothing is written. Per Configuration: errors \
+        before and after, whether it became invalid or valid, the new and resolved errors and the elements added to or removed from its \
+        projection, plus the unified diff and the element's location. Same data as `syscribe change-impact --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn change_impact(&self, Parameters(args): Parameters<ChangeImpactArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::changeimpact::Request { element: args.element, set: args.set, parameter: args.parameter.map(|p| (p.name, p.set)) };
+        match crate::changeimpact::compute(&store.model_root, &store.elements, &store.config, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
         }
     }
 

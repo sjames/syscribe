@@ -71,6 +71,9 @@ Advertised in `initialize`:
 - **Tree request** (`syscribe/children`, GH #425) — read-only; params `{of?, view?, offset?, limit?}`, result the
   `children` payload (`syscribe schema children`): the direct children of a node with counters, one page per call,
   for the containment tree or the Configuration tree.
+- **Impact request** (`syscribe/changeImpact`, GH #423) — params `{element, set?, parameter?}`; the edit is evaluated
+  on a candidate copy and nothing is written. Result the `change-impact` payload (`syscribe schema change-impact`):
+  per Configuration, validity before and after and projection changes.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

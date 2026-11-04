@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/change-impact.schema.json",
+  "title": "syscribe change-impact --json / MCP change_impact / LSP syscribe/changeImpact",
+  "description": "Stable contract (GH #423). Computed on a candidate copy; nothing is written. A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "element",
+    "qualifiedName",
+    "location",
+    "written",
+    "configurations",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "element": {
+      "type": "string"
+    },
+    "qualifiedName": {
+      "type": "string"
+    },
+    "location": {
+      "type": "object",
+      "required": [
+        "file",
+        "line"
+      ],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        }
+      },
+      "description": "Jump-to-source ready."
+    },
+    "written": {
+      "const": false
+    },
+    "diff": {
+      "type": "string"
+    },
+    "configurations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "configuration",
+          "changed",
+          "validityBefore",
+          "validityAfter",
+          "becameInvalid",
+          "becameValid",
+          "newErrors",
+          "resolvedErrors",
+          "projection"
+        ],
+        "properties": {
+          "configuration": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "validityBefore": {
+            "type": "object",
+            "required": [
+              "errors"
+            ],
+            "properties": {
+              "errors": {
+                "type": "integer"
+              }
+            }
+          },
+          "validityAfter": {
+            "type": "object",
+            "required": [
+              "errors"
+            ],
+            "properties": {
+              "errors": {
+                "type": "integer"
+              }
+            }
+          },
+          "becameInvalid": {
+            "type": "boolean"
+          },
+          "becameValid": {
+            "type": "boolean"
+          },
+          "newErrors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "file",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "resolvedErrors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "file",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "projection": {
+            "type": "object",
+            "required": [
+              "added",
+              "removed"
+            ],
+            "properties": {
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "removed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "configurations",
+        "changed",
+        "becameInvalid",
+        "becameValid",
+        "projectionChanged"
+      ],
+      "properties": {
+        "configurations": {
+          "type": "integer"
+        },
+        "changed": {
+          "type": "integer"
+        },
+        "becameInvalid": {
+          "type": "integer"
+        },
+        "becameValid": {
+          "type": "integer"
+        },
+        "projectionChanged": {
+          "type": "integer"
+        }
+      }
+    },
+    "modelFindings": {
+      "type": "object",
+      "properties": {
+        "newErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "file",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "newWarnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "file",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -30,6 +30,51 @@
     },
     "schemaVersion": {
       "const": "1.0"
+    },
+    "changes": {
+      "type": "array",
+      "description": "Each element that is in one variant and not the other, with where it lives (GH #423).",
+      "items": {
+        "type": "object",
+        "required": [
+          "element",
+          "side",
+          "location"
+        ],
+        "properties": {
+          "element": {
+            "type": "string"
+          },
+          "qualifiedName": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "onlyInA",
+              "onlyInB"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "required": [
+              "file",
+              "line"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              }
+            },
+            "description": "Jump-to-source ready."
+          }
+        }
+      }
     }
   }
 }

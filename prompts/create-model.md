@@ -233,6 +233,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ check-staged [--install-hook]` / `impact --files <path>... \| --since <rev>` | Validate only what is staged (a pre-commit gate), or see what changed files affect — the elements bound to them and what those reach, marked changed or not |
 | `syscribe -m model/ changes <revA> [<revB>]` / `validate --new-since <rev>` | Element-level diff between git revisions (status moves, links, evidence, broken refs); gate `validate` only on findings not present at `<rev>` |
 | `syscribe capabilities --json` / `syscribe schema [<name>]` | What this binary supports and the JSON Schema of each stable `--json` form (no model needed) |
+| `syscribe -m model/ change-impact <element> --set <field>=<yaml>` | Which Configurations a proposed feature/constraint/parameter edit would break or re-project, evaluated on a copy |
 | `syscribe -m model/ children [<node>] [--view configurations]` | One page of a tree node's direct children with counters (explorer data) |
 | `syscribe -m model/ explain-feature <feature> [--from CONF] [--select FEAT-X=true]` | Why a feature is forced on/off or free for a selection, and which choice to drop to select it |
 | `syscribe -m model/ propagate [--from CONF] [--select FEAT-X=true]` | What a partial feature selection forces on, off or leaves free, with clashes explained — no file written |

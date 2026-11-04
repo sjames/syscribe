@@ -65,6 +65,7 @@ mod scripting;
 mod set;
 mod suggest;
 mod typehelp;
+mod changeimpact;
 mod children;
 mod context;
 mod contract;
@@ -2423,6 +2424,12 @@ fn main() {
                 let results = runhist::load_results(model_root);
                 let findings = validator::validate_with_config(&elems, &vcfg).findings;
                 let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "change-impact" => {
+                let code = changeimpact::cmd_change_impact(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }
