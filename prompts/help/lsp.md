@@ -83,6 +83,11 @@ Advertised in `initialize`:
   `enumValues:` of the parameter being bound; and the stage names of the binding-time vocabulary for `bindingTime:`,
   `latestBindingTime:` and `bindingStage:`. Items are documented (type, unit, range, default, window) and replace
   the whole token under the cursor.
+- **Variability hover and lenses** (GH #420) — hovering `appliesWhen:` lists the Configurations the element is
+  active in; hovering a `parameterBindings:` or `parameterNarrowing:` key of a Configuration shows the parameter's
+  type, unit, range, window and default, the stage it is bound at and the parameter constraints it takes part in
+  with their state. A code lens above a gated element reads `active in N of M configurations`; one on each
+  parameter of a `FeatureDef` reads `bound at <stage> by <Configuration>` or `unbound — default …`.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

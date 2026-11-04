@@ -17,6 +17,7 @@
 mod actions;
 mod completion;
 mod ple_completion;
+mod ple_hover;
 mod rename;
 mod store;
 
@@ -519,6 +520,10 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let Ok(path) = uri.to_file_path() else { return Ok(None) };
         let store = self.store.read().await;
+        // Variability context first (the `appliesWhen:` key, a `parameterBindings:` key); else the token's element.
+        if let Some(h) = ple_hover::hover(&store, &path, position) {
+            return Ok(Some(h));
+        }
         let Some(elem) = resolve_token_element(&store, &path, position) else { return Ok(None) };
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: hover_markdown(elem) }),
