@@ -104,6 +104,7 @@ nav:
       - Appendix A — Tool Mapping: guides/tool-mapping.md
       - Appendix C — Quick Reference: guides/quick-reference.md
       - Appendix D — Scripting: guides/scripting.md
+      - Front-end CI: guides/frontend-ci.md
   - Web Browser:
       - browser/index.md
   - Tool Qualification:
