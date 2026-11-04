@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/bind.schema.json",
+  "title": "syscribe bind --json",
+  "description": "Stable contract (GH #418). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "configuration",
+    "target",
+    "value",
+    "written",
+    "newErrors",
+    "resolvedErrors",
+    "newWarnings",
+    "resolvedWarnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "configuration": {
+      "type": "string"
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "kind",
+        "key"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "selection",
+            "parameter"
+          ]
+        },
+        "key": {
+          "type": "string"
+        }
+      }
+    },
+    "value": {},
+    "previous": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The effective value before the change and where it came from.",
+      "properties": {
+        "value": {},
+        "source": {
+          "type": "string"
+        },
+        "stage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "stage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "written": {
+      "type": "boolean"
+    },
+    "refused": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "diff": {
+      "type": "string"
+    },
+    "newErrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resolvedErrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "newWarnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resolvedWarnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

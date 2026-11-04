@@ -65,6 +65,7 @@ mod scripting;
 mod set;
 mod suggest;
 mod typehelp;
+mod bind;
 mod changeimpact;
 mod children;
 mod context;
@@ -85,6 +86,7 @@ mod sysml_export;
 mod view_render;
 mod testplan;
 mod textstats;
+mod timeline;
 mod topics;
 mod trace_export;
 mod tradestudy;
@@ -2427,6 +2429,16 @@ fn main() {
                 if code != 0 {
                     std::process::exit(code);
                 }
+            }
+            "timeline" => {
+                let code = timeline::cmd_timeline(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "bind" => {
+                let code = bind::cmd_bind(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
             }
             "change-impact" => {
                 let code = changeimpact::cmd_change_impact(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));

@@ -122,6 +122,11 @@ stable id, a qualified name, or a display name. List/grid tools accept
   upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
   state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
   several show/trace/links calls. Same data as `syscribe context --format json`.
+- `timeline {configuration}` — the derivedFrom chain root first with what each stage decided, the effective
+  values with provenance (source and stage) and what is still open. Same data as `syscribe timeline --json`.
+- `bind {configuration, target, value, dry_run?}` — write one parameterBindings value or features selection into
+  a Configuration, checked first (range, enumeration, unit, stage window, narrowing); previews unless `dry_run` is
+  false and refuses a change that adds an error. Returns the guarded-write result with `target`, `previous`, `stage`.
 - `change_impact {element, set?, parameter?}` — which Configurations change validity or projection if a feature,
   constraint or parameter range were edited as proposed; evaluated on a candidate copy, nothing written. Same data
   as `syscribe change-impact --json`.
@@ -271,6 +276,11 @@ the proposed change without touching disk. Pass `dry_run: false` to commit.
 `question {item, op: add|answer|defer, text?, recommended?, id?, by?}` records, answers or defers a
 PlanningItem's inline question (see `questions`) through the same guarded write. It edits only the
 affected entry, which `update_element` cannot (it replaces the whole `questions:` list).
+
+`bind {configuration, target, value}` writes one `parameterBindings:` value or `features:` selection into a
+Configuration. It edits only the affected line and, unlike the other write tools, refuses a change that adds *any*
+error (a range, an enumeration, a stage window, a narrowing), not only a gating one: the change is previewed first and
+committed only when clean. Its result adds `target`, `previous` (the value replaced and its source) and `stage`.
 
 The delta (`validationDelta`) lists every finding the change introduces or
 resolves: `newErrors` / `resolvedErrors` / `newWarnings` / `resolvedWarnings`.

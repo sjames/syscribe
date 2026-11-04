@@ -239,6 +239,26 @@ struct ChangeImpactParameter {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct TimelineArgs {
+    /// The Configuration (id or qualified name).
+    configuration: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct BindArgs {
+    /// The Configuration to write into (id or qualified name).
+    configuration: String,
+    /// A feature (selection) or `<feature>.<parameter>` (binding), by qualified name or FEAT-* id.
+    target: String,
+    /// The value: true/false for a selection; a number or text for a parameter.
+    value: serde_json::Value,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct StepsArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -801,6 +821,16 @@ fn tool_error(msg: impl Into<String>) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::error(vec![Content::text(msg.into())]))
 }
 
+/// The same finding can be raised by two checks: keep each (code, message) once in a result's `validationDelta`.
+fn dedupe_delta(res: &mut Value) {
+    if let Some(d) = res.get_mut("validationDelta").and_then(Value::as_object_mut) {
+        for list in d.values_mut().filter_map(Value::as_array_mut) {
+            let mut seen = std::collections::HashSet::new();
+            list.retain(|e| seen.insert((e["code"].to_string(), e["message"].to_string())));
+        }
+    }
+}
+
 fn extra_map(pairs: Value) -> Map<String, Value> {
     pairs.as_object().cloned().unwrap_or_default()
 }
@@ -1338,6 +1368,7 @@ const WRITE_TOOLS: &[&str] = &[
     "ingest_results",
     "suspect_accept",
     "edit_feature",
+    "bind",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -1935,6 +1966,65 @@ impl SyscribeMcp {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
         }
+    }
+
+    #[tool(
+        description = "What each stage of a Configuration's derivedFrom chain decided: the chain from the root, each step with the \
+        selections and parameter bindings it made itself and its bindingStage, the effective values with their provenance (source \
+        kind and the stage that bound them), and what is still open by the stage it can be bound at. Same data as `syscribe timeline --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn timeline(&self, Parameters(args): Parameters<TimelineArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::timeline::compute(&store.elements, &args.configuration) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Write one parameterBindings value or features selection into a Configuration, checked first: the parameter's range \
+        and enumValues, its unit, the stage window it may be bound in and the narrowing the derivedFrom chain allows are the validator's \
+        own checks. Through the guarded write (dry_run defaults to true): returns the value replaced and where it came from, the diff and \
+        the errors and warnings the change would add or resolve; a change that adds an error is refused. Same data as `syscribe bind --json`.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn bind(&self, Parameters(args): Parameters<BindArgs>, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let req = crate::bind::Request { configuration: args.configuration.clone(), target: args.target.clone(), value: args.value.clone() };
+        let plan = match crate::bind::plan(&store.elements, &req) {
+            Ok(p) => p,
+            Err((_, m)) => return tool_error(m),
+        };
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&plan.file))) {
+            return tool_error(m);
+        }
+        let rel = rel_file(&plan.file, &store.model_root);
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
+        let summary_line = format!("bind {} {} {}", plan.configuration, plan.key, args.value);
+        let extra = extra_map(json!({ "target": { "kind": plan.kind, "key": plan.key }, "previous": plan.previous, "stage": plan.stage, "configuration": plan.configuration }));
+        let content = plan.new_content.clone();
+        let apply = move |root: &Path| -> Result<(), String> { std::fs::write(root.join(&rel), &content).map_err(|e| e.to_string()) };
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        // The guarded write only gates unresolved references; a binding must also not add *any* error (a range, a unit,
+        // a stage window, a narrowing), so preview first and commit only a clean one.
+        let mut preview = guarded_write(&mut store, true, true, extra.clone(), &apply);
+        dedupe_delta(&mut preview);
+        let new_errors = preview["validationDelta"]["newErrors"].as_array().map_or(0, Vec::len);
+        let mut res = if args.dry_run {
+            preview
+        } else if new_errors > 0 {
+            preview["reason"] = json!(format!("refused: the binding would introduce {new_errors} error(s)"));
+            preview
+        } else {
+            guarded_write(&mut store, false, true, extra, &apply)
+        };
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "bind", &summary_line, snapshot);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(

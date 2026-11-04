@@ -90,6 +90,12 @@ struct ImpactParameter {
     set: serde_json::Value,
 }
 
+/// Parameters of the `syscribe/timeline` request.
+#[derive(serde::Deserialize)]
+struct TimelineParams {
+    configuration: String,
+}
+
 /// The notification a front end listens to (GH #415): what a reload changed.
 enum ModelChanged {}
 impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
@@ -388,6 +394,12 @@ impl Backend {
         crate::changeimpact::compute(&store.model_root, &store.elements, &store.config, &req).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/timeline` (GH #418): read-only; the same payload as `syscribe timeline --json`.
+    async fn timeline(&self, params: TimelineParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        crate::timeline::compute(&store.elements, &params.configuration).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
     /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
     /// ends where it began (an edit and its undo) reports nothing.
     fn schedule_model_changed(&self) {
@@ -416,7 +428,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -656,6 +668,7 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
         .custom_method("syscribe/explainFeature", Backend::explain_feature)
         .custom_method("syscribe/children", Backend::children)
         .custom_method("syscribe/changeImpact", Backend::change_impact)
+        .custom_method("syscribe/timeline", Backend::timeline)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

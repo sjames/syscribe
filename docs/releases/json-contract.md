@@ -18,6 +18,8 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `feature-check` | `feature-check [--deep] --json` | 1.0 |
 | `params-check` | `params check <FILE> --config <Configuration> --json` | 1.0 |
 | `propagate` | `propagate --json`, MCP `propagate`, LSP `syscribe/propagate` | 1.0 |
+| `bind` | `bind --json` | 1.0 |
+| `timeline` | `timeline --json`, MCP `timeline`, LSP `syscribe/timeline` | 1.0 |
 | `change-impact` | `change-impact --json`, MCP `change_impact`, LSP `syscribe/changeImpact` | 1.0 |
 | `children` | `children --json`, MCP `children`, LSP `syscribe/children` | 1.0 |
 | `explain-feature` | `explain-feature --json`, MCP `explain_feature`, LSP `syscribe/explainFeature` | 1.0 |

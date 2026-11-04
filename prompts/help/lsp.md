@@ -74,6 +74,9 @@ Advertised in `initialize`:
 - **Impact request** (`syscribe/changeImpact`, GH #423) — params `{element, set?, parameter?}`; the edit is evaluated
   on a candidate copy and nothing is written. Result the `change-impact` payload (`syscribe schema change-impact`):
   per Configuration, validity before and after and projection changes.
+- **Timeline request** (`syscribe/timeline`, GH #418) — read-only; params `{configuration}`, result the `timeline`
+  payload (`syscribe schema timeline`): the `derivedFrom:` chain with what each stage decided, the effective values
+  with provenance and what is still open.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

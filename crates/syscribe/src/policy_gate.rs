@@ -28,7 +28,7 @@ pub fn agent_active() -> bool {
 pub fn is_model_write(command: &str, args: &[String]) -> bool {
     let has = |f: &str| args.iter().any(|a| a == f);
     match command {
-        "set" | "claim" | "release" | "move" | "import-reqif" | "ingest-results" => true,
+        "set" | "claim" | "release" | "move" | "import-reqif" | "ingest-results" | "bind" => true,
         "applies-when" => has("--set") || has("--clear"),
         "scaffold-gherkin" => has("--fix"),
         "baseline" => args.first().map(String::as_str) == Some("create"),
