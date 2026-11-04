@@ -16,6 +16,7 @@
 
 mod actions;
 mod completion;
+mod ple_completion;
 mod rename;
 mod store;
 

@@ -77,6 +77,12 @@ Advertised in `initialize`:
 - **Timeline request** (`syscribe/timeline`, GH #418) — read-only; params `{configuration}`, result the `timeline`
   payload (`syscribe schema timeline`): the `derivedFrom:` chain with what each stage decided, the effective values
   with provenance and what is still open.
+- **Product-line completion** (GH #419) — `textDocument/completion` also knows the variability fields: feature
+  qualified names and `FEAT-*` ids in `appliesWhen:`, a Configuration's `features:` keys, `requires:` and
+  `excludes:`; parameter paths in `parameterBindings:` keys and `parameterConstraints:` expressions; the
+  `enumValues:` of the parameter being bound; and the stage names of the binding-time vocabulary for `bindingTime:`,
+  `latestBindingTime:` and `bindingStage:`. Items are documented (type, unit, range, default, window) and replace
+  the whole token under the cursor.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never
