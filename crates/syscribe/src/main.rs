@@ -89,6 +89,7 @@ mod view_render;
 mod testplan;
 mod textstats;
 mod timeline;
+mod timing;
 mod topics;
 mod trace_export;
 mod tradestudy;
@@ -2435,6 +2436,12 @@ fn main() {
             "new" => {
                 let code = newcmd::cmd_new(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
                 provenance::exit(code);
+            }
+            "timing" => {
+                let code = timing::cmd_timing(model_root, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "timeline" => {
                 let code = timeline::cmd_timeline(&elems, subcommand_args.get(1..).unwrap_or(&[]));

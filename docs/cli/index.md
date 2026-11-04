@@ -262,6 +262,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `new feature|configuration|parameter` (GH #427) scaffolds what an author would otherwise get wrong: a `FeatureDef` with a free derived `FEAT-*` id under a package or group feature; a `Configuration` with a valid `CONF-*` id derived from a base at a real, not-earlier `bindingStage:`; a parameter appended to a feature with type, unit, range or enumeration, default and an ordered binding window. Each is previewed through the guarded-write engine (`--dry-run`) and committed only when it adds no error; the MCP tool `scaffold` previews by default.
 
+`timing [--json]` (GH #429) loads the model and validates it once and reports each phase — load, validate, and every Configuration's projected validation — with the counts, the peak memory and whether the build is debug or release. It is the measurement behind the decision recorded in [incremental validation](../design/incremental-validation.md): the largest model of this project loads and validates in 79 ms in a release build against a 250 ms target, so incremental revalidation is not built; run `timing` on your own model to check.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1995,6 +1997,14 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `timing` — where the time goes
+
+```bash
+syscribe -m model/ timing [--json]
+```
+
+See the paragraph near the top of this page and [incremental validation](../design/incremental-validation.md).
 
 ## `new` — scaffolding
 

@@ -112,6 +112,7 @@ nav:
       - Suspect Links: design/suspect-links.md
       - Visualisation: design/visualisation.md
       - MCP Memory: design/mcp-memory.md
+      - Incremental validation: design/incremental-validation.md
       - Feature Model Editor: design/feature-model-editor.md
       - Fault Injection: design/fault-injection.md
       - FMI Plant Co-simulation: design/fmi-plant-cosimulation.md

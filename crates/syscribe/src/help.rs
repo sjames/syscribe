@@ -169,6 +169,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         &[
             ("context", include_str!("../../../prompts/help/context.md")),
             ("new", include_str!("../../../prompts/help/new.md")),
+            ("timing", include_str!("../../../prompts/help/timing.md")),
             ("timeline", include_str!("../../../prompts/help/timeline.md")),
             ("bind", include_str!("../../../prompts/help/bind.md")),
             ("change-impact", include_str!("../../../prompts/help/change-impact.md")),
