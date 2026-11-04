@@ -88,6 +88,11 @@ Advertised in `initialize`:
   type, unit, range, window and default, the stage it is bound at and the parameter constraints it takes part in
   with their state. A code lens above a gated element reads `active in N of M configurations`; one on each
   parameter of a `FeatureDef` reads `bound at <stage> by <Configuration>` or `unbound — default …`.
+- **Product-line quick fixes** (GH #421) — `textDocument/codeAction` also offers a fix for `E222` (the closest
+  declared parameter), `E754` (remove the rebinding), `E751` (a valid `bindingStage`), `E752` (remove the binding or
+  selection the stage cannot make), `E756` (a value inside what was narrowed), `W016` (`selections:` → `features:`)
+  and `E201` on a `FeatureDef` (a derived `FEAT-*` id). Each is validated in memory first and offered only if the
+  diagnostic goes away and no error appears; the server never writes the file.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

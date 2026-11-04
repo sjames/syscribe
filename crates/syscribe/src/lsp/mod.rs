@@ -16,6 +16,7 @@
 
 mod actions;
 mod completion;
+mod ple_actions;
 mod ple_completion;
 mod ple_hover;
 mod rename;

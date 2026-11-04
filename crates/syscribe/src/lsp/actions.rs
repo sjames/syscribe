@@ -140,6 +140,9 @@ pub(super) fn actions_for(store: &LspStore, path: &Path, requested_range: &Range
         }));
     }
 
+    // Product-line and binding-time diagnostics (GH #421): each fix validated in memory first.
+    actions.extend(super::ple_actions::quick_fixes(store, path));
+
     actions
 }
 
