@@ -93,6 +93,12 @@ Advertised in `initialize`:
   selection the stage cannot make), `E756` (a value inside what was narrowed), `W016` (`selections:` → `features:`)
   and `E201` on a `FeatureDef` (a derived `FEAT-*` id). Each is validated in memory first and offered only if the
   diagnostic goes away and no error appears; the server never writes the file.
+- **Semantic tokens** (`textDocument/semanticTokens/full`, GH #422) — feature, parameter and stage references in the
+  variability fields (`appliesWhen:`, a Configuration's `features:` and `parameterBindings:` keys, `requires:`,
+  `excludes:`, a constraint's `expression:`, `bindingTime:`/`bindingStage:`). Legend, token types by index:
+  0 `class` (a feature by qualified name), 1 `enumMember` (a feature by `FEAT-*` id), 2 `property` (a parameter
+  path `<feature>.<parameter>`), 3 `keyword` (a binding-time stage). Modifier bit 0 `unresolved` marks a reference
+  that names nothing in the model, so a typo shows before validation runs.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

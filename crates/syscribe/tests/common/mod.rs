@@ -554,6 +554,10 @@ impl Lsp {
         )
     }
 
+    pub fn semantic_tokens(&mut self, path: &Path) -> Value {
+        self.request("textDocument/semanticTokens/full", json!({"textDocument": {"uri": file_uri(path)}}))
+    }
+
     pub fn code_lens(&mut self, path: &Path) -> Value {
         self.request("textDocument/codeLens", json!({"textDocument": {"uri": file_uri(path)}}))
     }

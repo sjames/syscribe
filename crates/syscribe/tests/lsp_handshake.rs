@@ -62,6 +62,7 @@ fn help_page_documents_every_advertised_capability() {
             "executeCommandProvider" => &["workspace/executeCommand"],
             // The capabilities document (GH #414); documented under "Capabilities handshake".
             "experimental" => &["experimental"],
+            "semanticTokensProvider" => &["textDocument/semanticTokens/full"],
             other => panic!("capability `{other}` is advertised but has no documented method mapping; document it in prompts/help/lsp.md and add it here"),
         };
         for m in methods {

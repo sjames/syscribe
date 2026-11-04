@@ -19,6 +19,7 @@ mod completion;
 mod ple_actions;
 mod ple_completion;
 mod ple_hover;
+mod ple_tokens;
 mod rename;
 mod store;
 
@@ -474,6 +475,12 @@ impl LanguageServer for Backend {
                     commands: vec!["syscribe.suspectAccept".to_string()],
                     work_done_progress_options: Default::default(),
                 }),
+                semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
+                    work_done_progress_options: Default::default(),
+                    legend: ple_tokens::legend(),
+                    range: None,
+                    full: Some(SemanticTokensFullOptions::Bool(true)),
+                })),
                 // The same document as `syscribe capabilities --json` (GH #414).
                 experimental: Some(serde_json::json!({ "syscribe": crate::contract::capabilities(&crate::mcp::tool_names()) })),
                 ..ServerCapabilities::default()
@@ -616,6 +623,12 @@ impl LanguageServer for Backend {
         let Ok(path) = uri.to_file_path() else { return Ok(None) };
         let store = self.store.read().await;
         rename::compute(&store, &path, position, &params.new_name).map(Some).map_err(LspError::invalid_params)
+    }
+
+    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> LspResult<Option<SemanticTokensResult>> {
+        let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens { result_id: None, data: ple_tokens::tokens(&store, &path) })))
     }
 
     async fn code_lens(&self, params: CodeLensParams) -> LspResult<Option<Vec<CodeLens>>> {
