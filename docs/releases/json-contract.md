@@ -17,6 +17,7 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `diff` | `diff --config <A> --config <B> --json` | 1.0 |
 | `feature-check` | `feature-check [--deep] --json` | 1.0 |
 | `params-check` | `params check <FILE> --config <Configuration> --json` | 1.0 |
+| `model-changed` | LSP notification `syscribe/modelChanged` | 1.0 |
 
 ## 1.0 — first published version
 

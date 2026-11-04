@@ -64,6 +64,7 @@ pub mod typecheck;
 pub mod plugins;
 pub mod projection;
 pub mod provenance;
+pub mod model_delta;
 pub mod questions;
 pub mod remote;
 pub mod plantuml;

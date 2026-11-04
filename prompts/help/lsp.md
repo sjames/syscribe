@@ -54,6 +54,13 @@ Advertised in `initialize`:
   `syscribe capabilities --json` under `capabilities.experimental.syscribe`: tool version, commands and
   options, the published JSON contracts, optional capabilities (`stagedConfiguration`, …), MCP tools and the
   namespaced `syscribe/*` custom requests (ADR-SYS-LSP-004). A front end tests the capability it needs.
+- **Change notification** (`syscribe/modelChanged`, GH #415) — sent to a client that set
+  `capabilities.experimental.syscribe.modelChanged = true` in `initialize`. After a reload it lists the
+  qualified names `added`, `changed` and `removed` and whether the feature model, any Configuration
+  (`configurationsChanged`) or the set of validation findings (`validationChanged`) changed, so a panel
+  refreshes only what moved. A burst of reloads is reported once after a quiet period (150 ms; override with
+  `SYSCRIBE_LSP_NOTIFY_DEBOUNCE_MS`), a burst that ends where it began is not reported, and `sequence`
+  increases by one per notification. The schema is `syscribe schema model-changed`.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

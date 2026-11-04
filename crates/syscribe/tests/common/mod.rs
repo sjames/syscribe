@@ -313,7 +313,13 @@ pub struct Lsp {
 impl Lsp {
     /// Spawn `syscribe lsp -m <model_root>` and return the client.
     pub fn start(model_root: &Path) -> Lsp {
+        Self::start_with_env(model_root, &[])
+    }
+
+    /// As [`Lsp::start`], with extra environment variables for the server.
+    pub fn start_with_env(model_root: &Path, env: &[(&str, &str)]) -> Lsp {
         let child = Command::new(env!("CARGO_BIN_EXE_syscribe"))
+            .envs(env.iter().copied())
             .arg("lsp")
             .arg("-m")
             .arg(model_root)
@@ -427,6 +433,22 @@ impl Lsp {
                 "processId": std::process::id(),
                 "rootUri": root_uri,
                 "capabilities": {},
+                "clientInfo": {"name": "syscribe-test", "version": "0"}
+            }),
+        );
+        self.notify("initialized", json!({}));
+        res
+    }
+
+    /// The handshake, opting in to `syscribe/modelChanged` notifications (GH #415).
+    pub fn initialize_with_model_changed(&mut self) -> Value {
+        let root_uri = file_uri(&self.model_root);
+        let res = self.request(
+            "initialize",
+            json!({
+                "processId": std::process::id(),
+                "rootUri": root_uri,
+                "capabilities": {"experimental": {"syscribe": {"modelChanged": true}}},
                 "clientInfo": {"name": "syscribe-test", "version": "0"}
             }),
         );

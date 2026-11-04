@@ -21,6 +21,7 @@ mod store;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -38,6 +39,25 @@ struct Backend {
     client: Client,
     store: Arc<RwLock<LspStore>>,
     open_docs: Arc<RwLock<HashSet<Url>>>,
+    /// The client asked for `syscribe/modelChanged` (`capabilities.experimental.syscribe.modelChanged`).
+    wants_model_changed: Arc<AtomicBool>,
+    /// The state last told to the client; `None` until the first reload takes the baseline.
+    notified: Arc<tokio::sync::Mutex<Option<syscribe_model::model_delta::Snapshot>>>,
+    notify_pending: Arc<AtomicBool>,
+    sequence: Arc<AtomicU64>,
+}
+
+/// The notification a front end listens to (GH #415): what a reload changed.
+enum ModelChanged {}
+impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
+    type Params = serde_json::Value;
+    const METHOD: &'static str = "syscribe/modelChanged";
+}
+
+/// Quiet time before a burst of reloads is reported as one notification.
+fn notify_debounce() -> std::time::Duration {
+    let ms = std::env::var("SYSCRIBE_LSP_NOTIFY_DEBOUNCE_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
+    std::time::Duration::from_millis(ms)
 }
 
 // ── URI / position helpers ───────────────────────────────────────────────────
@@ -275,20 +295,72 @@ impl Backend {
     }
 
     async fn reload(&self) {
+        let wants = self.wants_model_changed.load(Ordering::Relaxed);
         let mut store = self.store.write().await;
+        // The first reload takes the baseline from the state the client has been shown.
+        if wants {
+            let mut baseline = self.notified.lock().await;
+            if baseline.is_none() {
+                let findings = validate_with_config(&store.elements, &store.config).findings;
+                *baseline = Some(syscribe_model::model_delta::snapshot(&store.elements, &findings));
+            }
+        }
         if let Err(e) = store.reload() {
             drop(store);
             self.client.log_message(MessageType::ERROR, format!("model reload failed, keeping prior state: {e}")).await;
+            return;
         }
+        drop(store);
+        if wants {
+            self.schedule_model_changed();
+        }
+    }
+
+    /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
+    /// ends where it began (an edit and its undo) reports nothing.
+    fn schedule_model_changed(&self) {
+        if self.notify_pending.swap(true, Ordering::SeqCst) {
+            return; // a pending task will read the latest state
+        }
+        let (client, store, notified, pending, sequence) = (self.client.clone(), self.store.clone(), self.notified.clone(), self.notify_pending.clone(), self.sequence.clone());
+        tokio::spawn(async move {
+            tokio::time::sleep(notify_debounce()).await;
+            pending.store(false, Ordering::SeqCst);
+            let new = {
+                let s = store.read().await;
+                let findings = validate_with_config(&s.elements, &s.config).findings;
+                syscribe_model::model_delta::snapshot(&s.elements, &findings)
+            };
+            let mut baseline = notified.lock().await;
+            let Some(old) = baseline.as_ref() else { return };
+            let d = syscribe_model::model_delta::delta(old, &new);
+            *baseline = Some(new);
+            drop(baseline);
+            if !d.is_empty() {
+                client.send_notification::<ModelChanged>(d.to_json(sequence.fetch_add(1, Ordering::SeqCst) + 1)).await;
+            }
+        });
     }
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
 pub const CUSTOM_REQUESTS: &[&str] = &[];
 
+/// The custom notifications this server sends to a client that opted in.
+pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
+
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> LspResult<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> LspResult<InitializeResult> {
+        let opted_in = params
+            .capabilities
+            .experimental
+            .as_ref()
+            .and_then(|e| e.get("syscribe"))
+            .and_then(|s| s.get("modelChanged"))
+            .and_then(|v| v.as_bool())
+            == Some(true);
+        self.wants_model_changed.store(opted_in, Ordering::Relaxed);
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "syscribe-lsp".to_string(),
@@ -503,6 +575,10 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
             client,
             store: Arc::new(RwLock::new(store)),
             open_docs: Arc::new(RwLock::new(HashSet::new())),
+            wants_model_changed: Arc::new(AtomicBool::new(false)),
+            notified: Arc::new(tokio::sync::Mutex::new(None)),
+            notify_pending: Arc::new(AtomicBool::new(false)),
+            sequence: Arc::new(AtomicU64::new(0)),
         });
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

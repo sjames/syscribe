@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/model-changed.schema.json",
+  "title": "LSP notification syscribe/modelChanged",
+  "description": "Sent to a client that set capabilities.experimental.syscribe.modelChanged = true, after a reload changed something. A burst of reloads is reported once; a burst that ends where it began is not reported. Compatible changes add optional properties.",
+  "type": "object",
+  "required": ["schemaVersion", "sequence", "added", "changed", "removed", "featureModelChanged", "configurationsChanged", "validationChanged"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "sequence": { "type": "integer", "minimum": 1, "description": "Increases by one per notification." },
+    "added": { "type": "array", "items": { "type": "string" }, "description": "Qualified names." },
+    "changed": { "type": "array", "items": { "type": "string" } },
+    "removed": { "type": "array", "items": { "type": "string" } },
+    "featureModelChanged": { "type": "boolean" },
+    "configurationsChanged": { "type": "array", "items": { "type": "string" }, "description": "Configurations added, changed or removed." },
+    "validationChanged": { "type": "boolean", "description": "The set of validation findings differs." }
+  }
+}

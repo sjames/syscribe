@@ -19,11 +19,16 @@ pub struct Contract {
     /// Current `schemaVersion` value.
     pub version: &'static str,
     pub schema: &'static str,
+    /// `cli` or `lsp` (a notification a front end receives).
+    pub transport: &'static str,
 }
 
 macro_rules! c {
     ($n:literal, $cmd:literal) => {
-        Contract { name: $n, command: $cmd, version: "1.0", schema: include_str!(concat!("../schemas/", $n, ".schema.json")) }
+        Contract { name: $n, command: $cmd, version: "1.0", schema: include_str!(concat!("../schemas/", $n, ".schema.json")), transport: "cli" }
+    };
+    ($n:literal, $cmd:literal, lsp) => {
+        Contract { name: $n, command: $cmd, version: "1.0", schema: include_str!(concat!("../schemas/", $n, ".schema.json")), transport: "lsp" }
     };
 }
 
@@ -36,6 +41,7 @@ pub const SCHEMAS: &[Contract] = &[
     c!("diff", "diff --config <A> --config <B> --json"),
     c!("feature-check", "feature-check [--deep] --json"),
     c!("params-check", "params check <FILE> --config <Configuration> --json"),
+    c!("model-changed", "syscribe/modelChanged", lsp),
 ];
 
 /// Optional capabilities and the commands each one needs, so a front end can ask "can I show the configurator?"
@@ -72,7 +78,7 @@ pub fn capabilities(mcp_tools: &[String]) -> Value {
     }
     let schemas: serde_json::Map<String, Value> = SCHEMAS
         .iter()
-        .map(|c| (c.name.to_string(), json!({"version": c.version, "command": c.command, "available": c.command.split_whitespace().next().is_some_and(|w| commands.contains(&w))})))
+        .map(|c| (c.name.to_string(), json!({"version": c.version, "command": c.command, "transport": c.transport, "available": c.transport == "lsp" || c.command.split_whitespace().next().is_some_and(|w| commands.contains(&w))})))
         .collect();
     json!({
         "schemaVersion": "1.0",
@@ -82,6 +88,7 @@ pub fn capabilities(mcp_tools: &[String]) -> Value {
         "jsonSchemas": schemas,
         "features": optional,
         "lspRequests": crate::lsp::CUSTOM_REQUESTS,
+        "lspNotifications": crate::lsp::CUSTOM_NOTIFICATIONS,
         "mcpTools": mcp_tools,
     })
 }
@@ -94,7 +101,11 @@ pub fn cmd_schema(args: &[String]) -> i32 {
         None => {
             println!("# Published JSON contracts\n\n| Name | Version | Emitted by |\n|---|---|---|");
             for c in SCHEMAS {
-                println!("| {} | {} | `syscribe {}` |", c.name, c.version, c.command);
+                if c.transport == "lsp" {
+                    println!("| {} | {} | LSP notification `{}` |", c.name, c.version, c.command);
+                } else {
+                    println!("| {} | {} | `syscribe {}` |", c.name, c.version, c.command);
+                }
             }
             println!("\nPrint one with `syscribe schema <name>`.");
             0
