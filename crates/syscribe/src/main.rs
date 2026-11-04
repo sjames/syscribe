@@ -39,6 +39,7 @@ mod lint_docs;
 mod bindingtimes;
 mod newcmd;
 mod params;
+mod preview;
 mod propagate;
 mod residual;
 mod linktypes;

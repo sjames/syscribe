@@ -409,41 +409,16 @@ pub fn cmd_new(model_root: &Path, elements: &[RawElement], config: &syscribe_mod
             crate::policy_gate::check_path(e);
         }
     }
-    let model_abs = std::fs::canonicalize(model_root).unwrap_or_else(|_| model_root.to_path_buf());
-    let rels: Vec<(PathBuf, String)> = plan
-        .files
-        .iter()
-        .map(|f| {
-            let abs = std::fs::canonicalize(f.path.parent().unwrap_or(Path::new("."))).map(|p| p.join(f.path.file_name().unwrap_or_default())).unwrap_or_else(|_| f.path.clone());
-            (abs.strip_prefix(&model_abs).map(Path::to_path_buf).unwrap_or(abs), f.content.clone())
-        })
-        .collect();
-    let (outcome, _) = syscribe_model::mutate::guard::guarded_write_inspect(
-        model_root,
-        elements,
-        config,
-        true,
-        false,
-        true,
-        move |root: &Path| {
-            for (rel, content) in &rels {
-                let p = root.join(rel);
-                if let Some(d) = p.parent() {
-                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
-                }
-                std::fs::write(&p, content).map_err(|e| e.to_string())?;
-            }
-            Ok(())
-        },
-        None::<&dyn Fn(&[RawElement]) -> ()>,
-        |_| false,
-    );
-    if let Some(r) = &outcome.reason {
-        eprintln!("{r}");
-        return 1;
-    }
+    let files: Vec<(PathBuf, String)> = plan.files.iter().map(|f| (f.path.clone(), f.content.clone())).collect();
+    let outcome = match crate::preview::preview_files(model_root, elements, config, &files) {
+        Ok(o) => o,
+        Err(r) => {
+            eprintln!("{r}");
+            return 1;
+        }
+    };
     let dry = syscribe_model::fsio::is_dry_run();
-    let n_new = outcome.new_errors.iter().map(|e| (e.0.clone(), e.2.clone())).collect::<std::collections::HashSet<_>>().len();
+    let n_new = crate::preview::new_error_count(&outcome);
     let refused = (n_new > 0).then(|| format!("refused: it would introduce {n_new} error(s)"));
     let mut written = false;
     if refused.is_none() && !dry {

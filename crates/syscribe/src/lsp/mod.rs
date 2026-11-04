@@ -19,6 +19,7 @@ mod completion;
 mod ple_actions;
 mod ple_completion;
 mod ple_hover;
+mod preview;
 mod ple_tokens;
 mod rename;
 mod store;
@@ -408,6 +409,12 @@ impl Backend {
         crate::timeline::compute(&store.elements, &params.configuration).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/preview` (GH #426): read-only; plans a bind or scaffold, returns the report, a WorkspaceEdit and its undo.
+    async fn preview(&self, params: serde_json::Value) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        preview::plan(&store, &params).map(|p| preview::preview_json(&p)).map_err(LspError::invalid_params)
+    }
+
     /// `syscribe/health` (GH #428): read-only; the same payload as `syscribe health --json`.
     async fn health(&self, _params: serde_json::Value) -> LspResult<serde_json::Value> {
         let store = self.store.read().await;
@@ -443,7 +450,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline", "syscribe/health"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline", "syscribe/health", "syscribe/preview"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -483,7 +490,7 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 })),
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec!["syscribe.suspectAccept".to_string()],
+                    commands: vec!["syscribe.suspectAccept".to_string(), "syscribe.apply".to_string()],
                     work_done_progress_options: Default::default(),
                 }),
                 semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
@@ -655,6 +662,25 @@ impl LanguageServer for Backend {
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> LspResult<Option<serde_json::Value>> {
+        // `syscribe.apply` (GH #426): commit a previewed bind or scaffold, only if it adds no error.
+        if params.command == "syscribe.apply" {
+            let arg = params.arguments.first().cloned().unwrap_or(serde_json::Value::Null);
+            let mut store = self.store.write().await;
+            let planned = preview::plan(&store, &arg).map_err(LspError::invalid_params)?;
+            if let Err(e) = preview::commit(&planned) {
+                return Err(LspError::invalid_params(format!("{e}\n{}", planned.report["newErrors"])));
+            }
+            if let Err(e) = store.reload() {
+                self.client.log_message(MessageType::ERROR, format!("model reload failed, keeping prior state: {e}")).await;
+            }
+            drop(store);
+            self.publish_for_all_open().await;
+            let mut out = preview::preview_json(&planned);
+            out["report"]["written"] = serde_json::json!(true);
+            out["written"] = serde_json::json!(true);
+            out.as_object_mut().map(|o| o.remove("edit"));
+            return Ok(Some(out));
+        }
         if params.command != "syscribe.suspectAccept" {
             return Err(LspError::method_not_found());
         }
@@ -703,6 +729,7 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
         .custom_method("syscribe/changeImpact", Backend::change_impact)
         .custom_method("syscribe/timeline", Backend::timeline)
         .custom_method("syscribe/health", Backend::health)
+        .custom_method("syscribe/preview", Backend::preview)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

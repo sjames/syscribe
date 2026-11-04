@@ -262,29 +262,15 @@ pub fn cmd_bind(model_root: &std::path::Path, elements: &[RawElement], config: &
         crate::policy_gate::check_path(e);
     }
     // Preview on a candidate copy: the model's own checks (range, unit, stage window, narrowing) decide.
-    let rel = std::path::Path::new(&plan.file).strip_prefix(std::fs::canonicalize(model_root).unwrap_or_else(|_| model_root.to_path_buf())).map(|p| p.to_path_buf()).or_else(|_| std::path::Path::new(&plan.file).strip_prefix(model_root).map(|p| p.to_path_buf()));
-    let Ok(rel) = rel else {
-        eprintln!("{} is not under the model root", plan.file);
-        return 1;
+    let outcome = match crate::preview::preview_files(model_root, elements, config, &[(std::path::PathBuf::from(&plan.file), plan.new_content.clone())]) {
+        Ok(o) => o,
+        Err(r) => {
+            eprintln!("{r}");
+            return 1;
+        }
     };
-    let content = plan.new_content.clone();
-    let (outcome, _) = syscribe_model::mutate::guard::guarded_write_inspect(
-        model_root,
-        elements,
-        config,
-        true,
-        false,
-        true,
-        move |root: &std::path::Path| std::fs::write(root.join(&rel), &content).map_err(|e| e.to_string()),
-        None::<&dyn Fn(&[RawElement]) -> ()>,
-        |_| false,
-    );
-    if let Some(r) = &outcome.reason {
-        eprintln!("{r}");
-        return 1;
-    }
     let dry = syscribe_model::fsio::is_dry_run();
-    let n_new = uniq(&outcome.new_errors).len();
+    let n_new = crate::preview::new_error_count(&outcome);
     let refused = (n_new > 0).then(|| format!("refused: the binding would introduce {n_new} error(s)"));
     let mut written = false;
     if refused.is_none() && !dry {

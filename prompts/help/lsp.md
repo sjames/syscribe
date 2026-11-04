@@ -47,7 +47,12 @@ Advertised in `initialize`:
 - **Code actions** (`textDocument/codeAction`, quick fixes) — for `E310` (a
   derived Requirement with no `breakdownAdr:`), one "Set breakdownAdr: …" edit
   per accepted ADR; for `W090` (suspect link), an "Accept as reviewed" command.
-- **Execute command** (`workspace/executeCommand`) — `syscribe.suspectAccept
+- **Preview before write** (GH #426) — `syscribe/preview` (read-only) takes `{action: "bind" | "scaffold", …}` (the
+  parameters of `syscribe bind` and `syscribe new`, camelCase) and returns the report (diff, findings added and
+  resolved), `commitable`, a `WorkspaceEdit` the client can apply itself and an `undo` edit; nothing is written. The
+  command `syscribe.apply` commits the same plan through `workspace/executeCommand` only when it adds no error, and
+  returns the report and an undo edit; a rejected commit writes nothing.
+- **Execute command** (`workspace/executeCommand`) — `syscribe.apply` (above) and `syscribe.suspectAccept
   <source> <target>` re-baselines one suspect link (the only LSP path that
   writes to disk), then reloads and republishes diagnostics.
 - **Capabilities handshake** (`experimental`) — the `initialize` result carries the document of
