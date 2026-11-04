@@ -65,6 +65,7 @@ mod set;
 mod suggest;
 mod typehelp;
 mod context;
+mod contract;
 mod envmatrix;
 mod explain;
 mod qset;
@@ -706,6 +707,14 @@ fn main() {
     {
         println!("syscribe {}", env!("CARGO_PKG_VERSION"));
         return;
+    }
+
+    // GH #413/#414: the machine contract needs no model, so it is handled before one is resolved.
+    if let Some(c @ ("schema" | "capabilities")) = first_command_token(&args) {
+        let at = args.iter().position(|a| a == c).unwrap_or(1);
+        let rest = &args[at + 1..];
+        let code = if c == "schema" { contract::cmd_schema(rest) } else { contract::cmd_capabilities(rest) };
+        std::process::exit(code);
     }
 
     // REQ-TRS-CLI-006: `--agent-instructions [topic]`. No topic (or `general`) →

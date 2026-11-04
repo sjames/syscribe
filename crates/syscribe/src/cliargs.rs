@@ -59,7 +59,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "audit" => &[("--json", Switch), ("--profile", Value), LENS, ("--plan", Value), ("--all-configs", Switch)],
         "types" | "untyped" | "next-id" | "check-ref" | "path-for" => &[],
         "residual" => &[("--config", Value), ("--json", Switch)],
-        "params" => &[("--config", Value), ("--stage", Value), ("--out", Value), ("--schema", Value), ("--allow-open", Switch), ("--deny", ValueOrEq)],
+        "params" => &[("--json", Switch), ("--config", Value), ("--stage", Value), ("--out", Value), ("--schema", Value), ("--allow-open", Switch), ("--deny", ValueOrEq)],
         "sysml" | "link-types" | "binding-times" | "testplan" | "conduits" | "review" | "features" | "feature" => &[("--json", Switch)],
         "configure" => &[("--json", Switch), ("--stage", Value)],
         "export-html" => &[("--out", Value), ("--css", Value)],
@@ -256,6 +256,11 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         ],
         _ => return None,
     })
+}
+
+/// The documented options of `cmd`, or `None` when its options are not in the table.
+pub fn options_of(cmd: &str) -> Option<Vec<&'static str>> {
+    spec_for(cmd).map(|s| s.iter().map(|(n, _)| *n).collect())
 }
 
 /// Whether `cmd`'s options are checked by [`check_known_options`].

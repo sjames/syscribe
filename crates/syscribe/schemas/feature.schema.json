@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/feature.schema.json",
+  "title": "syscribe feature <name> --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "excludes",
+    "gates",
+    "groupKind",
+    "mandatory",
+    "parameters",
+    "qualifiedName",
+    "requires",
+    "schemaVersion"
+  ],
+  "properties": {
+    "qualifiedName": {
+      "type": "string"
+    },
+    "groupKind": {
+      "type": "string"
+    },
+    "mandatory": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "null when the feature leaves it unset"
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excludes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parameters": {
+      "type": "array"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "selectedIn": {},
+    "parameterConsumers": {},
+    "parameterValues": {},
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

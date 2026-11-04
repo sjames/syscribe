@@ -50,6 +50,10 @@ Advertised in `initialize`:
 - **Execute command** (`workspace/executeCommand`) — `syscribe.suspectAccept
   <source> <target>` re-baselines one suspect link (the only LSP path that
   writes to disk), then reloads and republishes diagnostics.
+- **Capabilities handshake** (`experimental`) — the `initialize` result carries the document of
+  `syscribe capabilities --json` under `capabilities.experimental.syscribe`: tool version, commands and
+  options, the published JSON contracts, optional capabilities (`stagedConfiguration`, …), MCP tools and the
+  namespaced `syscribe/*` custom requests (ADR-SYS-LSP-004). A front end tests the capability it needs.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

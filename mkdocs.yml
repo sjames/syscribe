@@ -119,6 +119,7 @@ nav:
       - Static Typing: design/static-typing.md
       - System Composition: design/system-composition.md
   - Releases: releases/index.md
+  - JSON contract changelog: releases/json-contract.md
 
 extra_css:
   - stylesheets/extra.css

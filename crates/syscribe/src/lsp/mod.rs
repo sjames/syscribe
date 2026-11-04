@@ -283,6 +283,9 @@ impl Backend {
     }
 }
 
+/// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
+pub const CUSTOM_REQUESTS: &[&str] = &[];
+
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, _params: InitializeParams) -> LspResult<InitializeResult> {
@@ -312,6 +315,8 @@ impl LanguageServer for Backend {
                     commands: vec!["syscribe.suspectAccept".to_string()],
                     work_done_progress_options: Default::default(),
                 }),
+                // The same document as `syscribe capabilities --json` (GH #414).
+                experimental: Some(serde_json::json!({ "syscribe": crate::contract::capabilities(&crate::mcp::tool_names()) })),
                 ..ServerCapabilities::default()
             },
             ..Default::default()

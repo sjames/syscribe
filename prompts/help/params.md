@@ -4,7 +4,7 @@
     syscribe -m <root> params export --config <Configuration> [--stage <stage>]
                                      [--out FILE] [--schema FILE] [--allow-open]
     syscribe -m <root> params check <FILE> --config <Configuration> [--stage <stage>]
-                                     [--deny <CODES>]
+                                     [--deny <CODES>] [--json]
 
 ## DESCRIPTION
 A system whose parameters are bound at `load` or `runtime` needs a file to read them
@@ -42,6 +42,7 @@ wrong type (E761), a different value for a fixed parameter (E204), a value outsi
     --schema FILE              also write the JSON Schema
     --allow-open               emit placeholders instead of failing on unresolved parameters
     --deny <CODES>             (check) comma-separated warning codes that fail the check
+    --json                     (check) machine-readable result, schema `params-check` (see `syscribe schema`); exit codes unchanged
 
 ## EXAMPLES
     syscribe -m examples/staged-configuration/model/ params export --config CONF-UAV-FLIGHT-001

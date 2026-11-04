@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/configure.schema.json",
+  "title": "syscribe configure <CONF> --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "forcedFalse",
+    "forcedTrue",
+    "free",
+    "satisfiable",
+    "schemaVersion",
+    "stage"
+  ],
+  "properties": {
+    "satisfiable": {
+      "type": "boolean"
+    },
+    "forcedTrue": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forcedFalse": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "free": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "explanation": {},
+    "provenance": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "bindingStage",
+            "parameters",
+            "selections"
+          ],
+          "properties": {
+            "bindingStage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parameters": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "key",
+                  "source"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "object",
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "stage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "selections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "feature",
+                  "selected",
+                  "source"
+                ],
+                "properties": {
+                  "feature": {
+                    "type": "string"
+                  },
+                  "selected": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "object",
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "stage": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

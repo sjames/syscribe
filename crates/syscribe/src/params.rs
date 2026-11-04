@@ -105,6 +105,24 @@ fn check(elements: &[RawElement], rest: &[String]) -> i32 {
         Err(code) => return code,
     };
     let findings = check_file(&c, &text, file);
+    let denied: Vec<&str> = value_of(rest, "--deny").map(|d| d.split(',').map(str::trim).collect()).unwrap_or_default();
+    let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
+    let code = if errors > 0 {
+        1
+    } else if findings.iter().any(|f| denied.contains(&f.code)) {
+        2
+    } else {
+        0
+    };
+    if rest.iter().any(|a| a == "--json") {
+        let items: Vec<_> = findings
+            .iter()
+            .map(|f| serde_json::json!({"code": f.code, "severity": if f.severity == Severity::Error { "error" } else { "warning" }, "message": f.message}))
+            .collect();
+        let doc = serde_json::json!({"schemaVersion": "1.0", "file": file, "configuration": c.configuration, "stage": c.stage.name(), "findings": items, "errors": errors, "warnings": findings.len() - errors, "ok": code == 0});
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap());
+        return code;
+    }
     println!("# Params check: {file}");
     println!();
     println!("Configuration {} at stage {}", c.configuration, c.stage.name());
@@ -122,12 +140,5 @@ fn check(elements: &[RawElement], rest: &[String]) -> i32 {
     let warnings = findings.len() - errors;
     println!();
     println!("{errors} error(s), {warnings} warning(s)");
-    let denied: Vec<&str> = value_of(rest, "--deny").map(|d| d.split(',').map(str::trim).collect()).unwrap_or_default();
-    if errors > 0 {
-        1
-    } else if findings.iter().any(|f| denied.contains(&f.code)) {
-        2
-    } else {
-        0
-    }
+    code
 }

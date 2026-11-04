@@ -1364,6 +1364,13 @@ pub struct SyscribeMcp {
     read_only: bool,
 }
 
+/// The names of every MCP tool (for the capabilities document).
+pub fn tool_names() -> Vec<String> {
+    let mut v: Vec<String> = SyscribeMcp::tool_router().list_all().iter().map(|t| t.name.to_string()).collect();
+    v.sort();
+    v
+}
+
 #[tool_router]
 impl SyscribeMcp {
     fn new(store: Arc<RwLock<McpStore>>, read_only: bool) -> Self {

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/matrix.schema.json",
+  "title": "syscribe matrix --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "columns",
+    "coverage",
+    "rows",
+    "schemaVersion"
+  ],
+  "properties": {
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "cells": {
+            "type": "object"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "overall"
+      ],
+      "properties": {
+        "overall": {
+          "type": "object",
+          "required": [
+            "applicable",
+            "covered"
+          ],
+          "properties": {
+            "applicable": {
+              "type": "integer"
+            },
+            "covered": {
+              "type": "integer"
+            },
+            "pct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "perConfig": {
+          "type": "object"
+        }
+      }
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

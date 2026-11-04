@@ -3100,6 +3100,7 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool, stage: Opt
             let (forced_true, forced_false, free) = (at_stage(forced_true), at_stage(forced_false), at_stage(free));
             if json {
                 let doc = serde_json::json!({
+                    "schemaVersion": "1.0",
                     "satisfiable": satisfiable,
                     "forcedTrue": forced_true,
                     "forcedFalse": forced_false,
@@ -3651,6 +3652,7 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
 
     if json {
         let mut out = serde_json::json!({
+            "schemaVersion": "1.0",
             "onlyInA": only_a,
             "onlyInB": only_b,
         });

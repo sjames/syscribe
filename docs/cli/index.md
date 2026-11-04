@@ -244,6 +244,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `context <ref> [--depth N] [--max-bytes N] [--format text|markdown|json]` (GH #435) is one bounded briefing bundle for an element or `PlanningItem`: summary and body, upstream and downstream neighbours to `--depth`, the verifying tests with their latest verdict and the environment they ran on, for a `PlanningItem` its parent, children, `achieves`, evidence, claim and open questions, and the findings on those elements. The output never exceeds `--max-bytes` (default 16000); when it would, the least important items are dropped first and a notice names what was left out. The MCP tool `context` returns the same JSON.
 
+`schema [<name>]` and `capabilities [--json]` (GH #413, #414) are the machine contract for front ends, and need no model. The `--json` forms of `features`, `feature`, `configure`, `residual`, `matrix`, `diff`, `feature-check` and `params check` carry a `schemaVersion` and have a published JSON Schema (`syscribe schema residual`), validated against the real output in CI; a breaking change bumps the version and is recorded in the [JSON contract changelog](../releases/json-contract.md). `capabilities` returns the tool version, the commands and their options, the contracts with their versions, which optional capabilities exist (`stagedConfiguration`, `paramsExport`, `variantDiff`, `coverageMatrix`, `environmentMatrix`, …), the MCP tools and the custom LSP requests; the LSP `initialize` result carries the same document under `capabilities.experimental.syscribe`.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1968,6 +1970,15 @@ Projects that let scripts or LLM agents edit the model usually hand-write the sa
 
 The output is deterministic — no timestamps, no tool version — so it changes only when the model or its configuration does. The Markdown is wrapped in `<!-- syscribe:agent-guide -->` … `<!-- /syscribe:agent-guide -->`. `--write` replaces only that region (creating the file, or appending the region to a file that has none) and never touches text outside it; repeated or unbalanced markers are refused and the file left as it was. `--check` exits `1` when the region is missing or differs from what would be generated. The MCP server's `initialize` instructions come from the same data.
 
+
+## `schema` and `capabilities` — the front-end contract
+
+```bash
+syscribe schema [<name>]
+syscribe capabilities [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
 
 ## `context` — a bounded briefing on one element
 

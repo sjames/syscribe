@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/diff.schema.json",
+  "title": "syscribe diff --config A --config B --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "onlyInA",
+    "onlyInB",
+    "schemaVersion"
+  ],
+  "properties": {
+    "onlyInA": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "onlyInB": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

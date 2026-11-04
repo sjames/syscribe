@@ -209,7 +209,7 @@ pub fn cmd_features(elements: &[RawElement], json: bool) {
             .collect();
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!({ "features": items })).unwrap()
+            serde_json::to_string_pretty(&json!({ "schemaVersion": "1.0", "features": items })).unwrap()
         );
         return;
     }
@@ -309,6 +309,7 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
             .map(|(qn, ty)| json!({ "qualifiedName": qn, "type": ty }))
             .collect();
         let doc = json!({
+            "schemaVersion": "1.0",
             "qualifiedName": q,
             "groupKind": gk,
             "mandatory": fd.frontmatter.mandatory,
