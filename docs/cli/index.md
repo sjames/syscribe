@@ -260,6 +260,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `health [--json]` (GH #428) is one cheap summary for a status bar: error and warning counts, requirements (total, orphan, unverified), stale evidence (suspect links, stale results), the Configurations whose variant fails validation, an overall `status` and, per non-zero metric, the command that lists the detail. The MCP tool `health` and the LSP request `syscribe/health` return the same payload, kept per model version (`cached`). Parameter values files are not registered in the model, so stale ones are not counted.
 
+`new feature|configuration|parameter` (GH #427) scaffolds what an author would otherwise get wrong: a `FeatureDef` with a free derived `FEAT-*` id under a package or group feature; a `Configuration` with a valid `CONF-*` id derived from a base at a real, not-earlier `bindingStage:`; a parameter appended to a feature with type, unit, range or enumeration, default and an ordered binding window. Each is previewed through the guarded-write engine (`--dry-run`) and committed only when it adds no error; the MCP tool `scaffold` previews by default.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1993,6 +1995,16 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `new` — scaffolding
+
+```bash
+syscribe -m model/ new feature Gimbal --under Features [--group alternative] [--mandatory]
+syscribe -m model/ new configuration CONF-X-001 --from CONF-BASE --stage runtime
+syscribe -m model/ new parameter Features::Gimbal gain --range 0..10 --default 5 --stage load --latest runtime
+```
+
+See the paragraph near the top of this page; `syscribe help new` has the details.
 
 ## `health` — the status-bar summary
 

@@ -168,6 +168,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         "Planning items (multi-agent coordination)",
         &[
             ("context", include_str!("../../../prompts/help/context.md")),
+            ("new", include_str!("../../../prompts/help/new.md")),
             ("timeline", include_str!("../../../prompts/help/timeline.md")),
             ("bind", include_str!("../../../prompts/help/bind.md")),
             ("change-impact", include_str!("../../../prompts/help/change-impact.md")),

@@ -37,6 +37,7 @@ mod help;
 mod ingest;
 mod lint_docs;
 mod bindingtimes;
+mod newcmd;
 mod params;
 mod propagate;
 mod residual;
@@ -2430,6 +2431,10 @@ fn main() {
                 if code != 0 {
                     std::process::exit(code);
                 }
+            }
+            "new" => {
+                let code = newcmd::cmd_new(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
             }
             "timeline" => {
                 let code = timeline::cmd_timeline(&elems, subcommand_args.get(1..).unwrap_or(&[]));

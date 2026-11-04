@@ -122,6 +122,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
   upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
   state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
   several show/trace/links calls. Same data as `syscribe context --format json`.
+- `scaffold {kind, name, …}` — create a `feature`, a `configuration` or a `parameter` that is right the first time
+  (free derived `FEAT-*` id, valid `CONF-*` id and stage, ordered binding window); previews unless `dry_run` is
+  false and refuses a scaffold that adds an error. Returns the guarded-write result with `kind`, `target`, `files`.
 - `health {}` — one cheap project summary for a status bar (errors, warnings, orphan and unverified
   requirements, stale evidence, failing Configurations, overall status, click-through commands), kept per model
   version. Same data as `syscribe health --json`.
@@ -284,6 +287,10 @@ affected entry, which `update_element` cannot (it replaces the whole `questions:
 Configuration. It edits only the affected line and, unlike the other write tools, refuses a change that adds *any*
 error (a range, an enumeration, a stage window, a narrowing), not only a gating one: the change is previewed first and
 committed only when clean. Its result adds `target`, `previous` (the value replaced and its source) and `stage`.
+
+`scaffold {kind: feature|configuration|parameter, name, …}` creates a `FeatureDef`, a `Configuration` or a parameter that
+is right the first time. Like `bind` it refuses a change that adds *any* error (previewed first, committed only when
+clean); its result adds `kind`, `target` and `files`.
 
 The delta (`validationDelta`) lists every finding the change introduces or
 resolves: `newErrors` / `resolvedErrors` / `newWarnings` / `resolvedWarnings`.

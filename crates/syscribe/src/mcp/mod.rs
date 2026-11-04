@@ -239,6 +239,48 @@ struct ChangeImpactParameter {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ScaffoldArgs {
+    /// `feature`, `configuration` or `parameter`.
+    kind: String,
+    /// feature: the new feature's name. configuration: the new CONF-* id. parameter: the parameter name.
+    name: String,
+    /// feature: the package or group feature it goes under. configuration: the package for the file.
+    under: Option<String>,
+    /// feature: the groupKind of its children (optional | alternative | or).
+    group: Option<String>,
+    mandatory: Option<bool>,
+    /// feature: an explicit FEAT-* id (else derived).
+    id: Option<String>,
+    /// configuration: the base Configuration it derives from.
+    from: Option<String>,
+    /// configuration: its bindingStage.
+    stage: Option<String>,
+    /// configuration: the feature-model package (inferred when the project has one).
+    feature_model: Option<String>,
+    /// configuration: a display name.
+    display_name: Option<String>,
+    /// configuration: initial feature selections, feature -> selected.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+    /// parameter: the feature it belongs to.
+    feature: Option<String>,
+    #[serde(rename = "type")]
+    ty: Option<String>,
+    unit: Option<String>,
+    range: Option<String>,
+    enum_values: Option<Vec<String>>,
+    default: Option<String>,
+    required: Option<bool>,
+    /// parameter: earliest binding stage.
+    param_stage: Option<String>,
+    /// parameter: latest binding stage.
+    latest: Option<String>,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct TimelineArgs {
     /// The Configuration (id or qualified name).
     configuration: String,
@@ -1369,6 +1411,7 @@ const WRITE_TOOLS: &[&str] = &[
     "suspect_accept",
     "edit_feature",
     "bind",
+    "scaffold",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -1968,6 +2011,94 @@ impl SyscribeMcp {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
         }
+    }
+
+    #[tool(
+        description = "Scaffold a feature, a Configuration or a parameter that is right the first time (kind = feature | configuration | \
+        parameter). feature: `name` + `under` (package or group feature), optional group/mandatory/id (a free FEAT-* id is derived). \
+        configuration: `name` is the CONF-* id; optional from (base), stage (a real stage, not earlier than the base's), feature_model, \
+        under, display_name, select. parameter: `feature` + `name`, optional type/unit/range/enum_values/default/required/param_stage/latest. \
+        Previewed through the guarded write (dry_run defaults to true); a change that adds an error is refused. Same data as `syscribe new --json`.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn scaffold(&self, Parameters(args): Parameters<ScaffoldArgs>, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
+        use crate::newcmd::Request;
+        let mut store = self.store.write().await;
+        let req = match args.kind.as_str() {
+            "feature" => match args.under.clone() {
+                Some(under) => Request::Feature { name: args.name.clone(), under, group: args.group.clone(), mandatory: args.mandatory.unwrap_or(false), id: args.id.clone() },
+                None => return tool_error("kind=feature needs `under`".to_string()),
+            },
+            "configuration" => Request::Configuration {
+                id: args.name.clone(),
+                name: args.display_name.clone(),
+                from: args.from.clone(),
+                stage: args.stage.clone(),
+                feature_model: args.feature_model.clone(),
+                under: args.under.clone(),
+                select: args.select.clone().unwrap_or_default().into_iter().collect(),
+            },
+            "parameter" => match args.feature.clone() {
+                Some(feature) => Request::Parameter {
+                    feature,
+                    name: args.name.clone(),
+                    ty: args.ty.clone(),
+                    unit: args.unit.clone(),
+                    range: args.range.clone(),
+                    enum_values: args.enum_values.clone().unwrap_or_default(),
+                    default: args.default.clone(),
+                    required: args.required.unwrap_or(false),
+                    stage: args.param_stage.clone(),
+                    latest: args.latest.clone(),
+                },
+                None => return tool_error("kind=parameter needs `feature`".to_string()),
+            },
+            other => return tool_error(format!("unknown kind '{other}' (feature, configuration, parameter)")),
+        };
+        let plan = match crate::newcmd::plan(&store.model_root, &store.elements, &req) {
+            Ok(p) => p,
+            Err((_, m)) => return tool_error(m),
+        };
+        let root = store.model_root.clone();
+        let files: Vec<(String, String)> = plan.files.iter().map(|f| (rel_file(&f.path.to_string_lossy(), &root), f.content.clone())).collect();
+        for (rel, _) in &files {
+            if let Some(Err(m)) = PolicyCtx::load(&root).map(|ctx| ctx.check_rel(rel)) {
+                return tool_error(m);
+            }
+        }
+        if let Some(f) = plan.files.iter().find(|f| !f.creates) {
+            if let Err(m) = prov_precheck(&args.prov, Some(f.path.as_path())) {
+                return tool_error(m);
+            }
+        }
+        let summary_line = format!("new {} {}", plan.kind, plan.target);
+        let extra = extra_map(json!({ "kind": plan.kind, "target": plan.target, "files": files.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>() }));
+        let apply = move |root: &Path| -> Result<(), String> {
+            for (rel, content) in &files {
+                let p = root.join(rel);
+                if let Some(d) = p.parent() {
+                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(&p, content).map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        };
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut preview = guarded_write(&mut store, true, true, extra.clone(), &apply);
+        dedupe_delta(&mut preview);
+        let new_errors = preview["validationDelta"]["newErrors"].as_array().map_or(0, Vec::len);
+        let mut res = if args.dry_run {
+            preview
+        } else if new_errors > 0 {
+            preview["reason"] = json!(format!("refused: it would introduce {new_errors} error(s)"));
+            preview
+        } else {
+            guarded_write(&mut store, false, true, extra, &apply)
+        };
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "scaffold", &summary_line, snapshot);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(
