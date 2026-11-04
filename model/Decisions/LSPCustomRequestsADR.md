@@ -92,3 +92,19 @@ keeps the CLI usable in scripts and CI with exactly what the editor sees.
   where a result can be big, pagination; each request states its own budget.
 - Follow-on work is tracked in the PLE front-end issues (#411, #413 JSON contract, #414
   capabilities handshake, #415 change notifications).
+
+## Addendum — previewing and committing a write (GH #426)
+
+A front end's mutating actions (`bind`, scaffolding) need the diff and the findings **before** they are made. Two
+routes, neither of which makes a custom *request* write:
+
+- `syscribe/preview` is a read-only custom request. It plans the action, previews it on a candidate copy through the
+  guarded-write engine, and returns the report, `commitable`, a standard `WorkspaceEdit` the client applies itself
+  (the editor's own undo then applies) and an `undo` edit. The server writes nothing.
+- `syscribe.apply` is a `workspace/executeCommand` command — the route ADR-SYS-LSP-003 already uses for the one
+  write the server makes (`syscribe.suspectAccept`) — that commits the same plan, but only when the preview adds no
+  error. It returns the report and an undo `WorkspaceEdit` (restoring the previous lines, or deleting a created
+  file). A rejected commit writes nothing and returns an error carrying the findings.
+
+This keeps the rule "custom requests are read-only; a write is a `WorkspaceEdit` or an `executeCommand`" intact. The
+same plan code serves the CLI (`bind`, `new`), the MCP tools and these two entry points.

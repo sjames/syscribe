@@ -1,0 +1,97 @@
+{
+  "comment": "What the fixture contains, for contract tests that assert exact data. Kept true by crates/syscribe/tests/frontend_contract.rs.",
+  "validate": {
+    "errors": 0
+  },
+  "features": {
+    "count": 10,
+    "groups": {
+      "Features::Platform": "alternative",
+      "Features::Link": "or"
+    },
+    "abstract": [
+      "Features::Platform",
+      "Features::Link"
+    ],
+    "crossTree": {
+      "Features::Camera": {
+        "requires": [
+          "Features::Platform::CortexM"
+        ],
+        "excludes": [
+          "Features::Link::Cellular"
+        ]
+      }
+    },
+    "parameters": [
+      "Features::Logging.bufferKiB",
+      "Features::Logging.levelName",
+      "Features::Logging.rateHz",
+      "Features::Propulsion.motorKV"
+    ]
+  },
+  "configurations": {
+    "staged": [
+      "CONF-PLF-BUILD-001",
+      "CONF-PLF-DEPLOY-001",
+      "CONF-PLF-FLIGHT-001"
+    ],
+    "stages": {
+      "CONF-PLF-BUILD-001": "compile",
+      "CONF-PLF-DEPLOY-001": "load",
+      "CONF-PLF-FLIGHT-001": "runtime"
+    },
+    "unstaged": [
+      "CONF-PLF-ALT-001"
+    ]
+  },
+  "parameterConstraints": [
+    "PC-PLF-BUFFER",
+    "PC-PLF-KV"
+  ],
+  "samples": {
+    "propagate": {
+      "select": {
+        "Features::Camera": true
+      },
+      "forcedOn": [
+        "Features::Platform::CortexM",
+        "Features::Platform",
+        "Features::Link",
+        "Features::Propulsion"
+      ],
+      "forcedOff": [
+        "Features::Link::Cellular",
+        "Features::Platform::RiscV"
+      ]
+    },
+    "explainFeature": {
+      "feature": "Features::Link::Cellular",
+      "select": {
+        "Features::Camera": true
+      },
+      "state": "forcedOff"
+    },
+    "bind": {
+      "configuration": "CONF-PLF-DEPLOY-001",
+      "target": "Features::Propulsion.motorKV",
+      "okValue": 1100,
+      "badValue": 5000,
+      "badCode": "E205"
+    }
+  },
+  "frontendRequires": [
+    "featureModel",
+    "assistedConfiguration",
+    "interactiveConfiguration",
+    "featureExplanation",
+    "stagedConfiguration",
+    "stagedBinding",
+    "scaffolding",
+    "changeImpact",
+    "treeChildren",
+    "projectHealth",
+    "variantDiff",
+    "coverageMatrix"
+  ]
+}

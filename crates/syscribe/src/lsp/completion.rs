@@ -72,6 +72,10 @@ fn enclosing_frontmatter_field(lines: &[&str], line: usize) -> Option<String> {
 }
 
 pub(super) fn candidates(store: &LspStore, path: &Path, position: Position) -> Option<CompletionResponse> {
+    // Product-line contexts (features, parameters, enumerations, stages) first; they claim only their own fields.
+    if let Some(r) = super::ple_completion::candidates(store, path, position) {
+        return Some(r);
+    }
     let text = std::fs::read_to_string(path).ok()?;
     let lines: Vec<&str> = text.lines().collect();
     let field = enclosing_frontmatter_field(&lines, position.line as usize)?;

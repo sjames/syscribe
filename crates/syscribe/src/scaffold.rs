@@ -56,6 +56,10 @@ pub fn cmd_scaffold_gherkin(elements: &[RawElement], resolver: &Resolver, key: &
         }
     };
 
+    if fix {
+        crate::provenance::check_expect_hash(std::path::Path::new(&elem.file_path));
+        crate::policy_gate::check_path(elem);
+    }
     let titles = scenario_titles(elem);
     if titles.is_empty() {
         eprintln!(
@@ -115,7 +119,7 @@ pub fn cmd_scaffold_gherkin(elements: &[RawElement], resolver: &Resolver, key: &
     };
 
     let updated = insert_missing(&original, &missing, elem);
-    if let Err(e) = std::fs::write(path, &updated) {
+    if let Err(e) = syscribe_model::fsio::write(path, &updated) {
         eprintln!("Cannot write {path}: {e}");
         std::process::exit(1);
     }

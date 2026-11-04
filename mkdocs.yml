@@ -104,6 +104,7 @@ nav:
       - Appendix A — Tool Mapping: guides/tool-mapping.md
       - Appendix C — Quick Reference: guides/quick-reference.md
       - Appendix D — Scripting: guides/scripting.md
+      - Front-end CI: guides/frontend-ci.md
   - Web Browser:
       - browser/index.md
   - Tool Qualification:
@@ -112,6 +113,7 @@ nav:
       - Suspect Links: design/suspect-links.md
       - Visualisation: design/visualisation.md
       - MCP Memory: design/mcp-memory.md
+      - Incremental validation: design/incremental-validation.md
       - Feature Model Editor: design/feature-model-editor.md
       - Fault Injection: design/fault-injection.md
       - FMI Plant Co-simulation: design/fmi-plant-cosimulation.md
@@ -119,6 +121,7 @@ nav:
       - Static Typing: design/static-typing.md
       - System Composition: design/system-composition.md
   - Releases: releases/index.md
+  - JSON contract changelog: releases/json-contract.md
 
 extra_css:
   - stylesheets/extra.css

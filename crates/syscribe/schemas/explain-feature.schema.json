@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/explain-feature.schema.json",
+  "title": "syscribe explain-feature --json / MCP explain_feature / LSP syscribe/explainFeature",
+  "description": "Stable contract (GH #417). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": ["schemaVersion", "found", "feature", "state", "because", "toSelect", "selection", "parameterConstraints"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "found": { "type": "boolean" },
+    "feature": { "type": "string", "description": "Qualified name (the request's spelling when not found)." },
+    "file": { "type": ["string", "null"] },
+    "state": { "enum": ["selected", "deselected", "forcedOn", "forcedOff", "free", "conflict", null], "description": "conflict: the choices clash among themselves." },
+    "selection": { "type": "object", "additionalProperties": { "type": "boolean" } },
+    "because": {
+      "type": ["object", "null"],
+      "description": "For forcedOn, forcedOff and conflict: the smallest set of the user's choices and the model's constraints that cause it.",
+      "properties": {
+        "choices": { "type": "array", "items": { "$ref": "#/$defs/choice" } },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } }
+      }
+    },
+    "toSelect": {
+      "type": ["object", "null"],
+      "properties": {
+        "needed": { "type": "boolean" },
+        "modelLevel": { "type": "boolean", "description": "True when no choice change helps: the model prevents the feature in every product." },
+        "options": { "type": "array", "items": { "type": "object", "required": ["drop"], "properties": { "drop": { "$ref": "#/$defs/choice" }, "note": { "type": "string" } } }, "description": "Dropping any one of these choices makes the feature selectable." },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } }
+      }
+    },
+    "parameterConstraints": {
+      "type": "array",
+      "description": "With a Configuration: its parameterConstraints that mention one of the feature's parameters.",
+      "items": { "type": "object", "required": ["id", "expression", "state"], "properties": { "id": { "type": "string" }, "expression": { "type": "string" }, "state": { "enum": ["satisfied", "violated", "undetermined"] }, "severity": { "enum": ["error", "warning"] }, "open": { "type": "array", "items": { "type": "string" } } } }
+    },
+    "skipped": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "choice": { "type": "object", "required": ["feature", "selected"], "properties": { "feature": { "type": "string" }, "selected": { "type": "boolean" }, "file": { "type": ["string", "null"] } } },
+    "constraint": { "type": "object", "required": ["kind", "label", "owner", "features"], "properties": { "kind": { "enum": ["childImpliesParent", "mandatory", "rootMandatory", "groupAtLeast", "groupAtMost", "requires", "excludes"] }, "label": { "type": "string" }, "owner": { "type": "string" }, "features": { "type": "array", "items": { "type": "string" } }, "file": { "type": ["string", "null"] } } }
+  }
+}

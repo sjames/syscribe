@@ -17,7 +17,8 @@
 //! * `suspect accept <src> <tgt>` is checked by resolving both ends with
 //!   `check-ref`; `scaffold-gherkin --fix` runs in preview mode;
 //! * commands needing a live client, the network, git state or an external tool
-//!   (`mcp`, `lsp`, `repos sync`, `baseline create`, `ingest-results`,
+//!   (`mcp`, `lsp`, `repos sync`, `baseline create`, `ingest-results`, `check-staged`, `changes` naming a
+//!   revision the checkout lacks,
 //!   `plantuml render` without `--dry-run`, `suspect accept --all*`) are skipped.
 //!
 //! (`summarize` refreshes its content-hash cache under `<root>/.syscribe/cache/`,
@@ -148,7 +149,20 @@ fn plan(ex: &Example, tmp: &Path, n: usize) -> Plan {
     match cmd.as_str() {
         "mcp" | "lsp" => return Plan::Skip("needs a live stdio client"),
         "ingest-results" => return Plan::Skip("needs an external results file"),
+        // `--install-hook` writes into `.git/hooks` of the repository the tests run in, and the verdict
+        // depends on whatever happens to be staged: neither belongs in an example run.
+        "check-staged" => return Plan::Skip("depends on staged git state; --install-hook writes .git/hooks"),
         "repos" if sub == "sync" => return Plan::Skip("needs the network / peer git repos"),
+        // `changes <revA> [<revB>]` names revisions of the repository the tests run in. A shallow checkout (CI) has
+        // no `main` and no tags, so an example naming one is skipped there rather than failing.
+        "changes" => {
+            let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            let revs: Vec<&String> = a.iter().skip(1).take_while(|x| !x.starts_with("--")).collect();
+            let resolves = |r: &str| Command::new("git").arg("-C").arg(&repo).args(["rev-parse", "--verify", "--quiet", &format!("{r}^{{commit}}")]).output().is_ok_and(|o| o.status.success());
+            if revs.iter().any(|r| !resolves(r)) {
+                return Plan::Skip("names a git revision this checkout does not have (shallow clone, no tags)");
+            }
+        }
         "baseline" if sub == "create" => return Plan::Skip("seals git state"),
         "plantuml" if sub == "render" && !has(&a, "--dry-run") => return Plan::Skip("needs PlantUML"),
         "suspect" if sub == "accept" => {

@@ -75,6 +75,10 @@ pub struct ValidateConfig {
     /// `refines`/`E316`/`W307` checks run regardless of this flag.
     pub magicgrid: bool,
 
+    /// `validate --hints` (GH #439): also report the informational workflow hints `I910`–`I912`,
+    /// which name the dedicated command when a file looks hand-edited. Off by default.
+    pub hints: bool,
+
     /// REQ-TRS-LINK-001 — hosted-source link configuration from the `[links]`
     /// table of `<model_root>/.syscribe.toml`. `None` means the feature is inert
     /// (no element resolves to a URL; diagrams/reports are exactly as before).
@@ -739,6 +743,7 @@ impl ValidateConfig {
             id_max_digits,
             id_check_file_names,
             magicgrid: false,
+            hints: false,
             links,
             scripts_dir,
             repos,

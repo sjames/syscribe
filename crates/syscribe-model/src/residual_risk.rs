@@ -267,9 +267,9 @@ pub fn record(model_root: &Path, rec: CampaignRecord) -> Result<PathBuf, String>
     list.truncate(HISTORY);
     let path = sidecar(model_root);
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        crate::fsio::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    std::fs::write(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
+    crate::fsio::write(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path)
 }
 

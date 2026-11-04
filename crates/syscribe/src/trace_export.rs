@@ -561,12 +561,12 @@ pub fn cmd_trace_export(model_root: &Path, elements: &[RawElement], vcfg: &Valid
         Some(path) => {
             let path = Path::new(path);
             if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                if let Err(e) = std::fs::create_dir_all(parent) {
+                if let Err(e) = syscribe_model::fsio::create_dir_all(parent) {
                     eprintln!("Error: cannot create '{}': {e}", parent.display());
                     std::process::exit(1);
                 }
             }
-            if let Err(e) = std::fs::write(path, format!("{text}\n")) {
+            if let Err(e) = syscribe_model::fsio::write(path, format!("{text}\n")) {
                 eprintln!("Error: cannot write '{}': {e}", path.display());
                 std::process::exit(1);
             }

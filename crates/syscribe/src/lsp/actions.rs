@@ -45,14 +45,18 @@ pub(super) fn lenses_for(store: &LspStore, path: &Path) -> Vec<CodeLens> {
     if suspect_count > 0 {
         parts.push(format!("{suspect_count} suspect link{}", if suspect_count == 1 { "" } else { "s" }));
     }
-    if parts.is_empty() {
-        return vec![];
+    let mut lenses = super::ple_hover::lenses(store, path);
+    if !parts.is_empty() {
+        lenses.insert(
+            0,
+            CodeLens {
+                range: super::frontmatter_range(path),
+                command: Some(Command { title: parts.join(" · "), command: String::new(), arguments: None }),
+                data: None,
+            },
+        );
     }
-    vec![CodeLens {
-        range: super::frontmatter_range(path),
-        command: Some(Command { title: parts.join(" · "), command: String::new(), arguments: None }),
-        data: None,
-    }]
+    lenses
 }
 
 // ── codeAction (REQ-TRS-LSP-014/015/016) ──────────────────────────────────────
@@ -135,6 +139,9 @@ pub(super) fn actions_for(store: &LspStore, path: &Path, requested_range: &Range
             data: None,
         }));
     }
+
+    // Product-line and binding-time diagnostics (GH #421): each fix validated in memory first.
+    actions.extend(super::ple_actions::quick_fixes(store, path));
 
     actions
 }

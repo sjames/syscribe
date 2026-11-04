@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/timeline.schema.json",
+  "title": "syscribe timeline --json / MCP timeline / LSP syscribe/timeline",
+  "description": "Stable contract (GH #418). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "configuration",
+    "chain",
+    "effective",
+    "open"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "configuration": {
+      "type": "string"
+    },
+    "bindingStage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "chain": {
+      "type": "array",
+      "description": "Root first. Each step lists only what that Configuration decided itself.",
+      "items": {
+        "type": "object",
+        "required": [
+          "configuration",
+          "file",
+          "decided"
+        ],
+        "properties": {
+          "configuration": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "bindingStage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decided": {
+            "type": "object",
+            "required": [
+              "selections",
+              "bindings"
+            ],
+            "properties": {
+              "selections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "feature",
+                    "selected"
+                  ],
+                  "properties": {
+                    "feature": {
+                      "type": "string"
+                    },
+                    "selected": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "value"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "value": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "effective": {
+      "type": "object",
+      "required": [
+        "selections",
+        "parameters"
+      ],
+      "properties": {
+        "selections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "feature",
+              "selected",
+              "source"
+            ],
+            "properties": {
+              "feature": {
+                "type": "string"
+              },
+              "selected": {
+                "type": "boolean"
+              },
+              "source": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  }
+                }
+              },
+              "stage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "value",
+              "source"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "value": {},
+              "source": {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  }
+                }
+              },
+              "stage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "open": {
+      "type": "array",
+      "description": "What no step has decided yet, grouped by the stage it can be bound at (the residual groups).",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

@@ -135,10 +135,15 @@ $ syscribe -m model_auto/ validate --json
 |---|---|
 | `--deny <CODES>` | Treat each comma-separated warning code as a gate failure. |
 | `--max-warnings <N>` | Fail when the warning count exceeds `N`. |
+| `--hints` | Also report informational workflow hints `I910`–`I913` (hand-edited claim, duplicate evidence, status outside the type's vocabulary, a prose Questions section), each naming the command that does it properly. |
+| `--new-since <rev>` | Gate and list only findings absent at git revision `<rev>` (see below). |
+| `--baseline-file <file>` / `--write-baseline <file>` | The same against a saved list of accepted findings; `--write-baseline` saves the current ones. |
 | `--warnings-as-errors` | Treat every warning as a gate failure. |
 | `--profile <name>` | Apply a named `[profiles.<name>]` policy from `.syscribe.toml` (see below). |
 
 Exit-code contract: `0` clean · `1` one or more `Error`-severity findings (errors always dominate) · `2` warnings tripped a gate. All four flags compose additively.
+
+**Gating on new findings only** (`--new-since`, `--baseline-file`). A finding is identified by its code, the element it is raised on (stable `id:` else qualified name) and a hash of its message — never by file or line — so moving or renaming a file does not make its findings new; matching is a multiset, so a second copy of an accepted finding is new. Only new findings are listed and gated (exit `1`/`2`/`0` as above, judged over them); the count of pre-existing ones is printed. With `--json` every finding is listed with `"new": true|false`. `--new-since` validates the model exported from `<rev>` with `git archive` (the working tree is untouched); `--config <C>` judges the same variant there; the two sources are mutually exclusive and do not combine with `--all-configs`.
 
 The contract holds in every mode. `validate --config <C>` applies the flags (and `--file`) to the projected variant's findings; `validate --all-configs` evaluates the gate **per variant** (so `--max-warnings N` is a per-variant budget), marks each variant `pass` / `gate` / `error` in its summary (`result` in `--json`), and exits with the worst variant under `1` > `2` > `0`.
 
@@ -236,6 +241,32 @@ syscribe -m <root> scripts validate --deny naming/NOASIL
 See `syscribe help scripts` for the full read-only model API.
 
 ### Ingesting executed test results (`ingest-results`)
+
+`context <ref> [--depth N] [--max-bytes N] [--format text|markdown|json]` (GH #435) is one bounded briefing bundle for an element or `PlanningItem`: summary and body, upstream and downstream neighbours to `--depth`, the verifying tests with their latest verdict and the environment they ran on, for a `PlanningItem` its parent, children, `achieves`, evidence, claim and open questions, and the findings on those elements. The output never exceeds `--max-bytes` (default 16000); when it would, the least important items are dropped first and a notice names what was left out. The MCP tool `context` returns the same JSON.
+
+`schema [<name>]` and `capabilities [--json]` (GH #413, #414) are the machine contract for front ends, and need no model. The `--json` forms of `features`, `feature`, `configure`, `residual`, `matrix`, `diff`, `feature-check` and `params check` carry a `schemaVersion` and have a published JSON Schema (`syscribe schema residual`), validated against the real output in CI; a breaking change bumps the version and is recorded in the [JSON contract changelog](../releases/json-contract.md). `capabilities` returns the tool version, the commands and their options, the contracts with their versions, which optional capabilities exist (`stagedConfiguration`, `paramsExport`, `variantDiff`, `coverageMatrix`, `environmentMatrix`, …), the MCP tools and the custom LSP requests; the LSP `initialize` result carries the same document under `capabilities.experimental.syscribe`.
+
+`propagate [--from <Configuration>] [--select <feature>=<bool>]... [--stage <stage>] [--json]` (GH #416) is live propagation for a partial selection: the features forced on, forced off or free, whether the choices can be completed (else which choices clash and the constraints they clash with), the products that remain and one completion, without writing a file. For a Configuration's own selection it equals `configure`; `--stage` defers features bound at another stage. The MCP tool `propagate` and the LSP request `syscribe/propagate` return the same payload (schema `propagate`). The engine is the web configurator's, so a 2,000-feature model stays interactive (`REQ-TRS-FMED-007`).
+
+`explain-feature <feature> [--from <Configuration>] [--select <feature>=<bool>]... [--json]` (GH #417) says why a feature is forced on, forced off, free or in conflict for a partial selection, and what would have to change to select it: the smallest set of choices and constraints (each with kind, label, declaring feature and file) behind the state, the choices any one of which can be dropped, or that the model alone prevents it (as `feature-check --deep` reports for a dead feature). With a Configuration it also lists the parameter constraints that mention the feature. The MCP tool `explain_feature` and the LSP request `syscribe/explainFeature` return the same payload.
+
+`matrix --json` also carries a `gaps` list (GH #424): each cell that needs work with the action to take (`create-test`, `activate-test`, `fix-failing-test`, `decide-binding`, `widen-test`), the tests already linked (id, status, file) and, to create one, the next free test id in the requirement's area. The MCP `coverage_matrix` tool returns it, filtered by `config`.
+
+`children [<node>] [--view containment|configurations] [--offset N] [--limit N] [--json]` (GH #425) returns one tree node's direct children for an explorer: id, type, status, file, package/has-children flags and counters (children, derived children, verifying tests, errors and warnings; a package's are those of its subtree), one page per call with `nextOffset`. `--view configurations` is the Configuration tree along `derivedFrom:` and `subConfigurations:`. The MCP tool `children` and the LSP request `syscribe/children` return the same payload.
+
+`change-impact <element> [--set <field>=<yaml>]... [--param <name> --param-set <field>=<yaml>]... [--json]` (GH #423) says which Configurations a proposed edit to a feature, constraint or parameter range would affect, before it is made. The edit is applied to a candidate copy by the guarded-write engine in dry-run mode, so nothing on disk changes. Per Configuration it reports errors before and after (its variant's findings and its feature-model validity), whether it became invalid or valid, the new and resolved errors and the elements entering or leaving its projection, with the unified diff and the element's file and line. `diff --config A --config B --json` also lists each differing element with its location. The MCP tool `change_impact` and the LSP request `syscribe/changeImpact` return the same payload.
+
+`bind <Configuration> <feature | feature.parameter> <value> [--dry-run] [--json]` (GH #418) writes one `parameterBindings:` value or `features:` selection into a Configuration, checked first: it is previewed on a candidate copy by the guarded-write engine, so the parameter's range, enumeration, unit, stage window and narrowing are the validator's own checks, and a change that adds an error is refused with nothing written. A clean change edits only the affected lines. `timeline <Configuration> [--json]` shows the `derivedFrom:` chain root first with what each stage decided, the effective values with their provenance (source and stage) and what is still open. The MCP tools `bind` (previews unless `dry_run` is false) and `timeline`, and the LSP request `syscribe/timeline`, return the same data.
+
+`health [--json]` (GH #428) is one cheap summary for a status bar: error and warning counts, requirements (total, orphan, unverified), stale evidence (suspect links, stale results), the Configurations whose variant fails validation, an overall `status` and, per non-zero metric, the command that lists the detail. The MCP tool `health` and the LSP request `syscribe/health` return the same payload, kept per model version (`cached`). Parameter values files are not registered in the model, so stale ones are not counted.
+
+`new feature|configuration|parameter` (GH #427) scaffolds what an author would otherwise get wrong: a `FeatureDef` with a free derived `FEAT-*` id under a package or group feature; a `Configuration` with a valid `CONF-*` id derived from a base at a real, not-earlier `bindingStage:`; a parameter appended to a feature with type, unit, range or enumeration, default and an ordered binding window. Each is previewed through the guarded-write engine (`--dry-run`) and committed only when it adds no error; the MCP tool `scaffold` previews by default.
+
+`timing [--json]` (GH #429) loads the model and validates it once and reports each phase — load, validate, and every Configuration's projected validation — with the counts, the peak memory and whether the build is debug or release. It is the measurement behind the decision recorded in [incremental validation](../design/incremental-validation.md): the largest model of this project loads and validates in 79 ms in a release build against a 250 ms target, so incremental revalidation is not built; run `timing` on your own model to check.
+
+The language server previews a mutating action before it is made (GH #426): the read-only request `syscribe/preview` (`{action: "bind" | "scaffold", …}`) returns the report with the diff and the findings the change would add or resolve, whether it is commitable, a `WorkspaceEdit` the client can apply and an undo edit, writing nothing; the command `syscribe.apply` commits the same plan through `workspace/executeCommand` only when it adds no error and returns an undo edit.
+
+`matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
 
@@ -1890,7 +1921,7 @@ It exposes structured read tools and a small set of guarded-write tools; referen
 | Report passthrough | `run_report` (allowlisted, read-only reports) |
 | Guarded writes | `create_element`, `update_element`, `move_element`, `delete_element`, `edit_feature`, `apply_changes`, `ingest_results`, `suspect_accept` |
 
-It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `create-magicgrid-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`).
+It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `create-magicgrid-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`) and **workflow prompts** with the exact tool sequence (`add-requirement-with-test`, `record-test-evidence`, `review-change-set`, `close-planning-item`, `check-variant`). The `initialize` instructions are generated from the model — its real id prefixes, status vocabularies and gates (`mcp --print-instructions` prints them).
 
 The server watches the model root (including `.syscribe.toml` and `.syscribe/results.json`) and every `[repos]` peer root, and reloads its in-memory model automatically when a model input changes on disk (an editor save, a branch switch, another tool), so you rarely need the `reload` tool. Event bursts are debounced and a path/size/mtime fingerprint of the inputs (`.md`, `.sysml`, `.kerml`, `.rhai`, `.syscribe.toml`, `.sysmlignore`, `results.json`, and files under `foreignFormat:`/`annotationFormat:` packages) decides whether anything actually changed, so the server's own writes are not reloaded twice. A half-saved file whose frontmatter does not parse defers the reload (the current model is kept, a warning is logged) until the next change. Each automatic reload sends a `{"event":"reload","source":"watch"}` logging message and `resources/list_changed`. `--no-watch` turns this off; `--read-only` servers still watch.
 
@@ -1905,3 +1936,216 @@ syscribe -m <root> lsp
 ### Wrapping CLI commands instead
 
 If you prefer not to run the built-in server, any MCP host that can execute shell commands can wrap individual `syscribe` commands as tools (one tool per command, `SYSCRIBE_MODEL` set once). Each handler runs the command, captures stdout, and returns it; the agent calls `syscribe validate --json` after every write and proceeds only on `[]`.
+
+
+## `changes` — what changed between two revisions
+
+```bash
+syscribe -m model/ changes <revA> [<revB>] [--types T1,T2] [--package <qname>] [--json]
+```
+
+Element-level diff of the model between two git revisions (`<revB>` defaults to the working tree), with no sealed baseline needed. Elements are paired by stable `id:` (else qualified name): each entry is `added`, `removed`, `moved` or `modified`, and a modified one names the `status` transition, links added/removed, `evidence:` added/removed, other changed fields and whether the body changed. Reformatting YAML or re-wrapping whitespace produces no entry. References that stopped (or started) resolving are listed after the entries. Exit `0` whether or not anything changed; `1` for an unknown revision, a non-git directory, or a model directory absent at a revision.
+
+## `impact --files` and `check-staged` — review and commit time
+
+```bash
+syscribe -m model/ impact --files src/sched.c                  # what does this file touch?
+syscribe -m model/ impact --since main --fail-on-unreviewed    # CI: the model must move with the code
+syscribe -m model/ check-staged [--fix-hints] [--json]         # pre-commit: only what is staged
+syscribe -m model/ check-staged --install-hook
+```
+
+**`impact --files` / `--since <rev>`** starts from changed files instead of one element. Each path is mapped to the elements bound to it — an element's own file, `implementedBy:` (a file or a directory), a `TestCase`'s `sourceFile:` and a `PlanningItem`'s `evidence[].path`, resolved like `W023` — and the traversal runs from that set (default both directions, depth 2: unit → requirement → verifying tests). Output groups the affected elements by type and marks each `changed` or `not changed`; files that map to nothing are listed separately. `--fail-on-unreviewed` exits `2` when an affected requirement or test was not itself changed. The MCP `impact` tool takes `files` and `since` the same way.
+
+**`check-staged`** validates only what the commit touches: the staged model files plus the elements that directly reference them, checked on the unprojected model and under each `Configuration` a touched element is active in (`--skip-configs` omits those), reporting only findings on touched elements. It judges the staged content — the working tree when it matches the index, otherwise an export of the index — and, for a staged deletion or rename, also everything the commit newly breaks compared with `HEAD`. A commit that stages no model file exits `0` without loading the model. Exit `1` on an error, `2` on a warning gated by `--deny`/`--max-warnings`/`--warnings-as-errors`. `--fix-hints` explains each code and names the commands that fix it; `--install-hook` writes a `pre-commit` hook (honouring `core.hooksPath`), refusing to overwrite one it did not write, and the hook lets a commit through, with a message, if `syscribe` is not on `PATH`.
+
+## Finding your way: `help`, `explain`, `template`
+
+Discovery works without a model directory.
+
+```bash
+syscribe help                        # every command, grouped
+syscribe help PlanningItem           # a type: fields, enums, skeleton, validation codes, commands that act on it
+syscribe help --search evidence      # rank commands, options, types and spec sections by keyword (-k works too)
+syscribe help tasks                  # common jobs → the command for each
+syscribe explain E106                # what a finding means and the commands it points to (help E106 is the same)
+syscribe template Requirement        # a skeleton; no model needed (a configured id prefix is used when a model is present)
+```
+
+`help <Type>` accepts any element type, case-insensitively. Its command list is derived from the man pages (every page that names the type, plus the commands that act on any element), so it follows the commands rather than a hand-kept table. `describe_type` over MCP returns the same `commands` and `codes`.
+
+**Typos.** A mistyped command lists the three nearest with their one-line purpose; an unknown option, `set` field, `set status=` value or `template` type is answered with `Did you mean '…'?`. Only the message changes — exit codes are unchanged.
+
+
+## `agent-guide` — an instruction block for agents, generated from the model
+
+```bash
+syscribe -m model/ agent-guide                          # print the block
+syscribe -m model/ agent-guide --write CLAUDE.md        # update only the marked region of CLAUDE.md
+syscribe -m model/ agent-guide --check CLAUDE.md        # CI: exit 1 if the region is out of date
+syscribe -m model/ agent-guide --format json --sections types
+```
+
+Projects that let scripts or LLM agents edit the model usually hand-write the same guidance (id prefixes, what each status means, which command does which job, which gates must pass), and it goes stale. `agent-guide` builds it from the loaded model and `.syscribe.toml`: the **ids** in use and their `next-id` command (with any `[ids.prefixes]` extras), per lifecycle **type** its status vocabulary, required fields and working commands, the exact **gates** to run (`validate`, plus `validate --profile <name>` per profile, and the `[gates]` they enforce) and the safe-mutation **rules** (`next-id`/`template`, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews). `--sections ids,types,gates,rules` selects a subset.
+
+The output is deterministic — no timestamps, no tool version — so it changes only when the model or its configuration does. The Markdown is wrapped in `<!-- syscribe:agent-guide -->` … `<!-- /syscribe:agent-guide -->`. `--write` replaces only that region (creating the file, or appending the region to a file that has none) and never touches text outside it; repeated or unbalanced markers are refused and the file left as it was. `--check` exits `1` when the region is missing or differs from what would be generated. The MCP server's `initialize` instructions come from the same data.
+
+
+## `schema` and `capabilities` — the front-end contract
+
+```bash
+syscribe schema [<name>]
+syscribe capabilities [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `timing` — where the time goes
+
+```bash
+syscribe -m model/ timing [--json]
+```
+
+See the paragraph near the top of this page and [incremental validation](../design/incremental-validation.md).
+
+## `new` — scaffolding
+
+```bash
+syscribe -m model/ new feature Gimbal --under Features [--group alternative] [--mandatory]
+syscribe -m model/ new configuration CONF-X-001 --from CONF-BASE --stage runtime
+syscribe -m model/ new parameter Features::Gimbal gain --range 0..10 --default 5 --stage load --latest runtime
+```
+
+See the paragraph near the top of this page; `syscribe help new` has the details.
+
+## `health` — the status-bar summary
+
+```bash
+syscribe -m model/ health [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help health` has the details.
+
+## `bind` and `timeline` — staged binding
+
+```bash
+syscribe -m model/ bind CONF-X Features::Motor.kv 1100 [--dry-run] [--json]
+syscribe -m model/ timeline CONF-X [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help bind` and `syscribe help timeline` have the details.
+
+## `change-impact` — what an edit would affect
+
+```bash
+syscribe -m model/ change-impact <element> --set requires='[Features::B]' [--json]
+syscribe -m model/ change-impact FEAT-X --param motorKV --param-set range="900..1000"
+```
+
+See the paragraph near the top of this page; `syscribe help change-impact` has the options.
+
+## `children` — explorer tree data
+
+```bash
+syscribe -m model/ children [<node>] [--view configurations] [--offset N] [--limit N] [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help children` has the details.
+
+## `explain-feature` — why a feature is in its state
+
+```bash
+syscribe -m model/ explain-feature <feature> [--from CONF] [--select FEAT-X=true]... [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help explain-feature` has the options.
+
+## `propagate` — what a partial selection forces
+
+```bash
+syscribe -m model/ propagate [--from CONF] [--select FEAT-X=true]... [--stage S] [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help propagate` has the options.
+
+## `context` — a bounded briefing on one element
+
+```bash
+syscribe -m model/ context REQ-X-001 [--depth N] [--max-bytes N] [--format text|markdown|json]
+```
+
+See the paragraph near the top of this page for what the bundle holds; `syscribe help context` has the options and the order in which a too-large bundle is cut down.
+
+## `questions` and `steps` — a PlanningItem's decisions and breakdown
+
+```bash
+syscribe -m model/ questions --open                      # every open question, with its owning item
+syscribe -m model/ questions --item PI-RTH-001 --json
+syscribe -m model/ set PI-RTH-001 question.add text="Which UART?" recommended=UART2
+syscribe -m model/ set PI-RTH-001 question.answer Q1 text=UART2 by=alice
+syscribe -m model/ set PI-RTH-001 question.defer Q2
+syscribe -m model/ steps PI-RTH-001 [--open] [--depth N] [--json]
+syscribe -m model/ list PlanningItem --open-questions
+```
+
+**Questions** are the decisions a `PlanningItem` is waiting on, kept inline in its `questions:` list (`{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}`, `status` `open | answered | deferred`). They are detected from that field, never inferred from prose; each is private to its item and addressed `PI-X#Q1`. `questions` lists them across the model (`--open`, `--status`, `--item`, `--json`); `show` prints an item's; `list PlanningItem --open-questions` keeps items with an open one. `validate` checks them (`E724`–`E727`) and warns (`W317`) when an item is `done` with an open one — answer it, or `question.defer` it to say the gap is deliberate. An open question does not make an item `blocked`. `set … question.*` edits only the affected entry and leaves comments and order alone; `--dry-run` previews. An unknown `Qn`, an empty text or a non-PlanningItem exits 1 and writes nothing.
+
+**Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.
+
+## Writing safely: `--dry-run`, provenance in git, `log`, `--expect-hash`
+
+Several people and agents can change one model on the mainline. These options are global — accepted by every command, before or after its name — and make each change previewable, attributable and safe against a concurrent edit.
+
+```bash
+syscribe -m model/ set REQ-X status=approved --dry-run                       # preview; nothing is written
+syscribe -m model/ set REQ-X status=approved --by agent-1 \
+    --reason "evidence TC-3 passed" --commit                                   # write it and commit just that change
+syscribe -m model/ set REQ-X status=done --expect-hash blake3:ab12…            # refuse if REQ-X changed since it was read
+syscribe -m model/ log REQ-X                                                   # who changed it, and why
+syscribe -m model/ log --unattributed --since 2026-11-01                       # commits that bypassed the tool
+```
+
+| Option | Meaning |
+|---|---|
+| `--dry-run` | A command that writes files leaves the tree byte-identical and says what it would have written (`Would write …`, never `Wrote …`). Covers model edits, sidecars, generated exports and caches, and the pre-commit hook. |
+| `--by <actor>` | Who is making the change (letters, digits, `.`, `_`, `-`; optional). With `--commit` it is the commit **author**; the committer stays the configured git user. `claim` and `log` keep their own meaning (the claimant; a filter). |
+| `--reason <text>` | Why — recorded in the commit message. |
+| `--commit` | Commit the files this command wrote, **and only those**, as one commit — so another actor's staged or unstaged work in the same working tree is never swept in. Also on when `.syscribe.toml` has `[provenance]` `commit = true`. Never on a dry run. A commit that fails leaves the change written and exits 1. |
+| `--expect-hash <hash>` | Refuse (exit 1, nothing written) if the target file's BLAKE3 content hash differs — the `contentHash` shown by `show` and by the MCP `get_element` detail. Accepted by `set`, `claim`, `release`, `move`, `applies-when` and `scaffold-gherkin --fix` (anywhere else it is a usage error, not silently ignored); a check before the write, not a lock. |
+
+**Git is the record.** A committed change reads `syscribe: set REQ-X status=approved`, the reason, and trailers `Syscribe-Command`, `Syscribe-Actor` and `Syscribe-Reason` (the actor and reason only when given). There is no separate log file. `log` lists the commits that touched the model; `log <element>` follows that element's file through renames and says what each commit changed in it (status moves, links, evidence). `--by`, `--since`, `--limit` and `--json` filter; `--unattributed` lists commits without the trailers — edits made by hand or without `--commit`. Committing is at file granularity, so two actors editing the same file before either commits share one commit. The decision and its rejected alternatives (a `changes.jsonl` file, sharded logs) are in `ADR-SYS-PROVENANCE-001`.
+
+**Over MCP**, `create_element`, `update_element`, `move_element`, `delete_element` and `question` take `by`, `reason`, `commit` and `expect_hash`, and a committed write returns `commit`; `log` is a read tool. `mcp --read-only` hides exactly the tools not annotated read-only.
+
+**`--json`** on `set`, `claim`, `release` and `move` prints one envelope instead of text: `{schemaVersion, ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}`. Other commands' `--json` output is unchanged.
+
+**Exit codes.** `0` success. `1` a usage error, an unknown element, or a refused write (a stale `--expect-hash`, an invalid value, a failed commit). `2` a tripped gate (`validate --deny …`, `check-staged`, `impact --fail-on-unreviewed`). `connectivity`, `follow` and `impact` also exit `2` on a usage error; every other command exits `1`. There is no other code.
+
+
+## The agent policy: `[agents]` and `policy`
+
+Conventions for automated editors — a planning item is not `done` without evidence, `approved` is a person's call, some paths are not for tools — can be declared once and enforced by the tool, instead of by convention.
+
+```toml
+# .syscribe.toml
+[agents]
+protected_paths     = ["model/Safety/**"]                       # repository-relative globs
+human_only_status   = { Requirement = ["approved"], ADR = ["accepted"] }
+require_before_done = ["validate", "evidence"]                  # before an agent sets a PlanningItem done
+require_by          = true                                      # every model-writing command names its actor
+actors              = ["agent-*"]                               # git authors the audit counts as agents
+audit_limit         = 200                                       # recent commits `validate` inspects
+```
+
+```bash
+syscribe -m model/ policy                                        # the rules in plain words, and how this call is treated
+syscribe -m model/ set REQ-X status=approved --by agent-1        # refused: a Requirement is approved by a person
+syscribe -m model/ set REQ-X status=approved --as-human          # a person: allowed (recorded as Syscribe-As: human)
+syscribe -m model/ validate --deny W760,W761                     # fail on violations found in git history
+```
+
+**Who is an agent.** A change that names an actor (`--by`) and does not pass `--as-human`; over MCP every client is an agent, with no `--as-human`. The policy binds agents and leaves a person's edit alone, so a person at a terminal who names no actor is unaffected — which also means an agent that forgets `--by` is not bound. Always pass `--by` from an agent, or set `require_by`, which refuses any write to the model that names neither `--by` nor `--as-human` (checked up front for the known writers, and in the write layer for everything else). `--as-human` is a declaration, not a proof: this stops the mistakes automation makes, not a determined actor.
+
+**What is refused** (exit 1, nothing written, the rule named, and how a person proceeds — also under `--dry-run`, so a dry run reports what a real run would be refused): writing a `protected_paths` match (a `move` is checked across every file it rewrites, and each operation of an `apply_changes` batch separately; the write layer guards the rest as a backstop), setting a `human_only_status`, and marking a PlanningItem `done` while `require_before_done` is unmet — `evidence` needs the item to raise no `E719`, `validate` needs the change to introduce no error.
+
+**What `validate` audits.** From the last `audit_limit` commits that touched the model, agent-made ones (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`) that changed a protected path (`W760`) or set a human-only status (`W761`); and `W762` for a malformed `[agents]` entry, which is ignored on its own while the rest still applies (a status the type does not have counts as malformed, so a typo cannot silently protect nothing). They are warnings — gate them with `--deny`. `agent-guide` and the MCP instructions state the policy to the agents it governs. The decision is `ADR-SYS-AGENTPOLICY-001`.

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/diff.schema.json",
+  "title": "syscribe diff --config A --config B --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "onlyInA",
+    "onlyInB",
+    "schemaVersion"
+  ],
+  "properties": {
+    "onlyInA": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "onlyInB": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "changes": {
+      "type": "array",
+      "description": "Each element that is in one variant and not the other, with where it lives (GH #423).",
+      "items": {
+        "type": "object",
+        "required": [
+          "element",
+          "side",
+          "location"
+        ],
+        "properties": {
+          "element": {
+            "type": "string"
+          },
+          "qualifiedName": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "onlyInA",
+              "onlyInB"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "required": [
+              "file",
+              "line"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              }
+            },
+            "description": "Jump-to-source ready."
+          }
+        }
+      }
+    }
+  }
+}

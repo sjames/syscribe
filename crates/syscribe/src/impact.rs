@@ -136,11 +136,52 @@ pub struct ImpactOptions<'a> {
     pub kinds: Option<Vec<String>>,
 }
 
-struct Node {
-    qname: String,
-    depth: usize,
-    via: &'static str,
-    parent: Option<String>,
+pub(crate) struct Node {
+    pub(crate) qname: String,
+    pub(crate) depth: usize,
+    pub(crate) via: &'static str,
+    pub(crate) parent: Option<String>,
+}
+
+/// Breadth-first reach from `roots` (all at depth 0) in `direction`, following only edges whose base
+/// kind `kind_ok` accepts, to at most `depth` hops. Cycle-safe: each element is visited once, and the
+/// roots themselves are not in the result. Shared by `impact <element>` and `impact --files/--since`.
+pub(crate) fn traverse(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    roots: &[String],
+    direction: Direction,
+    depth: Option<usize>,
+    kind_ok: &dyn Fn(&str) -> bool,
+) -> Vec<Node> {
+    let (up, down) = build_adjacency(elements, resolver);
+    let mut seen: HashSet<String> = roots.iter().cloned().collect();
+    let mut order: Vec<Node> = Vec::new();
+    let mut queue: std::collections::VecDeque<(String, usize)> = roots.iter().map(|r| (r.clone(), 0usize)).collect();
+    while let Some((cur, d)) = queue.pop_front() {
+        if let Some(max) = depth {
+            if d >= max {
+                continue;
+            }
+        }
+        let mut neighbours: Vec<&Adj> = Vec::new();
+        if matches!(direction, Direction::Downstream | Direction::Both) {
+            neighbours.extend(down.get(&cur).into_iter().flatten());
+        }
+        if matches!(direction, Direction::Upstream | Direction::Both) {
+            neighbours.extend(up.get(&cur).into_iter().flatten());
+        }
+        // Stable order for reproducible output.
+        let mut sorted: Vec<&Adj> = neighbours.into_iter().filter(|a| kind_ok(a.base)).collect();
+        sorted.sort_by(|a, b| a.to.cmp(&b.to));
+        for a in sorted {
+            if seen.insert(a.to.clone()) {
+                order.push(Node { qname: a.to.clone(), depth: d + 1, via: a.via, parent: Some(cur.clone()) });
+                queue.push_back((a.to.clone(), d + 1));
+            }
+        }
+    }
+    order
 }
 
 pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
@@ -153,8 +194,6 @@ pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
         }
     };
     let root_q = root_el.qualified_name.clone();
-    let (up, down) = build_adjacency(elements, &resolver);
-
     // `--kinds` names match an edge's base kind. A declared link type's `inverse`
     // selects that type's edges too (REQ-TRS-LINKTYPE-009) — in addition to any
     // built-in kind of the same name. An unknown name is a usage error (exit 1).
@@ -182,33 +221,8 @@ pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
     }
     let kind_ok = |base: &str| kinds.as_ref().is_none_or(|ks| ks.iter().any(|k| k == base));
 
-    // BFS spanning tree from the root in the chosen direction(s); cycle-safe via `seen`.
-    let mut seen: HashSet<String> = HashSet::from([root_q.clone()]);
-    let mut order: Vec<Node> = Vec::new();
-    let mut queue: std::collections::VecDeque<(String, usize)> = std::collections::VecDeque::from([(root_q.clone(), 0usize)]);
-    while let Some((cur, d)) = queue.pop_front() {
-        if let Some(max) = opts.depth {
-            if d >= max {
-                continue;
-            }
-        }
-        let mut neighbours: Vec<&Adj> = Vec::new();
-        if matches!(opts.direction, Direction::Downstream | Direction::Both) {
-            neighbours.extend(down.get(&cur).into_iter().flatten());
-        }
-        if matches!(opts.direction, Direction::Upstream | Direction::Both) {
-            neighbours.extend(up.get(&cur).into_iter().flatten());
-        }
-        // Stable order for reproducible output.
-        let mut sorted: Vec<&Adj> = neighbours.into_iter().filter(|a| kind_ok(a.base)).collect();
-        sorted.sort_by(|a, b| a.to.cmp(&b.to));
-        for a in sorted {
-            if seen.insert(a.to.clone()) {
-                order.push(Node { qname: a.to.clone(), depth: d + 1, via: a.via, parent: Some(cur.clone()) });
-                queue.push_back((a.to.clone(), d + 1));
-            }
-        }
-    }
+    // BFS spanning tree from the root in the chosen direction(s); cycle-safe.
+    let order = traverse(elements, &resolver, std::slice::from_ref(&root_q), opts.direction, opts.depth, &kind_ok);
 
     let type_of = |q: &str| -> String {
         resolver

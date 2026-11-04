@@ -2,6 +2,8 @@
 
 mod annotations;
 mod budgetcmd;
+mod changes;
+mod checkstaged;
 mod designreportcmd;
 mod metacmd;
 mod audit;
@@ -18,6 +20,7 @@ mod reqif_import;
 mod compliance;
 mod exec_cmd;
 mod evidence_cmd;
+mod logcmd;
 mod mechanisms;
 mod cyberrisk;
 mod connectivity;
@@ -29,11 +32,15 @@ mod export_html;
 mod fmea_report;
 mod heat_cmd;
 mod ftsearch;
+mod health;
 mod help;
 mod ingest;
 mod lint_docs;
 mod bindingtimes;
+mod newcmd;
 mod params;
+mod preview;
+mod propagate;
 mod residual;
 mod linktypes;
 mod lsp;
@@ -45,6 +52,7 @@ mod mgreport;
 mod mv;
 mod bcov;
 mod impact;
+mod impactfiles;
 mod n2;
 mod plantuml;
 mod query;
@@ -58,6 +66,22 @@ mod claim;
 mod scaffold;
 mod scripting;
 mod set;
+mod suggest;
+mod typehelp;
+mod bind;
+mod changeimpact;
+mod children;
+mod context;
+mod contract;
+mod envmatrix;
+mod explain;
+mod explainfeature;
+mod qset;
+mod policy_gate;
+mod provenance;
+mod questions;
+mod steps;
+mod agentguide;
 mod stats;
 mod summarize;
 mod suspect;
@@ -65,6 +89,8 @@ mod sysml_export;
 mod view_render;
 mod testplan;
 mod textstats;
+mod timeline;
+mod timing;
 mod topics;
 mod trace_export;
 mod tradestudy;
@@ -244,6 +270,33 @@ fn top_level_package(file_path: &str, model_root: &str) -> String {
     }
 }
 
+/// `template <type> [--prefix P]`. The skeleton does not depend on the model; the root is read only
+/// for configured `[ids.prefixes]`, so a missing root is fine (GH #438).
+fn run_template(model_root: &std::path::Path, subcommand_args: &[String]) {
+    // The type is the first argument that is neither `--prefix` nor its value,
+    // so `template --prefix SYS Requirement` works too.
+    let mut ty = "";
+    let mut it = subcommand_args.iter().skip(1);
+    while let Some(a) = it.next() {
+        if a == "--prefix" {
+            it.next();
+        } else if !a.starts_with("--") {
+            ty = a.as_str();
+            break;
+        }
+    }
+    if ty.is_empty() {
+        eprintln!("Usage: syscribe [--model <root>] template <type> [--prefix <id-prefix>]");
+        std::process::exit(1);
+    }
+    let prefix = subcommand_args
+        .iter()
+        .position(|a| a == "--prefix")
+        .and_then(|i| subcommand_args.get(i + 1))
+        .map(|s| s.as_str());
+    query::cmd_template(ty, model_root, prefix);
+}
+
 const AGENT_INSTRUCTIONS: &str = include_str!("../../../prompts/create-model.md");
 // REQ-TRS-CLI-006: `--agent-instructions magicgrid` teaches MagicGrid modeling.
 const MAGICGRID_INSTRUCTIONS: &str = include_str!("../../../prompts/create-magicgrid-model.md");
@@ -287,6 +340,21 @@ fn parse_gate_options(args: &[String]) -> query::GateOptions {
                         std::process::exit(1);
                     }
                 }
+                i += 1;
+            }
+        } else if let Some((flag, val)) = ["--new-since", "--baseline-file", "--write-baseline"].iter().find_map(|f| {
+            if a == f {
+                args.get(i + 1).map(|v| (*f, v.as_str()))
+            } else {
+                a.strip_prefix(&format!("{f}=")).map(|v| (*f, v))
+            }
+        }) {
+            match flag {
+                "--new-since" => gate.new_since = Some(val.to_string()),
+                "--baseline-file" => gate.baseline_file = Some(val.into()),
+                _ => gate.write_baseline = Some(val.into()),
+            }
+            if a == flag {
                 i += 1;
             }
         } else if let Some(val) = a.strip_prefix("--max-warnings=") {
@@ -588,7 +656,14 @@ fn build_cli() -> clap::Command {
                 .long("model")
                 .num_args(1)
                 .global(true),
-        );
+        )
+        // Global flags (GH #443/#444), read by `provenance::extract` before dispatch.
+        .arg(clap::Arg::new("dry-run").long("dry-run").num_args(0).global(true))
+        .arg(clap::Arg::new("commit").long("commit").num_args(0).global(true))
+        .arg(clap::Arg::new("as-human").long("as-human").num_args(0).global(true))
+        .arg(clap::Arg::new("by").long("by").num_args(1).global(true))
+        .arg(clap::Arg::new("reason").long("reason").num_args(1).global(true))
+        .arg(clap::Arg::new("expect-hash").long("expect-hash").num_args(1).global(true));
     for (name, about) in help::commands() {
         cmd = cmd.subcommand(
             clap::Command::new(name).about(about).arg(
@@ -644,6 +719,14 @@ fn main() {
         return;
     }
 
+    // GH #413/#414: the machine contract needs no model, so it is handled before one is resolved.
+    if let Some(c @ ("schema" | "capabilities")) = first_command_token(&args) {
+        let at = args.iter().position(|a| a == c).unwrap_or(1);
+        let rest = &args[at + 1..];
+        let code = if c == "schema" { contract::cmd_schema(rest) } else { contract::cmd_capabilities(rest) };
+        std::process::exit(code);
+    }
+
     // REQ-TRS-CLI-006: `--agent-instructions [topic]`. No topic (or `general`) →
     // the general modeling prompt; `magicgrid` → the MagicGrid modeling prompt; an
     // unknown topic exits non-zero. The token after the flag is a topic only when it
@@ -692,8 +775,18 @@ fn main() {
         return;
     }
     if args.get(1).map(|a| a == "help").unwrap_or(false) {
-        help::cmd_help(args.get(2).map(|s| s.as_str()));
+        help::cmd_help(args.get(2..).unwrap_or(&[]));
         return;
+    }
+
+    if args.get(1).map(|a| a == "explain").unwrap_or(false) {
+        match args.get(2) {
+            Some(code) => std::process::exit(explain::cmd_explain(code)),
+            None => {
+                eprintln!("Usage: syscribe explain <code>");
+                std::process::exit(1);
+            }
+        }
     }
 
     if args.get(1).map(|a| a == "spec").unwrap_or(false) {
@@ -716,6 +809,15 @@ fn main() {
     // hand-rolled dispatch below runs unchanged (per-command flags pass through as
     // trailing args).
     if let Err(e) = build_cli().try_get_matches_from(&args) {
+        // An unknown command lists the three nearest with their purpose (GH #439), instead of
+        // clap's single "similar subcommand" tip. The exit status is unchanged.
+        if e.kind() == clap::error::ErrorKind::InvalidSubcommand {
+            let word = args.iter().skip(1).find(|a| !a.starts_with('-') && !help::is_command(a) && !std::path::Path::new(a).exists());
+            if let Some(word) = word {
+                eprintln!("error: unrecognized command '{word}'{}", help::unknown_hint(word));
+                std::process::exit(e.exit_code());
+            }
+        }
         e.exit();
     }
 
@@ -769,7 +871,19 @@ fn main() {
         .or_else(discover_model_root)
         .unwrap_or_else(|| "model".to_string());
 
+    // Global flags (GH #443/#444): `--dry-run`, `--by`, `--reason`, `--commit`, `--expect-hash`.
+    let (remaining, globals) = provenance::extract(remaining);
+    syscribe_model::fsio::set_dry_run(globals.dry_run);
+    if let Err(m) = provenance::init(globals) {
+        eprintln!("Error: {m}");
+        std::process::exit(1);
+    }
     let subcommand_args: &[String] = &remaining;
+    if let Err(m) = provenance::check_supported(subcommand_args.first().map(String::as_str)) {
+        eprintln!("Error: {m}");
+        std::process::exit(1);
+    }
+    syscribe_model::fsio::enable_recording();
 
     // Model-free commands: re-check after -m stripping so `syscribe -m <root> spec`
     // and `syscribe -m <root> help` work even when the model flag precedes the subcommand.
@@ -779,8 +893,15 @@ fn main() {
             spec::cmd_spec(section);
             return;
         }
+        Some("explain") => match subcommand_args.get(1) {
+            Some(code) => std::process::exit(explain::cmd_explain(code)),
+            None => {
+                eprintln!("Usage: syscribe explain <code>");
+                std::process::exit(1);
+            }
+        },
         Some("help") => {
-            help::cmd_help(subcommand_args.get(1).map(String::as_str));
+            help::cmd_help(subcommand_args.get(1..).unwrap_or(&[]));
             return;
         }
         _ => {}
@@ -796,6 +917,11 @@ fn main() {
     let model_root = std::path::Path::new(&model_root_arg);
     let model_root_str = model_root.to_string_lossy().into_owned();
 
+    // `template` needs no model: with no model directory it still prints the skeleton.
+    if subcommand_args.first().map(String::as_str) == Some("template") && !model_root.is_dir() {
+        run_template(model_root, &subcommand_args);
+        return;
+    }
     if !model_root.exists() {
         eprintln!("Error: model path does not exist: {}", model_root_str);
         std::process::exit(1);
@@ -814,6 +940,25 @@ fn main() {
     if results_as_of.is_some() && matches!(subcommand_args.first().map(String::as_str), Some("mcp") | Some("lsp") | Some("ingest-results")) {
         eprintln!("--results-as-of does not apply to `{}`.", subcommand_args[0]);
         std::process::exit(1);
+    }
+    // `check-staged` decides from `git` alone whether there is anything to check, so a commit that
+    // stages no model file never pays for loading the model (GH #445).
+    if subcommand_args.first().map(String::as_str) == Some("check-staged") {
+        std::process::exit(checkstaged::cmd_check_staged(model_root, subcommand_args.get(1..).unwrap_or(&[])));
+    }
+    if subcommand_args.first().map(String::as_str) == Some("mcp") && subcommand_args.iter().any(|a| a == "--print-instructions") {
+        // The text a client receives in `initialize`, for pasting into other agent configuration.
+        let read_only = subcommand_args.iter().any(|a| a == "--read-only");
+        let elems = match walker::walk_model(model_root) {
+            Ok(e) => e,
+            Err(err) => {
+                eprintln!("Error walking model: {err}");
+                std::process::exit(1);
+            }
+        };
+        let _ = ValidateConfig::with_model_root(model_root);
+        println!("{}", agentguide::mcp_instructions(&agentguide::build(model_root, &elems), read_only));
+        return;
     }
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
         let read_only = subcommand_args.iter().any(|a| a == "--read-only");
@@ -865,6 +1010,11 @@ fn main() {
         }
     }
 
+    provenance::set_context(model_root, subcommand_args);
+    if let Err(m) = policy_gate::init(model_root, subcommand_args.first().map(String::as_str).unwrap_or(""), subcommand_args.get(1..).unwrap_or(&[])) {
+        eprintln!("Refusing: {m}");
+        std::process::exit(1);
+    }
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     // `report` (and a bare invocation with no subcommand) fall through to the default
     // full validation report below (REQ-TRS-CLI-008).
@@ -1069,6 +1219,8 @@ fn main() {
                 // REQ-TRS-MG-*: a magicgrid-enabled profile (`magicgrid = true`)
                 // turns on the gated MagicGrid validation pass for this run.
                 vcfg_run.magicgrid = profile_ref.is_some_and(|p| p.magicgrid);
+                // GH #439: opt-in workflow hints (I910–I912).
+                vcfg_run.hints = rest.iter().any(|a| a == "--hints");
                 if let Some(rf) = results_file {
                     let inferred = if rf.ends_with(".xml") { "junit" } else { "cargo-json" };
                     let fmt = cliargs::or_exit(cliargs::enum_value(
@@ -1593,6 +1745,7 @@ fn main() {
                     .find(|w| w[0] == "--sil")
                     .map(|w| w[1].as_str());
                 let has_wcet = rest.iter().any(|a| a == "--has-wcet");
+                let open_questions = rest.iter().any(|a| a == "--open-questions");
                 let json = rest.iter().any(|a| a == "--json");
                 let wheres = parse_where_options(rest);
                 // `--rate-status <s>` (GH #343): fault-tree events and FMEA rows whose `rateStatus` is s
@@ -1634,14 +1787,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json),
+                    None => query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json),
                     Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json)
+                            query::cmd_list(&elems, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, &tags, feature, &metadata, status, sil, has_wcet, &wheres, json);
+                            query::cmd_list(&view, key, scope, &tags, feature, &metadata, status, sil, has_wcet, open_questions, &wheres, json);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");
@@ -1723,6 +1876,13 @@ fn main() {
                     }
                 } else if rest.iter().any(|a| a == "--features") {
                     matrix::cmd_matrix_features(&view, json);
+                } else if let Some(by) = rest.windows(2).find(|w| w[0] == "--by").map(|w| w[1].as_str()) {
+                    if by != "environment" {
+                        eprintln!("Unknown --by '{by}'; the only grouping is: environment");
+                        std::process::exit(2);
+                    }
+                    let results = runhist::load_results(model_root);
+                    envmatrix::cmd_env_matrix(&view, results.as_ref(), model_root, &envmatrix::Options { status, tag, gaps_only }, json);
                 } else {
                     // Surface executed-evidence by default when a sidecar exists
                     // (issue #21); absent results, behaves exactly as before.
@@ -2050,6 +2210,10 @@ fn main() {
             "impact" => {
                 // Change impact analysis (§17, GH #65). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                // GH #434: start from changed files or a revision instead of one element.
+                if rest.iter().any(|a| a == "--files" || a == "--since") {
+                    std::process::exit(impactfiles::cmd_impact_files(model_root, &elems, &vcfg, rest));
+                }
                 let root = match first_positional(rest, &["--direction", "--depth", "--format", "--kinds"]) {
                     Some(r) => r,
                     None => {
@@ -2222,30 +2386,7 @@ fn main() {
                 }
                 query::cmd_next_id(&elems, key);
             }
-            "template" => {
-                // The type is the first argument that is neither `--prefix` nor its value,
-                // so `template --prefix SYS Requirement` works too.
-                let mut ty = "";
-                let mut it = subcommand_args.iter().skip(1);
-                while let Some(a) = it.next() {
-                    if a == "--prefix" {
-                        it.next();
-                    } else if !a.starts_with("--") {
-                        ty = a.as_str();
-                        break;
-                    }
-                }
-                if ty.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> template <type> [--prefix <id-prefix>]");
-                    std::process::exit(1);
-                }
-                let prefix = subcommand_args
-                    .iter()
-                    .position(|a| a == "--prefix")
-                    .and_then(|i| subcommand_args.get(i + 1))
-                    .map(|s| s.as_str());
-                query::cmd_template(ty, model_root, prefix);
-            }
+            "template" => run_template(model_root, &subcommand_args),
             "move" => {
                 let dest = subcommand_args.get(2).map(|s| s.as_str()).unwrap_or("");
                 if key.is_empty() || dest.is_empty() {
@@ -2272,6 +2413,102 @@ fn main() {
                 let dry_run = rest.iter().any(|a| a == "--dry-run");
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
+            }
+            "policy" => {
+                let code = policy_gate::cmd_policy(model_root, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "log" => {
+                let code = logcmd::cmd_log(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "context" => {
+                let results = runhist::load_results(model_root);
+                let findings = validator::validate_with_config(&elems, &vcfg).findings;
+                let code = context::cmd_context(&elems, results.as_ref(), &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "new" => {
+                let code = newcmd::cmd_new(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
+            }
+            "timing" => {
+                let code = timing::cmd_timing(model_root, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "timeline" => {
+                let code = timeline::cmd_timeline(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "bind" => {
+                let code = bind::cmd_bind(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
+            }
+            "change-impact" => {
+                let code = changeimpact::cmd_change_impact(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "health" => {
+                let results = runhist::load_results(model_root);
+                let code = health::cmd_health(&elems, &vcfg, results.as_ref(), subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "children" => {
+                let findings = validator::validate_with_config(&elems, &vcfg).findings;
+                let code = children::cmd_children(&elems, &findings, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "explain-feature" => {
+                let code = explainfeature::cmd_explain_feature(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "propagate" => {
+                let code = propagate::cmd_propagate(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "questions" => {
+                let code = questions::cmd_questions(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "steps" => {
+                let code = steps::cmd_steps(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "agent-guide" => {
+                let code = agentguide::cmd_agent_guide(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "changes" => {
+                let code = changes::cmd_changes(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "claim" => {
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
@@ -2515,6 +2752,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        provenance::finish(model_root, subcommand_args);
         return;
     }
 

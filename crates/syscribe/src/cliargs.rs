@@ -43,6 +43,10 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--deny", ValueOrEq),
             ("--deny-meta", Value),
             ("--max-warnings", ValueOrEq),
+            ("--hints", Switch),
+            ("--new-since", ValueOrEq),
+            ("--baseline-file", ValueOrEq),
+            ("--write-baseline", ValueOrEq),
             ("--warnings-as-errors", Switch),
             ("--summary", Switch),
             ("--profile", Value),
@@ -55,12 +59,13 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "audit" => &[("--json", Switch), ("--profile", Value), LENS, ("--plan", Value), ("--all-configs", Switch)],
         "types" | "untyped" | "next-id" | "check-ref" | "path-for" => &[],
         "residual" => &[("--config", Value), ("--json", Switch)],
-        "params" => &[("--config", Value), ("--stage", Value), ("--out", Value), ("--schema", Value), ("--allow-open", Switch), ("--deny", ValueOrEq)],
+        "params" => &[("--json", Switch), ("--config", Value), ("--stage", Value), ("--out", Value), ("--schema", Value), ("--allow-open", Switch), ("--deny", ValueOrEq)],
         "sysml" | "link-types" | "binding-times" | "testplan" | "conduits" | "review" | "features" | "feature" => &[("--json", Switch)],
         "configure" => &[("--json", Switch), ("--stage", Value)],
         "export-html" => &[("--out", Value), ("--css", Value)],
         "matrix" => &[
             ("--json", Switch),
+            ("--by", Value),
             ("--allocations", Switch),
             ("--gaps-only", Switch),
             ("--linked-only", Switch),
@@ -92,11 +97,36 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--summary", Switch),
         ],
         "applies-when" => &[("--set", Value), ("--clear", Switch), ("--dry-run", Switch), ("--json", Switch)],
-        "claim" => &[("--by", Value), ("--dry-run", Switch)],
+        "check-staged" => &[
+            ("--fix-hints", Switch),
+            ("--json", Switch),
+            ("--deny", ValueOrEq),
+            ("--max-warnings", ValueOrEq),
+            ("--warnings-as-errors", Switch),
+            ("--skip-configs", Switch),
+            ("--install-hook", Switch),
+        ],
+        "policy" => &[("--json", Switch)],
+        "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--json", Switch)],
+        "questions" => &[("--open", Switch), ("--status", Value), ("--item", Value), ("--json", Switch)],
+        "new" => &[("--under", Value), ("--group", Value), ("--id", Value), ("--mandatory", Switch), ("--from", Value), ("--stage", Value), ("--feature-model", Value), ("--name", Value), ("--select", Value), ("--type", Value), ("--unit", Value), ("--range", Value), ("--enum", Value), ("--default", Value), ("--required", Switch), ("--latest", Value), ("--json", Switch)],
+        "timing" => &[("--json", Switch)],
+        "timeline" => &[("--json", Switch)],
+        "bind" => &[("--json", Switch)],
+        "change-impact" => &[("--set", Value), ("--param", Value), ("--param-set", Value), ("--json", Switch)],
+        "health" => &[("--json", Switch)],
+        "children" => &[("--view", Value), ("--offset", Value), ("--limit", Value), ("--json", Switch)],
+        "explain-feature" => &[("--from", Value), ("--select", Value), ("--json", Switch)],
+        "propagate" => &[("--from", Value), ("--select", Value), ("--stage", Value), ("--json", Switch)],
+        "context" => &[("--depth", Value), ("--max-bytes", Value), ("--format", Value), ("--json", Switch)],
+        "steps" => &[("--open", Switch), ("--depth", Value), ("--json", Switch)],
+        "agent-guide" => &[("--format", Value), ("--sections", Value), ("--write", Value), ("--check", Value)],
+        "changes" => &[("--json", Switch), ("--types", ValueOrEq), ("--package", ValueOrEq)],
+        "claim" => &[("--by", Value), ("--dry-run", Switch), ("--json", Switch)],
         "meta" => &[("--def", Value), ("--group-by", Value), ("--json", Switch)],
         "budgets" => &[("--json", Switch)],
         "design-report" => &[("--json", Switch)],
-        "release" | "move" | "set" => &[("--dry-run", Switch)],
+        "release" | "move" | "set" => &[("--dry-run", Switch), ("--json", Switch)],
         "scaffold-gherkin" => &[("--fix", Switch)],
         "plantuml" => &[("--dry-run", Switch), ("--output", ValueOrEq), ("-o", Value), ("--jar", ValueOrEq)],
         "repos" => &[("--json", Switch), ("--all", Switch)],
@@ -129,6 +159,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--where", ValueOrEq),
             ("--rate-status", Value),
             ("--has-wcet", Switch),
+            ("--open-questions", Switch),
             ("--json", Switch),
         ],
         "show" => &[("--no-related", Switch)],
@@ -142,6 +173,9 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--depth", Value),
             ("--format", Value),
             ("--kinds", Value),
+            ("--files", Value),
+            ("--since", Value),
+            ("--fail-on-unreviewed", Switch),
         ],
         // `--json` is a documented no-op spelling (export always emits JSON).
         "export" => &[("--ndjson", Switch), ("--json", Switch), LENS],
@@ -233,6 +267,11 @@ fn spec_for(cmd: &str) -> Option<Spec> {
     })
 }
 
+/// The documented options of `cmd`, or `None` when its options are not in the table.
+pub fn options_of(cmd: &str) -> Option<Vec<&'static str>> {
+    spec_for(cmd).map(|s| s.iter().map(|(n, _)| *n).collect())
+}
+
 /// Whether `cmd`'s options are checked by [`check_known_options`].
 #[cfg(test)]
 pub fn is_checked(cmd: &str) -> bool {
@@ -251,10 +290,21 @@ pub fn check_known_options(cmd: &str, args: &[String]) -> Result<(), String> {
         names.sort_unstable();
         if names.is_empty() { "(none)".to_string() } else { names.join(", ") }
     };
+    // `--dney` → "Did you mean '--deny'?" (GH #439); the `=value` part is not compared.
+    let unknown = |a: &str| {
+        let flag = a.split_once('=').map_or(a, |(f, _)| f);
+        let hint = crate::suggest::did_you_mean(flag, spec.iter().map(|(n, _)| *n));
+        format!("{cmd}: unknown option '{a}';{hint} valid options: {}", known())
+    };
     let mut i = 0;
     while i < args.len() {
         let a = args[i].as_str();
         if a.len() < 2 || !a.starts_with('-') {
+            i += 1;
+            continue;
+        }
+        // Global flags (GH #444) are accepted by every command; `main` has already read them.
+        if a == "--dry-run" {
             i += 1;
             continue;
         }
@@ -273,10 +323,10 @@ pub fn check_known_options(cmd: &str, args: &[String]) -> Result<(), String> {
                         "{cmd}: option '{a}' — pass the value as a separate argument: {name} <value>"
                     ))
                 }
-                None => return Err(format!("{cmd}: unknown option '{a}'; valid options: {}", known())),
+                None => return Err(unknown(a)),
             }
         } else {
-            return Err(format!("{cmd}: unknown option '{a}'; valid options: {}", known()));
+            return Err(unknown(a));
         }
         i += 1;
     }
@@ -333,6 +383,10 @@ pub fn or_exit<T>(r: Result<T, String>) -> T {
 
 #[cfg(test)]
 mod tests {
+    /// Global write options (GH #443/#444): accepted by every command and read by `main` before dispatch
+    /// (`provenance::extract`), so no command's own option spec lists them.
+    const GLOBAL_FLAGS: &[&str] = &["--dry-run", "--by", "--reason", "--commit", "--expect-hash", "--as-human"];
+
     use super::*;
 
     fn s(v: &[&str]) -> Vec<String> {
@@ -378,7 +432,7 @@ mod tests {
                     continue;
                 }
                 assert!(
-                    spec.iter().any(|(n, _)| *n == tok),
+                    GLOBAL_FLAGS.contains(&tok) || spec.iter().any(|(n, _)| *n == tok),
                     "`{cmd}` documents {tok} but cliargs::spec_for does not accept it"
                 );
             }

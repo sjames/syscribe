@@ -58,7 +58,7 @@ fn show_gate(elements: &[RawElement], target: &RawElement, json: bool) -> ! {
             "inheritedFrom": inherited,
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
-        std::process::exit(0);
+        crate::provenance::exit(0);
     }
 
     println!("{}", target.qualified_name);
@@ -70,7 +70,7 @@ fn show_gate(elements: &[RawElement], target: &RawElement, json: bool) -> ! {
             "  effective: always applies (no appliesWhen on it or any ancestor package)"
         ),
     }
-    std::process::exit(0);
+    crate::provenance::exit(0);
 }
 
 /// Return the YAML lines with any top-level `appliesWhen:` key (and its indented
@@ -102,7 +102,7 @@ fn feature_check_and_exit(elements: &[RawElement], model_root: &Path) -> ! {
     let vcfg = ValidateConfig::with_model_root(model_root);
     let resolver = Resolver::new(elements);
     query::cmd_feature_check(elements, &vcfg, &resolver, false, true, false, false, None, &gate);
-    std::process::exit(0);
+    crate::provenance::exit(0);
 }
 
 /// `applies-when` subcommand entry point.
@@ -132,6 +132,8 @@ pub fn cmd_applies_when(
 
     let file_path = target.file_path.clone();
     let qname = target.qualified_name.clone();
+    crate::provenance::check_expect_hash(std::path::Path::new(&file_path));
+    crate::policy_gate::check_path(target);
 
     let content = match std::fs::read_to_string(&file_path) {
         Ok(c) => c,
@@ -153,20 +155,20 @@ pub fn cmd_applies_when(
     if clear {
         if !yaml.lines().any(|l| l.starts_with("appliesWhen:")) {
             println!("{qname} has no appliesWhen — nothing to clear.");
-            std::process::exit(0);
+            crate::provenance::exit(0);
         }
         let new_fm = strip_applies_when(yaml).join("\n");
         if dry_run {
             println!("[dry-run] would clear appliesWhen on {qname} ({file_path})");
-            std::process::exit(0);
+            crate::provenance::exit(0);
         }
         let new_content = splice_frontmatter(&content, yaml, &new_fm);
-        if let Err(e) = std::fs::write(&file_path, new_content) {
+        if let Err(e) = syscribe_model::fsio::write(&file_path, new_content) {
             eprintln!("Write failed for {file_path}: {e}");
             std::process::exit(1);
         }
         println!("Cleared appliesWhen on {qname} ({file_path})");
-        std::process::exit(0);
+        crate::provenance::exit(0);
     }
 
     // ── --set ─────────────────────────────────────────────────────────────────
@@ -219,7 +221,7 @@ pub fn cmd_applies_when(
     }
 
     let new_content = splice_frontmatter(&content, yaml, &new_fm);
-    if let Err(e) = std::fs::write(&file_path, new_content) {
+    if let Err(e) = syscribe_model::fsio::write(&file_path, new_content) {
         eprintln!("Write failed for {file_path}: {e}");
         std::process::exit(1);
     }

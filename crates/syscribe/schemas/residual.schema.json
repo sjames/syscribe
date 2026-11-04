@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/residual.schema.json",
+  "title": "syscribe residual --config <CONF> --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "bindingStage",
+    "configuration",
+    "constraints",
+    "groups",
+    "reliances",
+    "retained",
+    "schemaVersion"
+  ],
+  "properties": {
+    "configuration": {
+      "type": "string"
+    },
+    "bindingStage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "stage",
+          "closed",
+          "items"
+        ],
+        "properties": {
+          "stage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "binder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "key",
+                "name",
+                "window",
+                "required",
+                "hasDefault"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "feature",
+                    "parameter"
+                  ]
+                },
+                "key": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "window": {
+                  "type": "object",
+                  "required": [
+                    "earliest",
+                    "latest"
+                  ],
+                  "properties": {
+                    "earliest": {
+                      "type": "string"
+                    },
+                    "latest": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "hasDefault": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "expression",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expression": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "open": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "reliances": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "retained": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

@@ -909,6 +909,11 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "value_or_vec::deserialize")]
     pub evidence: Option<Vec<serde_yaml::Value>>,
 
+    /// `questions:` — a `PlanningItem`'s inline decisions awaiting an answer (GH #436,
+    /// `ADR-SYS-PLANITEM-001` addendum). Kept as the raw YAML value so a malformed list or entry
+    /// is reported (`E724`) rather than lost; parsed by [`crate::questions`].
+    pub questions: Option<serde_yaml::Value>,
+
     /// §custom-fields (GH #39) — user-defined, freeform metadata attachable to any
     /// element. A flat map of `string -> scalar | list-of-scalars`. Distinct from the
     /// `extra` catch-all below: `custom_fields` is the *intentional, addressable* home

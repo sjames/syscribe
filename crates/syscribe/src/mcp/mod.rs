@@ -148,11 +148,18 @@ struct TraceArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct ImpactArgs {
-    r#ref: String,
-    /// "downstream" (default) | "upstream" | "both".
+    /// The element to start from. Omit it when giving `files` or `since`.
+    r#ref: Option<String>,
+    /// "downstream" (default) | "upstream" | "both". With `files`/`since` the default is "both".
     direction: Option<String>,
+    /// With `files`/`since` the default is 2 (unit → requirement → verifying test).
     depth: Option<u32>,
     edges: Option<Vec<String>>,
+    /// Start from changed files (paths relative to the repository root or the working directory)
+    /// instead of one element: each is mapped to the elements that own, implement, test or cite it.
+    files: Option<Vec<String>>,
+    /// Start from the files that differ between this git revision and the working tree.
+    since: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -160,6 +167,191 @@ struct ValidateArgs {
     file: Option<String>,
     severity: Option<String>,
     limit: Option<u32>,
+    /// Git revision: report only the findings absent at that revision (pre-existing ones are
+    /// counted in `preexisting`, not listed).
+    new_since: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct QuestionsArgs {
+    /// Only `open` questions.
+    open: Option<bool>,
+    /// `open` | `answered` | `deferred`.
+    status: Option<String>,
+    /// Only this PlanningItem's questions (id or qualified name).
+    item: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ContextArgs {
+    /// The element (id or qualified name).
+    element: String,
+    /// How far to follow links in each direction (default 1).
+    depth: Option<u32>,
+    /// Upper bound on the returned JSON, in bytes (default 16000, minimum 1024).
+    max_bytes: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct PropagateArgs {
+    /// Seed the choices from this Configuration (id or qualified name).
+    from: Option<String>,
+    /// Explicit choices: feature (qualified name or FEAT-* id) -> selected. Overrides `from`.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+    /// Report only the choices still open at this binding stage.
+    stage: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ExplainFeatureArgs {
+    /// The feature (qualified name or FEAT-* id).
+    feature: String,
+    /// Seed the choices from this Configuration.
+    from: Option<String>,
+    /// Explicit choices: feature -> selected. Overrides `from`.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChildrenArgs {
+    /// The node to expand (qualified name or id); omit for the root of the view.
+    of: Option<String>,
+    /// `containment` (default) or `configurations` (following derivedFrom and subConfigurations).
+    view: Option<String>,
+    offset: Option<u32>,
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangeImpactArgs {
+    /// The element to edit (qualified name or id).
+    element: String,
+    /// Frontmatter fields to set (null removes a key).
+    set: Option<serde_json::Value>,
+    /// Edit one entry of the element's `parameters:` list.
+    parameter: Option<ChangeImpactParameter>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangeImpactParameter {
+    name: String,
+    set: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ScaffoldArgs {
+    /// `feature`, `configuration` or `parameter`.
+    kind: String,
+    /// feature: the new feature's name. configuration: the new CONF-* id. parameter: the parameter name.
+    name: String,
+    /// feature: the package or group feature it goes under. configuration: the package for the file.
+    under: Option<String>,
+    /// feature: the groupKind of its children (optional | alternative | or).
+    group: Option<String>,
+    mandatory: Option<bool>,
+    /// feature: an explicit FEAT-* id (else derived).
+    id: Option<String>,
+    /// configuration: the base Configuration it derives from.
+    from: Option<String>,
+    /// configuration: its bindingStage.
+    stage: Option<String>,
+    /// configuration: the feature-model package (inferred when the project has one).
+    feature_model: Option<String>,
+    /// configuration: a display name.
+    display_name: Option<String>,
+    /// configuration: initial feature selections, feature -> selected.
+    select: Option<std::collections::BTreeMap<String, bool>>,
+    /// parameter: the feature it belongs to.
+    feature: Option<String>,
+    #[serde(rename = "type")]
+    ty: Option<String>,
+    unit: Option<String>,
+    range: Option<String>,
+    enum_values: Option<Vec<String>>,
+    default: Option<String>,
+    required: Option<bool>,
+    /// parameter: earliest binding stage.
+    param_stage: Option<String>,
+    /// parameter: latest binding stage.
+    latest: Option<String>,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct TimelineArgs {
+    /// The Configuration (id or qualified name).
+    configuration: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct BindArgs {
+    /// The Configuration to write into (id or qualified name).
+    configuration: String,
+    /// A feature (selection) or `<feature>.<parameter>` (binding), by qualified name or FEAT-* id.
+    target: String,
+    /// The value: true/false for a selection; a number or text for a parameter.
+    value: serde_json::Value,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct StepsArgs {
+    /// The PlanningItem (id or qualified name).
+    item: String,
+    /// Hide subtrees that are entirely done.
+    open: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct QuestionArgs {
+    /// The PlanningItem (id or qualified name).
+    item: String,
+    /// `add` | `answer` | `defer`.
+    op: String,
+    /// `add`: the question; `answer`: the answer.
+    text: Option<String>,
+    /// `add`: an optional proposal.
+    recommended: Option<String>,
+    /// `answer` / `defer`: the question id (`Q1`).
+    id: Option<String>,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    /// `by` here is both the commit author (with `commit`) and, for `answer`, the recorded `answeredBy`.
+    #[serde(flatten)]
+    prov: ProvArgs,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct LogArgs {
+    /// Follow one element's file and say what each commit changed in it. Omit for the whole model.
+    element: Option<String>,
+    /// Only commits by this author or `Syscribe-Actor`.
+    by: Option<String>,
+    /// Only commits after this date (anything `git log --since` accepts).
+    since: Option<String>,
+    /// Only commits that touched the model without syscribe's trailers (hand edits).
+    #[serde(default)]
+    unattributed: bool,
+    /// At most this many commits (default 50).
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ChangesArgs {
+    /// Git revision to compare from.
+    from: String,
+    /// Git revision to compare to (default: the working tree).
+    to: Option<String>,
+    /// Only these element types (e.g. `["Requirement"]`).
+    types: Option<Vec<String>>,
+    /// Only elements under this package (qualified name).
+    package: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -299,6 +491,20 @@ struct RunReportArgs {
     format: Option<String>,
 }
 
+/// Provenance for a write (GH #443/#444), shared by the write tools.
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ProvArgs {
+    /// Who is making the change (an actor id: letters, digits, `.`, `_`, `-`). With `commit`, it is the commit author.
+    by: Option<String>,
+    /// Why — recorded in the commit message.
+    reason: Option<String>,
+    /// Commit the files this write changed (only those) with `Syscribe-*` trailers. Also on when
+    /// `[provenance] commit = true` in `.syscribe.toml`. Ignored for a dry run.
+    commit: Option<bool>,
+    /// A `contentHash` from `get_element`: refuse the write if the target file has changed since that read.
+    expect_hash: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CreateElementArgs {
     /// Qualified name. For id-identified types it may end in the id
@@ -314,6 +520,8 @@ struct CreateElementArgs {
     doc: Option<String>,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -324,6 +532,8 @@ struct UpdateElementArgs {
     doc: Option<String>,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -355,6 +565,8 @@ struct MoveElementArgs {
     dest: String,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -364,6 +576,8 @@ struct DeleteElementArgs {
     force: bool,
     #[serde(default = "default_true")]
     dry_run: bool,
+    #[serde(flatten)]
+    prov: ProvArgs,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -449,6 +663,8 @@ struct IngestResultsArgs {
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct CoverageMatrixArgs {
+    /// `environment`: the Requirement × TestEnvironment verification matrix instead of the Configuration grid.
+    by: Option<String>,
     config: Option<String>,
     status: Option<String>,
     tag: Option<String>,
@@ -647,6 +863,16 @@ fn tool_error(msg: impl Into<String>) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::error(vec![Content::text(msg.into())]))
 }
 
+/// The same finding can be raised by two checks: keep each (code, message) once in a result's `validationDelta`.
+fn dedupe_delta(res: &mut Value) {
+    if let Some(d) = res.get_mut("validationDelta").and_then(Value::as_object_mut) {
+        for list in d.values_mut().filter_map(Value::as_array_mut) {
+            let mut seen = std::collections::HashSet::new();
+            list.retain(|e| seen.insert((e["code"].to_string(), e["message"].to_string())));
+        }
+    }
+}
+
 fn extra_map(pairs: Value) -> Map<String, Value> {
     pairs.as_object().cloned().unwrap_or_default()
 }
@@ -795,6 +1021,26 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("breakdownAdr", false, "ref", None),
             field_spec("verificationMethod", false, "string", None),
         ],
+        "PlanningItem" => vec![
+            field_spec("id", true, "string", None),
+            field_spec("name", true, "string", None),
+            field_spec("status", true, "enum", Some(&["todo", "in_progress", "blocked", "done"])),
+            field_spec("itemType", false, "enum", Some(&["bug", "task", "feature"])),
+            field_spec("parent", false, "ref", None),
+            field_spec("achieves", false, "list<ref>", None),
+            field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
+            field_spec("blockedBy", false, "list<ref>", None),
+            field_spec("assignedTo", false, "string", None),
+            field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?}> (edit with `question`)", None),
+            field_spec("claimedBy", false, "string (set by `claim`)", None),
+            field_spec("claimedAt", false, "timestamp (set by `claim`)", None),
+        ],
+        "ADR" => vec![
+            field_spec("id", true, "string", None),
+            field_spec("name", true, "string", None),
+            field_spec("status", true, "enum", Some(&["proposed", "accepted", "deprecated", "superseded"])),
+            field_spec("supersedes", false, "list<ref>", None),
+        ],
         "TestCase" => vec![
             field_spec("id", true, "string", None),
             field_spec("name", true, "string", None),
@@ -811,7 +1057,8 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             if id_identified {
                 v.push(field_spec("id", true, "string", None));
             }
-            v.push(field_spec("name", !id_identified, "string", None));
+            // `name` is the label on every type; id-identified types (whose identity is the id) require it.
+            v.push(field_spec("name", true, "string", None));
             v
         }
     }
@@ -940,6 +1187,118 @@ fn check_metadata_clauses(elements: &[syscribe_model::element::RawElement], clau
 }
 
 /// The message for a write to an element built into the tool (REQ-TRS-META-064).
+/// Refuse a write whose provenance arguments are unusable: a bad actor id, or a stale `expect_hash`.
+fn prov_precheck(p: &ProvArgs, target: Option<&Path>) -> Result<(), String> {
+    if let Some(by) = &p.by {
+        if !crate::provenance::valid_actor(by) {
+            return Err(format!("`by` '{by}' is not a valid actor id (letters, digits, '.', '_' and '-', at most 64)"));
+        }
+    }
+    if let (Some(want), Some(path)) = (&p.expect_hash, target) {
+        let have = syscribe_model::fsio::file_hash(path).unwrap_or_else(|| "(unreadable)".to_string());
+        if &have != want {
+            return Err(format!("{} has changed since it was read (expected {want}, found {have}); re-read it and retry", path.display()));
+        }
+    }
+    Ok(())
+}
+
+/// The project's agent policy as it applies to an MCP write (GH #442). Every MCP client is an agent, so the
+/// rules always apply; there is no `--as-human` here — a person edits the file or uses the CLI.
+struct PolicyCtx {
+    policy: syscribe_model::agent_policy::Policy,
+    /// The model root relative to the git root, with a trailing `/` (empty when they coincide).
+    prefix: String,
+}
+
+impl PolicyCtx {
+    fn load(model_root: &Path) -> Option<PolicyCtx> {
+        let policy = syscribe_model::agent_policy::load(model_root)?;
+        let prefix = std::fs::canonicalize(model_root)
+            .ok()
+            .and_then(|a| syscribe_model::config::detect_git_root(&a).and_then(|g| a.strip_prefix(&g).ok().map(|r| r.to_string_lossy().replace('\\', "/"))))
+            .filter(|r| !r.is_empty())
+            .map(|r| format!("{r}/"))
+            .unwrap_or_default();
+        Some(PolicyCtx { policy, prefix })
+    }
+
+    /// A write to `rel` (relative to the model root) may not touch a protected path.
+    fn check_rel(&self, rel: &str) -> Result<(), String> {
+        self.policy.check_path(&[format!("{}{}", self.prefix, rel), rel.to_string()]).map_err(|r| r.to_string())
+    }
+
+    fn check_status(&self, element_type: &str, status: &str) -> Result<(), String> {
+        self.policy.check_status(element_type, status).map_err(|r| r.to_string())
+    }
+
+    /// A new element created already `done` must carry the evidence `require_before_done` asks for.
+    fn check_created(&self, element_type: &str, status: &str, fields: Option<&Value>) -> Result<(), String> {
+        let has_evidence = fields.and_then(|f| f.get("evidence")).and_then(|e| e.as_array()).is_some_and(|a| !a.is_empty());
+        self.policy.check_created_done(element_type, status, has_evidence).map_err(|r| r.to_string())
+    }
+}
+
+fn rel_in(root: &Path, p: &Path) -> String {
+    p.strip_prefix(root).unwrap_or(p).to_string_lossy().replace('\\', "/")
+}
+
+/// The `status` a `fields` object sets, if any.
+fn fields_status(fields: Option<&Value>) -> Option<String> {
+    fields.and_then(|f| f.get("status")).and_then(|s| s.as_str()).map(String::from)
+}
+
+/// The git-dirty files under the model root and a hash of each one's content (`None`: deleted), keyed by
+/// path relative to the repository root. Taken before and after a write to find the files it changed.
+type Dirty = std::collections::BTreeMap<String, Option<String>>;
+
+fn dirty_snapshot(model_root: &Path) -> Dirty {
+    let mut out = Dirty::new();
+    let Ok(abs) = std::fs::canonicalize(model_root) else { return out };
+    let Some(root) = syscribe_model::config::detect_git_root(&abs) else { return out };
+    let rel = abs.strip_prefix(&root).unwrap_or(Path::new("")).to_string_lossy().replace('\\', "/");
+    let mut cmd = std::process::Command::new("git");
+    cmd.arg("-C").arg(&root).args(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--"]).arg(if rel.is_empty() { "." } else { rel.as_str() });
+    let Ok(o) = cmd.output() else { return out };
+    for entry in String::from_utf8_lossy(&o.stdout).split('\0').filter(|e| e.len() > 3) {
+        let path = entry[3..].to_string();
+        let hash = syscribe_model::fsio::file_hash(&root.join(&path));
+        out.insert(path, hash);
+    }
+    out
+}
+
+/// The snapshot to compare against, only when this write is going to be committed.
+fn prov_snapshot(model_root: &Path, p: &ProvArgs) -> Option<Dirty> {
+    (p.commit == Some(true) || crate::provenance::config_commit(model_root)).then(|| dirty_snapshot(model_root))
+}
+
+/// After a committed write: when asked (or configured), commit exactly the files it changed — those whose
+/// content differs from before the write, byte for byte — with the actor as author and `Syscribe-*`
+/// trailers. The result gains `commit` (the short id) or `commitError`.
+fn prov_commit(model_root: &Path, res: &mut Value, p: &ProvArgs, tool: &str, summary: &str, before: Option<Dirty>) {
+    if res.get("written").and_then(|w| w.as_bool()) != Some(true) {
+        return;
+    }
+    let Some(before) = before else { return };
+    let after = dirty_snapshot(model_root);
+    let Some(root) = std::fs::canonicalize(model_root).ok().and_then(|a| syscribe_model::config::detect_git_root(&a)) else { return };
+    let changed: Vec<std::path::PathBuf> = before
+        .keys()
+        .chain(after.keys())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .filter(|k| before.get(*k) != after.get(*k))
+        .map(|k| root.join(k))
+        .collect();
+    let g = crate::provenance::Globals { by: p.by.clone(), reason: p.reason.clone(), ..Default::default() };
+    match crate::provenance::commit_paths(&changed, &[tool.to_string(), summary.to_string()], &g) {
+        Ok(Some(sha)) => res["commit"] = json!(sha),
+        Ok(None) => {}
+        Err(m) => res["commitError"] = json!(format!("the change was written, but committing it failed: {m}")),
+    }
+}
+
 fn builtin_refusal(e: &syscribe_model::element::RawElement) -> Option<String> {
     e.file_path.starts_with(syscribe_model::tagged_values::BUILTIN_PREFIX).then(|| {
         format!("'{}' is built into the tool and read-only; specialise it in a package of your own project instead", e.qualified_name)
@@ -969,7 +1328,7 @@ fn refuse_synthesized(root: &Path, target: &syscribe_model::element::RawElement,
 
 /// Apply one batch operation against the working model root `root`, re-reading
 /// the current on-disk state so a later op can depend on an earlier one.
-fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
+fn apply_op(root: &Path, op: &BatchOp, policy: Option<&PolicyCtx>) -> Result<(), String> {
     match op.op.as_str() {
         "create" => {
             if op.qname.is_none() && op.parent.is_none() {
@@ -979,6 +1338,13 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let plan = plan_create_in(&elems, op.parent.as_deref(), op.qname.as_deref(), ty, op.fields.as_ref(), op.doc.as_deref())
                 .map_err(|e| e.to_string())?;
+            if let Some(ctx) = policy {
+                ctx.check_rel(&plan.rel)?;
+                if let Some(st) = fields_status(op.fields.as_ref()) {
+                    ctx.check_status(ty, &st)?;
+                    ctx.check_created(ty, &st, op.fields.as_ref())?;
+                }
+            }
             write_confined(root, &plan.rel, &plan.content).map_err(|e| e.to_string())
         }
         "update" => {
@@ -988,6 +1354,15 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
             refuse_synthesized(root, target, r, "a field update here would patch the sheet's own top-level frontmatter, not this entry")?;
             let file = target.file_path.clone();
+            if let Some(ctx) = policy {
+                ctx.check_rel(&rel_in(root, Path::new(&file)))?;
+                if let Some(st) = fields_status(op.fields.as_ref()) {
+                    let ty = target.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+                    ctx.check_status(&ty, &st)?;
+                    let config = syscribe_model::config::ValidateConfig::with_model_root(root);
+                    ctx.policy.check_before_done(&elems, &config, &target.qualified_name, &st).map_err(|e| e.to_string())?;
+                }
+            }
             apply_update(Path::new(&file), op.fields.as_ref(), op.doc.as_deref())
         }
         "move" => {
@@ -999,6 +1374,13 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             }
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let resolver = Resolver::new(&elems);
+            if let Some(ctx) = policy {
+                if let Ok(plan) = mv::move_element(root, &elems, &resolver, r, &dest_n, true) {
+                    for f in [plan.from_path.clone(), plan.to_path.clone()].into_iter().chain(plan.rewritten_files.iter().cloned()) {
+                        ctx.check_rel(&rel_in(root, &f))?;
+                    }
+                }
+            }
             mv::move_element(root, &elems, &resolver, r, &dest_n, false).map(|_| ())
         }
         "delete" => {
@@ -1008,6 +1390,9 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
             refuse_synthesized(root, target, r, "deleting it would delete every sibling entry in that file")?;
             let file = target.file_path.clone();
+            if let Some(ctx) = policy {
+                ctx.check_rel(&rel_in(root, Path::new(&file)))?;
+            }
             std::fs::remove_file(&file).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown op: {other}")),
@@ -1018,12 +1403,15 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
 const WRITE_TOOLS: &[&str] = &[
     "create_element",
     "update_element",
+    "question",
     "move_element",
     "delete_element",
     "apply_changes",
     "ingest_results",
     "suspect_accept",
     "edit_feature",
+    "bind",
+    "scaffold",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -1094,12 +1482,21 @@ async fn notify_committed(peer: &Peer<RoleServer>, res: &Value) {
 pub struct SyscribeMcp {
     store: Arc<RwLock<McpStore>>,
     read_only: bool,
+    /// The `health` answer for one model version (its file fingerprint).
+    health_cache: std::sync::Mutex<Option<(u64, serde_json::Value)>>,
+}
+
+/// The names of every MCP tool (for the capabilities document).
+pub fn tool_names() -> Vec<String> {
+    let mut v: Vec<String> = SyscribeMcp::tool_router().list_all().iter().map(|t| t.name.to_string()).collect();
+    v.sort();
+    v
 }
 
 #[tool_router]
 impl SyscribeMcp {
     fn new(store: Arc<RwLock<McpStore>>, read_only: bool) -> Self {
-        Self { store, read_only }
+        Self { store, read_only, health_cache: Default::default() }
     }
 
     #[tool(
@@ -1450,7 +1847,11 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Reachability/impact analysis over the model graph from an element. \
-        downstream = dependents; upstream = dependencies.",
+        downstream = dependents; upstream = dependencies. Or start from changed files instead: `files` \
+        (paths) and/or `since` (a git revision, compared with the working tree) map each file to the \
+        elements that own, implement, test or cite it, then report what they reach (default both \
+        directions, depth 2), grouped with `changed` flags, files that map to nothing under `unmapped`, \
+        and the requirements/tests affected but not changed under `unreviewed`.",
         annotations(read_only_hint = true)
     )]
     async fn impact(
@@ -1458,9 +1859,42 @@ impl SyscribeMcp {
         Parameters(args): Parameters<ImpactArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
-        let from = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+        if args.files.is_some() || args.since.is_some() {
+            if args.r#ref.is_some() {
+                return tool_error("give either `ref` or `files`/`since`, not both".to_string());
+            }
+            let Some(git_root) = syscribe_model::config::detect_git_root(&store.model_root) else {
+                return tool_error("the model is not inside a git repository, which `files`/`since` need".to_string());
+            };
+            let mut changed: Vec<String> = args
+                .files
+                .iter()
+                .flatten()
+                .map(|f| crate::impactfiles::to_git_rel(&git_root, Path::new(f)).unwrap_or_else(|| f.clone()))
+                .collect();
+            if let Some(rev) = &args.since {
+                match crate::impactfiles::changed_since(&git_root, rev) {
+                    Ok(mut more) => changed.append(&mut more),
+                    Err(m) => return tool_error(m),
+                }
+            }
+            changed.sort();
+            changed.dedup();
+            let direction = match args.direction.as_deref().unwrap_or("both") {
+                "upstream" => crate::impact::Direction::Upstream,
+                "downstream" => crate::impact::Direction::Downstream,
+                _ => crate::impact::Direction::Both,
+            };
+            let depth = Some(args.depth.map(|d| d as usize).unwrap_or(crate::impactfiles::DEFAULT_DEPTH));
+            let report = crate::impactfiles::analyse(&store.elements, &store.config, &git_root, &changed, direction, depth);
+            return ok(json!({ "schemaVersion": "1.0", "report": report }));
+        }
+        let Some(root_ref) = args.r#ref.as_deref() else {
+            return tool_error("`ref` is required unless `files` or `since` is given".to_string());
+        };
+        let from = match store.resolver.resolve_ref(&store.elements, root_ref) {
             Some(e) => e.qualified_name.clone(),
-            None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
+            None => return tool_error(format!("unresolved reference: {root_ref}")),
         };
         // Edges point from the referencing element to its referent (e.g. Derived
         // --supertype--> Base), so a node's *dependents* are reached by walking
@@ -1498,8 +1932,29 @@ impl SyscribeMcp {
         &self,
         Parameters(args): Parameters<ValidateArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let store = self.store.read().await;
+        // `new_since` re-validates the model at another revision, which installs that model's
+        // process-wide vocabularies for a moment; take the write lock so no other tool runs meanwhile.
+        let write_guard;
+        let read_guard;
+        let store: &McpStore = if args.new_since.is_some() {
+            write_guard = self.store.write().await;
+            &write_guard
+        } else {
+            read_guard = self.store.read().await;
+            &read_guard
+        };
         let result = validate_with_config(&store.elements, &store.config);
+        let mut is_new: Vec<bool> = vec![true; result.findings.len()];
+        let mut preexisting = 0u64;
+        if let Some(rev) = &args.new_since {
+            let source = syscribe_model::finding_baseline::Source::Rev(rev.clone());
+            match syscribe_model::finding_baseline::mark_new(&source, &result.findings, &store.elements, &store.config, &|e, c| {
+                validate_with_config(e, c).findings
+            }) {
+                Ok(marks) => is_new = marks,
+                Err(m) => return tool_error(m),
+            }
+        }
         let rank = |s: &str| match s {
             "error" => 2,
             "warning" => 1,
@@ -1510,9 +1965,13 @@ impl SyscribeMcp {
         let file_filter = args.file.as_deref();
         let mut included: Vec<Value> = Vec::new();
         let (mut ce, mut cw, mut ci) = (0u64, 0u64, 0u64);
-        for f in &result.findings {
+        for (f, new) in result.findings.iter().zip(&is_new) {
             let sev = severity_str(&f.severity);
             if rank(sev) < threshold {
+                continue;
+            }
+            if !*new {
+                preexisting += 1;
                 continue;
             }
             if let Some(target) = file_filter {
@@ -1530,10 +1989,394 @@ impl SyscribeMcp {
         if let Some(limit) = args.limit {
             included.truncate(limit as usize);
         }
-        ok(json!({
+        let mut out = json!({
             "findings": included,
             "counts": { "error": ce, "warning": cw, "info": ci },
-        }))
+        });
+        if args.new_since.is_some() {
+            out["preexisting"] = json!(preexisting);
+        }
+        ok(out)
+    }
+
+    #[tool(
+        description = "A PlanningItem's inline questions (the decisions awaiting an answer), across the model or for one item, \
+        with owning item, status, text, recommendation and answer. Same data as `syscribe questions --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn questions(&self, Parameters(args): Parameters<QuestionsArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let status = if args.open.unwrap_or(false) { Some("open".to_string()) } else { args.status };
+        match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
+            Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Scaffold a feature, a Configuration or a parameter that is right the first time (kind = feature | configuration | \
+        parameter). feature: `name` + `under` (package or group feature), optional group/mandatory/id (a free FEAT-* id is derived). \
+        configuration: `name` is the CONF-* id; optional from (base), stage (a real stage, not earlier than the base's), feature_model, \
+        under, display_name, select. parameter: `feature` + `name`, optional type/unit/range/enum_values/default/required/param_stage/latest. \
+        Previewed through the guarded write (dry_run defaults to true); a change that adds an error is refused. Same data as `syscribe new --json`.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn scaffold(&self, Parameters(args): Parameters<ScaffoldArgs>, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
+        use crate::newcmd::Request;
+        let mut store = self.store.write().await;
+        let req = match args.kind.as_str() {
+            "feature" => match args.under.clone() {
+                Some(under) => Request::Feature { name: args.name.clone(), under, group: args.group.clone(), mandatory: args.mandatory.unwrap_or(false), id: args.id.clone() },
+                None => return tool_error("kind=feature needs `under`".to_string()),
+            },
+            "configuration" => Request::Configuration {
+                id: args.name.clone(),
+                name: args.display_name.clone(),
+                from: args.from.clone(),
+                stage: args.stage.clone(),
+                feature_model: args.feature_model.clone(),
+                under: args.under.clone(),
+                select: args.select.clone().unwrap_or_default().into_iter().collect(),
+            },
+            "parameter" => match args.feature.clone() {
+                Some(feature) => Request::Parameter {
+                    feature,
+                    name: args.name.clone(),
+                    ty: args.ty.clone(),
+                    unit: args.unit.clone(),
+                    range: args.range.clone(),
+                    enum_values: args.enum_values.clone().unwrap_or_default(),
+                    default: args.default.clone(),
+                    required: args.required.unwrap_or(false),
+                    stage: args.param_stage.clone(),
+                    latest: args.latest.clone(),
+                },
+                None => return tool_error("kind=parameter needs `feature`".to_string()),
+            },
+            other => return tool_error(format!("unknown kind '{other}' (feature, configuration, parameter)")),
+        };
+        let plan = match crate::newcmd::plan(&store.model_root, &store.elements, &req) {
+            Ok(p) => p,
+            Err((_, m)) => return tool_error(m),
+        };
+        let root = store.model_root.clone();
+        let files: Vec<(String, String)> = plan.files.iter().map(|f| (rel_file(&f.path.to_string_lossy(), &root), f.content.clone())).collect();
+        for (rel, _) in &files {
+            if let Some(Err(m)) = PolicyCtx::load(&root).map(|ctx| ctx.check_rel(rel)) {
+                return tool_error(m);
+            }
+        }
+        if let Some(f) = plan.files.iter().find(|f| !f.creates) {
+            if let Err(m) = prov_precheck(&args.prov, Some(f.path.as_path())) {
+                return tool_error(m);
+            }
+        }
+        let summary_line = format!("new {} {}", plan.kind, plan.target);
+        let extra = extra_map(json!({ "kind": plan.kind, "target": plan.target, "files": files.iter().map(|(r, _)| r.clone()).collect::<Vec<_>>() }));
+        let apply = move |root: &Path| -> Result<(), String> {
+            for (rel, content) in &files {
+                let p = root.join(rel);
+                if let Some(d) = p.parent() {
+                    std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+                }
+                std::fs::write(&p, content).map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        };
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut preview = guarded_write(&mut store, true, true, extra.clone(), &apply);
+        dedupe_delta(&mut preview);
+        let new_errors = preview["validationDelta"]["newErrors"].as_array().map_or(0, Vec::len);
+        let mut res = if args.dry_run {
+            preview
+        } else if new_errors > 0 {
+            preview["reason"] = json!(format!("refused: it would introduce {new_errors} error(s)"));
+            preview
+        } else {
+            guarded_write(&mut store, false, true, extra, &apply)
+        };
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "scaffold", &summary_line, snapshot);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "One cheap summary of the project for a status bar: error and warning counts and the most frequent codes, requirements \
+        (total, orphan, unverified), stale evidence (suspect links, stale results), the Configurations whose variant fails validation, an \
+        overall status (ok, warning, error) and, for each non-zero metric, the command that lists the detail. Same data as `syscribe health --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn health(&self) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(crate::health::cached(&self.health_cache, store.fingerprint, || crate::health::compute(&store.elements, &store.config, store.config.results.as_ref())))
+    }
+
+    #[tool(
+        description = "What each stage of a Configuration's derivedFrom chain decided: the chain from the root, each step with the \
+        selections and parameter bindings it made itself and its bindingStage, the effective values with their provenance (source \
+        kind and the stage that bound them), and what is still open by the stage it can be bound at. Same data as `syscribe timeline --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn timeline(&self, Parameters(args): Parameters<TimelineArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::timeline::compute(&store.elements, &args.configuration) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Write one parameterBindings value or features selection into a Configuration, checked first: the parameter's range \
+        and enumValues, its unit, the stage window it may be bound in and the narrowing the derivedFrom chain allows are the validator's \
+        own checks. Through the guarded write (dry_run defaults to true): returns the value replaced and where it came from, the diff and \
+        the errors and warnings the change would add or resolve; a change that adds an error is refused. Same data as `syscribe bind --json`.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn bind(&self, Parameters(args): Parameters<BindArgs>, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let req = crate::bind::Request { configuration: args.configuration.clone(), target: args.target.clone(), value: args.value.clone() };
+        let plan = match crate::bind::plan(&store.elements, &req) {
+            Ok(p) => p,
+            Err((_, m)) => return tool_error(m),
+        };
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&plan.file))) {
+            return tool_error(m);
+        }
+        let rel = rel_file(&plan.file, &store.model_root);
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
+        let summary_line = format!("bind {} {} {}", plan.configuration, plan.key, args.value);
+        let extra = extra_map(json!({ "target": { "kind": plan.kind, "key": plan.key }, "previous": plan.previous, "stage": plan.stage, "configuration": plan.configuration }));
+        let content = plan.new_content.clone();
+        let apply = move |root: &Path| -> Result<(), String> { std::fs::write(root.join(&rel), &content).map_err(|e| e.to_string()) };
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        // The guarded write only gates unresolved references; a binding must also not add *any* error (a range, a unit,
+        // a stage window, a narrowing), so preview first and commit only a clean one.
+        let mut preview = guarded_write(&mut store, true, true, extra.clone(), &apply);
+        dedupe_delta(&mut preview);
+        let new_errors = preview["validationDelta"]["newErrors"].as_array().map_or(0, Vec::len);
+        let mut res = if args.dry_run {
+            preview
+        } else if new_errors > 0 {
+            preview["reason"] = json!(format!("refused: the binding would introduce {new_errors} error(s)"));
+            preview
+        } else {
+            guarded_write(&mut store, false, true, extra, &apply)
+        };
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "bind", &summary_line, snapshot);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "Which Configurations change validity or projection if a feature, constraint or parameter is edited as proposed. \
+        The edit is applied to a candidate copy by the guarded-write engine in dry-run mode; nothing is written. Per Configuration: errors \
+        before and after, whether it became invalid or valid, the new and resolved errors and the elements added to or removed from its \
+        projection, plus the unified diff and the element's location. Same data as `syscribe change-impact --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn change_impact(&self, Parameters(args): Parameters<ChangeImpactArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::changeimpact::Request { element: args.element, set: args.set, parameter: args.parameter.map(|p| (p.name, p.set)) };
+        match crate::changeimpact::compute(&store.model_root, &store.elements, &store.config, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "The direct children of a tree node, one page per call: id, type, status, file and counters (children, derived \
+        children, verifying tests, errors and warnings; for a package those of its subtree). view=configurations walks Configurations \
+        along derivedFrom and subConfigurations. Paginated with offset/limit (nextOffset is null on the last page). Same data as \
+        `syscribe children --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn children(&self, Parameters(args): Parameters<ChildrenArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let findings = validate_with_config(&store.elements, &store.config).findings;
+        let req = crate::children::Request { of: args.of, view: args.view, offset: args.offset.unwrap_or(0) as usize, limit: args.limit.map(|l| l as usize) };
+        match crate::children::compute(&store.elements, &findings, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Why one feature is forced on, forced off, free or in conflict for a partial selection, and what would have to \
+        change to select it: the smallest set of the user's choices and the model's constraints (kind, label, declaring feature, file) \
+        that cause the state, the choices any one of which can be dropped to make the feature selectable (or that the model alone \
+        prevents it), and with `from` the Configuration's parameter constraints that mention the feature. Same data as \
+        `syscribe explain-feature --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn explain_feature(&self, Parameters(args): Parameters<ExplainFeatureArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: args.from, select: args.select.unwrap_or_default(), stage: None };
+        match crate::explainfeature::compute(&store.elements, &args.feature, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "What a partial feature selection forces, without writing a file: every feature forced on, forced off or free, \
+        whether the choices can be completed (else the smallest clashing choices and the constraints they clash with), the number of \
+        products that remain and one completion. `from` seeds the choices from a Configuration (the result then equals `configure`), \
+        `select` adds or overrides single choices, `stage` leaves features bound at another stage out of the lists (marked deferred). \
+        Same data as `syscribe propagate --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn propagate(&self, Parameters(args): Parameters<PropagateArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: args.from, select: args.select.unwrap_or_default(), stage: args.stage };
+        match crate::propagate::compute(&store.elements, &req) {
+            Ok(v) => ok(v),
+            Err((_, m)) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "One bounded briefing bundle for an element or PlanningItem: its summary and body, upstream and downstream \
+        neighbours to `depth` (id, type, status, relationship, one-line summary), verifying tests with the latest verdict and the \
+        environment it ran on, for a PlanningItem its parent/children, achieves, evidence, claim and open questions, and the \
+        validation findings on those elements. The output never exceeds `max_bytes`; `truncated` says what was left out. Prefer this \
+        to several show/trace/links calls. Same data as `syscribe context --format json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn context(&self, Parameters(args): Parameters<ContextArgs>) -> Result<CallToolResult, ErrorData> {
+        let max = args.max_bytes.map(|m| m as usize).unwrap_or(crate::context::DEFAULT_MAX_BYTES);
+        if max < crate::context::MIN_MAX_BYTES {
+            return tool_error(format!("max_bytes must be at least {}", crate::context::MIN_MAX_BYTES));
+        }
+        let store = self.store.read().await;
+        let result = validate_with_config(&store.elements, &store.config);
+        match crate::context::build(&store.elements, store.config.results.as_ref(), &result.findings, &args.element, args.depth.unwrap_or(1) as usize) {
+            Ok(b) => Ok(CallToolResult::success(vec![Content::text(crate::context::render(b, crate::context::Format::Json, max))])),
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "A PlanningItem's breakdown: its child items (its steps) as a tree with status, owner, claim, blockers, \
+        open questions and a roll-up of leaves done. Hints (a parent disagreeing with its leaves) are notes, not findings. \
+        Same data as `syscribe steps --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn steps(&self, Parameters(args): Parameters<StepsArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::steps::tree(&store.elements, &args.item) {
+            Ok(full) => {
+                let roll = crate::steps::rollup(&full);
+                let notes = crate::steps::hints(&full);
+                let shown = if args.open.unwrap_or(false) { crate::steps::prune_done(&full, true).unwrap_or_else(|| full.clone()) } else { full };
+                ok(json!({ "schemaVersion": "1.0", "rollup": roll, "hints": notes, "tree": shown }))
+            }
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Record, answer or defer a PlanningItem's inline question through the guarded write (dry_run defaults to true). \
+        op=add needs `text` (and optionally `recommended`) and allocates the next Q<n>; op=answer needs `id` and `text` (optionally `by`); \
+        op=defer needs `id`. Prefer this to update_element, which replaces the whole list. When blocked on a decision, record a question \
+        instead of guessing.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn question(
+        &self,
+        Parameters(args): Parameters<QuestionArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let target = match store.resolver.resolve_ref(&store.elements, &args.item) {
+            Some(e) => e.clone(),
+            None => return tool_error(format!("unresolved reference: {}", args.item)),
+        };
+        if let Some(m) = builtin_refusal(&target) {
+            return tool_error(m);
+        }
+        let need = |v: &Option<String>, what: &str| v.clone().ok_or_else(|| format!("op={} needs `{what}`", args.op));
+        let op = match args.op.as_str() {
+            "add" => need(&args.text, "text").map(|text| crate::qset::Op::Add { text, recommended: args.recommended.clone() }),
+            "answer" => need(&args.id, "id").and_then(|id| need(&args.text, "text").map(|text| crate::qset::Op::Answer { id, text, by: args.prov.by.clone() })),
+            "defer" => need(&args.id, "id").map(|id| crate::qset::Op::Defer { id }),
+            other => Err(format!("unknown op '{other}' (add, answer, defer)")),
+        };
+        let op = match op {
+            Ok(o) => o,
+            Err(m) => return tool_error(m),
+        };
+        let plan = match crate::qset::plan(&target, &op, &crate::claim::iso8601_now()) {
+            Ok(p) => p,
+            Err(m) => return tool_error(m),
+        };
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
+        let rel = rel_file(&target.file_path, &store.model_root);
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
+        let summary_line = format!("question {} {} {}", args.op, args.item, plan.id);
+        let extra = extra_map(json!({ "item": args.item, "question": plan.id, "summary": plan.summary }));
+        let apply = move |root: &Path| -> Result<(), String> {
+            let path = root.join(&rel);
+            let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            let new_content = crate::qset::edit_content(&content, &path.to_string_lossy(), &plan)?;
+            std::fs::write(&path, new_content).map_err(|e| e.to_string())
+        };
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "question", &summary_line, snapshot);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "The model's history as git records it: commits with author, date, the syscribe command, actor and reason \
+        (from the commit trailers a write made with `commit` leaves), and for one element what each commit changed in it. \
+        `unattributed` lists commits that touched the model without those trailers. Same data as `syscribe log --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn log(&self, Parameters(args): Parameters<LogArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let q = crate::logcmd::Query {
+            element: args.element.as_deref(),
+            by: args.by.as_deref(),
+            since: args.since.as_deref(),
+            unattributed: args.unattributed,
+            limit: args.limit.map(|l| l as usize).unwrap_or(50),
+        };
+        match crate::logcmd::collect(&store.model_root, &store.elements, &q) {
+            Ok(l) => ok(json!({ "schemaVersion": "1.0", "scope": l.scope, "uncommitted": l.uncommitted, "entries": l.entries })),
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "Element-level difference of the model between two git revisions (or a revision and the working tree), \
+        with no sealed baseline: added/removed/moved/modified elements, status transitions, links and evidence \
+        added/removed, and references that broke or were repaired. Same data as `syscribe changes --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn changes(&self, Parameters(args): Parameters<ChangesArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let filter = syscribe_model::modeldiff::Filter { types: args.types.unwrap_or_default(), package: args.package };
+        match crate::changes::compute(&store.model_root, &store.elements, &args.from, args.to.as_deref(), &filter) {
+            Ok((set, to)) => ok(json!({
+                "schemaVersion": "1.0",
+                "from": args.from,
+                "to": to,
+                "changes": set.changes,
+                "newlyBroken": set.newly_broken,
+                "newlyResolved": set.newly_resolved,
+            })),
+            Err(m) => tool_error(m),
+        }
     }
 
     #[tool(
@@ -1598,7 +2441,19 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         match args.r#type.as_deref().filter(|t| !t.is_empty()) {
             None => ok(json!({ "types": known_type_names() })),
-            Some(t) => ok(json!({ "type": t, "fields": type_field_specs(t) })),
+            Some(t) => {
+                // The same discovery data `syscribe help <Type>` prints (GH #438).
+                let canonical = crate::typehelp::resolve_type(t).unwrap_or(t);
+                let commands: Vec<Value> = crate::typehelp::commands_for(canonical)
+                    .into_iter()
+                    .map(|(name, summary, specific)| json!({ "command": name, "summary": summary, "specific": specific }))
+                    .collect();
+                let codes: Vec<Value> = crate::typehelp::codes_for(canonical)
+                    .into_iter()
+                    .map(|(code, summary)| json!({ "code": code, "summary": summary }))
+                    .collect();
+                ok(json!({ "type": t, "fields": type_field_specs(canonical), "commands": commands, "codes": codes }))
+            }
         }
     }
 
@@ -1897,6 +2752,18 @@ impl SyscribeMcp {
         Parameters(args): Parameters<CoverageMatrixArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
+        if let Some(by) = args.by.as_deref() {
+            if by != "environment" {
+                return Err(ErrorData::invalid_params(format!("unknown `by` '{by}'; the only grouping is: environment"), None));
+            }
+            let m = crate::envmatrix::build(
+                &store.elements,
+                store.config.results.as_ref(),
+                Some(&store.model_root),
+                &crate::envmatrix::Options { status: args.status.as_deref(), tag: args.tag.as_deref(), gaps_only: args.gaps_only.unwrap_or(false) },
+            );
+            return Ok(CallToolResult::success(vec![Content::text(serde_json::to_string_pretty(&crate::envmatrix::to_json(&m)).unwrap())]));
+        }
         // REQ-TRS-LINKTYPE-006 — same reporting view as `matrix --json`.
         let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let mut v = matrix_json(
@@ -1918,6 +2785,9 @@ impl SyscribeMcp {
                         cells.retain(|k, _| k == cfg);
                     }
                 }
+            }
+            if let Some(gaps) = v.get_mut("gaps").and_then(|g| g.as_array_mut()) {
+                gaps.retain(|g| g["configuration"].as_str() == Some(cfg));
             }
         }
         // Optional row paging.
@@ -2531,6 +3401,10 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
+        if let Err(m) = prov_precheck(&args.prov, None) {
+            return tool_error(m);
+        }
+        let policy = PolicyCtx::load(&store.model_root);
         let mut extra = extra_map(json!({
             "qname": args.qname.as_deref().map(|q| q.replace('/', "::")),
             "parent": args.parent,
@@ -2547,17 +3421,30 @@ impl SyscribeMcp {
             Ok(p) => p,
             Err(e) => return ok(refuse(extra, &e.to_string())),
         };
+        if let Some(ctx) = &policy {
+            let checked = ctx.check_rel(&plan.rel).and_then(|_| match fields_status(args.fields.as_ref()) {
+                Some(st) => ctx.check_status(&args.r#type, &st).and_then(|_| ctx.check_created(&args.r#type, &st, args.fields.as_ref())),
+                None => Ok(()),
+            });
+            if let Err(m) = checked {
+                return tool_error(m);
+            }
+        }
         extra.insert("id".into(), plan.id.clone());
         extra.insert("qname".into(), Value::String(plan.qname.clone()));
         extra.insert("path".into(), Value::String(plan.rel.clone()));
 
+        let plan_id = plan.id.as_str().map(String::from).unwrap_or_else(|| plan.id.to_string());
         let rel = plan.rel.clone();
         let content = plan.content.clone();
         let apply = move |root: &Path| -> Result<(), String> {
             write_confined(root, &rel, &content).map_err(|e| e.to_string())
         };
 
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let summary = format!("create {} {}", args.r#type, plan_id);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "create_element", &summary, snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2587,13 +3474,30 @@ impl SyscribeMcp {
                 args.r#ref, target.file_path
             ));
         }
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
+        if let Some(ctx) = PolicyCtx::load(&store.model_root) {
+            let checked = ctx.check_rel(&rel).and_then(|_| match fields_status(args.fields.as_ref()) {
+                Some(st) => {
+                    let ty = target.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+                    ctx.check_status(&ty, &st).and_then(|_| ctx.policy.check_before_done(&store.elements, &store.config, &target.qualified_name, &st).map_err(|r| r.to_string()))
+                }
+                None => Ok(()),
+            });
+            if let Err(m) = checked {
+                return tool_error(m);
+            }
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let fields = args.fields.clone();
         let doc = args.doc.clone();
         let apply = move |root: &Path| -> Result<(), String> {
             apply_update(&root.join(&rel), fields.as_ref(), doc.as_deref())
         };
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "update_element", &format!("update {}", args.r#ref), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2636,10 +3540,25 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
+        let src_file = store.resolver.resolve_ref(&store.elements, &args.r#ref).map(|e| e.file_path.clone());
+        if let Err(m) = prov_precheck(&args.prov, src_file.as_deref().map(Path::new)) {
+            return tool_error(m);
+        }
         let dest = args.dest.replace('/', "::");
         let extra = extra_map(json!({ "ref": args.r#ref, "dest": dest }));
         if !mv::valid_move_dest(&dest) {
             return ok(refuse(extra, "not a valid basic destination qualified name"));
+        }
+        // A move rewrites every file that refers to the element: the policy has to see all of them.
+        if let Some(ctx) = PolicyCtx::load(&store.model_root) {
+            if let Ok(plan) = mv::move_element(&store.model_root, &store.elements, &store.resolver, &args.r#ref, &dest, true) {
+                let files = std::iter::once(plan.from_path.clone()).chain(std::iter::once(plan.to_path.clone())).chain(plan.rewritten_files.iter().cloned());
+                for f in files {
+                    if let Err(m) = ctx.check_rel(&rel_in(&store.model_root, &f)) {
+                        return tool_error(m);
+                    }
+                }
+            }
         }
         // `mv::move_element` itself refuses a synthesized source (an FMEA/TARA
         // entry or a FeatureModel sheet's featureTree: entry) — no separate
@@ -2652,7 +3571,9 @@ impl SyscribeMcp {
             let resolver = Resolver::new(&elems);
             mv::move_element(root, &elems, &resolver, &source, &dest_c, false).map(|_| ())
         };
-        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "move_element", &format!("move {} {}", args.r#ref, dest), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2700,6 +3621,12 @@ impl SyscribeMcp {
             }
         }
 
+        if let Err(m) = prov_precheck(&args.prov, Some(Path::new(&target.file_path))) {
+            return tool_error(m);
+        }
+        if let Some(Err(m)) = PolicyCtx::load(&store.model_root).map(|ctx| ctx.check_rel(&rel)) {
+            return tool_error(m);
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let rel_c = rel.clone();
         let apply = move |root: &Path| -> Result<(), String> {
@@ -2707,7 +3634,9 @@ impl SyscribeMcp {
         };
         // gate=false: deletion may legitimately orphan a reference (esp. under force);
         // the reference-impact guard above is delete's safety mechanism.
-        let res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        let snapshot = prov_snapshot(&store.model_root, &args.prov);
+        let mut res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        prov_commit(&store.model_root.clone(), &mut res, &args.prov, "delete_element", &format!("delete {}", args.r#ref), snapshot);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
@@ -2726,9 +3655,12 @@ impl SyscribeMcp {
         let mut store = self.store.write().await;
         let extra = extra_map(json!({ "operations": args.operations.len() }));
         let ops = args.operations;
+        // Each operation is checked against the candidate state it is applied to, so a later operation can
+        // depend on an earlier one and still be judged on the file it really touches.
+        let policy = PolicyCtx::load(&store.model_root);
         let apply = move |root: &Path| -> Result<(), String> {
             for op in &ops {
-                apply_op(root, op)?;
+                apply_op(root, op, policy.as_ref())?;
             }
             Ok(())
         };
@@ -3205,6 +4137,19 @@ impl SyscribeMcp {
     }
 }
 
+impl SyscribeMcp {
+    /// The `initialize` instructions: generated from the loaded model and `.syscribe.toml`
+    /// (GH #440), so they name the project's real id prefixes, statuses and gates. If a reload
+    /// holds the store, the model-independent part is still returned.
+    fn instructions(&self) -> String {
+        let guide = match self.store.try_read() {
+            Ok(s) => crate::agentguide::build(&s.model_root, &s.elements),
+            Err(_) => crate::agentguide::Guide { root: String::new(), ids: vec![], types: vec![], validate: vec![], gates: vec![], policy: vec![] },
+        };
+        crate::agentguide::mcp_instructions(&guide, self.read_only)
+    }
+}
+
 #[tool_handler]
 impl ServerHandler for SyscribeMcp {
     #[allow(deprecated)] // `enable_logging` is soft-deprecated upstream but still the
@@ -3222,18 +4167,7 @@ impl ServerHandler for SyscribeMcp {
                 .build(),
         )
         .with_server_info(Implementation::new("syscribe-mcp", env!("CARGO_PKG_VERSION")))
-        .with_instructions(
-            "Query and guard-write a Syscribe systems model over MCP. Read tools are \
-             token-efficient; write tools default to dry_run and refuse commits that \
-             leave a dangling reference or link-type error; every other new error is \
-             listed in the delta with gating:false, so read newErrors. Relationship vocabulary is per-project: call \
-             the `link_types` tool to discover the project's declared link types before \
-             authoring a `links:` field, and never invent an undeclared one (E630); use \
-             `follow` to traverse any link. The server watches the model files and \
-             reloads automatically when they change on disk (unless started with \
-             --no-watch); call `reload` only to force a re-read."
-                .to_string(),
-        )
+        .with_instructions(self.instructions())
     }
 
     // Accept logging/setLevel (the level is advisory; we always emit at Info).
@@ -3431,6 +4365,56 @@ impl ServerHandler for SyscribeMcp {
                 Some("Review requirement→test→architecture traceability for gaps"),
                 None,
             ),
+            Prompt::new(
+                "add-requirement-with-test",
+                Some("Add a Requirement and the TestCase that verifies it, with the exact tool sequence"),
+                Some(vec![
+                    PromptArgument::new("statement")
+                        .with_description("The requirement's normative statement (optional)")
+                        .with_required(false),
+                    PromptArgument::new("parent")
+                        .with_description("Id of the requirement it is derived from (optional)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "record-test-evidence",
+                Some("Record the results of a test run as evidence, previewing before committing"),
+                Some(vec![
+                    PromptArgument::new("results_path")
+                        .with_description("Path of the results file to ingest")
+                        .with_required(true),
+                    PromptArgument::new("format")
+                        .with_description("junit | cargo-json | session-log | records (default: inferred)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "review-change-set",
+                Some("Review what a set of changes did to the model: changed elements, impact, new findings"),
+                Some(vec![
+                    PromptArgument::new("since")
+                        .with_description("Git revision to compare against (e.g. main, a tag or a commit)")
+                        .with_required(true),
+                    PromptArgument::new("until")
+                        .with_description("Git revision to compare to (default: the working tree)")
+                        .with_required(false),
+                ]),
+            ),
+            Prompt::new(
+                "close-planning-item",
+                Some("Close a PlanningItem: check its evidence, set it done, hand back the claim"),
+                Some(vec![PromptArgument::new("item")
+                    .with_description("Stable id of the PlanningItem")
+                    .with_required(true)]),
+            ),
+            Prompt::new(
+                "check-variant",
+                Some("Open a variant check: configure, project and validate one Configuration"),
+                Some(vec![PromptArgument::new("config")
+                    .with_description("Configuration id (CONF-*) or qualified name")
+                    .with_required(true)]),
+            ),
         ];
         Ok(ListPromptsResult::with_all_items(prompts))
     }
@@ -3446,6 +4430,12 @@ impl ServerHandler for SyscribeMcp {
             .and_then(|m| m.get("target"))
             .and_then(|v| v.as_str())
             .unwrap_or("<target>");
+        let arg = |k: &str| {
+            request.arguments.as_ref().and_then(|m| m.get(k)).and_then(|v| v.as_str()).filter(|v| !v.is_empty())
+        };
+        let req_arg = |k: &str| {
+            arg(k).ok_or_else(|| ErrorData::invalid_params(format!("prompt `{}` requires the argument `{k}`", request.name), None))
+        };
         let text: String = match request.name.as_str() {
             "create-model" => crate::AGENT_INSTRUCTIONS.to_string(),
             "create-magicgrid-model" => crate::MAGICGRID_INSTRUCTIONS.to_string(),
@@ -3477,6 +4467,69 @@ impl ServerHandler for SyscribeMcp {
                  Report requirements lacking a verifying TestCase and any `derivedFrom` without a \
                  `breakdownAdr`."
                 .to_string(),
+            "add-requirement-with-test" => {
+                let statement = arg("statement").unwrap_or("<one normative `shall` sentence>");
+                let parent = match arg("parent") {
+                    Some(p) => format!(
+                        "It is derived from '{p}': set `derivedFrom: [{p}]` and `breakdownAdr:` to the accepted ADR that records the breakdown. "
+                    ),
+                    None => String::new(),
+                };
+                format!(
+                    "Add a Requirement and the TestCase that verifies it. Follow this sequence:\n\
+                     1. `next_id` with the project's requirement prefix (see the server instructions) for the requirement id, and again for the TestCase id.\n\
+                     2. `template` with type=Requirement, then type=TestCase, for the skeletons.\n\
+                     3. `create_element` type=Requirement with dry_run:true. Statement: \"{statement}\". {parent}Read the delta and `newErrors`; when clean, repeat with dry_run:false.\n\
+                     4. `create_element` type=TestCase with `verifies: [<the requirement id>]`, a `testLevel` and a Gherkin body, dry_run:true then dry_run:false.\n\
+                     5. `validate_element` on both new elements, then `validate`; fix every new error before finishing.\n\
+                     6. `trace` on the requirement and confirm the test appears under verifiedBy."
+                )
+            }
+            "record-test-evidence" => {
+                let path = req_arg("results_path")?;
+                let fmt = arg("format").map(|f| format!(" format={f}")).unwrap_or_default();
+                format!(
+                    "Record the results in '{path}' as evidence. Follow this sequence:\n\
+                     1. `ingest_results` path={path}{fmt} dry_run:true. Read which TestCases and verdicts it would record and anything it could not match to a TestCase.\n\
+                     2. If that is what you expect, repeat with dry_run:false; otherwise stop and report the mismatch.\n\
+                     3. `evidence` for each requirement the tests verify, to see its executable and recorded evidence.\n\
+                     4. `coverage` to see what is still unverified, then `validate`: a result recorded for an element that has since changed is flagged (W091).\n\
+                     Results are recorded, not asserted: do not edit a TestCase's `status` to reflect a verdict."
+                )
+            }
+            "review-change-set" => {
+                let since = req_arg("since")?;
+                let until = arg("until").map(|u| format!(" to={u}")).unwrap_or_default();
+                format!(
+                    "Review what the change set since '{since}' did to the model. Follow this sequence:\n\
+                     1. `changes` from={since}{until}: added, removed, moved and modified elements, status transitions, links and evidence added or removed, and references that broke or were repaired.\n\
+                     2. `validate` new_since={since}: only the findings the change introduced. Pre-existing ones are counted, not listed.\n\
+                     3. For each changed requirement or architecture element, `impact` ref=<id> direction=both, and `trace` to check it is still verified.\n\
+                     4. Report: status moves without evidence, new links to ADRs that are not accepted, newly broken references and every new finding."
+                )
+            }
+            "close-planning-item" => {
+                let item = req_arg("item")?;
+                format!(
+                    "Close PlanningItem '{item}'. Follow this sequence:\n\
+                     1. `get_element` ref={item} detail:true: its status, `achieves`, `evidence`, `blockedBy` and children.\n\
+                     2. `evidence` on each requirement it achieves. A leaf item claiming done needs at least one non-waived, resolving `evidence` entry (E719), and the achieved requirement must meet the verification bar (W310).\n\
+                     3. `update_element` ref={item} with fields {{evidence: [...]}} and dry_run:true. The field is replaced, so send every existing entry plus the new one.\n\
+                     4. `update_element` ref={item} with fields {{status: done}}, dry_run:true; read `newErrors` and the warnings, then dry_run:false.\n\
+                     5. `validate_element` ref={item}.\n\
+                     Ownership is not a tool: hand the claim back with the CLI `syscribe release {item}`, and never set `claimedBy`/`claimedAt` through `update_element`."
+                )
+            }
+            "check-variant" => {
+                let cfg = req_arg("config")?;
+                format!(
+                    "Check variant '{cfg}'. Follow this sequence:\n\
+                     1. `configure` config={cfg}: the features it forces, the ones still free and any parameter left open.\n\
+                     2. `project` config={cfg}: the model as that variant sees it; read its findings.\n\
+                     3. `feature_check` for problems in the feature model itself.\n\
+                     4. `diff_configs` a={cfg} b=<another configuration> to see what differs, and `why_active` ref=<element> config={cfg} for any element that is unexpectedly present or absent."
+                )
+            }
             other => {
                 return Err(ErrorData::invalid_params(
                     format!("unknown prompt: {other}"),

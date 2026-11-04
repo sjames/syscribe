@@ -19,6 +19,9 @@ lists every known type.
 `[ids.prefixes] Requirement` (else `REQ`); `--prefix P` picks `REQ` or any configured
 prefix and rejects others. `--prefix` is valid for `Requirement` only.
 
+`template` needs no model: with no model directory it still prints the skeleton (only the
+configured `[ids.prefixes]` are unavailable). A mistyped type suggests the nearest known one.
+
 ## EXAMPLES
     syscribe -m model/ template Requirement
     syscribe -m model/ template TestCase

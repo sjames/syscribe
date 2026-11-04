@@ -197,7 +197,7 @@ fn inject_img_tag_if_absent(elem: &RawElement, puml_path: &Path, dry_run: bool) 
             } else {
                 format!("{}\n{}", content, img_line)
             };
-            if let Err(e) = std::fs::write(&elem.file_path, new_content) {
+            if let Err(e) = syscribe_model::fsio::write(&elem.file_path, new_content) {
                 eprintln!("warn: could not inject image link into '{}': {}", elem.file_path, e);
             }
         }
@@ -212,7 +212,7 @@ fn write_file(path: &str, content: &str, dry_run: bool) {
         println!("{}", path);
         return;
     }
-    if let Err(e) = std::fs::write(path, content) {
+    if let Err(e) = syscribe_model::fsio::write(path, content) {
         eprintln!("error writing '{}': {}", path, e);
         std::process::exit(1);
     }

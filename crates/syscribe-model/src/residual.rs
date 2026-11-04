@@ -158,6 +158,7 @@ impl Residual {
     pub fn to_json(&self) -> serde_json::Value {
         let win = |w: &BindingWindow| serde_json::json!({"earliest": w.earliest.name(), "latest": w.latest.name()});
         serde_json::json!({
+            "schemaVersion": "1.0",
             "configuration": self.configuration,
             "bindingStage": self.stage.map(|s| s.name()),
             "groups": self.groups.iter().map(|g| serde_json::json!({

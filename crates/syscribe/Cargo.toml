@@ -37,3 +37,6 @@ tower-lsp = "0.20.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+boon = "0.6.1"

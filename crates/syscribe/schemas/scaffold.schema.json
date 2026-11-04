@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/scaffold.schema.json",
+  "title": "syscribe new --json / MCP scaffold",
+  "description": "Stable contract (GH #427). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "target",
+    "files",
+    "written",
+    "newErrors",
+    "newWarnings",
+    "resolvedErrors",
+    "resolvedWarnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "kind": {
+      "enum": [
+        "feature",
+        "configuration",
+        "parameter"
+      ]
+    },
+    "target": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "creates"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "creates": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "written": {
+      "type": "boolean"
+    },
+    "refused": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "diff": {
+      "type": "string"
+    },
+    "newErrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "newWarnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resolvedErrors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resolvedWarnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "file",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -342,24 +342,24 @@ fn cmd_create(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
 
     // Write manifest then element.
     if let Some(parent) = manifest_abs.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
+        if let Err(e) = syscribe_model::fsio::create_dir_all(parent) {
             eprintln!("error: could not create {}: {e}", parent.display());
             return 1;
         }
     }
-    if let Err(e) = std::fs::write(&manifest_abs, manifest.to_json_pretty()) {
+    if let Err(e) = syscribe_model::fsio::write(&manifest_abs, manifest.to_json_pretty()) {
         eprintln!("error: could not write manifest {}: {e}", manifest_abs.display());
         return 1;
     }
     if let Some(parent) = element_abs.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        let _ = syscribe_model::fsio::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(&element_abs, element_md) {
+    if let Err(e) = syscribe_model::fsio::write(&element_abs, element_md) {
         eprintln!("error: could not write element {}: {e}", element_abs.display());
         return 1;
     }
 
-    println!("baselined {id} ({element_count} elements) → {aggregate_hash}");
+    println!("{} {id} ({element_count} elements) → {aggregate_hash}", syscribe_model::fsio::verb("baselined", "would baseline"));
     println!("  element:  {}", element_abs.display());
     println!("  manifest: {}", manifest_abs.display());
     println!("note: create records gitTag `{tag}` but does not create the git tag — tag the release yourself.");

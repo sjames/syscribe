@@ -16,11 +16,17 @@
 
 mod actions;
 mod completion;
+mod ple_actions;
+mod ple_completion;
+mod ple_hover;
+mod preview;
+mod ple_tokens;
 mod rename;
 mod store;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -38,6 +44,77 @@ struct Backend {
     client: Client,
     store: Arc<RwLock<LspStore>>,
     open_docs: Arc<RwLock<HashSet<Url>>>,
+    /// The client asked for `syscribe/modelChanged` (`capabilities.experimental.syscribe.modelChanged`).
+    wants_model_changed: Arc<AtomicBool>,
+    /// The state last told to the client; `None` until the first reload takes the baseline.
+    notified: Arc<tokio::sync::Mutex<Option<syscribe_model::model_delta::Snapshot>>>,
+    notify_pending: Arc<AtomicBool>,
+    sequence: Arc<AtomicU64>,
+    /// Incremented by every successful reload; the `health` answer is kept per generation.
+    generation: Arc<AtomicU64>,
+    health_cache: Arc<std::sync::Mutex<Option<(u64, serde_json::Value)>>>,
+}
+
+/// Parameters of the `syscribe/propagate` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PropagateParams {
+    from: Option<String>,
+    select: Option<std::collections::BTreeMap<String, bool>>,
+    stage: Option<String>,
+}
+
+/// Parameters of the `syscribe/explainFeature` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExplainParams {
+    feature: String,
+    from: Option<String>,
+    select: Option<std::collections::BTreeMap<String, bool>>,
+}
+
+/// Parameters of the `syscribe/children` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChildrenParams {
+    of: Option<String>,
+    view: Option<String>,
+    offset: Option<usize>,
+    limit: Option<usize>,
+}
+
+/// Parameters of the `syscribe/changeImpact` request.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImpactParams {
+    element: String,
+    set: Option<serde_json::Value>,
+    parameter: Option<ImpactParameter>,
+}
+
+#[derive(serde::Deserialize)]
+struct ImpactParameter {
+    name: String,
+    set: serde_json::Value,
+}
+
+/// Parameters of the `syscribe/timeline` request.
+#[derive(serde::Deserialize)]
+struct TimelineParams {
+    configuration: String,
+}
+
+/// The notification a front end listens to (GH #415): what a reload changed.
+enum ModelChanged {}
+impl tower_lsp::lsp_types::notification::Notification for ModelChanged {
+    type Params = serde_json::Value;
+    const METHOD: &'static str = "syscribe/modelChanged";
+}
+
+/// Quiet time before a burst of reloads is reported as one notification.
+fn notify_debounce() -> std::time::Duration {
+    let ms = std::env::var("SYSCRIBE_LSP_NOTIFY_DEBOUNCE_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
+    std::time::Duration::from_millis(ms)
 }
 
 // ── URI / position helpers ───────────────────────────────────────────────────
@@ -275,17 +352,121 @@ impl Backend {
     }
 
     async fn reload(&self) {
+        let wants = self.wants_model_changed.load(Ordering::Relaxed);
         let mut store = self.store.write().await;
+        // The first reload takes the baseline from the state the client has been shown.
+        if wants {
+            let mut baseline = self.notified.lock().await;
+            if baseline.is_none() {
+                let findings = validate_with_config(&store.elements, &store.config).findings;
+                *baseline = Some(syscribe_model::model_delta::snapshot(&store.elements, &findings));
+            }
+        }
         if let Err(e) = store.reload() {
             drop(store);
             self.client.log_message(MessageType::ERROR, format!("model reload failed, keeping prior state: {e}")).await;
+            return;
         }
+        drop(store);
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        if wants {
+            self.schedule_model_changed();
+        }
+    }
+
+    /// `syscribe/propagate` (GH #416): read-only; the same payload as `syscribe propagate --json`.
+    async fn propagate(&self, params: PropagateParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: params.from, select: params.select.unwrap_or_default(), stage: params.stage };
+        crate::propagate::compute(&store.elements, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
+    /// `syscribe/explainFeature` (GH #417): read-only; the same payload as `syscribe explain-feature --json`.
+    async fn explain_feature(&self, params: ExplainParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let req = crate::propagate::Request { from: params.from, select: params.select.unwrap_or_default(), stage: None };
+        crate::explainfeature::compute(&store.elements, &params.feature, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
+    /// `syscribe/children` (GH #425): read-only; the same payload as `syscribe children --json`.
+    async fn children(&self, params: ChildrenParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let findings = validate_with_config(&store.elements, &store.config).findings;
+        let req = crate::children::Request { of: params.of, view: params.view, offset: params.offset.unwrap_or(0), limit: params.limit };
+        crate::children::compute(&store.elements, &findings, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
+    /// `syscribe/changeImpact` (GH #423): evaluated on a candidate copy, nothing is written.
+    async fn change_impact(&self, params: ImpactParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let req = crate::changeimpact::Request { element: params.element, set: params.set, parameter: params.parameter.map(|p| (p.name, p.set)) };
+        crate::changeimpact::compute(&store.model_root, &store.elements, &store.config, &req).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
+    /// `syscribe/timeline` (GH #418): read-only; the same payload as `syscribe timeline --json`.
+    async fn timeline(&self, params: TimelineParams) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        crate::timeline::compute(&store.elements, &params.configuration).map_err(|(_, m)| LspError::invalid_params(m))
+    }
+
+    /// `syscribe/preview` (GH #426): read-only; plans a bind or scaffold, returns the report, a WorkspaceEdit and its undo.
+    async fn preview(&self, params: serde_json::Value) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        preview::plan(&store, &params).map(|p| preview::preview_json(&p)).map_err(LspError::invalid_params)
+    }
+
+    /// `syscribe/health` (GH #428): read-only; the same payload as `syscribe health --json`.
+    async fn health(&self, _params: serde_json::Value) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let gen = self.generation.load(Ordering::SeqCst);
+        Ok(crate::health::cached(&self.health_cache, gen, || crate::health::compute(&store.elements, &store.config, store.config.results.as_ref())))
+    }
+
+    /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
+    /// ends where it began (an edit and its undo) reports nothing.
+    fn schedule_model_changed(&self) {
+        if self.notify_pending.swap(true, Ordering::SeqCst) {
+            return; // a pending task will read the latest state
+        }
+        let (client, store, notified, pending, sequence) = (self.client.clone(), self.store.clone(), self.notified.clone(), self.notify_pending.clone(), self.sequence.clone());
+        tokio::spawn(async move {
+            tokio::time::sleep(notify_debounce()).await;
+            pending.store(false, Ordering::SeqCst);
+            let new = {
+                let s = store.read().await;
+                let findings = validate_with_config(&s.elements, &s.config).findings;
+                syscribe_model::model_delta::snapshot(&s.elements, &findings)
+            };
+            let mut baseline = notified.lock().await;
+            let Some(old) = baseline.as_ref() else { return };
+            let d = syscribe_model::model_delta::delta(old, &new);
+            *baseline = Some(new);
+            drop(baseline);
+            if !d.is_empty() {
+                client.send_notification::<ModelChanged>(d.to_json(sequence.fetch_add(1, Ordering::SeqCst) + 1)).await;
+            }
+        });
     }
 }
 
+/// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline", "syscribe/health", "syscribe/preview"];
+
+/// The custom notifications this server sends to a client that opted in.
+pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
+
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _params: InitializeParams) -> LspResult<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> LspResult<InitializeResult> {
+        let opted_in = params
+            .capabilities
+            .experimental
+            .as_ref()
+            .and_then(|e| e.get("syscribe"))
+            .and_then(|s| s.get("modelChanged"))
+            .and_then(|v| v.as_bool())
+            == Some(true);
+        self.wants_model_changed.store(opted_in, Ordering::Relaxed);
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "syscribe-lsp".to_string(),
@@ -309,9 +490,17 @@ impl LanguageServer for Backend {
                     work_done_progress_options: Default::default(),
                 })),
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec!["syscribe.suspectAccept".to_string()],
+                    commands: vec!["syscribe.suspectAccept".to_string(), "syscribe.apply".to_string()],
                     work_done_progress_options: Default::default(),
                 }),
+                semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
+                    work_done_progress_options: Default::default(),
+                    legend: ple_tokens::legend(),
+                    range: None,
+                    full: Some(SemanticTokensFullOptions::Bool(true)),
+                })),
+                // The same document as `syscribe capabilities --json` (GH #414).
+                experimental: Some(serde_json::json!({ "syscribe": crate::contract::capabilities(&crate::mcp::tool_names()) })),
                 ..ServerCapabilities::default()
             },
             ..Default::default()
@@ -357,6 +546,10 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let Ok(path) = uri.to_file_path() else { return Ok(None) };
         let store = self.store.read().await;
+        // Variability context first (the `appliesWhen:` key, a `parameterBindings:` key); else the token's element.
+        if let Some(h) = ple_hover::hover(&store, &path, position) {
+            return Ok(Some(h));
+        }
         let Some(elem) = resolve_token_element(&store, &path, position) else { return Ok(None) };
         Ok(Some(Hover {
             contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: hover_markdown(elem) }),
@@ -450,6 +643,12 @@ impl LanguageServer for Backend {
         rename::compute(&store, &path, position, &params.new_name).map(Some).map_err(LspError::invalid_params)
     }
 
+    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> LspResult<Option<SemanticTokensResult>> {
+        let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens { result_id: None, data: ple_tokens::tokens(&store, &path) })))
+    }
+
     async fn code_lens(&self, params: CodeLensParams) -> LspResult<Option<Vec<CodeLens>>> {
         let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
         let store = self.store.read().await;
@@ -463,6 +662,25 @@ impl LanguageServer for Backend {
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> LspResult<Option<serde_json::Value>> {
+        // `syscribe.apply` (GH #426): commit a previewed bind or scaffold, only if it adds no error.
+        if params.command == "syscribe.apply" {
+            let arg = params.arguments.first().cloned().unwrap_or(serde_json::Value::Null);
+            let mut store = self.store.write().await;
+            let planned = preview::plan(&store, &arg).map_err(LspError::invalid_params)?;
+            if let Err(e) = preview::commit(&planned) {
+                return Err(LspError::invalid_params(format!("{e}\n{}", planned.report["newErrors"])));
+            }
+            if let Err(e) = store.reload() {
+                self.client.log_message(MessageType::ERROR, format!("model reload failed, keeping prior state: {e}")).await;
+            }
+            drop(store);
+            self.publish_for_all_open().await;
+            let mut out = preview::preview_json(&planned);
+            out["report"]["written"] = serde_json::json!(true);
+            out["written"] = serde_json::json!(true);
+            out.as_object_mut().map(|o| o.remove("edit"));
+            return Ok(Some(out));
+        }
         if params.command != "syscribe.suspectAccept" {
             return Err(LspError::method_not_found());
         }
@@ -494,11 +712,25 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
         let store = LspStore::load(&model_root)?;
         let stdin = tokio::io::stdin();
         let stdout = tokio::io::stdout();
-        let (service, socket) = LspService::new(move |client| Backend {
+        let (service, socket) = LspService::build(move |client| Backend {
             client,
             store: Arc::new(RwLock::new(store)),
             open_docs: Arc::new(RwLock::new(HashSet::new())),
-        });
+            wants_model_changed: Arc::new(AtomicBool::new(false)),
+            notified: Arc::new(tokio::sync::Mutex::new(None)),
+            notify_pending: Arc::new(AtomicBool::new(false)),
+            sequence: Arc::new(AtomicU64::new(0)),
+            generation: Arc::new(AtomicU64::new(0)),
+            health_cache: Arc::new(std::sync::Mutex::new(None)),
+        })
+        .custom_method("syscribe/propagate", Backend::propagate)
+        .custom_method("syscribe/explainFeature", Backend::explain_feature)
+        .custom_method("syscribe/children", Backend::children)
+        .custom_method("syscribe/changeImpact", Backend::change_impact)
+        .custom_method("syscribe/timeline", Backend::timeline)
+        .custom_method("syscribe/health", Backend::health)
+        .custom_method("syscribe/preview", Backend::preview)
+        .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())
     })

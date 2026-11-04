@@ -8924,6 +8924,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // Inline PlanningItem questions (GH #436): E724–E727, W317.
+    findings.extend(crate::questions::findings(elements));
+
+    // OPT-IN: workflow hints (GH #439) — informational, only under `validate --hints`.
+    if config.hints {
+        findings.extend(crate::hints::hint_findings(elements));
+    }
+
     // GATED: the MG### checks fire only under the MagicGrid profile.
     if config.magicgrid {
         // True if a type may carry use-case-style `actors:` for MG-002.

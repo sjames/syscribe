@@ -111,6 +111,10 @@
 | `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |
 | `I750` | Informational (`validate --config`): an element is variant-retained — the staged Configuration's projection keeps it because its `appliesWhen:` depends on a feature still open at that stage; also listed by `residual` (§9.8). Never affects the exit status |
 | `I011` | Informational: plant fields (`fmu:`, `plants:`, `plantStep:`, `plantConnections:`) are present but this build has no FMI support, so they are not checked (rebuild with `cargo build --features fmi`) |
+| `I910` | Informational (`validate --hints` only): a `PlanningItem` has `claimedBy` without `claimedAt` — `claim` always writes both, so the claim was hand-edited; use `claim <id> --by <agent>` / `release <id>` |
+| `I911` | Informational (`validate --hints` only): the same `evidence:` entry (same `ref:` or `path:`) is listed more than once |
+| `I912` | Informational (`validate --hints` only): `status` is outside the type's vocabulary; names the nearest valid value and the `set <id> status=<value>` command that applies it |
+| `I913` | Informational (`validate --hints` only): a `PlanningItem` body has a *Questions* heading while `questions:` is empty — record each with `set <id> question.add text=…` so `syscribe questions` can track it |
 
 ## Safety / ASPICE warnings (W701–W703)
 
@@ -431,7 +435,15 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W700` | A `status: closed` review has an `items[]` with `disposition: open` |
 | `W704` | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (opt-in; `--deny W704`) |
 
-## Native PlanningItem (E706–E717, E719–E723, W308–W311, §23, ADR-SYS-PLANITEM-001)
+## Agent policy (W760–W762, ADR-SYS-AGENTPOLICY-001)
+
+| Code | Condition |
+|---|---|
+| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front |
+| `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
+| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type, an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
+
+## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W318, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -456,6 +468,12 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W309` | A `[users]` key in `.syscribe.toml` is not a valid username — entry ignored, excluded from the roster |
 | `W310` | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly — an active TestCase for a leaf, an active integration-level (`L3`/`L4`/`L5`) TestCase for a parent (mirrors `W002`/`W305`, scoped to the specific PlanningItem, issue #114) |
 | `W311` | Two `PlanningItem`s that are both active (`status: in_progress`, or explicitly claimed via `claimedBy:`) overlap by a shared `achieves:` Requirement or an `evidence[].path` resolving to the same repo-relative path — likely duplicate concurrent work (issue #115) |
+| `E724` | A `PlanningItem` `questions:` is not a list of mappings, or an entry lacks `id`/`text` or has an `id` that is not `Q<n>` |
+| `E725` | Two `questions:` entries on one `PlanningItem` share an `id` |
+| `E726` | A question's `status` is absent or outside `open · answered · deferred` |
+| `E727` | A question is `answered` but has no non-empty `answer` |
+| `W317` | A `PlanningItem` at `status: done` has an `open` question — answer it or `defer` it (`deferred`/`answered` raise nothing) |
+| `W318` | A `questions:` field on an element that is not a `PlanningItem` — it is ignored there; move it to the PlanningItem that owns the decision |
 
 `claimedBy:`/`claimedAt:` are advisory ownership markers (issue #115), written/cleared by the
 dedicated `claim <PI-id> --by <agent-id>`/`release <PI-id>` commands — not the generic MCP

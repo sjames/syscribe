@@ -48,6 +48,10 @@ pub fn elem_detail(e: &RawElement) -> Value {
         "frontmatter".into(),
         serde_json::to_value(&e.frontmatter).unwrap_or(Value::Null),
     );
+    // The hash a client passes back as `expect_hash` to make an edit fail if the file has since changed.
+    if let Some(h) = syscribe_model::fsio::file_hash(Path::new(&e.file_path)) {
+        obj.insert("contentHash".into(), Value::String(h));
+    }
     v
 }
 

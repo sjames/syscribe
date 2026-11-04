@@ -499,10 +499,10 @@ impl ResultsData {
     /// Persist this data to the sidecar, creating `.syscribe/` as needed.
     pub fn write_sidecar(&self, model_root: &Path) -> std::io::Result<PathBuf> {
         let dir = model_root.join(".syscribe");
-        std::fs::create_dir_all(&dir)?;
+        crate::fsio::create_dir_all(&dir)?;
         let path = dir.join("results.json");
         let json = serde_json::to_string_pretty(self).expect("ResultsData serialises");
-        std::fs::write(&path, json)?;
+        crate::fsio::write(&path, json)?;
         Ok(path)
     }
 

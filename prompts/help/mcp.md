@@ -6,6 +6,7 @@ client query and guard-write the Syscribe model bound at `-m`.
 
 ## SYNOPSIS
     syscribe -m <root> mcp [--read-only] [--no-watch]
+    syscribe -m <root> mcp --print-instructions [--read-only]
 
 ## USAGE
 
@@ -20,6 +21,20 @@ MCP client (an editor, an agent runtime, …), not invoked interactively.
 - The server advertises `tools`, `resources`, `prompts`, `completions`, and
   `logging` capabilities, and emits a `resources/list_changed` notification after
   any committed write, a `reload`, or an automatic reload.
+
+- `--print-instructions` prints the server instructions a client receives in `initialize` (and
+  exits), so they can be pasted into other agent configuration.
+
+## Server instructions
+
+The `initialize` response carries instructions **generated from the loaded model and
+`.syscribe.toml`**: the tool order for common jobs (orient → `next_id` → `template` →
+`create_element` → `validate_element`; `validate` and `gates` before calling work done), the safe-
+mutation rules (never invent an id, never set `claimedBy`/`claimedAt` through a tool — ownership
+is the CLI `claim`/`release`), the project's real id prefixes (including `[ids.prefixes]` extras),
+the status vocabulary of each lifecycle type, and the configured gates and profiles. A
+`--read-only` server says so and advertises no write sequence. The same data produces
+`syscribe agent-guide`.
 
 ## Live reload
 
@@ -97,7 +112,53 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `export_sysml {package?}` — the model (or one package's subtree) as SysML v2 textual
   notation, one-way and lossy (unsupported elements become `// skipped:` comments);
   same text as `export-sysml [<package>]`. Returns text; never writes to disk.
-- `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
+- `validate {file?, severity?, limit?, new_since?}` / `validate_element {ref}` — findings.
+  `new_since: "<git-rev>"` reports only the findings absent at that revision and states how many
+  were `preexisting` (the CLI's `validate --new-since`; a finding is identified by code, element
+  and message, not file or line).
+- `questions {open?, status?, item?}` — a PlanningItem's inline questions (the decisions awaiting an
+  answer) across the model or for one item. Same data as `syscribe questions --json`.
+- `context {element, depth?, max_bytes?}` — one bounded briefing bundle: the element's summary and body,
+  upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
+  state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
+  several show/trace/links calls. Same data as `syscribe context --format json`.
+- `scaffold {kind, name, …}` — create a `feature`, a `configuration` or a `parameter` that is right the first time
+  (free derived `FEAT-*` id, valid `CONF-*` id and stage, ordered binding window); previews unless `dry_run` is
+  false and refuses a scaffold that adds an error. Returns the guarded-write result with `kind`, `target`, `files`.
+- `health {}` — one cheap project summary for a status bar (errors, warnings, orphan and unverified
+  requirements, stale evidence, failing Configurations, overall status, click-through commands), kept per model
+  version. Same data as `syscribe health --json`.
+- `timeline {configuration}` — the derivedFrom chain root first with what each stage decided, the effective
+  values with provenance (source and stage) and what is still open. Same data as `syscribe timeline --json`.
+- `bind {configuration, target, value, dry_run?}` — write one parameterBindings value or features selection into
+  a Configuration, checked first (range, enumeration, unit, stage window, narrowing); previews unless `dry_run` is
+  false and refuses a change that adds an error. Returns the guarded-write result with `target`, `previous`, `stage`.
+- `change_impact {element, set?, parameter?}` — which Configurations change validity or projection if a feature,
+  constraint or parameter range were edited as proposed; evaluated on a candidate copy, nothing written. Same data
+  as `syscribe change-impact --json`.
+- `children {of?, view?, offset?, limit?}` — one page of a tree node's direct children with id, type, status, file and
+  counters (children, derived children, verifying tests, errors, warnings); `view=configurations` is the
+  Configuration tree. Same data as `syscribe children --json`.
+- `explain_feature {feature, from?, select?}` — why a feature is forced on/off, free or in conflict for a partial
+  selection (the choices and constraints behind it, with kind, declaring feature and file) and what would have to
+  change to select it; read-only. Same data as `syscribe explain-feature --json`.
+- `propagate {from?, select?, stage?}` — forced-on / forced-off / free features for a partial feature
+  selection, whether it can be completed, the products that remain and one completion; read-only. Same data
+  as `syscribe propagate --json`.
+- `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
+  open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
+- `impact {ref | files | since, direction?, depth?}` — from one element, or from changed `files` / a git
+  `since` revision: each file is mapped to the elements that own, implement, test or cite it and
+  the result is reported with `changed` flags, `unmapped` files and the `unreviewed` requirements/tests
+  (default both directions, depth 2). Same data as `syscribe impact --files … --format json`.
+- `log {element?, by?, since?, unattributed?, limit?}` — the model's history as git records it: commits
+  with author, date, the syscribe command, actor and reason (the trailers a `commit` write leaves) and,
+  for one `element`, what each commit changed in it. `unattributed` lists commits without the trailers
+  (hand edits). Same data as `syscribe log --json`.
+- `changes {from, to?, types?, package?}` — the element-level difference between two git revisions
+  (or a revision and the working tree): added/removed/moved/modified elements, status transitions,
+  links and evidence added or removed, references that broke or were repaired. Same data as
+  `syscribe changes --json`.
 - `reload {}` — re-read the model from disk now (normally unnecessary: the
   server reloads automatically on file changes, see **Live reload**).
 
@@ -204,8 +265,32 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 An element built into the tool (the `StdMetadata` library) is read-only: `update_element`,
 `delete_element`, `move_element` and `apply_changes` refuse it with a message saying so.
 
+`create_element`, `update_element`, `move_element`, `delete_element` and `question` also take `by` (an
+actor id), `reason`, `commit` (commit exactly the files the write changed, with `by` as author and
+`Syscribe-*` trailers; also on when `[provenance] commit = true`) and `expect_hash` (a `contentHash` from
+`get_element`; the write is refused if the file has changed since). A committed write returns `commit`;
+a failed commit leaves the write in place and returns `commitError`. `apply_changes` does not take them.
+
+When the project declares an `[agents]` policy (`syscribe policy`), every write tool is held to it: a
+`protected_paths` match, a `human_only_status`, or a PlanningItem set `done` before `require_before_done`
+holds is refused with the rule named, in each operation of an `apply_changes` batch too. There is no
+`--as-human` over MCP — a person uses the CLI or edits the file.
+
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit.
+
+`question {item, op: add|answer|defer, text?, recommended?, id?, by?}` records, answers or defers a
+PlanningItem's inline question (see `questions`) through the same guarded write. It edits only the
+affected entry, which `update_element` cannot (it replaces the whole `questions:` list).
+
+`bind {configuration, target, value}` writes one `parameterBindings:` value or `features:` selection into a
+Configuration. It edits only the affected line and, unlike the other write tools, refuses a change that adds *any*
+error (a range, an enumeration, a stage window, a narrowing), not only a gating one: the change is previewed first and
+committed only when clean. Its result adds `target`, `previous` (the value replaced and its source) and `stage`.
+
+`scaffold {kind: feature|configuration|parameter, name, …}` creates a `FeatureDef`, a `Configuration` or a parameter that
+is right the first time. Like `bind` it refuses a change that adds *any* error (previewed first, committed only when
+clean); its result adds `kind`, `target` and `files`.
 
 The delta (`validationDelta`) lists every finding the change introduces or
 resolves: `newErrors` / `resolvedErrors` / `newWarnings` / `resolvedWarnings`.
@@ -260,6 +345,9 @@ they do in the real tree.
 - Resources: the format spec sections (`syscribe://spec/<section>`), the project
   config (`syscribe://config`), and each element via the
   `syscribe://element/{qname}` template; element references support completion.
-- Prompts: `create-model`, `create-magicgrid-model`, and the task prompts
+- Prompts: `create-model`, `create-magicgrid-model`, the task prompts
   `add-requirement`, `break-down-requirement`, `add-testcase-for`,
-  `traceability-review`.
+  `traceability-review`, and the workflows, each with arguments and the exact tool
+  sequence: `add-requirement-with-test` (`statement?`, `parent?`), `record-test-evidence`
+  (`results_path`, `format?`), `review-change-set` (`since`, `until?`), `close-planning-item`
+  (`item`) and `check-variant` (`config`). A missing required argument is an error.

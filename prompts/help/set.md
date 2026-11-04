@@ -5,6 +5,9 @@
     syscribe -m <root> set <qname|id> evidence.add ref=<id> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> evidence.add path=<path> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> achieves.add <req-id> [--dry-run]
+    syscribe -m <root> set <PI> question.add text=<question> [recommended=<proposal>] [--dry-run]
+    syscribe -m <root> set <PI> question.answer <Qn> text=<answer> [by=<actor>] [--dry-run]
+    syscribe -m <root> set <PI> question.defer <Qn> [--dry-run]
     syscribe -m <root> set <qname|id> <scalar>=<value> [--dry-run]
     syscribe -m <root> set <qname|id> <list>.add <value> [--dry-run]
 
@@ -23,6 +26,13 @@ written. Setting a `PlanningItem` to `status: done` additionally runs the same
 `W310` check `validate` would (an `achieves:` Requirement not yet meeting its own
 verification bar) and prints it as a warning — non-blocking, matching `W310`'s
 own severity; the write still proceeds.
+
+**`question.add` / `question.answer` / `question.defer`** record and resolve a `PlanningItem`'s inline
+`questions:` (see `questions`). `question.add` appends an `open` entry with the next free `Q<n>`;
+`question.answer` sets `status: answered`, `answer`, `answeredAt` (and `answeredBy` from `by=`), replacing
+a previous answer; `question.defer` sets `status: deferred`. Only the edited entry's lines change —
+comments and order elsewhere are byte-identical. An unknown `Qn`, an empty text or a non-PlanningItem
+is refused (exit 1, nothing written).
 
 **`evidence.add`** appends one entry to `evidence:` without disturbing existing
 order. `ref=<id>` must resolve to some model element (permissive by kind, like
@@ -63,6 +73,12 @@ The Markdown body is never touched.
 
 ## OPTIONS
     --dry-run        Preview the unified diff without writing.
+    --json           One result envelope instead of text: {ok, dryRun, command, wrote, wouldWrite, commit, messages, diff}.
+
+Also accepts the global write options (see `syscribe help`): `--by <actor>`, `--reason <text>`,
+`--commit` (commit just this change, with the actor as author and `Syscribe-*` trailers) and
+`--expect-hash <hash>` (refuse if the file has changed since `show` printed that `contentHash`).
+`question.answer` records `--by` as `answeredBy`.
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)

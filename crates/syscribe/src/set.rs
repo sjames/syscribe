@@ -28,26 +28,12 @@ use syscribe_model::mutate::{apply_update_fields, file_unified_diff};
 use syscribe_model::resolver::Resolver;
 use syscribe_model::{config::ValidateConfig, validator};
 
-/// Per-type `status:` enum, mirroring the validator's own E007 (Requirement/
-/// TestCase)/E604 (TestPlan)/E304 (ADR)/E708 (PlanningItem) checks. There is no
-/// single shared source of truth for these today (each lives inline in its own
-/// validator pass) so this list is kept in sync by hand. `None` means the
-/// type's `status:` is free text in this format — write it unvalidated, same
-/// as `validate` itself does for those types.
+/// Per-type `status:` enum — shared with `validate --hints` (`syscribe_model::hints`).
 fn status_enum_for(et: &ElementType) -> Option<&'static [&'static str]> {
-    match et {
-        ElementType::Requirement => Some(&["draft", "review", "approved", "implemented", "verified"]),
-        ElementType::TestCase => Some(&["draft", "review", "approved", "active", "retired"]),
-        ElementType::TestPlan => Some(&["draft", "review", "approved", "active", "retired"]),
-        ElementType::ADR => Some(&["proposed", "accepted", "deprecated", "superseded"]),
-        ElementType::PlanningItem => Some(&["todo", "in_progress", "blocked", "done"]),
-        ElementType::ReviewRecord => Some(&["open", "closed", "waived"]),
-        ElementType::ResidualRisk => Some(syscribe_model::residual_risk::STATUSES),
-        _ => None,
-    }
+    syscribe_model::hints::status_vocabulary(et)
 }
 
-fn yaml_to_json(v: &serde_yaml::Value) -> Value {
+pub(crate) fn yaml_to_json(v: &serde_yaml::Value) -> Value {
     serde_json::to_value(v).unwrap_or(Value::Null)
 }
 
@@ -56,7 +42,7 @@ fn yaml_to_json(v: &serde_yaml::Value) -> Value {
 /// never re-typed on the next parse) — the same choice the full
 /// re-serialisation made. A value that would need a multi-line block scalar
 /// is written as a JSON (= YAML double-quoted) string instead.
-fn line_scalar(value: &str) -> String {
+pub(crate) fn line_scalar(value: &str) -> String {
     match serde_yaml::to_string(&serde_yaml::Value::String(value.to_string())) {
         Ok(s) if !s.trim_end_matches('\n').contains('\n') => s.trim_end_matches('\n').to_string(),
         _ => serde_json::to_string(value).unwrap_or_else(|_| yaml_scalar(value)),
@@ -157,7 +143,7 @@ fn append_list_items(yaml: &str, key: &str, new_items: &[Vec<String>]) -> Option
 /// Append `new_items` to list `key:` in `content`'s frontmatter, line-wise
 /// ([`append_list_items`]) when possible, else by re-serialising the
 /// frontmatter with `full_list` as the field's new value.
-fn append_to_list_field(
+pub(crate) fn append_to_list_field(
     content: &str,
     file_path: &str,
     key: &str,
@@ -183,7 +169,7 @@ fn append_to_list_field(
 
 /// Print the would-be file content as a unified diff (or, on commit, write it),
 /// returning whether anything actually changed.
-fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry_run: bool) -> bool {
+pub(crate) fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry_run: bool) -> bool {
     let rel = elem
         .file_path
         .strip_prefix(&*model_root.to_string_lossy())
@@ -192,18 +178,18 @@ fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry
     let old = std::fs::read_to_string(&elem.file_path).ok();
     let diff = file_unified_diff(rel, old.as_deref(), Some(new_content));
     if diff.is_empty() {
-        println!("{}: no change.", elem.qualified_name);
+        crate::say!("{}: no change.", elem.qualified_name);
         return false;
     }
     if dry_run {
-        print!("{diff}");
+        crate::provenance::record_diff(&diff);
         return false;
     }
-    if let Err(e) = std::fs::write(&elem.file_path, new_content) {
+    if let Err(e) = syscribe_model::fsio::write(&elem.file_path, new_content) {
         eprintln!("Write failed for {}: {e}", elem.file_path);
         std::process::exit(1);
     }
-    print!("{diff}");
+    crate::provenance::record_diff(&diff);
     true
 }
 
@@ -219,16 +205,19 @@ fn cmd_set_status(
         if let Some(allowed) = status_enum_for(et) {
             if !allowed.contains(&value) {
                 eprintln!(
-                    "Refusing to set status='{}' on {} — not a valid status for {:?}. Allowed: {}",
+                    "Refusing to set status='{}' on {} — not a valid status for {:?}. Allowed: {}.{}",
                     value,
                     elem.qualified_name,
                     et,
-                    allowed.join(", ")
+                    allowed.join(", "),
+                    crate::suggest::did_you_mean(value, allowed.iter().copied())
                 );
                 std::process::exit(1);
             }
         }
     }
+
+    crate::policy_gate::check_status(model_root, elements, elem, value);
 
     // PlanningItem.status=done: reuse the exact W310 check (issue #114) against
     // an in-memory candidate, rather than re-deriving it — non-blocking (matches
@@ -279,7 +268,7 @@ fn cmd_set_status(
 
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Set status: {value} on {}", elem.qualified_name);
+        crate::say!("Set status: {value} on {}", elem.qualified_name);
     }
 }
 
@@ -311,7 +300,7 @@ fn cmd_achieves_add(
 
     let mut list = elem.frontmatter.achieves.clone().unwrap_or_default();
     if list.iter().any(|s| s == req_ref) {
-        println!("{} already achieves '{}' — nothing to do.", elem.qualified_name, req_ref);
+        crate::say!("{} already achieves '{}' — nothing to do.", elem.qualified_name, req_ref);
         return;
     }
     list.push(req_ref.to_string());
@@ -326,7 +315,7 @@ fn cmd_achieves_add(
     );
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Added achieves: {req_ref} on {}", elem.qualified_name);
+        crate::say!("Added achieves: {req_ref} on {}", elem.qualified_name);
     }
 }
 
@@ -403,7 +392,7 @@ fn cmd_evidence_add(
             .and_then(|v| v.as_str())
             == Some(target)
     }) {
-        println!(
+        crate::say!(
             "{} already has evidence {}='{}' — nothing to do.",
             elem.qualified_name, target_key, target
         );
@@ -425,7 +414,7 @@ fn cmd_evidence_add(
     let new_content = append_to_list_field(&content, &elem.file_path, "evidence", &[entry_lines], json!(list));
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Added evidence entry on {}", elem.qualified_name);
+        crate::say!("Added evidence entry on {}", elem.qualified_name);
     }
 }
 
@@ -486,6 +475,8 @@ fn validate_candidate(
         false,
         true,
         move |root: &Path| {
+            // A planning copy, not a user-visible write: it must happen under `--dry-run` too, or the dry run would
+            // validate an unchanged copy and approve edits a real run refuses.
             std::fs::write(root.join(&rel_apply), &content).map_err(|e| e.to_string())
         },
         Some(&inspect),
@@ -523,7 +514,7 @@ fn cmd_set_generic(
     let new_content = if list_add {
         let existing = elem_list_value(elem, field);
         if existing.iter().any(|v| v == value) {
-            println!("{} already has {field} '{value}' — nothing to do.", elem.qualified_name);
+            crate::say!("{} already has {field} '{value}' — nothing to do.", elem.qualified_name);
             return;
         }
         let mut list: Vec<Value> = existing.iter().map(|s| Value::String(s.clone())).collect();
@@ -563,7 +554,7 @@ fn cmd_set_generic(
     }
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Set {field} on {}", elem.qualified_name);
+        crate::say!("Set {field} on {}", elem.qualified_name);
     }
 }
 
@@ -598,6 +589,9 @@ pub fn cmd_set(
         std::process::exit(1);
     }
 
+    crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
+
     let Some(&op) = op_args.first() else {
         eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>");
         std::process::exit(1);
@@ -605,6 +599,16 @@ pub fn cmd_set(
 
     if let Some(value) = op.strip_prefix("status=") {
         cmd_set_status(model_root, elements, elem, value, dry_run);
+        return;
+    }
+    if op.starts_with("question.") {
+        match crate::qset::parse_op(op, &op_args[1..]) {
+            Ok(parsed) => crate::qset::run(model_root, elem, &parsed, dry_run),
+            Err(m) => {
+                eprintln!("{m}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
     if op == "evidence.add" {
@@ -624,8 +628,9 @@ pub fn cmd_set(
             cmd_set_generic(model_root, elements, elem, field, value, false, dry_run);
             return;
         }
+        let hint = crate::suggest::did_you_mean(field, std::iter::once("status").chain(SCALAR_FIELDS.iter().copied()));
         eprintln!(
-            "Unsupported field '{field}' for `set`. Scalar fields: status, {}. List fields (`<field>.add <value>`): evidence, achieves, {}.",
+            "Unsupported field '{field}' for `set`.{hint} Scalar fields: status, {}. List fields (`<field>.add <value>`): evidence, achieves, {}.",
             SCALAR_FIELDS.join(", "),
             LIST_FIELDS.join(", ")
         );
@@ -637,8 +642,14 @@ pub fn cmd_set(
         cmd_set_generic(model_root, elements, elem, field, value, true, dry_run);
         return;
     } else {
+        let stem = op.strip_suffix(".add").unwrap_or(op);
+        let hint = crate::suggest::did_you_mean(
+            stem,
+            ["evidence", "achieves"].into_iter().chain(LIST_FIELDS.iter().copied()),
+        );
+        let hint = if hint.is_empty() || !op.ends_with(".add") { hint } else { format!("{hint} (as '<field>.add')") };
         eprintln!(
-            "Unrecognized `set` operation '{op}' — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
+            "Unrecognized `set` operation '{op}'{hint} — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
             SCALAR_FIELDS.join(", "),
             LIST_FIELDS.join(", ")
         );

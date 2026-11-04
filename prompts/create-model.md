@@ -85,7 +85,10 @@ This prompt covers the core authoring workflow. Syscribe has more commands, elem
 | Format rules: directories, cross-references, multiplicity | `syscribe spec namespace`, `syscribe spec traceability`, `syscribe spec safety` |
 | A topic beyond those: executable models, evidence, plants, diagrams, placeholders | `syscribe spec behaviour`, `spec evidence`, `spec diagrams`, `spec variability` |
 | Which link types the project declares | `syscribe -m model/ link-types` |
-| Which binding-time stages a `bindingTime:` may name | `syscribe -m model/ binding-times` |
+| Which binding-time stages a `bindingTime:` may name | `syscribe -m model/ timing` | Time load, validate and per-Configuration validation on this model (is it slow enough to need incremental revalidation?) |
+| `syscribe -m model/ new feature\|configuration\|parameter …` | Scaffold a FeatureDef (derived FEAT id), a derived Configuration at a stage, or a parameter with window/range/unit — previewed, refused if it adds an error |
+| `syscribe -m model/ health` | One cheap project summary: error/warning counts, orphan and unverified requirements, failing Configurations, with the command for each |
+| `syscribe -m model/ binding-times` |
 | What a (staged) Configuration still leaves to later stages | `syscribe -m model/ residual --config CONF-X` |
 | The file a system reads its `load`/`runtime` parameters from | `syscribe -m model/ params export --config CONF-X` |
 | The coverage grid as known at a binding stage | `syscribe -m model/ matrix --stage load` |
@@ -226,6 +229,20 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ set <qname\|id> status=<v>` / `evidence.add ref=<id>` / `achieves.add <req-id>` | Validated single-field edit (value checked **before** writing); `--dry-run` previews |
 | `syscribe -m model/ applies-when <element> [--set "<expr>" \| --clear]` | Show (with inheritance) or edit an element's `appliesWhen:` gate |
 | `syscribe -m model/ move <src> <dest> [--dry-run]` | Move/rename an element or package, rewriting every reference to it |
+| `syscribe help <Type>` / `help --search <keyword>` / `help tasks` / `explain <code>` | Discover what a type is and which commands act on it, find a command by what it does, map a job to commands, or get a finding's meaning and fix (no model needed) |
+| `syscribe -m model/ agent-guide [--write <file> \| --check <file>]` | Generate (or verify in CI) the project-specific agent instruction block — id prefixes, status vocabularies, gates, safe-mutation rules — into the marked region of a repo instruction file |
+| `syscribe -m model/ policy` | The project's agent policy (`[agents]` in .syscribe.toml): protected paths, statuses only a person sets, what must hold before a PlanningItem is done, whether every change must name its actor. It binds a change that names an actor (`--by`); a person passes `--as-human`. A refusal names the rule and exits 1 |
+| `syscribe -m model/ log [<element>] [--by <actor>] [--unattributed]` | Who changed the model and why, from git; with an element, what each commit changed in it. Writing commands take `--by <you> --reason "…" --commit` (commit only that change, you as author) and `--expect-hash <contentHash>` (refuse a stale edit); `--dry-run` previews any of them |
+| `syscribe -m model/ check-staged [--install-hook]` / `impact --files <path>... \| --since <rev>` | Validate only what is staged (a pre-commit gate), or see what changed files affect — the elements bound to them and what those reach, marked changed or not |
+| `syscribe -m model/ changes <revA> [<revB>]` / `validate --new-since <rev>` | Element-level diff between git revisions (status moves, links, evidence, broken refs); gate `validate` only on findings not present at `<rev>` |
+| `syscribe capabilities --json` / `syscribe schema [<name>]` | What this binary supports and the JSON Schema of each stable `--json` form (no model needed) |
+| `syscribe -m model/ bind <CONF> <feature.param> <value>` / `timeline <CONF>` | Write one checked binding/selection into a staged Configuration (previewed, refused if it adds an error); see what each stage decided |
+| `syscribe -m model/ change-impact <element> --set <field>=<yaml>` | Which Configurations a proposed feature/constraint/parameter edit would break or re-project, evaluated on a copy |
+| `syscribe -m model/ children [<node>] [--view configurations]` | One page of a tree node's direct children with counters (explorer data) |
+| `syscribe -m model/ explain-feature <feature> [--from CONF] [--select FEAT-X=true]` | Why a feature is forced on/off or free for a selection, and which choice to drop to select it |
+| `syscribe -m model/ propagate [--from CONF] [--select FEAT-X=true]` | What a partial feature selection forces on, off or leaves free, with clashes explained — no file written |
+| `syscribe -m model/ context <ref> [--depth N] [--max-bytes N]` | One bounded briefing on an element: neighbours, verifying tests with verdict and rig, a PlanningItem's work state, findings — use it before starting work instead of several show/trace calls |
+| `syscribe -m model/ questions [--open]` / `steps <PI>` / `set <PI> question.add\|answer\|defer` | A PlanningItem's decisions awaiting an answer (record one instead of guessing when blocked) and its child-item breakdown with a roll-up |
 | `syscribe -m model/ claim <PI-id> --by <agent-id>` / `release <PI-id>` | Advisory ownership of a `PlanningItem` when several agents share a model (see Part 6e) |
 | `syscribe -m model/ scripts list\|run\|validate` | User-authored Rhai extension scripts from the `[scripts]` directory (tooling, not model content) |
 | `syscribe -m model/ mcp [--read-only]` / `lsp` | Run the MCP server / language server for this model |

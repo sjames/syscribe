@@ -1007,7 +1007,7 @@ fn record_scenarios(
         h.save(model_root).map_err(|e| format!("cannot write run history: {e}"))?;
     }
     let dir = model_root.join(".syscribe").join("traces");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    syscribe_model::fsio::create_dir_all(&dir).map_err(|e| e.to_string())?;
     for (tc, hash, v) in outs {
         let slug: String = v.scenario.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
         let tag = format!("{:08x}", v.scenario.bytes().fold(0x811c9dc5u32, |h, b| (h ^ b as u32).wrapping_mul(0x01000193)));
@@ -1020,7 +1020,7 @@ fn record_scenarios(
         if !v.messages.is_empty() {
             body["messages"] = serde_json::json!(v.messages);
         }
-        std::fs::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        syscribe_model::fsio::write(&file, serde_json::to_string_pretty(&body).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     }
     println!("Recorded {} scenario verdict(s){}.", outs.len(), run.map(|r| format!(" in run '{r}'")).unwrap_or_default());
     Ok(())
@@ -1224,11 +1224,11 @@ pub fn cmd_export_scxml(elems: &[RawElement], args: &[String]) -> i32 {
     }
     match out {
         Some(f) => {
-            if let Err(e) = std::fs::write(&f, &doc) {
+            if let Err(e) = syscribe_model::fsio::write(&f, &doc) {
                 eprintln!("error: cannot write {f}: {e}");
                 return 1;
             }
-            println!("Wrote {f} ({} state(s), {} transition(s), {} note(s))", machine.states.len(), machine.transitions.len(), warnings.len());
+            println!("{} {f} ({} state(s), {} transition(s), {} note(s))", syscribe_model::fsio::wrote(), machine.states.len(), machine.transitions.len(), warnings.len());
         }
         None => print!("{doc}"),
     }
@@ -2054,7 +2054,7 @@ pub fn cmd_inject(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
         if let Some(file) = value("--report") {
             let text = if file.to_ascii_lowercase().ends_with(".md") { campaign_report_md(elems, &resolver, &rec) } else { serde_json::to_string_pretty(&campaign_report_json(elems, &resolver, &rec)).expect("serialises") + "\n" };
-            if let Err(e) = std::fs::write(&file, text) {
+            if let Err(e) = syscribe_model::fsio::write(&file, text) {
                 eprintln!("error: cannot write the report {file}: {e}");
                 return 1;
             }

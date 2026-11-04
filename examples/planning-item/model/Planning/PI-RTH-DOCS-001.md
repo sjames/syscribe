@@ -5,6 +5,11 @@ name: "Update pilot manual for the RTH feature"
 status: todo
 itemType: task
 parent: PI-RTH-001
+questions:
+  - id: Q1
+    text: Which units does the pilot manual use for the battery threshold?
+    recommended: percent
+    status: open
 tags:
   - rth
 ---

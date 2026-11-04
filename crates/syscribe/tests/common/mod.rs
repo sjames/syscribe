@@ -206,6 +206,11 @@ impl Mcp {
         self.request("prompts/get", json!({"name": name, "arguments": {}}))
     }
 
+    /// `prompts/get` with arguments (the raw response, so a missing-argument error is visible).
+    pub fn prompts_get_with(&mut self, name: &str, arguments: Value) -> Value {
+        self.request("prompts/get", json!({"name": name, "arguments": arguments}))
+    }
+
     pub fn resource_templates_list(&mut self) -> Value {
         self.request("resources/templates/list", json!({}))
     }
@@ -308,7 +313,13 @@ pub struct Lsp {
 impl Lsp {
     /// Spawn `syscribe lsp -m <model_root>` and return the client.
     pub fn start(model_root: &Path) -> Lsp {
+        Self::start_with_env(model_root, &[])
+    }
+
+    /// As [`Lsp::start`], with extra environment variables for the server.
+    pub fn start_with_env(model_root: &Path, env: &[(&str, &str)]) -> Lsp {
         let child = Command::new(env!("CARGO_BIN_EXE_syscribe"))
+            .envs(env.iter().copied())
             .arg("lsp")
             .arg("-m")
             .arg(model_root)
@@ -429,6 +440,27 @@ impl Lsp {
         res
     }
 
+    /// The handshake, opting in to `syscribe/modelChanged` notifications (GH #415).
+    pub fn initialize_with_model_changed(&mut self) -> Value {
+        let root_uri = file_uri(&self.model_root);
+        let res = self.request(
+            "initialize",
+            json!({
+                "processId": std::process::id(),
+                "rootUri": root_uri,
+                "capabilities": {"experimental": {"syscribe": {"modelChanged": true}}},
+                "clientInfo": {"name": "syscribe-test", "version": "0"}
+            }),
+        );
+        self.notify("initialized", json!({}));
+        res
+    }
+
+    /// Send a custom (non-standard) request and return its result.
+    pub fn custom_request(&mut self, method: &str, params: Value) -> Value {
+        self.request(method, params)
+    }
+
     pub fn did_open(&mut self, path: &Path, language_id: &str, text: &str) {
         self.notify(
             "textDocument/didOpen",
@@ -520,6 +552,10 @@ impl Lsp {
                 "newName": new_name
             }),
         )
+    }
+
+    pub fn semantic_tokens(&mut self, path: &Path) -> Value {
+        self.request("textDocument/semanticTokens/full", json!({"textDocument": {"uri": file_uri(path)}}))
     }
 
     pub fn code_lens(&mut self, path: &Path) -> Value {

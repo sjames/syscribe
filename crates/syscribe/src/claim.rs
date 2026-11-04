@@ -31,7 +31,7 @@ fn civil_from_days(z: i64) -> (i64, i64, i64) {
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
-fn iso8601_now() -> String {
+pub(crate) fn iso8601_now() -> String {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
     let (y, m, d) = civil_from_days(days);
@@ -80,18 +80,18 @@ fn preview_or_write(model_root: &Path, elem: &RawElement, new_content: &str, dry
     let old = std::fs::read_to_string(&elem.file_path).ok();
     let diff = file_unified_diff(rel, old.as_deref(), Some(new_content));
     if diff.is_empty() {
-        println!("{}: no change.", elem.qualified_name);
+        crate::say!("{}: no change.", elem.qualified_name);
         return false;
     }
     if dry_run {
-        print!("{diff}");
+        crate::provenance::record_diff(&diff);
         return false;
     }
-    if let Err(e) = std::fs::write(&elem.file_path, new_content) {
+    if let Err(e) = syscribe_model::fsio::write(&elem.file_path, new_content) {
         eprintln!("Write failed for {}: {e}", elem.file_path);
         std::process::exit(1);
     }
-    print!("{diff}");
+    crate::provenance::record_diff(&diff);
     true
 }
 
@@ -120,6 +120,8 @@ pub fn cmd_claim(
     dry_run: bool,
 ) {
     let elem = require_planning_item(elements, resolver, target_key);
+    crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
 
     if elem.frontmatter.status.as_deref() == Some("done") {
         eprintln!("{} is already 'done' — nothing to claim.", elem.qualified_name);
@@ -153,16 +155,18 @@ pub fn cmd_claim(
     };
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Claimed {} by '{}' at {}", elem.qualified_name, by, now);
+        crate::say!("Claimed {} by '{}' at {}", elem.qualified_name, by, now);
     }
 }
 
 /// `syscribe release <PI-id> [--dry-run]`
 pub fn cmd_release(model_root: &Path, elements: &[RawElement], resolver: &Resolver, target_key: &str, dry_run: bool) {
     let elem = require_planning_item(elements, resolver, target_key);
+    crate::provenance::check_expect_hash(Path::new(&elem.file_path));
+    crate::policy_gate::check_path(elem);
 
     if elem.frontmatter.claimed_by.is_none() && elem.frontmatter.claimed_at.is_none() {
-        println!("{} is not claimed — nothing to release.", elem.qualified_name);
+        crate::say!("{} is not claimed — nothing to release.", elem.qualified_name);
         return;
     }
 
@@ -176,6 +180,6 @@ pub fn cmd_release(model_root: &Path, elements: &[RawElement], resolver: &Resolv
     };
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
-        println!("Released {}", elem.qualified_name);
+        crate::say!("Released {}", elem.qualified_name);
     }
 }

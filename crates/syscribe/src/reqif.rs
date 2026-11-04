@@ -433,11 +433,11 @@ pub fn cmd_export_reqif(elements: &[RawElement], opts: &ReqifOptions) {
             } else {
                 (format!("{}.reqif", base), x.into_bytes())
             };
-            if let Err(e) = std::fs::write(&file, &bytes) {
+            if let Err(e) = syscribe_model::fsio::write(&file, &bytes) {
                 eprintln!("export-reqif: failed to write '{}': {}", file, e);
                 std::process::exit(1);
             }
-            eprintln!("Wrote {} requirement(s) to {}", reqs.len(), file);
+            eprintln!("{} {} requirement(s) to {}", syscribe_model::fsio::wrote(), reqs.len(), file);
         }
         None => print!("{}", x),
     }

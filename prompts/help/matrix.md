@@ -7,6 +7,7 @@
     syscribe -m <root> matrix --rollup [--json] [--tag <t>] [--status <s>] [--config <C>]
     syscribe -m <root> matrix --features [--json]
     syscribe -m <root> matrix --allocations [--json]
+    syscribe -m <root> matrix --by environment [--json] [--tag <t>] [--status <s>] [--gaps-only]
 
 ## DESCRIPTION
 Rows are requirements, columns are Configurations; cells are covered (✓), gap
@@ -22,7 +23,20 @@ a feature whose binding window extends beyond the stage and that the column's
 covering test) depending on it is `?` — neither covered nor a gap, and not counted as
 applicable. Without `--stage` the grid is as authored.
 
+`--by environment` (GH #437) shows each requirement against each TestEnvironment instead: a cell is the verdict of
+the active verifying tests on that rig (`pass`, `FAIL`, `waived`, `gap`, `pass (stale)`) with the latest result's
+build commit and date. `gap` is an environment a verifying test declares in `runsOn:` (or its plan does) without a
+passing result there, including a retired or out-of-calibration rig. `stale` is a pass older than the model: the
+test or requirement changed since ingest (`W091`), or the result's build predates the last git change to either.
+The roll-up is "verified on every declared environment". `--gaps-only` keeps gap, failing and stale rows.
+
+`--json` adds a `gaps` list (GH #424): one entry per cell that is `gap`, `planned`, `failing` or `open`, with the
+requirement and its file, the configuration (null without a feature model), the `action` (`create-test`,
+`activate-test`, `fix-failing-test`, `decide-binding`, `widen-test`), the linked `tests` (id, status, file) and, for
+`create-test`, a `suggestedTestId` (the next free id in the requirement's area).
+
 ## OPTIONS
+    --by environment  Group by TestEnvironment (see above); any other value is a usage error.
     --stage <stage> Show the grid as known at this binding stage (see above); unknown is a usage error.
     --tag <t>       Restrict rows to requirements tagged t.
     --select <sel>  Restrict rows to requirements a stereotype selector matches: `Safety`, or

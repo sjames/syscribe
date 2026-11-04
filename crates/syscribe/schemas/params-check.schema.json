@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/params-check.schema.json",
+  "title": "syscribe params check <FILE> --config <CONF> --json",
+  "description": "Stable `--json` contract (GH #413). A new optional property is a compatible change; removing or retyping one, or changing its meaning, bumps `schemaVersion`.",
+  "type": "object",
+  "required": [
+    "configuration",
+    "errors",
+    "file",
+    "findings",
+    "ok",
+    "schemaVersion",
+    "stage",
+    "warnings"
+  ],
+  "properties": {
+    "file": {
+      "type": "string"
+    },
+    "configuration": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "errors": {
+      "type": "integer"
+    },
+    "warnings": {
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  }
+}

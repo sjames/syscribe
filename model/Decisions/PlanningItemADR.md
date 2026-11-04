@@ -181,6 +181,50 @@ any string or introducing a new `type: User` model element.
   declared" case analogous to staged deferral; an unrecognised assignee is a typo or an out-of-date
   roster, either way a defect worth blocking on.
 
+## Addendum: inline `questions:`, and steps as child items (GH #436; REQ-TRS-PIQ-*, REQ-TRS-PISTEP-001)
+
+Issue #436 asked for structured `steps:` and `questions:` on a `PlanningItem`, because work breakdown
+and the decisions awaiting an answer lived as prose tables in the body, where their status could not
+be queried, validated or rolled up. The two halves are decided differently.
+
+**Steps are child `PlanningItem`s — no new field.** A step is a unit of work with a status, evidence,
+an owner and possible blockers, which is exactly what a child item already is (Decision 1), with the
+machinery already built: `E719` on a `done` leaf, `blockedBy:`, `claim`, `W311`. A second, weaker
+way to say "this item has parts" would duplicate that and give nested-YAML merge conflicts that one
+file per unit avoids. *Rejected:* an inline `steps:` list, with or without per-step evidence — with
+evidence it is a child item re-spelled; without it, it is a checklist the tree already provides. What
+was missing is a way to *see* the breakdown, so a read-only `steps <PI>` view (and MCP `steps`) renders
+the children as a tree with a derived roll-up. The parent's status is **not** derived from its
+children and no rule ties them together; the view shows disagreement as a hint only.
+
+**Questions are inline, in a `questions:` list on the item.** A question is not a unit of work: it
+is a decision that must be answered before work can proceed, and it belongs to the item it blocks.
+Each entry is `{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}` with `status`
+`open | answered | deferred`. *Rejected:* (a) a proposed `ADR` plus `blockedBy:` — free, but an ADR
+per "which port?" is ceremony; an inline question can be *promoted* to an ADR when it becomes a real
+decision; (b) a new element type — referenceable by many items, but a new type, id family and
+catalogue for a case nobody asked for. A question is therefore **private to its item**: it has a
+local id (`Q1`, `Q2`, …), is addressed as `PI-X#Q1` in messages, and is not a cross-reference target.
+
+- **Detection is structural.** The tool reads the `questions:` field; it never infers a question from
+  prose. `questions` lists them across the model, `list PlanningItem --open-questions` and `show`
+  surface them, and `validate` checks them. A body with a "Questions" heading but an empty
+  `questions:` is an opt-in `validate --hints` finding (`I913`), not a guess at content.
+- **Open questions do not make an item `blocked`.** `blockedBy:` stays for dependencies; the two are
+  independently author-maintained, as `blockedBy:` and `status:` already are.
+- **`done` with an `open` question is a warning (`W317`), not an error.** Unlike a `done` leaf with no
+  evidence (`E719`, a correctness defect), an unanswered question may be a deliberate deferral;
+  `status: deferred` is the explicit way to say so and raises nothing.
+- **`questions:` on any other element type is a warning (`W318`), not silence.** The field is only meaningful on a `PlanningItem`, so elsewhere it is ignored; but a decision recorded on the wrong element would then vanish from `questions` and from every gate without a trace. A warning keeps it visible, and the fix is local — move it to the `PlanningItem` that owns the decision. *Rejected:* ignoring it silently, which is how a typo'd or misplaced field loses information.
+- **Malformed entries are errors** (`E724` entry not a mapping or missing `id`/`text`, `E725` duplicate
+  id, `E726` status outside the vocabulary, `E727` `answered` with no `answer`), since a question the
+  tool cannot read is a question nobody sees.
+- **`answeredBy` is an opaque actor id, `answeredAt` a free timestamp string** — the posture
+  `claimedBy`/`claimedAt` already take — written by `set <PI> question.answer`, never required.
+- **Writes go through `set`** (`question.add`, `question.answer`, `question.defer`), which patches
+  the entry in place keeping comments and order, and through a guarded MCP `question` tool; the
+  generic MCP `update_element` replaces a whole list and would invite losing entries.
+
 ## Consequences
 
 - A model with no `PlanningItem` elements is completely unaffected.

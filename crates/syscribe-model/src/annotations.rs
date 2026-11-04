@@ -394,7 +394,7 @@ fn under_dir(file_path: &str, dir: &Path) -> bool {
 /// matched against a POSIX-style relative path). `**` matches across path
 /// separators, including zero directories, so `**/*.c` matches both
 /// `engine.c` and `drivers/engine.c` — the common "globstar" convention.
-fn glob_match(pattern: &str, path: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, path: &str) -> bool {
     match glob_to_regex(pattern) {
         Some(re) => re.is_match(path),
         None => false,

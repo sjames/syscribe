@@ -369,11 +369,11 @@ pub fn cmd_sbom(elements: &[RawElement], opts: &SbomOptions) {
     let out = serde_json::to_string_pretty(&doc).unwrap();
     match opts.output {
         Some(path) => {
-            if let Err(e) = std::fs::write(path, format!("{}\n", out)) {
+            if let Err(e) = syscribe_model::fsio::write(path, format!("{}\n", out)) {
                 eprintln!("sbom: failed to write '{}': {}", path, e);
                 std::process::exit(1);
             }
-            eprintln!("Wrote {} ({} components) to {}", opts.format, comps.len(), path);
+            eprintln!("{} {} ({} components) to {}", syscribe_model::fsio::wrote(), opts.format, comps.len(), path);
         }
         None => println!("{}", out),
     }

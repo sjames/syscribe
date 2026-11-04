@@ -821,7 +821,7 @@ pub fn cmd_export_html(
 
     // index + one per element + four reports.
     let pages = 1 + elements.len() + 4;
-    println!("Wrote {} pages to {}", pages, out_dir.display());
+    println!("{} {} pages to {}", syscribe_model::fsio::wrote(), pages, out_dir.display());
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -836,31 +836,31 @@ fn write_site(
 ) -> std::io::Result<()> {
     let elements_dir = out_dir.join("elements");
     let reports_dir = out_dir.join("reports");
-    std::fs::create_dir_all(&elements_dir)?;
-    std::fs::create_dir_all(&reports_dir)?;
+    syscribe_model::fsio::create_dir_all(&elements_dir)?;
+    syscribe_model::fsio::create_dir_all(&reports_dir)?;
 
     // Assets.
     match css {
-        Some(path) => std::fs::write(out_dir.join("style.css"), std::fs::read(path)?)?,
-        None => std::fs::write(out_dir.join("style.css"), DEFAULT_CSS)?,
+        Some(path) => syscribe_model::fsio::write(out_dir.join("style.css"), std::fs::read(path)?)?,
+        None => syscribe_model::fsio::write(out_dir.join("style.css"), DEFAULT_CSS)?,
     }
-    std::fs::write(out_dir.join("mermaid.min.js"), MERMAID_JS)?;
-    std::fs::write(out_dir.join("search.js"), SEARCH_JS)?;
+    syscribe_model::fsio::write(out_dir.join("mermaid.min.js"), MERMAID_JS)?;
+    syscribe_model::fsio::write(out_dir.join("search.js"), SEARCH_JS)?;
 
     // Search index (standalone JSON + inline-embedded in index.html).
     let index = search_index(elements);
     let index_json = serde_json::to_string(&index).unwrap_or_else(|_| "[]".to_string());
-    std::fs::write(out_dir.join("search-index.json"), &index_json)?;
+    syscribe_model::fsio::write(out_dir.join("search-index.json"), &index_json)?;
 
     // Index page.
-    std::fs::write(out_dir.join("index.html"), index_page(elements, &index_json))?;
+    syscribe_model::fsio::write(out_dir.join("index.html"), index_page(elements, &index_json))?;
 
-    std::fs::write(out_dir.join("all-elements.html"), all_elements_page(elements))?;
+    syscribe_model::fsio::write(out_dir.join("all-elements.html"), all_elements_page(elements))?;
 
     // Element pages.
     for elem in elements {
         let file = elements_dir.join(format!("{}.html", sanitize(&elem.qualified_name)));
-        std::fs::write(file, element_page(elem, elements, resolver, result, config))?;
+        syscribe_model::fsio::write(file, element_page(elem, elements, resolver, result, config))?;
     }
 
     // Reports.
@@ -868,19 +868,19 @@ fn write_site(
         .iter()
         .map(|e| (e.file_path.as_str(), e.qualified_name.as_str()))
         .collect();
-    std::fs::write(
+    syscribe_model::fsio::write(
         reports_dir.join("validation.html"),
         validation_report(elements, result, &file_to_qname),
     )?;
-    std::fs::write(
+    syscribe_model::fsio::write(
         reports_dir.join("coverage.html"),
         coverage_report(elements, result),
     )?;
-    std::fs::write(
+    syscribe_model::fsio::write(
         reports_dir.join("traceability.html"),
         traceability_report(elements, resolver, result),
     )?;
-    std::fs::write(reports_dir.join("heat.html"), heat_report(elements, cyber))?;
+    syscribe_model::fsio::write(reports_dir.join("heat.html"), heat_report(elements, cyber))?;
 
     Ok(())
 }

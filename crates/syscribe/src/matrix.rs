@@ -418,16 +418,59 @@ fn dormant_json(elements: &[RawElement], status: Option<&str>, gaps_only: bool) 
         .iter()
         .map(|(id, cov)| json!({ "id": id, "verified": cov }))
         .collect();
+    let gaps: Vec<_> = grid
+        .iter()
+        .filter(|(_, cov)| !*cov)
+        .filter_map(|(id, _)| reqs.iter().find(|r| &disp_id(r) == id).map(|r| gap_entry(elements, r, "gap", None)))
+        .collect();
     json!({
         "schemaVersion": SCHEMA_VERSION,
         "note": "no feature model present — flat coverage view",
         "columns": Vec::<String>::new(),
         "rows": rows,
+        "gaps": gaps,
         "coverage": json!({
             "perConfig": serde_json::Map::new(),
             "overall": { "covered": covered, "applicable": applicable, "pct": pct },
         }),
     })
+}
+
+/// The actionable detail of one gap cell (GH #424): the requirement and its file, the configuration, what to do and the
+/// ids needed to do it — the tests already linked (id, status, file) and, when none is, the next free test id.
+fn gap_entry(elements: &[RawElement], req: &RawElement, state: &str, config: Option<&str>) -> serde_json::Value {
+    let rkeys = keys(req);
+    let tests: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| is_type(e, ElementType::TestCase))
+        .filter(|e| e.frontmatter.verifies.iter().flatten().any(|v| rkeys.iter().any(|k| k == v)))
+        .collect();
+    let action = match state {
+        "failing" => "fix-failing-test",
+        "planned" => "activate-test",
+        "open" => "decide-binding",
+        _ if tests.is_empty() => "create-test",
+        // The links exist but are all drafts (the flat view counts only non-draft tests).
+        _ if tests.iter().all(|t| t.frontmatter.status.as_deref() == Some("draft")) => "activate-test",
+        _ => "widen-test",
+    };
+    let mut doc = json!({
+        "requirement": disp_id(req),
+        "requirementFile": req.file_path,
+        "configuration": config,
+        "state": state,
+        "action": action,
+        "tests": tests.iter().map(|t| json!({ "id": disp_id(t), "status": t.frontmatter.status, "file": t.file_path })).collect::<Vec<_>>(),
+    });
+    if action == "create-test" {
+        // REQ-GTI-HW-001 -> TC-GTI-HW: the requirement's area, then the next free number there.
+        let id = disp_id(req);
+        let area = id.strip_prefix("REQ").unwrap_or(&id).trim_start_matches('-');
+        let area = area.rsplit_once('-').map_or(area, |(a, _)| a);
+        let prefix = if area.is_empty() { "TC".to_string() } else { format!("TC-{area}") };
+        doc["suggestedTestId"] = json!(crate::query::next_id_value(elements, &prefix));
+    }
+    doc
 }
 
 /// The `matrix --json` document for an arbitrary model: the Requirement ×
@@ -458,10 +501,23 @@ pub fn matrix_json(
             json!({ "id": id, "cells": cell_map })
         })
         .collect();
+    // Every cell that needs work, with what to do about it.
+    let by_id: std::collections::HashMap<String, &RawElement> =
+        elements.iter().filter(|e| is_type(e, ElementType::Requirement)).map(|e| (disp_id(e), e)).collect();
+    let mut gaps = Vec::new();
+    for (id, cells) in &grid {
+        let Some(req) = by_id.get(id) else { continue };
+        for ((cid, _), s) in cfg_sel.iter().zip(cells) {
+            if matches!(*s, "gap" | "planned" | "failing" | "open") {
+                gaps.push(gap_entry(elements, req, s, Some(cid)));
+            }
+        }
+    }
     let mut doc = json!({
         "schemaVersion": SCHEMA_VERSION,
         "columns": columns,
         "rows": rows,
+        "gaps": gaps,
         "coverage": coverage.json(),
     });
     if let Some(st) = STAGE.with(|s| *s.borrow()) {

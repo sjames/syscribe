@@ -556,7 +556,7 @@ pub fn fuzzy_score(elem: &RawElement, pattern: &str) -> u32 {
 
 /// Collect (relationship_label, target_qname) pairs from a single element's
 /// frontmatter: the built-in fields, then its user-defined `links:` entries.
-fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
+pub(crate) fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     let mut out = builtin_outbound_refs(elem);
     out.extend(custom_outbound_refs(elem));
     out
@@ -774,6 +774,10 @@ pub fn cmd_show(
     println!("|---|---|");
     println!("| **type** | {} |", type_str);
     println!("| **file** | {} |", elem.file_path);
+    // The hash to pass to a writing command's `--expect-hash` so an edit fails if the file changed since this read.
+    if let Some(h) = syscribe_model::fsio::file_hash(std::path::Path::new(&elem.file_path)) {
+        println!("| **contentHash** | {} |", h);
+    }
     if let Some(ref id) = fm.id { println!("| **id** | {} |", id); }
     if let Some(ref t) = fm.title { println!("| **title** | {} |", t); }
     if let Some(ref s) = fm.status { println!("| **status** | {} |", s); }
@@ -870,6 +874,13 @@ pub fn cmd_show(
     // multi-agent work, written/cleared by `syscribe claim`/`syscribe release`.
     if let Some(ref who) = fm.claimed_by { println!("| **claimedBy** | {} |", who); }
     if let Some(ref at) = fm.claimed_at { println!("| **claimedAt** | {} |", at); }
+    // Inline questions (GH #436): one row each, so an open decision is visible without opening the file.
+    for q in syscribe_model::questions::parse(elem).0 {
+        let mut cell = q.text.replace('|', "\\|");
+        if let Some(r) = &q.recommended { cell.push_str(&format!(" — recommended: {}", r.replace('|', "\\|"))); }
+        if let Some(a) = &q.answer { cell.push_str(&format!(" — answer: {}", a.replace('|', "\\|"))); }
+        println!("| **{} ({})** | {} |", q.id, q.status, cell);
+    }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g.join(", ")); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
@@ -1640,6 +1651,7 @@ pub fn cmd_list(
     status: Option<&str>,
     sil: Option<&str>,
     has_wcet: bool,
+    open_questions: bool,
     wheres: &[CustomWhere],
     json: bool,
 ) {
@@ -1703,6 +1715,8 @@ pub fn cmd_list(
         })
         // `--has-wcet`: keep only elements that declare a non-empty `wcet:`.
         .filter(|e| !has_wcet || e.frontmatter.wcet.as_deref().is_some_and(|w| !w.trim().is_empty()))
+        // `--open-questions` (GH #436): only PlanningItems with at least one `open` question.
+        .filter(|e| !open_questions || syscribe_model::questions::parse(e).0.iter().any(|q| q.status == "open"))
         // `--where custom.<key>…` (GH #39): custom-field predicates, ANDed.
         .filter(|e| wheres.iter().all(|w| where_matches(elements, e, w, false)))
         .collect();
@@ -1772,6 +1786,10 @@ pub fn cmd_list(
                     obj.as_object_mut().unwrap().extend([
                         ("claimedBy".into(), serde_json::json!(e.frontmatter.claimed_by)),
                         ("claimedAt".into(), serde_json::json!(e.frontmatter.claimed_at)),
+                        (
+                            "openQuestions".into(),
+                            serde_json::json!(syscribe_model::questions::parse(e).0.iter().filter(|q| q.status == "open").count()),
+                        ),
                     ]);
                 }
                 obj
@@ -2713,6 +2731,12 @@ pub struct GateOptions {
     pub warnings_as_errors: bool,
     /// `--summary`: print finding counts per code instead of each finding (GH #245).
     pub summary: bool,
+    /// `--new-since <rev>`: gate only findings absent at this git revision (GH #431).
+    pub new_since: Option<String>,
+    /// `--baseline-file <file>`: gate only findings absent from this saved list (GH #431).
+    pub baseline_file: Option<std::path::PathBuf>,
+    /// `--write-baseline <file>`: save the current findings as an accepted list (GH #431).
+    pub write_baseline: Option<std::path::PathBuf>,
 }
 
 impl GateOptions {
@@ -3076,6 +3100,7 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool, stage: Opt
             let (forced_true, forced_false, free) = (at_stage(forced_true), at_stage(forced_false), at_stage(free));
             if json {
                 let doc = serde_json::json!({
+                    "schemaVersion": "1.0",
                     "satisfiable": satisfiable,
                     "forcedTrue": forced_true,
                     "forcedFalse": forced_false,
@@ -3216,6 +3241,7 @@ fn print_gated_report(
     gate: &GateOptions,
     json: bool,
     clean_msg: &str,
+    baseline: Option<&BaselineView<'_>>,
 ) -> i32 {
     use syscribe_model::validator::Severity;
     let exit_code = eval.exit_code;
@@ -3262,8 +3288,8 @@ fn print_gated_report(
     }
 
     if json {
-        let items: Vec<serde_json::Value> = findings.iter().map(|f| {
-            serde_json::json!({
+        let item = |f: &VFinding, new: Option<bool>| {
+            let mut v = serde_json::json!({
                 "code": f.code,
                 "severity": match f.severity {
                     Severity::Error => "error",
@@ -3272,8 +3298,17 @@ fn print_gated_report(
                 },
                 "file": f.file,
                 "message": f.message,
-            })
-        }).collect();
+            });
+            if let Some(n) = new {
+                v["new"] = serde_json::json!(n);
+            }
+            v
+        };
+        // With a baseline every finding is listed, flagged `new`; only the new ones were gated.
+        let items: Vec<serde_json::Value> = match baseline {
+            Some(b) => b.flagged.iter().map(|(f, n)| item(f, Some(*n))).collect(),
+            None => findings.iter().map(|f| item(f, None)).collect(),
+        };
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
         if exit_code == 2 {
             for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
@@ -3283,8 +3318,16 @@ fn print_gated_report(
         return exit_code;
     }
 
+    let note = |b: &BaselineView<'_>| {
+        if b.preexisting > 0 {
+            println!("{} pre-existing finding(s) accepted by {} — not shown, not gated.", b.preexisting, b.label);
+        }
+    };
     if findings.is_empty() {
         println!("{clean_msg}");
+        if let Some(b) = baseline {
+            note(b);
+        }
         return exit_code;
     }
 
@@ -3308,6 +3351,10 @@ fn print_gated_report(
     table("Errors", &eval.errors);
     table("Warnings", &eval.warnings);
     table("Informational", &eval.infos);
+    if let Some(b) = baseline {
+        note(b);
+        println!();
+    }
 
     if exit_code == 2 {
         for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
@@ -3315,6 +3362,59 @@ fn print_gated_report(
         }
     }
     exit_code
+}
+
+/// What `--new-since` / `--baseline-file` decided about each finding (GH #431).
+struct BaselineView<'a> {
+    /// Every (file-filtered) finding in original order, with whether it is new.
+    flagged: Vec<(&'a VFinding, bool)>,
+    preexisting: usize,
+    label: String,
+}
+
+/// Apply the baseline options of `gate` to `all`: returns the findings to gate/print (the new
+/// ones, after `--file`) and the view for the report. With no baseline option the findings are just
+/// the `--file`-filtered ones. `--write-baseline` saves the full current list first. Any failure is a
+/// usage error: exit 1.
+fn apply_baseline<'a>(
+    all: &'a [VFinding],
+    gate: &GateOptions,
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    file_filter: Option<&str>,
+    validate_old: &dyn Fn(&[RawElement], &syscribe_model::config::ValidateConfig) -> Vec<VFinding>,
+) -> (Vec<&'a VFinding>, Option<BaselineView<'a>>) {
+    use syscribe_model::finding_baseline as fb;
+    let die = |m: String| -> ! {
+        eprintln!("Error: {m}");
+        std::process::exit(1)
+    };
+    if gate.new_since.is_some() && gate.baseline_file.is_some() {
+        die("--new-since and --baseline-file are mutually exclusive".into());
+    }
+    if let Some(path) = &gate.write_baseline {
+        let refs: Vec<&VFinding> = all.iter().collect();
+        let text = fb::to_json(&fb::entries_for(&refs, elements));
+        if let Err(e) = syscribe_model::fsio::write(path, text) {
+            die(format!("cannot write {}: {e}", path.display()));
+        }
+        eprintln!("{} {} finding(s) to {}", syscribe_model::fsio::wrote(), all.len(), path.display());
+    }
+    let source = match (&gate.new_since, &gate.baseline_file) {
+        (Some(rev), _) => Some((fb::Source::Rev(rev.clone()), format!("`{rev}`"))),
+        (_, Some(p)) => Some((fb::Source::File(p.clone()), format!("`{}`", p.display()))),
+        _ => None,
+    };
+    let Some((source, label)) = source else {
+        return (filter_by_file(all, file_filter), None);
+    };
+    let marks = fb::mark_new(&source, all, elements, config, validate_old).unwrap_or_else(|m| die(m));
+    let in_scope = |f: &VFinding| file_filter.is_none_or(|ff| f.file.contains(ff));
+    let flagged: Vec<(&VFinding, bool)> =
+        all.iter().zip(marks).filter(|(f, _)| in_scope(f)).collect();
+    let gated: Vec<&VFinding> = flagged.iter().filter(|(_, n)| *n).map(|(f, _)| *f).collect();
+    let preexisting = flagged.len() - gated.len();
+    (gated, Some(BaselineView { flagged, preexisting, label }))
 }
 
 /// Findings whose file matches the optional `--file` filter.
@@ -3338,9 +3438,17 @@ pub fn cmd_validate(
     json: bool,
 ) {
     let result = syscribe_model::validator::validate_with_config(elements, config);
-    let findings = filter_by_file(&result.findings, file_filter);
+    // The agent policy's audit (GH #442): malformed `[agents]` entries, and agent commits that changed a
+    // protected path or set a human-only status. Plain validation only — it reads git history.
+    let mut all = result.findings;
+    if let Some(root) = &config.model_root {
+        all.extend(crate::policy_gate::audit_findings(root));
+    }
+    let (findings, view) = apply_baseline(&all, gate, elements, config, file_filter, &|e, c| {
+        syscribe_model::validator::validate_with_config(e, c).findings
+    });
     let eval = evaluate_gate(&findings, gate, profile, elements);
-    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — model is valid.");
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — model is valid.", view.as_ref());
     if code != 0 {
         std::process::exit(code);
     }
@@ -3364,9 +3472,12 @@ pub fn cmd_validate_projected(
     sel: &syscribe_model::projection::Selection,
 ) {
     let all = syscribe_model::projection::validate_projected(elements, config, sel);
-    let findings = filter_by_file(&all, file_filter);
+    // The same variant (feature selection) is judged at the earlier revision.
+    let (findings, view) = apply_baseline(&all, gate, elements, config, file_filter, &|e, c| {
+        syscribe_model::projection::validate_projected(e, c, sel)
+    });
     let eval = evaluate_gate(&findings, gate, profile, elements);
-    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — variant is valid.");
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — variant is valid.", view.as_ref());
     if code != 0 {
         std::process::exit(code);
     }
@@ -3395,6 +3506,10 @@ pub fn cmd_validate_all_configs(
     file_filter: Option<&str>,
     json: bool,
 ) {
+    if gate.new_since.is_some() || gate.baseline_file.is_some() || gate.write_baseline.is_some() {
+        eprintln!("Error: --new-since, --baseline-file and --write-baseline do not combine with --all-configs; use --config <C> for one variant");
+        std::process::exit(1);
+    }
     let mut configs: Vec<&RawElement> = elements
         .iter()
         .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration))
@@ -3536,9 +3651,26 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
     }
 
     if json {
+        // Where each differing element lives (GH #423), so a front end can jump to it.
+        let change = |side: &str, ids: &[&String], view: &[RawElement]| -> Vec<serde_json::Value> {
+            ids.iter()
+                .filter_map(|id| view.iter().find(|e| &id_or_qn(e) == *id))
+                .map(|e| serde_json::json!({
+                    "element": id_or_qn(e),
+                    "qualifiedName": e.qualified_name,
+                    "type": type_label(e.frontmatter.element_type.as_ref().unwrap_or(&ElementType::Unknown)),
+                    "side": side,
+                    "location": crate::changeimpact::location(e),
+                }))
+                .collect()
+        };
+        let mut changes = change("onlyInA", &only_a, &view_a);
+        changes.extend(change("onlyInB", &only_b, &view_b));
         let mut out = serde_json::json!({
+            "schemaVersion": "1.0",
             "onlyInA": only_a,
             "onlyInB": only_b,
+            "changes": changes,
         });
         if !meta_diff.is_empty() {
             out["metadata"] = serde_json::json!(meta_diff
@@ -5120,7 +5252,8 @@ pub fn cmd_template(type_name: &str, model_root: &std::path::Path, prefix: Optio
     match found {
         Some(out) => print!("{}", out),
         None => {
-            eprintln!("Unknown type '{}'. Known types:", type_name);
+            let near = crate::suggest::did_you_mean(type_name, template_type_names().into_iter());
+            eprintln!("Unknown type '{}'.{} Known types:", type_name, near);
             // Generated from the same inventory the templates are keyed by, so
             // the list can never omit a supported type (GH #135); the grouping
             // only orders it.

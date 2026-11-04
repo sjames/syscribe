@@ -44,22 +44,22 @@ pub fn cmd_export_sysml(elements: &[RawElement], args: &[String]) -> i32 {
             let p = Path::new(path);
             let as_dir = path.ends_with('/') || path.ends_with('\\') || p.is_dir();
             let result = if as_dir {
-                std::fs::create_dir_all(p).and_then(|_| {
+                syscribe_model::fsio::create_dir_all(p).and_then(|_| {
                     for (name, text) in &export.parts {
                         // The top-level name is a qname segment: keep file names portable.
                         let stem: String = name
                             .chars()
                             .map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
                             .collect();
-                        std::fs::write(p.join(format!("{stem}.sysml")), text)?;
+                        syscribe_model::fsio::write(p.join(format!("{stem}.sysml")), text)?;
                     }
                     Ok(())
                 })
             } else {
                 if let Some(parent) = p.parent().filter(|d| !d.as_os_str().is_empty()) {
-                    let _ = std::fs::create_dir_all(parent);
+                    let _ = syscribe_model::fsio::create_dir_all(parent);
                 }
-                std::fs::write(p, &export.text)
+                syscribe_model::fsio::write(p, &export.text)
             };
             if let Err(e) = result {
                 eprintln!("error: could not write '{path}': {e}");
