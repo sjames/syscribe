@@ -112,6 +112,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "timeline" => &[("--json", Switch)],
         "bind" => &[("--json", Switch)],
         "change-impact" => &[("--set", Value), ("--param", Value), ("--param-set", Value), ("--json", Switch)],
+        "health" => &[("--json", Switch)],
         "children" => &[("--view", Value), ("--offset", Value), ("--limit", Value), ("--json", Switch)],
         "explain-feature" => &[("--from", Value), ("--select", Value), ("--json", Switch)],
         "propagate" => &[("--from", Value), ("--select", Value), ("--stage", Value), ("--json", Switch)],

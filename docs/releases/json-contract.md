@@ -21,6 +21,7 @@ or changing what it means, bumps `schemaVersion` and is listed here. Clients ign
 | `bind` | `bind --json` | 1.0 |
 | `timeline` | `timeline --json`, MCP `timeline`, LSP `syscribe/timeline` | 1.0 |
 | `change-impact` | `change-impact --json`, MCP `change_impact`, LSP `syscribe/changeImpact` | 1.0 |
+| `health` | `health --json`, MCP `health`, LSP `syscribe/health` | 1.0 |
 | `children` | `children --json`, MCP `children`, LSP `syscribe/children` | 1.0 |
 | `explain-feature` | `explain-feature --json`, MCP `explain_feature`, LSP `syscribe/explainFeature` | 1.0 |
 | `model-changed` | LSP notification `syscribe/modelChanged` | 1.0 |

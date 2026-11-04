@@ -171,6 +171,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("timeline", include_str!("../../../prompts/help/timeline.md")),
             ("bind", include_str!("../../../prompts/help/bind.md")),
             ("change-impact", include_str!("../../../prompts/help/change-impact.md")),
+            ("health", include_str!("../../../prompts/help/health.md")),
             ("children", include_str!("../../../prompts/help/children.md")),
             ("explain-feature", include_str!("../../../prompts/help/explain-feature.md")),
             ("propagate", include_str!("../../../prompts/help/propagate.md")),

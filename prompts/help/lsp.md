@@ -99,6 +99,8 @@ Advertised in `initialize`:
   0 `class` (a feature by qualified name), 1 `enumMember` (a feature by `FEAT-*` id), 2 `property` (a parameter
   path `<feature>.<parameter>`), 3 `keyword` (a binding-time stage). Modifier bit 0 `unresolved` marks a reference
   that names nothing in the model, so a typo shows before validation runs.
+- **Health request** (`syscribe/health`, GH #428) — read-only; result the `health` payload
+  (`syscribe schema health`) for a status-bar item, kept until the next reload.
 
 The model state is disk-backed and reloads in full on `textDocument/didSave`
 and `workspace/didChangeWatchedFiles` — `textDocument/didChange` alone never

@@ -122,6 +122,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
   upstream/downstream neighbours, verifying tests with verdict and environment, a PlanningItem's work
   state and the findings on those elements; `truncated` says what `max_bytes` cut. Prefer it to
   several show/trace/links calls. Same data as `syscribe context --format json`.
+- `health {}` — one cheap project summary for a status bar (errors, warnings, orphan and unverified
+  requirements, stale evidence, failing Configurations, overall status, click-through commands), kept per model
+  version. Same data as `syscribe health --json`.
 - `timeline {configuration}` — the derivedFrom chain root first with what each stage decided, the effective
   values with provenance (source and stage) and what is still open. Same data as `syscribe timeline --json`.
 - `bind {configuration, target, value, dry_run?}` — write one parameterBindings value or features selection into

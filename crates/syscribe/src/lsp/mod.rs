@@ -49,6 +49,9 @@ struct Backend {
     notified: Arc<tokio::sync::Mutex<Option<syscribe_model::model_delta::Snapshot>>>,
     notify_pending: Arc<AtomicBool>,
     sequence: Arc<AtomicU64>,
+    /// Incremented by every successful reload; the `health` answer is kept per generation.
+    generation: Arc<AtomicU64>,
+    health_cache: Arc<std::sync::Mutex<Option<(u64, serde_json::Value)>>>,
 }
 
 /// Parameters of the `syscribe/propagate` request.
@@ -364,6 +367,7 @@ impl Backend {
             return;
         }
         drop(store);
+        self.generation.fetch_add(1, Ordering::SeqCst);
         if wants {
             self.schedule_model_changed();
         }
@@ -404,6 +408,13 @@ impl Backend {
         crate::timeline::compute(&store.elements, &params.configuration).map_err(|(_, m)| LspError::invalid_params(m))
     }
 
+    /// `syscribe/health` (GH #428): read-only; the same payload as `syscribe health --json`.
+    async fn health(&self, _params: serde_json::Value) -> LspResult<serde_json::Value> {
+        let store = self.store.read().await;
+        let gen = self.generation.load(Ordering::SeqCst);
+        Ok(crate::health::cached(&self.health_cache, gen, || crate::health::compute(&store.elements, &store.config, store.config.results.as_ref())))
+    }
+
     /// Report what changed since the last notification, once the burst of reloads has gone quiet. A burst that
     /// ends where it began (an edit and its undo) reports nothing.
     fn schedule_model_changed(&self) {
@@ -432,7 +443,7 @@ impl Backend {
 }
 
 /// The namespaced custom requests this server answers (ADR-SYS-LSP-004), advertised by `capabilities`.
-pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline"];
+pub const CUSTOM_REQUESTS: &[&str] = &["syscribe/propagate", "syscribe/explainFeature", "syscribe/children", "syscribe/changeImpact", "syscribe/timeline", "syscribe/health"];
 
 /// The custom notifications this server sends to a client that opted in.
 pub const CUSTOM_NOTIFICATIONS: &[&str] = &["syscribe/modelChanged"];
@@ -683,12 +694,15 @@ pub fn cmd_lsp(model_root: &Path) -> anyhow::Result<()> {
             notified: Arc::new(tokio::sync::Mutex::new(None)),
             notify_pending: Arc::new(AtomicBool::new(false)),
             sequence: Arc::new(AtomicU64::new(0)),
+            generation: Arc::new(AtomicU64::new(0)),
+            health_cache: Arc::new(std::sync::Mutex::new(None)),
         })
         .custom_method("syscribe/propagate", Backend::propagate)
         .custom_method("syscribe/explainFeature", Backend::explain_feature)
         .custom_method("syscribe/children", Backend::children)
         .custom_method("syscribe/changeImpact", Backend::change_impact)
         .custom_method("syscribe/timeline", Backend::timeline)
+        .custom_method("syscribe/health", Backend::health)
         .finish();
         Server::new(stdin, stdout, socket).serve(service).await;
         Ok::<(), anyhow::Error>(())

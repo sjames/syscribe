@@ -85,7 +85,8 @@ This prompt covers the core authoring workflow. Syscribe has more commands, elem
 | Format rules: directories, cross-references, multiplicity | `syscribe spec namespace`, `syscribe spec traceability`, `syscribe spec safety` |
 | A topic beyond those: executable models, evidence, plants, diagrams, placeholders | `syscribe spec behaviour`, `spec evidence`, `spec diagrams`, `spec variability` |
 | Which link types the project declares | `syscribe -m model/ link-types` |
-| Which binding-time stages a `bindingTime:` may name | `syscribe -m model/ binding-times` |
+| Which binding-time stages a `bindingTime:` may name | `syscribe -m model/ health` | One cheap project summary: error/warning counts, orphan and unverified requirements, failing Configurations, with the command for each |
+| `syscribe -m model/ binding-times` |
 | What a (staged) Configuration still leaves to later stages | `syscribe -m model/ residual --config CONF-X` |
 | The file a system reads its `load`/`runtime` parameters from | `syscribe -m model/ params export --config CONF-X` |
 | The coverage grid as known at a binding stage | `syscribe -m model/ matrix --stage load` |

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/health.schema.json",
+  "title": "syscribe health --json / MCP health / LSP syscribe/health",
+  "description": "Stable contract (GH #428). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "status",
+    "errors",
+    "warnings",
+    "requirements",
+    "staleEvidence",
+    "configurations",
+    "clickThrough",
+    "elapsedMs"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "warning",
+        "error"
+      ]
+    },
+    "errors": {
+      "type": "integer"
+    },
+    "warnings": {
+      "type": "integer"
+    },
+    "topCodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "count"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "required": [
+        "total",
+        "orphan",
+        "unverified"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "orphan": {
+          "type": "integer"
+        },
+        "unverified": {
+          "type": "integer"
+        }
+      }
+    },
+    "staleEvidence": {
+      "type": "object",
+      "required": [
+        "suspectLinks",
+        "staleResults"
+      ],
+      "properties": {
+        "suspectLinks": {
+          "type": "integer"
+        },
+        "staleResults": {
+          "type": "integer"
+        }
+      }
+    },
+    "configurations": {
+      "type": "object",
+      "required": [
+        "total",
+        "failingValidation"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer"
+        },
+        "failingValidation": {
+          "type": "integer"
+        }
+      }
+    },
+    "clickThrough": {
+      "type": "array",
+      "description": "Non-zero metrics with the command that lists the detail.",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric",
+          "count",
+          "command"
+        ],
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "command": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "cached": {
+      "type": "boolean",
+      "description": "True when the answer was kept from an earlier call on the same model version; elapsedMs is then the cost of the call that computed it."
+    }
+  }
+}

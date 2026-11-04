@@ -258,6 +258,8 @@ See `syscribe help scripts` for the full read-only model API.
 
 `bind <Configuration> <feature | feature.parameter> <value> [--dry-run] [--json]` (GH #418) writes one `parameterBindings:` value or `features:` selection into a Configuration, checked first: it is previewed on a candidate copy by the guarded-write engine, so the parameter's range, enumeration, unit, stage window and narrowing are the validator's own checks, and a change that adds an error is refused with nothing written. A clean change edits only the affected lines. `timeline <Configuration> [--json]` shows the `derivedFrom:` chain root first with what each stage decided, the effective values with their provenance (source and stage) and what is still open. The MCP tools `bind` (previews unless `dry_run` is false) and `timeline`, and the LSP request `syscribe/timeline`, return the same data.
 
+`health [--json]` (GH #428) is one cheap summary for a status bar: error and warning counts, requirements (total, orphan, unverified), stale evidence (suspect links, stale results), the Configurations whose variant fails validation, an overall `status` and, per non-zero metric, the command that lists the detail. The MCP tool `health` and the LSP request `syscribe/health` return the same payload, kept per model version (`cached`). Parameter values files are not registered in the model, so stale ones are not counted.
+
 `matrix --by environment` (GH #437) shows each requirement against each `TestEnvironment`: the verdict of its active verifying tests on that rig, the latest result's build commit and date, and `stale` when the evidence is older than the model (the test or requirement changed since ingest, or the build predates the last git change to either). A `gap` is a rig a test declares in `runsOn:` without a passing result there. The roll-up answers "verified on every declared environment"; `--gaps-only` keeps gap, failing and stale rows; the MCP `coverage_matrix` tool takes `by: "environment"`.
 
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
@@ -1991,6 +1993,14 @@ syscribe capabilities [--json]
 ```
 
 See the paragraph near the top of this page; `syscribe help schema` and `syscribe help capabilities` have the details.
+
+## `health` — the status-bar summary
+
+```bash
+syscribe -m model/ health [--json]
+```
+
+See the paragraph near the top of this page; `syscribe help health` has the details.
 
 ## `bind` and `timeline` — staged binding
 

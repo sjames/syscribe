@@ -32,6 +32,7 @@ mod export_html;
 mod fmea_report;
 mod heat_cmd;
 mod ftsearch;
+mod health;
 mod help;
 mod ingest;
 mod lint_docs;
@@ -2442,6 +2443,13 @@ fn main() {
             }
             "change-impact" => {
                 let code = changeimpact::cmd_change_impact(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "health" => {
+                let results = runhist::load_results(model_root);
+                let code = health::cmd_health(&elems, &vcfg, results.as_ref(), subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

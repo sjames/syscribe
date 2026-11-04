@@ -1439,6 +1439,8 @@ async fn notify_committed(peer: &Peer<RoleServer>, res: &Value) {
 pub struct SyscribeMcp {
     store: Arc<RwLock<McpStore>>,
     read_only: bool,
+    /// The `health` answer for one model version (its file fingerprint).
+    health_cache: std::sync::Mutex<Option<(u64, serde_json::Value)>>,
 }
 
 /// The names of every MCP tool (for the capabilities document).
@@ -1451,7 +1453,7 @@ pub fn tool_names() -> Vec<String> {
 #[tool_router]
 impl SyscribeMcp {
     fn new(store: Arc<RwLock<McpStore>>, read_only: bool) -> Self {
-        Self { store, read_only }
+        Self { store, read_only, health_cache: Default::default() }
     }
 
     #[tool(
@@ -1966,6 +1968,17 @@ impl SyscribeMcp {
             Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
             Err(m) => tool_error(m),
         }
+    }
+
+    #[tool(
+        description = "One cheap summary of the project for a status bar: error and warning counts and the most frequent codes, requirements \
+        (total, orphan, unverified), stale evidence (suspect links, stale results), the Configurations whose variant fails validation, an \
+        overall status (ok, warning, error) and, for each non-zero metric, the command that lists the detail. Same data as `syscribe health --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn health(&self) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(crate::health::cached(&self.health_cache, store.fingerprint, || crate::health::compute(&store.elements, &store.config, store.config.results.as_ref())))
     }
 
     #[tool(
