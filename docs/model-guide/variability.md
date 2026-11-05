@@ -160,6 +160,8 @@ New findings specific to this form: `E231` (an entry has no `name:`, isn't a map
 
 `appliesWhen:` conditions **any** element (including a `TestCase`) on a boolean expression over `FeatureDef` qualified names:
 
+An inline `features:` usage or a `connections:`/`flowConnections:`/`bindingConnections:`/`successionConnections:` entry may carry its own `appliesWhen:` too; it is in a `--config` projection (and its diagram, `diff`, `validate --config`) only where the condition holds, exactly as a child element would be. `diff` lists such entries under "Inline usages and connections that differ" (`usages` in `--json`). Gate a connection together with the usage it joins. A child `Part` element cannot carry `role:`, so a variant-specific actor is an inline entry with `role: external` and `appliesWhen:`.
+
 ```yaml
 appliesWhen: Features::Wdt                                  # bare
 appliesWhen: [Features::Wdt, Features::CortexM]             # list = AND
