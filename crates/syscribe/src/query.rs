@@ -3650,6 +3650,36 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
         meta_diff.push((ea.qualified_name.clone(), minus(&da, &db), minus(&db, &da)));
     }
 
+    // Inline usages and connections gated by their own `appliesWhen:` (GH #448): same element in both products,
+    // different entries.
+    let entries_of = |e: &RawElement| -> Vec<String> {
+        let fm = &e.frontmatter;
+        let key = |x: &serde_yaml::Value, list: &str| -> Option<String> {
+            let m = x.as_mapping()?;
+            let g = |k: &str| m.get(k).and_then(|v| v.as_str());
+            Some(match (g("name"), g("from"), g("to")) {
+                (Some(n), _, _) => format!("{list}:{n}"),
+                (None, Some(f), Some(t)) => format!("{list}:{f} -> {t}"),
+                _ => return None,
+            })
+        };
+        let mut v: Vec<String> = Vec::new();
+        for (list, xs) in [("features", &fm.features), ("connections", &fm.connections), ("flowConnections", &fm.flow_connections)] {
+            v.extend(xs.iter().flatten().filter_map(|x| key(x, list)));
+        }
+        v.sort();
+        v
+    };
+    let mut usage_diff: Vec<(String, Vec<String>, Vec<String>)> = Vec::new();
+    for ea in &view_a {
+        let Some(eb) = view_b.iter().find(|x| x.qualified_name == ea.qualified_name) else { continue };
+        let (da, db) = (entries_of(ea), entries_of(eb));
+        let (oa, ob): (Vec<String>, Vec<String>) = (da.iter().filter(|x| !db.contains(x)).cloned().collect(), db.iter().filter(|x| !da.contains(x)).cloned().collect());
+        if !oa.is_empty() || !ob.is_empty() {
+            usage_diff.push((ea.qualified_name.clone(), oa, ob));
+        }
+    }
+
     if json {
         // Where each differing element lives (GH #423), so a front end can jump to it.
         let change = |side: &str, ids: &[&String], view: &[RawElement]| -> Vec<serde_json::Value> {
@@ -3672,6 +3702,12 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
             "onlyInB": only_b,
             "changes": changes,
         });
+        if !usage_diff.is_empty() {
+            out["usages"] = serde_json::json!(usage_diff
+                .iter()
+                .map(|(e, a, b)| serde_json::json!({"element": e, "onlyInA": a, "onlyInB": b}))
+                .collect::<Vec<_>>());
+        }
         if !meta_diff.is_empty() {
             out["metadata"] = serde_json::json!(meta_diff
                 .iter()
@@ -3690,6 +3726,13 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
         println!("Only in {} ({}):", b, only_b.len());
         for x in &only_b {
             println!("  - {}", x);
+        }
+        if !usage_diff.is_empty() {
+            println!();
+            println!("Inline usages and connections that differ ({}):", usage_diff.len());
+            for (e, da, db) in &usage_diff {
+                println!("  ~ {e}: only in {a}: [{}]; only in {b}: [{}]", da.join(", "), db.join(", "));
+            }
         }
         if !meta_diff.is_empty() {
             println!();

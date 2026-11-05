@@ -238,6 +238,11 @@ pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> 
     for e in out.iter_mut().filter(|e| e.frontmatter.metadata.is_some()) {
         drop_inactive_applications(e, &sel, &alias);
     }
+    // Inline usages and connections with their own `appliesWhen:` are part of this product only where it holds
+    // (GH #448), the same as a child element carrying the condition.
+    for e in out.iter_mut() {
+        drop_inactive_entries(e, &sel, &alias, &open);
+    }
     out
 }
 
@@ -254,6 +259,32 @@ fn open_features_for(elements: &[RawElement], sel: &Selection) -> HashSet<String
         .and_then(|cfg| elements.iter().position(|e| std::ptr::eq(e, cfg)))
         .map(|i| crate::staging::open_features(elements, i))
         .unwrap_or_default()
+}
+
+/// Remove from `e`'s inline `features:`, `connections:`, `flowConnections:`, `bindingConnections:` and
+/// `successionConnections:` lists the mapping entries whose `appliesWhen:` is false under `sel`.
+fn drop_inactive_entries(e: &mut RawElement, sel: &Selection, alias: &std::collections::HashMap<String, String>, open: &HashSet<String>) {
+    let holds = |entry: &serde_yaml::Value| -> bool {
+        let Some(aw) = entry.as_mapping().and_then(|m| m.get("appliesWhen")) else { return true };
+        match variability::applies_when_expr(aw) {
+            Ok(Some(expr)) => {
+                let expr = expr.canonicalize(&|q: &str| variability::canon_feature_ref(q, alias));
+                // A feature a staged Configuration leaves open is undecided: keep the entry (as for elements).
+                expr.eval_tri(&|q: &str| if open.contains(q) { None } else { Some(sel.get(q).copied().unwrap_or(false)) }) != Some(false)
+            }
+            _ => true,
+        }
+    };
+    let retain = |list: &mut Option<Vec<serde_yaml::Value>>| {
+        if let Some(l) = list.as_mut() {
+            l.retain(|x| holds(x));
+        }
+    };
+    retain(&mut e.frontmatter.features);
+    retain(&mut e.frontmatter.connections);
+    retain(&mut e.frontmatter.flow_connections);
+    retain(&mut e.frontmatter.binding_connections);
+    retain(&mut e.frontmatter.succession_connections);
 }
 
 /// Remove from `e.metadata` the map applications whose `appliesWhen:` is false under `sel`.

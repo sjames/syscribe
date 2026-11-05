@@ -28,6 +28,13 @@
         "type": "object"
       }
     },
+    "usages": {
+      "type": "array",
+      "description": "Inline `features:`/`connections:` entries (gated by their own `appliesWhen:`) that differ between the variants, per element (GH #448).",
+      "items": {
+        "type": "object"
+      }
+    },
     "schemaVersion": {
       "const": "1.0"
     },
