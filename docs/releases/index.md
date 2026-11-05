@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.58.1 — 2026-11-05
+
+**Fixed**
+
+- `appliesWhen:` on an inline `features:` usage or a `connections:`/`flowConnections:`/`bindingConnections:`/`successionConnections:` entry was accepted but ignored by `--config`. It now gates the entry in the projection, `validate --config` and diagrams, as it does on a child element; an entry whose features a staged Configuration leaves open is kept (#448).
+- `diff` lists the inline entries that differ between two variants under "Inline usages and connections that differ"; `diff --json` gains the optional `usages` array (a compatible addition to the `diff` contract).
+
 ## 0.58.0 — 2026-11-04
 
 **Working with agents and a team**
