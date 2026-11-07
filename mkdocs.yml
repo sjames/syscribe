@@ -58,6 +58,7 @@ nav:
       - Requirements & Test Cases: model-guide/requirements.md
       - Test Plans: model-guide/testplans.md
       - Traceability: model-guide/traceability.md
+      - Value References: model-guide/value-references.md
       - Architecture Decisions: model-guide/adrs.md
       - State Machines: model-guide/state-machines.md
       - Action Flows: model-guide/action-flows.md

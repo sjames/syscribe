@@ -1026,7 +1026,78 @@ Validation: `W092` — the cited anchor, item number or question does not exist;
 open_markers = ["to confirm", "TBD by owner"]   # [] disables W094
 ```
 
-A malformed `[references]` entry (unknown key, or `open_markers` not a list of non-empty strings) is reported as `W094` against `.syscribe.toml` and ignored. `refs`, `impact` and `check-ref` accept the `#` forms (`refs REQ-X#grant-keys` lists the citing elements; an anchor and a number naming the same item match each other), and `lint-docs` applies `W092`/`W094` to external Markdown.
+A malformed `[references]` entry (unknown key, `open_markers` not a list of non-empty strings, or `copied_values` (§5.8) not a Boolean) is reported as `W094` against `.syscribe.toml` and ignored. `refs`, `impact` and `check-ref` accept the `#` forms (`refs REQ-X#grant-keys` lists the citing elements; an anchor and a number naming the same item match each other), and `lint-docs` applies `W092`/`W094` to external Markdown.
+
+### 5.8 Value References in Prose
+
+An element body may state a design value by **reference** instead of copying the number, so the
+text follows the value when it changes (GH #452):
+
+```markdown
+The snapshot is {{PolicydBounds.snapshotFixedBytes}} long.
+```
+
+`{{Elem.attr}}` — `Elem` is resolved by stable id, then exact qualified name
+(`{{Design::Limits.maxFrame}}`), then by basic name — the last qualified-name segment
+(`{{Limits.maxFrame}}`) — when exactly one element of the model has it; a basic name shared by several
+elements is `E331`, listing their qualified names (no display-name or fuzzy matching). `attr`
+names an attribute of that element, as a dotted path where values nest. An optional `|unit` suffix
+is accepted; the unit is always rendered. The **attributes** of an element are its named slots that
+hold a single scalar value:
+
+| Form | Path | Value |
+|---|---|---|
+| inline `features:` entry | `name` (nested `features:`: `outer.inner`) | `value:`, else `default:`; `unit:` |
+| `Attribute` / `AttributeDef` child element | the child's name | `value:` (an `AttributeDef`: `default:`); `unit:` |
+| an `Attribute` / `AttributeDef` itself | `value`, `default` | the field; `unit:` |
+| stereotype tagged value (§8.15) | `Stereotype.key` (`key` alone when one application has it) | the application's value, else the declared `default:`; the feature's `unit:` |
+| budget / timing field | `ram`, `flash`, `nvm`, `stack`, `ramCapacity`, `flashCapacity`, `nvmCapacity`, `margin`, `period`, `deadline`, `priority`, `cpuMargin`, `wcet`, `failureRate`, `diagnosticCoverage` | the field as written |
+
+An attribute whose value is a list or a map, or a feature with neither `value:` nor `default:` (a
+port), exists but has no value.
+
+**Where.** References are read in the Markdown body outside code: inline code spans and fenced
+blocks keep the text literal (so documentation can show the syntax), **except** fenced blocks whose
+info string is `gherkin`, `feature` or `cucumber` — TestCase scenarios (§8.12.5) — which are read;
+inline code spans inside them stay literal. The frontmatter and the `name` are not read.
+
+**Feature parameters.** A `{{X.y}}` whose element part resolves to a `FeatureDef`, or is a `::` path
+or `FEAT-` id that resolves to nothing, is a feature-parameter placeholder (§9.6, `E240`/`E241`) and
+not a value reference. An unresolved bare name starting with a lowercase letter (`{{ user.name }}`)
+is template text and is ignored.
+
+**Rendering.** `show`, the web detail panel and `export-html` replace each resolvable reference by
+the value as written followed by its unit (`47244 B`); the file keeps the raw form. The MCP
+`get_element` detail view returns `doc` raw and adds `docRendered` when the two differ.
+
+**Validation.**
+
+- `E331` — a value reference whose element does not resolve or whose basic name is ambiguous, whose attribute path names no
+  attribute (the message lists the attributes with a value), or whose attribute holds no scalar.
+- `W095` — opt-in, `copied_values = true` in the `[references]` table: a numeric literal in the
+  body equals the **current** value of an attribute of an element the holder links to — any outgoing
+  reference (`satisfies`, `verifies`, `verifiesElement`, `derivedFrom`, `refines`,
+  `allocatedTo`/`allocatedFrom`, `typedBy`, `supertype`, `achieves`, `evidence` `ref:`, user-defined
+  `links:`) or the element of one of its own value references.
+- `W096` — a non-draft element's body holds a numeric literal equal to a **previous** value of such
+  an attribute (a stale copy), read from the committed versions of the file that holds it
+  (`git log --follow` and one `git cat-file --batch` per file, at most `[agents] audit_limit`
+  commits, default 200). Independent of `copied_values`; without git nothing is reported.
+
+Literal matching for `W095`/`W096`: a literal is a whole token — not part of an id (`TC-47244`), a
+version, a date, a time or a word; a unit directly after it (`10ms`) is allowed; thousands separators
+(space, `,`, `_`, `'`) are read. Values below 10 and integers from 1900 to 2100 (years) are never
+compared. An attribute value is compared when it is a plain number, optionally followed by a unit
+word; magnitudes are compared as written, without unit conversion.
+
+```toml
+[references]
+copied_values = true   # W095; must be true or false (anything else is W094 on .syscribe.toml)
+```
+
+`syscribe refs <Elem.attr> [--json]` (the element part resolved as above; an unresolved or ambiguous one exits 1, never falling back to element search) lists every use of the value, every literal copy of the current
+value and every stale copy in the elements that link to `Elem`; `lint-docs` applies `W095` (advisory)
+to external Markdown, whose links are its value-reference targets.
 
 ---
 
@@ -6657,6 +6728,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
+| `E331`, `W095`, `W096` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`) | §5.8 |
 | `E330`, `W324`, `W325` | Amendment records on accepted ADRs and confirmed requirements (`amendments:`, `[traceability] require_amendments`) | §8.17.5 |
 | `W760`–`W762` | Agent policy (`[agents]` in `.syscribe.toml`) | catalogue; `syscribe policy`; `ADR-SYS-AGENTPOLICY-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |

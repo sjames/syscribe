@@ -12,6 +12,10 @@
 //! GH #453: item and question references in prose (`REQ-X#slug`, `REQ-X#5`, `REQ-X item 5`,
 //! `PI-Y#Qn`) are checked as `validate` checks element bodies — `W092` (dangling, fails the
 //! run) and `W094` (answered question cited with "to confirm" wording; advisory like `W103`).
+//!
+//! GH #452: with `[references] copied_values = true`, `W095` (advisory) flags a numeric literal
+//! equal to the current value of an attribute of an element the document references with a
+//! value reference `{{Elem.attr}}` — the external-document form of `validate`'s `W095`.
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -30,6 +34,8 @@ struct Ctx<'a> {
     resolver: syscribe_model::resolver::Resolver,
     /// `[references] open_markers` (GH #453), for `W094`.
     markers: Vec<String>,
+    /// `[references] copied_values` (GH #452), for `W095`.
+    copied_values: bool,
 }
 
 impl<'a> Ctx<'a> {
@@ -41,11 +47,9 @@ impl<'a> Ctx<'a> {
             .filter_map(|e| Some((std::fs::canonicalize(&e.file_path).ok()?, e.qualified_name.as_str())))
             .collect();
         let resolver = syscribe_model::resolver::Resolver::new(elements);
-        let markers = model_root
-            .map(syscribe_model::req_items::ReferencesConfig::load)
-            .unwrap_or_default()
-            .markers();
-        Ctx { elements, package_index, resolver, markers }
+        let refs_cfg = model_root.map(syscribe_model::req_items::ReferencesConfig::load).unwrap_or_default();
+        let markers = refs_cfg.markers();
+        Ctx { elements, package_index, resolver, markers, copied_values: refs_cfg.copied_values }
     }
 }
 
@@ -198,6 +202,10 @@ fn scan_md(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
     }
     // W092 / W094 (GH #453): item and question references in prose.
     item_ref_findings(path, &content, ctx, findings);
+    // W095 (GH #452): literal copies of values the document references.
+    if ctx.copied_values {
+        copied_value_findings(path, &content, ctx, findings);
+    }
     let dir = path.parent().unwrap_or(Path::new("."));
     let md_img = regex::Regex::new(r"!\[[^\]]*\]\(([^)\s]+)").unwrap();
     let html_img = regex::Regex::new(r#"<img[^>]*\bsrc=["']([^"']+)["']"#).unwrap();
@@ -233,6 +241,48 @@ fn scan_md(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
                 findings.push(Finding { file: path.display().to_string(), line: line_no + 1, code: "W102", detail: p.to_string() });
             }
         }
+    }
+}
+
+/// `W095`: a numeric literal equal to the current value of an attribute of an element the
+/// document references with `{{Elem.attr}}` (the external-document form of `validate`'s rule;
+/// the links of a document are its value-reference targets).
+fn copied_value_findings(path: &Path, content: &str, ctx: &Ctx, findings: &mut Vec<Finding>) {
+    use syscribe_model::value_refs as vr;
+    let mut targets: Vec<&RawElement> = Vec::new();
+    for r in vr::scan(content) {
+        if !vr::is_value_target(ctx.elements, &ctx.resolver, &r.elem) {
+            continue;
+        }
+        if let vr::ElemMatch::Found(t) = vr::resolve_element(ctx.elements, &ctx.resolver, &r.elem) {
+            if !targets.iter().any(|x| std::ptr::eq(*x, t)) {
+                targets.push(t);
+            }
+        }
+    }
+    if targets.is_empty() {
+        return;
+    }
+    let children = vr::ChildIndex::new(ctx.elements);
+    let mut cache = HashMap::new();
+    let (copies, _) = vr::copies_in(ctx.elements, &ctx.resolver, &children, content, &targets, &mut cache, None);
+    let mut seen: BTreeSet<(usize, String)> = BTreeSet::new();
+    for c in copies {
+        let attr = format!("{}.{}", vr::label(c.target), c.attr.path);
+        if !seen.insert((c.literal.line, attr.clone())) {
+            continue;
+        }
+        findings.push(Finding {
+            file: path.display().to_string(),
+            line: c.literal.line + 1,
+            code: "W095",
+            detail: format!(
+                "`{}` is the current value of {attr} ({}) — write `{}` so the text follows the design value",
+                c.literal.text,
+                c.attr.rendered().unwrap_or_default(),
+                c.suggestion()
+            ),
+        });
     }
 }
 
@@ -306,6 +356,7 @@ fn message(code: &str, detail: &str) -> String {
         "W103" => detail.to_string(),
         "W092" => format!("dangling item/question reference: {}", detail),
         "W094" => format!("stale confirmation wording: {}", detail),
+        "W095" => format!("copied value: {}", detail),
         _ => format!("unresolvable ID token '{}' referenced in external doc", detail),
     }
 }
@@ -316,7 +367,7 @@ fn detail_key(code: &str) -> &'static str {
     match code {
         "W099" => "token",
         "W102" => "path",
-        "W103" | "W094" => "detail",
+        "W103" | "W094" | "W095" => "detail",
         "W092" => "ref",
         _ => "ref",
     }
@@ -344,10 +395,10 @@ pub fn lint_docs_findings(
 }
 
 /// Every code `lint-docs` can emit, i.e. the valid `--deny` values.
-pub const LINT_CODES: [&str; 7] = ["W092", "W094", "W099", "W100", "W101", "W102", "W103"];
+pub const LINT_CODES: [&str; 8] = ["W092", "W094", "W095", "W099", "W100", "W101", "W102", "W103"];
 
 /// Advisory codes: reported, but fail the run only when named by `--deny`.
-const ADVISORY: [&str; 2] = ["W094", "W103"];
+const ADVISORY: [&str; 3] = ["W094", "W095", "W103"];
 
 /// Parsed `lint-docs` command line (issue #130).
 #[derive(Debug, Default, PartialEq, Eq)]

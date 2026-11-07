@@ -9108,6 +9108,25 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.extend(crate::req_items::findings(elements, &resolver, &config.references, &cfg_file));
     }
 
+    // Value references in prose and scenarios (GH #452): E331, W095 (opt-in via
+    // `[references] copied_values`), W096 (stale copies, from the git history of the
+    // attribute's file, capped by `[agents] audit_limit`).
+    {
+        let limit = config
+            .model_root
+            .as_deref()
+            .and_then(crate::agent_policy::load)
+            .map(|p| p.audit_limit)
+            .unwrap_or(crate::amendments::HISTORY_LIMIT);
+        findings.extend(crate::value_refs::findings(
+            elements,
+            &resolver,
+            config.references.copied_values,
+            config.model_root.as_deref(),
+            limit,
+        ));
+    }
+
     // OPT-IN: workflow hints (GH #439) — informational, only under `validate --hints`.
     if config.hints {
         findings.extend(crate::hints::hint_findings(elements));

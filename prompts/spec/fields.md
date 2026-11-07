@@ -513,7 +513,7 @@ Fields defined in the full specification (`spec/markdown-sysml-format.md`) that 
 | `target` | spec §3.7.1, §8.7.6 | Qualified name, optionally suffixed `::*` or `::**` / Feature chain identifying the occurrence whose feature is being assigned (e.g., `self`, `engine`) |
 | `text` | `metadata:` entry | free text of an applied metadata entry, e.g. a `ModelingMetadata::Rationale` |
 | `unit` | spec §3.6.1, §8.3.4 | Shorthand: qualified name of the unit for quantity attributes / Unit (for scalar quantities) |
-| `value` | spec §3.6.1, §8.5.2 | Literal default value or expression body (opaque string) / Bound expression (when specializing a non-enum AttributeDef) |
+| `value` | spec §3.6.1, §8.5.2 | Literal default value or expression body (opaque string) / Bound expression (when specializing a non-enum AttributeDef). A single scalar `value:` (on a `features:` entry or an `Attribute`) is citable from prose as `{{Elem.attr}}` (§5.8, GH #452) |
 | `valueKind` | spec §3.6.1, §8.5.2 | Binding semantics: `bound` (`=`), `initial` (`:=`), `default-bound` (`default =`), `default-initial` (`default :=`) / Binding semantics (default: `bound`); see §3.6.1 |
 | `viewpoint` | View | qualified name of the `ViewpointDef` the view conforms to (`W500` if it does not resolve) |
 
@@ -556,6 +556,7 @@ file at all) is always legal.
 | `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
 | `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
 | `[references]` | `open_markers` (alias `openMarkers`) | No | list of strings | `["to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"]` | Phrases that mark a citation of an `answered` PlanningItem question (`PI-X#Q3`) as stale — `W094` when one occurs, case-insensitively as whole words, in the citing sentence. Replaces the defaults; `[]` disables `W094`. A malformed entry (unknown key, not a list of non-empty strings) is `W094` on `.syscribe.toml` and ignored. GH #453, spec §5.7. |
+| `[references]` | `copied_values` (alias `copiedValues`) | No | bool | `false` | `W095`: a numeric literal in an element body (prose or scenario) equal to the current value of an attribute of an element it links to, not written as a value reference `{{Elem.attr}}` (spec §5.8, GH #452). Whole tokens only; values below 10 and years (1900–2100) are ignored. Not a Boolean: `W094` against `.syscribe.toml`, and W095 stays off. `W096` (stale copies of previous values) does not need it. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
 | `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
 | `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
@@ -615,6 +616,7 @@ require_testcase_evidence = true
 
 [references]
 open_markers = ["to confirm", "TBC", "pending owner"]
+copied_values = true
 
 [profiles.ci]
 promote = ["W015", "W300"]

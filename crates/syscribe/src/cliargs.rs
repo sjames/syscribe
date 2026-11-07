@@ -165,7 +165,8 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "show" => &[("--no-related", Switch)],
         "diagram" => &[("--format", Value), ("--out", Value), ("--all", Switch), ("--check", Switch), ("--out-dir", Value), LENS],
         "trace" => &[("--linked-only", Switch), LENS],
-        "why" | "who-verifies" | "links" | "refs" => &[LENS],
+        "why" | "who-verifies" | "links" => &[LENS],
+        "refs" => &[LENS, ("--json", Switch)],
         "tree" => &[],
         "extref" => &[("--json", Switch)],
         "impact" => &[
