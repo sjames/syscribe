@@ -308,6 +308,24 @@ pub fn resolve_target<'a>(
     None
 }
 
+/// The current hash of an item-level link key `REQ-X#slug`: [`crate::req_items::item_hash`]
+/// of that item, or `None` when the key is not an anchor reference, the element does not
+/// resolve to a Requirement, or the anchor is not defined.
+pub fn item_link_hash(elements: &[RawElement], resolver: &Resolver, key: &str) -> Option<String> {
+    let (elem, part) = crate::req_items::parse_ref(key)?;
+    if !matches!(part, crate::req_items::Part::Anchor(_)) {
+        return None;
+    }
+    let t = crate::req_items::resolve_elem(elements, resolver, &elem)?;
+    if !crate::req_items::applies(t, &part) {
+        return None;
+    }
+    match crate::req_items::lookup(t, &part).ok()? {
+        crate::req_items::Target::Item(it) => Some(crate::req_items::item_hash(&it)),
+        crate::req_items::Target::Question(_) => None,
+    }
+}
+
 /// Extract reference strings from an optional YAML value that is either a scalar
 /// string or a sequence of strings.
 fn yaml_refs(v: &Option<serde_yaml::Value>) -> Vec<String> {
@@ -371,6 +389,44 @@ pub fn scan_with(elements: &[RawElement], resolver: &Resolver, link_types: &Link
                 source_file: src.file_path.clone(),
                 kind,
                 target_ref,
+                stored,
+                current,
+                state,
+            });
+        }
+
+        // Item-granular links (GH #453, REQ-TRS-ITEMREF-005): a `REQ-X#slug` citation in
+        // the body, or a `traceBaselines` key of that form, baselines that one item only.
+        let mut item_keys: Vec<String> = crate::req_items::scan_citations(&src.doc)
+            .into_iter()
+            .filter(|c| matches!(c.part, crate::req_items::Part::Anchor(_)))
+            .filter(|c| {
+                crate::req_items::resolve_elem(elements, resolver, &c.elem)
+                    .is_some_and(|t| crate::req_items::applies(t, &c.part))
+            })
+            .map(|c| c.raw)
+            .collect();
+        if let Some(tb) = &fm.trace_baselines {
+            item_keys.extend(tb.keys().filter(|k| k.contains('#')).cloned());
+        }
+        for key in item_keys {
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+            let stored = fm.trace_baselines.as_ref().and_then(|m| m.get(&key)).cloned();
+            let current = item_link_hash(elements, resolver, &key);
+            let state = match (&current, &stored) {
+                (None, _) => if stored.is_some() { LinkState::Unresolved } else { LinkState::Unbaselined },
+                (Some(_), None) => LinkState::Unbaselined,
+                (Some(c), Some(s)) if c == s => LinkState::Ok,
+                (Some(_), Some(_)) => LinkState::Suspect,
+            };
+            out.push(SuspectLink {
+                source_qname: src.qualified_name.clone(),
+                source_id: fm.id.clone(),
+                source_file: src.file_path.clone(),
+                kind: "cites",
+                target_ref: key,
                 stored,
                 current,
                 state,

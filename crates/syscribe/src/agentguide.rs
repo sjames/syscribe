@@ -185,6 +185,7 @@ fn rules(root: &str) -> Vec<String> {
         format!("Rename or move with `syscribe -m {root} move <src> <dest>`, which rewrites every reference."),
         format!("Own shared work with `syscribe -m {root} claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`."),
         "Preview before writing where the command allows it: `--dry-run` on `set`, `move`, `claim`, `release` and `applies-when`.".to_string(),
+        "Cite one item of a requirement by its anchor, not its number: write `{#slug}` after the item's number in the requirement body and cite it as `REQ-X#slug` (a number such as `REQ-X#5` shifts when an item is inserted); cite a PlanningItem question as `PI-X#Q3`. `check-ref REQ-X#slug` confirms it resolves; a dangling citation is `W092`.".to_string(),
         "Check a reference with `check-ref <ref>`; an unfamiliar finding with `syscribe explain <code>`; a type with `syscribe help <Type>`.".to_string(),
         "A task is not finished until every command under \"Before declaring work done\" exits 0.".to_string(),
     ]
@@ -339,6 +340,7 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
     } else {
         o.push_str("when blocked on a decision record it with the `question` tool instead of guessing (`questions` lists the open ones, `steps` shows a PlanningItem's breakdown); ");
     }
+    o.push_str("cite one requirement item by its anchor (`{#slug}` after the item's number, cited as `REQ-X#slug`), not by number, and a question as `PI-X#Q3` (W092 flags a dangling one); ");
     o.push_str("a `status` outside the type's vocabulary is refused; pass `by`, `reason`, `commit` and `expect_hash` to a write tool to attribute it, commit just that change and refuse a stale edit (`log` reads the history).\n\n");
     o.push_str("Id prefixes: ");
     o.push_str(

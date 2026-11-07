@@ -3023,7 +3023,7 @@ impl SyscribeMcp {
                 None,
             ));
         }
-        let findings = lint_docs_findings(&store.elements, &paths, args.codes.as_deref());
+        let findings = lint_docs_findings(&store.elements, Some(&store.model_root), &paths, args.codes.as_deref());
         ok(json!({ "findings": findings }))
     }
 
@@ -3933,7 +3933,9 @@ impl SyscribeMcp {
         hash into the source's traceBaselines, clearing its suspect flag (W090). Obeys the \
         write guard — dry_run defaults to true (returns a diff + validation delta, clearing \
         the link shows the W090 under resolvedWarnings; nothing is written). Pass \
-        dry_run:false to commit. source/target accept a stable id or qualified name.",
+        dry_run:false to commit. source/target accept a stable id or qualified name; target may \
+        also be an anchored requirement item the source's body cites (REQ-X#slug), baselining \
+        that item only (a by-number REQ-X#5 is refused).",
         annotations(read_only_hint = false)
     )]
     async fn suspect_accept(

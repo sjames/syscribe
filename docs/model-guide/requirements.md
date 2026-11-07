@@ -52,6 +52,56 @@ of not less than 5 km line-of-sight under nominal atmospheric conditions.
 Derived from the regulatory link-loss safe-landing trigger distance.
 ```
 
+### Item anchors and references
+
+A requirement written as a numbered list exposes each **top-level** numbered item as a citable
+unit. Items are numbered by position (1-based, across the whole body). Give an item a stable
+**anchor** by writing `{#slug}` right after its number (slug: lowercase letters, digits and `-`,
+starting with a letter):
+
+```markdown
+The key server shall:
+
+1. {#grant-keys} **Server keys.** Hold the grant keys in an HSM.
+2. {#rotate} **Rotation.** Rotate the keys every 12 months.
+```
+
+`show`, the web UI and `export-html` display the item without the token (`export-html` adds an
+HTML anchor `id="item-grant-keys"`).
+
+Cite an item or a PlanningItem question from any element body:
+
+| Write | Means |
+|---|---|
+| `REQ-KEY-001#grant-keys` | the item anchored `{#grant-keys}` — **preferred**, survives insertions |
+| `REQ-KEY-001#2` | the 2nd numbered item, by position |
+| `REQ-KEY-001 item 2` | legacy form of `#2` |
+| `PI-KEY-001#Q3` | question `Q3` of PlanningItem `PI-KEY-001` |
+
+`validate` checks them (outside fenced code, only when the element part resolves):
+
+- `W092` — the anchor, item number or question does not exist, or an anchor is defined twice /
+  malformed in one requirement.
+- `W093` — an element past draft (e.g. `review`, `approved`, `active`, `done`) cites a question
+  that is still `open`.
+- `W094` — an `answered` question is cited with "to confirm"-style wording in the same sentence.
+  The phrases are configurable:
+
+```toml
+# .syscribe.toml
+[references]
+open_markers = ["to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"]  # the defaults; [] disables W094
+```
+
+Query them with `check-ref REQ-KEY-001#grant-keys`, `refs REQ-KEY-001#grant-keys` (who cites
+that item; `refs REQ-KEY-001` adds an *Item and question citations* section) and
+`impact REQ-KEY-001#grant-keys`. `lint-docs` applies `W092`/`W094` to external Markdown.
+
+**Item-level suspect links.** `suspect accept TC-KEY-004 REQ-KEY-001#grant-keys` baselines just
+that item (a `traceBaselines:` key `REQ-KEY-001#grant-keys`), so `W090` fires only when *that*
+item's text changes — not when another item is edited or inserted. Only anchored references can
+be baselined. See [Suspect links](../design/suspect-links.md#item-level-baselines).
+
 ## Requirement hierarchy
 
 Parent requirements have `derivedChildren`; leaf requirements have `derivedFrom`. The validator enforces:

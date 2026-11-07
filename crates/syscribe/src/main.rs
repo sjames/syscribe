@@ -2733,7 +2733,7 @@ fn main() {
                     }
                     std::process::exit(1);
                 }
-                let code = lint_docs::cmd_lint_docs(&elems, &paths, parsed.json, &parsed.deny);
+                let code = lint_docs::cmd_lint_docs(&elems, Some(model_root), &paths, parsed.json, &parsed.deny);
                 if code != 0 {
                     std::process::exit(code);
                 }

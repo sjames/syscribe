@@ -217,6 +217,25 @@ opt-in and additive — and is surfaced on demand by `suspect list`, which repor
 unbaselined links alongside suspect ones. `suspect accept --all-unbaselined` is
 the one-time switch that baselines them all.
 
+### Item-level baselines
+
+A requirement written as a numbered list can be relied on one item at a time (GH #453,
+`REQ-TRS-ITEMREF-005`). When a source's body cites an anchored item — `REQ-X#grant-keys`, the
+item written `1. {#grant-keys} …` in `REQ-X` — that citation is an item-level trace link of kind
+`cites`. Its `traceBaselines:` key is the reference as written, and its value hashes **that item's
+text only** (anchor token and positional number removed, line ends normalised):
+
+```yaml
+traceBaselines:
+  REQ-X#grant-keys: "blake3:…"
+```
+
+`suspect accept <src> REQ-X#grant-keys` captures it (as do `--all` and `--all-unbaselined`), and
+`validate` raises the same `W090` when the item's text changes. Editing another item, inserting an
+item above it or reordering the list does not. A by-number reference (`REQ-X#5`, `REQ-X item 5`)
+cannot be baselined — the number moves when an item is inserted — and `suspect accept` refuses it
+with a hint to add an anchor; a question reference (`PI-Y#Q3`) cannot be baselined either.
+
 ---
 
 ## 7. Integration points (summary)

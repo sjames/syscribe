@@ -16,6 +16,9 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
     Reserve a decision to a person   answerBy: human on the question (or [agents] human_only_answers = true); see `help policy`
     Who may answer / who answered    syscribe -m model/ questions --json     (answerBy, answerProvenance)
+    Anchor a requirement item        write `1. {#grant-keys} ...` in the REQ body (syscribe help Requirement)
+    Cite a requirement item          write REQ-X#grant-keys in prose; check: check-ref REQ-X#grant-keys
+    Cite a planning question         write PI-X#Q3 in prose; check: check-ref PI-X#Q3
 
 ## Check
     Validate the model               syscribe -m model/ validate
@@ -28,6 +31,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     What a change affects            syscribe -m model/ impact <id>
     Trace one requirement            syscribe -m model/ trace <REQ-id>
     Who verifies a requirement       syscribe -m model/ who-verifies <REQ-id>
+    Who cites one requirement item   syscribe -m model/ refs REQ-X#grant-keys   (or impact REQ-X#grant-keys)
+    Baseline an item-level link      syscribe -m model/ suspect accept <src-id> REQ-X#grant-keys
 
 ## Evidence and variants
     Unplanned tests (no item names)  syscribe -m model/ coverage --json     (testCasesWithoutPlanningEvidence; W319 with [planning])

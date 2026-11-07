@@ -332,7 +332,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | `responsibility` | All work products | string | Accountable party/organisation (ISO 26262-8 §5 DIA/CIA split); drives W038. Opt-in. |
 | `testExempt` | Any architecture element | string | Non-empty rationale suppressing W104 (no direct test). |
 | `ffiRationale` | PartDef/Part/etc. | string | Freedom-from-interference argument for mixed-criticality on a shared resource; suppresses W034. Opt-in. |
-| `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. Never hand-edit. |
+| `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. A key may also be an item anchor `REQ-X#slug` cited in the body: its hash covers that one item (GH #453). Never hand-edit. |
 
 ## Custom fields
 
@@ -551,6 +551,7 @@ file at all) is always legal.
 | `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
 | `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
 | `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
+| `[references]` | `open_markers` (alias `openMarkers`) | No | list of strings | `["to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"]` | Phrases that mark a citation of an `answered` PlanningItem question (`PI-X#Q3`) as stale — `W094` when one occurs, case-insensitively as whole words, in the citing sentence. Replaces the defaults; `[]` disables `W094`. A malformed entry (unknown key, not a list of non-empty strings) is `W094` on `.syscribe.toml` and ignored. GH #453, spec §5.7. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
 | `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
 | `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
@@ -607,6 +608,9 @@ bob = "Bob Patel"
 
 [planning]
 require_testcase_evidence = true
+
+[references]
+open_markers = ["to confirm", "TBC", "pending owner"]
 
 [profiles.ci]
 promote = ["W015", "W300"]

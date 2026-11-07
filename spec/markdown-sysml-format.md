@@ -812,6 +812,8 @@ traceBaselines:
 
 The map is **written by tooling**, not by hand: `syscribe suspect accept <source> <target>` baselines one reviewed link, `suspect accept --all` re-baselines every suspect link, and `suspect accept --all-unbaselined` baselines every link that has no baseline yet (onboarding; it never overwrites an existing entry). Links tracked: `verifies`, `derivedFrom`, `satisfies`, `refines`, `implementedBy`, `subsets`, `supertype`, `redefines`, `typedBy`, `breakdownAdr`, `hazardRef`, `mitigatedBy`, `supports`, `confirms`, scalar `evidence` entries, a `ViewpointDef`'s `satisfiedBy`, and user-defined `links:` whose type does not declare `suspect = false` (§12.10.6).
 
+**Item-level baselines (GH #453).** A key may also name one item of a native `Requirement` by anchor, `REQ-X#slug` (§5.7, §8.11.6). Its value is `blake3:<hex>` of that item's text alone — the anchor token and the item's positional number removed, line ends normalised, trailing whitespace trimmed — so editing, inserting or reordering other items of `REQ-X` never makes it suspect. Every `REQ-X#slug` citation in a source's body is an item-level trace link (kind `cites`): `suspect list` lists it, and `suspect accept <source> REQ-X#slug` or `--all-unbaselined` captures it. A by-number reference (`REQ-X#5`, `REQ-X item 5`) and a question reference cannot be baselined; `suspect accept` refuses them.
+
 **Validation.** `validate` recomputes each baselined target's projection hash; a mismatch is warning **`W090`** (suspect link — review the source, then re-run `suspect accept`). The feature is opt-in and additive: a link with no baseline raises nothing in `validate` and is listed only by `suspect list`, and a baselined target that no longer resolves is left to the unresolved-reference checks rather than reported as `W090`. Gate CI on stale links with `--deny W090`.
 
 ---
@@ -1003,6 +1005,28 @@ connections:
   - from: engine.exhaustPort
     to: exhaustSystem.inletPort
 ```
+
+### 5.7 Item and Question References in Prose
+
+Element bodies (any type) may cite a single item of a native `Requirement` (§8.11.6) or a single question of a `PlanningItem` (§23):
+
+| Form | Meaning |
+|---|---|
+| `REQ-X#grant-keys` | the item of `REQ-X` carrying the anchor `{#grant-keys}` (preferred) |
+| `REQ-X#5` | the 5th top-level numbered item of `REQ-X`, by position |
+| `REQ-X item 5` | legacy prose form of `REQ-X#5` (`item` is case-insensitive) |
+| `PI-Y#Q31` | question `Q31` of PlanningItem `PI-Y` |
+
+The element part is a stable id or qualified name. References are recognised outside fenced code blocks only. A reference is checked only when its element part resolves to a `Requirement` (item forms) or a `PlanningItem` (`#Q<n>`); an unresolvable element id is left to the existing reference checks and is not reported again. Prefer anchors: a number shifts when an item is inserted above it, and only an anchor reference can be baselined (§3.19).
+
+Validation: `W092` — the cited anchor, item number or question does not exist; `W093` — an element whose status is past draft cites a question that is still `open` (uncommitted statuses: none, `draft`, `proposed`, `todo`, `in_progress`, `blocked`, `open`, and the retiring statuses `deprecated`, `superseded`, `retired`, `obsolete`, `withdrawn`, `rejected`; a PlanningItem citing its own question is exempt); `W094` — an `answered` question is cited with "to confirm"-style wording in the same sentence. The `W094` phrases default to "to confirm", "to be confirmed", "TBC", "pending confirmation" and "awaiting" (case-insensitive, whole words) and are replaced by `open_markers` in the `[references]` table of `.syscribe.toml`:
+
+```toml
+[references]
+open_markers = ["to confirm", "TBD by owner"]   # [] disables W094
+```
+
+A malformed `[references]` entry (unknown key, or `open_markers` not a list of non-empty strings) is reported as `W094` against `.syscribe.toml` and ignored. `refs`, `impact` and `check-ref` accept the `#` forms (`refs REQ-X#grant-keys` lists the citing elements; an anchor and a number naming the same item match each other), and `lint-docs` applies `W092`/`W094` to external Markdown.
 
 ---
 
@@ -2739,6 +2763,17 @@ IEC 61508 SIL 4 timing analysis.
 
 Implementation: `kernel/src/scheduler/ready_queue.rs` — `ReadyQueue::dequeue_highest`.
 ```
+
+**Numbered items and anchors (GH #453).** A requirement body is often a numbered list of obligations. Every *top-level* ordered-list item — a line starting at column 0 with `<digits>.` or `<digits>)`, outside fenced code — is an **item**. Its text runs to the next top-level item, a heading or fence at column 0, or a column-0 line that follows a blank line (the end of the list); indented lines and lazy continuation lines belong to it. Items are numbered **by position**, 1-based, across the whole body (the number the author typed is not used, so two lists in one body continue the count). An item may begin with a stable **anchor** `{#slug}`, slug matching `^[a-z][a-z0-9-]*$`:
+
+```markdown
+The key server shall:
+
+1. {#grant-keys} **Server keys.** Hold the grant keys in an HSM.
+2. {#rotate} **Rotation.** Rotate the keys every 12 months.
+```
+
+The anchor names the item independently of its position, so citations survive insertions and reordering (§5.7). Display surfaces (`show`, the web detail panel, `export-html`) render the item without the `{#slug}` token and keep its number; `export-html` adds an HTML anchor `id="item-<slug>"`. A slug defined twice in one requirement, or a malformed `{#…}` token, is warning `W092`. Anchors are optional; a requirement without them behaves exactly as before.
 
 **Coexistence with SysML elements:** Native `Requirement` files live in the same directory tree as `RequirementDef`, `Part`, and all other SysML element types. The walker dispatches on `type: Requirement` with an `id:` field matching the REQ pattern; files with `type: Requirement` but no `id:` (or with `typedBy:`) are treated as SysML requirement usages (§8.11.3).
 
@@ -6584,6 +6619,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
 | `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
+| `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
 | `W760`–`W762` | Agent policy (`[agents]` in `.syscribe.toml`) | catalogue; `syscribe policy`; `ADR-SYS-AGENTPOLICY-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |

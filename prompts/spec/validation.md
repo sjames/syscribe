@@ -947,6 +947,14 @@ Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabula
 |---|---|
 | `W090` | Suspect link: a trace-link target's normative content (body + normative frontmatter) changed since the source's `traceBaselines:` entry for it was captured. Review, then re-baseline with `suspect accept <src> <tgt>`. Unbaselined links are silent. Gate with `--deny W090` |
 
+## Item and question references (W092–W094, GH #453)
+
+| Code | Condition |
+|---|---|
+| `W092` | Dangling item or question reference, or a bad item anchor. An element body (or, under `lint-docs`, an external doc) cites `REQ-X#slug` for an anchor REQ-X does not define, `REQ-X#5` / `REQ-X item 5` beyond its count of top-level numbered items, or `PI-Y#Q31` for a question PI-Y does not carry; or a Requirement defines the same `{#slug}` twice, or writes a malformed `{#…}` token (slug must be `[a-z][a-z0-9-]*`). Only references whose element part resolves to a Requirement (item forms) or PlanningItem (`#Qn`) are checked. Fix: correct the reference (`check-ref REQ-X#slug` shows what resolves), add the missing `{#slug}` after the item's number, or rename the duplicate anchor. Prefer anchors to numbers, which shift when an item is inserted |
+| `W093` | An element whose status is past draft (anything but none, `draft`, `proposed`, `todo`, `in_progress`, `blocked`, `open`, or a retiring status such as `deprecated`/`superseded`/`retired`) cites a PlanningItem question `PI-Y#Qn` that is still `open` — it relies on an undecided point. A PlanningItem citing its own question is exempt (`W317` covers `done`). Fix: answer the question (`set PI-Y question.answer Qn text=…`) and state the answer in the text, or move the citing element back to `draft` |
+| `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence ("to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"; case-insensitive, whole words; replace the list with `[references] open_markers = [...]` in `.syscribe.toml`, an empty list disables the check). Also raised against `.syscribe.toml` for a malformed `[references]` entry (unknown key, or `open_markers` not a list of strings), which is then ignored. Fix: rewrite the sentence to state the recorded answer (`check-ref PI-Y#Qn` prints it). Heuristic and advisory in `lint-docs` |
+
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 
 | Code | Condition |

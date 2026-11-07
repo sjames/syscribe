@@ -205,6 +205,13 @@ tags: [safety, contingency]
 ```
 Body must contain at least one `shall` statement (W001 if absent).
 
+Top-level numbered items of the body are citable (GH #453, spec §5.7, §8.11.6). Anchor an item by
+writing `{#slug}` after its number (`1. {#grant-keys} **Server keys.** …`; slug `[a-z][a-z0-9-]*`);
+cite it from any element body as `REQ-X#grant-keys` (preferred), `REQ-X#5` or `REQ-X item 5` (by
+position). `W092` flags a dangling item reference or a duplicate/malformed anchor. A PlanningItem
+question is cited as `PI-X#Q3` (`W093` open question cited by a non-draft element, `W094` answered
+question still cited as "to confirm").
+
 ### native TestCase
 
 ```yaml
