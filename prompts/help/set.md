@@ -9,6 +9,7 @@
     syscribe -m <root> set <PI> question.add text=<question> [recommended=<proposal>] [--dry-run]
     syscribe -m <root> set <PI> question.answer <Qn> text=<answer> [by=<actor>] [--dry-run]
     syscribe -m <root> set <PI> question.defer <Qn> [--dry-run]
+    syscribe -m <root> set <ADR|REQ> amendment.add kind=clarification|scope-change reason=<text> [ref=<ref>] [by=<who>] [date=<YYYY-MM-DD>] [--dry-run]
     syscribe -m <root> set <qname|id> <scalar>=<value> [--dry-run]
     syscribe -m <root> set <qname|id> <list>.add <value> [--dry-run]
 
@@ -37,6 +38,17 @@ is refused (exit 1, nothing written). A question reserved to a person (`answerBy
 question under `[agents] human_only_answers = true` unless it says `answerBy: any`) cannot be answered by
 an agent (`--by` without `--as-human`): `question.answer` is refused naming `human_only_answers`, also
 under `--dry-run`. A person answers it without `--by`, or with `--by <person> --as-human`.
+
+**`amendment.add`** (GH #454) records a change to an accepted `ADR` or a confirmed `Requirement`:
+it appends `{date, by, reason, ref?, kind}` to `amendments:`. `date` defaults to today (UTC) and `by`
+to `--by` (or pass `by=`/`date=`). `kind` must be `clarification` (meaning unchanged) or `scope-change`
+(what is decided changed); `reason` must be non-empty; `ref=` must resolve — a question `PI-X#Qn`, a
+requirement item `REQ-X#slug`, an element id (typically a `ReviewRecord`), or a commit of the model's
+repository (the `E330` bar). Anything else, a missing author, or an element that is not an ADR or a
+Requirement is refused with nothing written. A `scope-change` whose `ref` is missing or is not an owner
+reference (an answered question, a ReviewRecord, a person's commit) is written, with the `W325` note on
+stderr. Edit the decision text in the same change; with `[traceability] require_amendments = true`,
+`validate` raises `W324` for an edit no amendment covers.
 
 **`evidence.add`** appends one entry to `evidence:` without disturbing existing
 order. `ref=<id>` must resolve to some model element (permissive by kind, like
@@ -85,7 +97,7 @@ The Markdown body is never touched.
 Also accepts the global write options (see `syscribe help`): `--by <actor>`, `--reason <text>`,
 `--commit` (commit just this change, with the actor as author and `Syscribe-*` trailers) and
 `--expect-hash <hash>` (refuse if the file has changed since `show` printed that `contentHash`).
-`question.answer` records `--by` as `answeredBy`.
+`question.answer` records `--by` as `answeredBy`; `amendment.add` records it as the entry's `by`.
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)
@@ -96,6 +108,9 @@ Also accepts the global write options (see `syscribe help`): `--by <actor>`, `--
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 evidence.add path=docs/rth-design.txt
     syscribe -m <root> set PI-X-001 evidence.add commit=3f9c2a1   # a commit of your repository
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 achieves.add REQ-RTH-002
+    # amend an accepted decision: edit its text, then record why (date = today, by = --by)
+    syscribe -m <root> set ADR-X-001 amendment.add kind=scope-change reason="Patch also covers message B" ref=PI-X-001#Q2 --by alice
+    syscribe -m <root> set ADR-X-001 amendment.add kind=clarification reason="Name the timeout unit" --by alice
 
 ## SEE ALSO
     applies-when, move, show

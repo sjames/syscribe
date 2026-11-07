@@ -793,7 +793,7 @@ A **suspect link** is a trace link whose target changed after the link was last 
 
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
-| `traceBaselines` | map of string → string | optional | absent | Key: the link target exactly as authored on the link (stable id or qualified name). Value: `blake3:<hex>` of the target's **normative projection** — its Markdown body plus its frontmatter minus the editorial fields `name`, `displayOrder`, `extRef`, `title`, `traceBaselines`, `layout`, `shapes`, `edges`, `svgFile`, `pumlFile`, and the workflow fields `claimedBy`, `claimedAt`, `assignedTo` and `status` (`status` is excluded only while it is ordinary lifecycle progress; it stays in the projection once it is a retiring status — `deprecated`, `superseded`, `obsolete`, `rejected`, `withdrawn`, `wont_fix`, `false_positive`, `not_affected`). One map covers every link kind on the element. |
+| `traceBaselines` | map of string → string | optional | absent | Key: the link target exactly as authored on the link (stable id or qualified name). Value: `blake3:<hex>` of the target's **normative projection** — its Markdown body plus its frontmatter minus the editorial fields `name`, `displayOrder`, `extRef`, `title`, `traceBaselines`, `layout`, `shapes`, `edges`, `svgFile`, `pumlFile`, and the workflow fields `claimedBy`, `claimedAt`, `assignedTo` and `status` (`status` is excluded only while it is ordinary lifecycle progress; it stays in the projection once it is a retiring status — `deprecated`, `superseded`, `obsolete`, `rejected`, `withdrawn`, `wont_fix`, `false_positive`, `not_affected`), and the amendment record `amendments` (§8.17.5 — recording an amendment is not itself a change). One map covers every link kind on the element. |
 
 Frontmatter excerpt (the TestCase's Gherkin body is omitted; the hash is illustrative):
 
@@ -2692,6 +2692,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `displayOrder` | number | optional | Reading/presentation order among peer requirements in the report and coverage matrix; ascending, unset last, id tie-break. Generic field — see §3.16. |
 | `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
 | `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
+| `amendments` | list of mappings | optional | Changes made after the requirement was confirmed (`approved`/`implemented`/`verified`), each `{date, by, reason, ref?, kind}` — the same record as on an ADR (§8.17.5). |
 
 **`reqClass` vs `requirementKind` vs `reqDomain`.** Three optional classification fields coexist; none replaces another. `reqClass` records where the requirement sits in the decomposition (stakeholder need, system requirement, derived requirement) and is unvalidated. `requirementKind` records what kind of requirement it is by subject (stakeholder, system, software, hardware, process, regulatory, deliverable) and is enum-checked (`E022`); the last three exempt a leaf from `W300`/`W302`. `reqDomain` (`system`/`hardware`/`software`) is the one the other traceability rules read (§12.5, `E313`, `W302`). **Precedence.** The three never override each other: `reqClass` is descriptive (and unvalidated), `requirementKind` (by subject) is enum-checked and only the non-allocatable kinds change a rule (`W300`/`W302`), `reqDomain` drives the domain rules. `stakeholder`/`system` appear in both `reqClass` and `requirementKind`; when they disagree, neither wins — prefer `requirementKind` for subject and `reqClass` for decomposition level, and keep them consistent.
 
@@ -2704,6 +2705,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `approved` | Baseline-approved; may be implemented. |
 | `implemented` | Implementation exists. |
 | `verified` | Covered by at least one `active` TestCase. |
+
+**Changing a confirmed requirement.** From `approved` on, the requirement's text is the agreed baseline. A change to its body or normative fields is recorded in `amendments:` (§8.17.5) rather than made silently; with `[traceability] require_amendments = true` an unrecorded change is `W324`, measured from the commit that moved the requirement into `approved`/`implemented`/`verified` (moving on from `approved` to `implemented` does not restart it).
 
 **ID pattern:** `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
 - Prefix `REQ`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `REQ-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
@@ -4700,6 +4703,7 @@ An `ADR` file is a first-class model element that documents a significant design
 | `date` | string | optional | ISO-8601 date the decision was made (e.g., `"2026-05-26"`). |
 | `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. Display metadata, not a cross-reference: entries are not resolved (a free-text name is legitimate) and are printed by `show`. A single string is accepted as a one-entry list. Recognized only on `ADR`; on any other type it is an unrecognized field (`W047`). |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
+| `amendments` | list of mappings | optional | Changes made after acceptance, `{date, by, reason, ref?, kind}` (§8.17.5). Recognized on `ADR` and native `Requirement`; on any other type it is an unrecognized field (`W047`). |
 
 **ID pattern:** `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
 - Prefix `ADR`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `ADR-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
@@ -4787,6 +4791,39 @@ Both child requirements carry `derivedFrom: [REQ-UAV-SCHED-001]` and
 - The parent requirement REQ-UAV-SCHED-001 becomes a leaf-suppressed node in
   the coverage report.
 ```
+
+#### 8.17.5 Amendments
+
+An accepted ADR is **amended, never silently edited** (GH #454). When implementation shows that a decision has to change — a patch decided for one message type must also cover a second one — the author edits the decision and appends an entry to `amendments:`. To replace the decision rather than change it, write a new ADR with `supersedes:` (§8.17.1). A native `Requirement` at `approved`, `implemented` or `verified` takes the same field.
+
+```yaml
+amendments:
+  - date: 2026-03-01           # ISO date of the change (YYYY-MM-DD)
+    by: alice                  # who made it: a username or a name
+    reason: "The patch also applies to message B"
+    kind: scope-change         # clarification | scope-change
+    ref: PI-PATCH-001#Q2       # optional: a question, an element id (e.g. a ReviewRecord) or a commit
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `date` | **Required** | ISO date `YYYY-MM-DD` of the change. |
+| `by` | **Required** | Who made the change. |
+| `reason` | **Required** | Why the accepted text changed. |
+| `kind` | **Required** | `clarification` — the meaning is unchanged (wording, an omission made explicit); `scope-change` — what is decided or required changed. |
+| `ref` | optional | What the change rests on: a PlanningItem question `PI-X#Qn`, a requirement item `REQ-X#slug`, an element (stable id or qualified name, typically a `ReviewRecord`), or a git commit (7–40 hex). Resolved in that order. |
+
+`syscribe set <id> amendment.add kind=… reason="…" [ref=…] [by=…] [date=…]` appends an entry, with `date` defaulting to today (UTC) and `by` to the command's `--by`. It refuses a malformed value or an unresolved `ref`.
+
+**Checks.**
+
+- `E330` — `amendments:` is not a list of mappings, an entry lacks `date`/`by`/`reason`/`kind` or has another key, `date` is not an ISO date, `kind` is neither `clarification` nor `scope-change`, or `ref` resolves to nothing.
+- `W325` — a `scope-change` without an **owner reference**. An owner reference is a `ref` naming an *answered* PlanningItem question (`status: answered` with an `answer`), a `ReviewRecord`, or a commit made by a person: one whose message carries `Syscribe-As: human`, or that has no `Syscribe-Actor` trailer and whose author matches none of `[agents] actors`. A commit that cannot be checked (no git) is accepted. A `clarification` needs no reference.
+- `W324` — opt-in with `[traceability] require_amendments = true`. For an `accepted` ADR, or a Requirement at `approved`/`implemented`/`verified`, the tool reads the git history of the element's file (`git log --follow`, at most `[agents] audit_limit` commits, default 200). The **status commit** is the oldest commit of the newest unbroken run of commits in which the element is at such a status. The **latest change** is the newest point after it where the element's normative projection differs from the version before: the working tree against `HEAD` (an uncommitted edit, dated today), else the newest commit in the run whose projection differs from its predecessor's (dated by its author date). The finding fires when there is such a change and no well-formed amendment has a `date` on or after it. The normative projection is the suspect projection (§3.19): body plus frontmatter without the editorial fields, `status`, and `amendments`. Without git, outside a repository, or when the status was set only in the working tree, nothing is reported.
+
+**Suspect links.** `amendments` is excluded from the normative projection, so recording an amendment never makes a link to the element suspect; the edit it records does (`W090`, §3.19), for example on a requirement whose `breakdownAdr:` names the amended ADR.
+
+`show` prints the amendment history as a table (date, kind, by, reason, ref), and `export-html` renders the same table on the element page.
 
 ---
 
@@ -6620,6 +6657,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
+| `E330`, `W324`, `W325` | Amendment records on accepted ADRs and confirmed requirements (`amendments:`, `[traceability] require_amendments`) | §8.17.5 |
 | `W760`–`W762` | Agent policy (`[agents]` in `.syscribe.toml`) | catalogue; `syscribe policy`; `ADR-SYS-AGENTPOLICY-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
@@ -6724,6 +6762,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
 | `E320` | `ADR.supersedes:` names an element that does not resolve or is not an `ADR` |
 | `E321` | An `ADR` is on a `supersedes:` cycle (a self-reference included) |
+| `E330` | `amendments:` on an `ADR` or `Requirement` is malformed — not a list of mappings, an entry missing `date`/`by`/`reason`/`kind`, an unknown key, a `date` that is not an ISO date (`YYYY-MM-DD`), a `kind` other than `clarification`/`scope-change` — or an entry's `ref` resolves to nothing (not a question `PI-X#Qn` that exists, an element id or qualified name, or a commit of the model's repository). Fix: correct the entry, or add it with `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`, which checks it first (GH #454) |
 | `E319` | Results-gated: `Requirement` at `verified` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `E317` | A `metadata:` application does not resolve to a `MetadataDef` (§8.15.2) |
 | `E318` | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (the abstract `Element`/`Definition`/`Usage` metaclasses match; standard-library metadata is recognised) |
@@ -6788,6 +6827,8 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
 | `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
+| `W324` | Opt-in, `[traceability] require_amendments = true` (GH #454): an `accepted` `ADR`, or a `Requirement` at `approved`/`implemented`/`verified`, whose normative content (body plus normative frontmatter — the suspect projection, without `status`, `amendments` or editorial fields) changed since the commit that set that status, with no `amendments:` entry dated on or after the latest change. The status commit is the oldest of the newest unbroken run of commits of the file at such a status (`git log --follow`, at most `[agents] audit_limit`, default 200); an uncommitted edit counts, dated today. No git, or the status set only in the working tree: nothing is reported. Fix: `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`; to replace a decision instead, write a new ADR with `supersedes:` |
+| `W325` | A `kind: scope-change` amendment has no owner reference: no `ref`, or its `ref` is not an answered question (`PI-X#Qn` with `status: answered`), a `ReviewRecord`, or a commit made by a person (one with a `Syscribe-As: human` trailer, or with no `Syscribe-Actor` trailer and an author matching none of `[agents] actors`). Fix: get the owner's decision recorded — answer the question, or file the ReviewRecord — and set `ref:` to it (GH #454) |
 | `W315` | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 | `W316` | `[metadata] profiles` names an element that is not a package with `profile: true` (or does not exist) |
 | `W650` | A `MetadataDef` `checks:` entry with `severity: warning` fails on an element that carries the stereotype. Draft-suppressed; gate with `--deny W650`. |
@@ -6952,7 +6993,7 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `E636` | A cycle — including a self-link — formed solely by links of an `acyclic = true` type (once per cycle, naming its members) |
 | `W630` | A `[linkTypes.<name>]` entry is malformed (bad/colliding name or `inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type, unsupported `extends`, `relax`/`coverage` without `extends`, non-relaxable `relax` code) — the entry is ignored as a whole; or an entry carries an unknown key (key ignored). Attached to `.syscribe.toml` |
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
-| `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
+| `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr`/`require_amendments` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force, `W324` stays off) |
 
 #### Binding times (E750–E762, W750–W754, I750, §9.7)
 

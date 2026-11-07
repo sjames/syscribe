@@ -40,6 +40,9 @@ const EXCLUDED_KEYS: &[&str] = &[
     "claimedBy",
     "claimedAt",
     "assignedTo",
+    // GH #454: the amendment record documents a change; it is not itself one. Adding an entry
+    // must not flip links to the amended ADR or requirement suspect — the edit it records does.
+    "amendments",
 ];
 
 /// Statuses that retire or dispose of an element rather than progress it. A link to a

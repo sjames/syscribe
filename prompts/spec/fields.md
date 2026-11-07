@@ -193,6 +193,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
 | `decomposedFrom` | string | Original ASIL (A–D) before decomposition; the notation `asilLevel: B(D)` sets it implicitly. `asilLevel` also accepts `QM` (E878, E879) |
 | `tags` | list | Free-form tags |
+| `amendments` | list | Recorded changes after acceptance/approval (GH #454, §8.17.5): `{date: YYYY-MM-DD, by, reason, ref?, kind: clarification\|scope-change}`; `ref` names an answered question `PI-X#Qn`, an element id (e.g. a `ReviewRecord`) or a commit. Add with `syscribe set <id> amendment.add kind=… reason=… [ref=…] --by <you>`. `E330` malformed or unresolved `ref`; `W325` scope-change without an owner reference; `W324` (opt-in `[traceability] require_amendments`) normative change since acceptance with no amendment. ADR/Requirement only (`W047` elsewhere); excluded from the suspect projection |
 
 ## Native TestCase extra fields
 
@@ -223,6 +224,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `date` | string | ISO-8601 date the decision was made |
 | `deciders` | string or list | Decision-makers: stakeholder `PartDef` qnames or free-text names. Display metadata, not resolved; shown by `show`. ADR-only (`W047` on any other type) |
 | `supersedes` | string or list | The `ADR`(s) this one replaces (`E320` unresolved/non-ADR, `E321` cycle, `W313` target not `superseded`, `W314` a `breakdownAdr:` still cites a superseded ADR). `supersededBy` is computed and shown by `show`/`links` |
+| `amendments` | list | Recorded changes after acceptance/approval (GH #454, §8.17.5): `{date: YYYY-MM-DD, by, reason, ref?, kind: clarification\|scope-change}`; `ref` names an answered question `PI-X#Qn`, an element id (e.g. a `ReviewRecord`) or a commit. Add with `syscribe set <id> amendment.add kind=… reason=… [ref=…] --by <you>`. `E330` malformed or unresolved `ref`; `W325` scope-change without an owner reference; `W324` (opt-in `[traceability] require_amendments`) normative change since acceptance with no amendment. ADR/Requirement only (`W047` elsewhere); excluded from the suspect projection |
 
 ## PlanningItem fields (§23)
 
@@ -548,6 +550,8 @@ file at all) is always legal.
 | `[baselines]` | `element_dir` (alias `elementDir`) | No | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
 | `[baselines]` | `manifest_dir` (alias `manifestDir`) | No | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
 | `[users]` | `<username> = "<display name>"` | No | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[traceability]` | `require_breakdown_adr` (alias `requireBreakdownAdr`) | No | bool | `true` | `false` switches `E310` off (a cited ADR is still checked). |
+| `[traceability]` | `require_amendments` (alias `requireAmendments`) | No | bool | `false` | `W324`: an accepted `ADR` or an approved/implemented/verified `Requirement` whose normative content changed since the commit that set that status, with no `amendments:` entry dated on or after the change (GH #454). Reads at most `[agents] audit_limit` (default 200) commits per file; needs git. A malformed `[traceability]` entry is `W632` and ignored. |
 | `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
 | `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
 | `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |

@@ -1027,6 +1027,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("derivedFrom", false, "list<ref>", None),
             field_spec("breakdownAdr", false, "ref", None),
             field_spec("verificationMethod", false, "string", None),
+            field_spec("amendments", false, "list<{date: YYYY-MM-DD, by, reason, ref?, kind: clarification|scope-change}> (record each change after acceptance; add with `set <id> amendment.add`)", None),
         ],
         "PlanningItem" => vec![
             field_spec("id", true, "string", None),
@@ -1047,6 +1048,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("name", true, "string", None),
             field_spec("status", true, "enum", Some(&["proposed", "accepted", "deprecated", "superseded"])),
             field_spec("supersedes", false, "list<ref>", None),
+            field_spec("amendments", false, "list<{date: YYYY-MM-DD, by, reason, ref?, kind: clarification|scope-change}> (record each change after acceptance; add with `set <id> amendment.add`)", None),
         ],
         "TestCase" => vec![
             field_spec("id", true, "string", None),
