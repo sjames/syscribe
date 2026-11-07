@@ -829,6 +829,11 @@ fn fn_verdict_str(v: FnVerdict) -> &'static str {
 }
 
 fn ok(v: Value) -> Result<CallToolResult, ErrorData> {
+    // A write the agent policy refused in the guarded-write backstop (`refusedBy`, GH #457) is an error, as the
+    // tools' own up-front policy checks are, but keeps its structured body (diff, reason).
+    if v.get("refusedBy").is_some() {
+        return Ok(CallToolResult::error(vec![Content::json(v)?]));
+    }
     Ok(CallToolResult::success(vec![Content::json(v)?]))
 }
 
@@ -1031,7 +1036,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
             field_spec("blockedBy", false, "list<ref>", None),
             field_spec("assignedTo", false, "string", None),
-            field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?}> (edit with `question`)", None),
+            field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human|any}> (edit with `question`; answerBy human = only a person answers it — an agent's answer is refused)", None),
             field_spec("claimedBy", false, "string (set by `claim`)", None),
             field_spec("claimedAt", false, "timestamp (set by `claim`)", None),
         ],
@@ -2001,14 +2006,14 @@ impl SyscribeMcp {
 
     #[tool(
         description = "A PlanningItem's inline questions (the decisions awaiting an answer), across the model or for one item, \
-        with owning item, status, text, recommendation and answer. Same data as `syscribe questions --json`.",
+        with owning item, status, text, recommendation and answer, `answerBy` (human = reserved to a person: never answer it) and the answer's git `answerProvenance`. Same data as `syscribe questions --json`.",
         annotations(read_only_hint = true)
     )]
     async fn questions(&self, Parameters(args): Parameters<QuestionsArgs>) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let status = if args.open.unwrap_or(false) { Some("open".to_string()) } else { args.status };
         match crate::questions::select(&store.elements, &crate::questions::Filter { status, item: args.item }) {
-            Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": qs })),
+            Ok(qs) => ok(json!({ "schemaVersion": "1.0", "questions": crate::questions::json_rows(&store.model_root, &store.elements, &qs) })),
             Err(m) => tool_error(m),
         }
     }

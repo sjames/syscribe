@@ -11,7 +11,8 @@ loaded model and `.syscribe.toml` so it cannot go stale the way a hand-written i
 - **ids** — the id prefix of each type in use (plus any extra `[ids.prefixes]`) and the `next-id` command for it;
 - **types** — per lifecycle type: the status vocabulary, the required fields, and the commands that act on it;
 - **gates** — the exact `validate` commands to run (one per `[profiles.<name>]`), and the `[gates]` they enforce, each of which must exit 0 before work is called done;
-- **rules** — safe mutation: `next-id`/`template` for new elements, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews.
+- **rules** — safe mutation: `next-id`/`template` for new elements, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews, and that a question with `answerBy: human` is a person's to answer;
+- **policy** — the project's `[agents]` rules in plain words (e.g. `human_only_answers`: only a person answers questions), when it has any.
 
 The output is deterministic (no timestamps, no tool version), so it only changes when the
 model or `.syscribe.toml` does. The Markdown block is wrapped in

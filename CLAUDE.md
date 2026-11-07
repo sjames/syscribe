@@ -350,7 +350,7 @@ Run these; each must exit 0 (`1` errors, `2` a tripped gate).
 
 - Never invent an id: `syscribe -m model/ next-id <PREFIX>-<AREA>` returns the next free one; start a new element from `syscribe template <Type>` (no model needed).
 - Change an existing field with `syscribe -m model/ set <id> status=<value>` (also `evidence.add`, `achieves.add`, `<list>.add`) rather than editing YAML: the value is checked before anything is written.
-- When blocked on a decision, record it instead of guessing: `syscribe -m model/ set <PI> question.add text="…" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`.
+- When blocked on a decision, record it instead of guessing: `syscribe -m model/ set <PI> question.add text="…" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`. A question with `answerBy: human` (shown in `questions --json`, marked *(for a person)* in `questions`) is a person's to answer, never yours.
 - Attribute and record a change: add `--by <you> --reason "<why>" --commit` to a writing command and it commits just the files it changed, you as author; `syscribe -m model/ log <element>` shows who changed what. `--expect-hash <contentHash>` (from `show`) refuses an edit based on a stale read.
 - Rename or move with `syscribe -m model/ move <src> <dest>`, which rewrites every reference.
 - Own shared work with `syscribe -m model/ claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`.

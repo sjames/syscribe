@@ -272,7 +272,8 @@ actor id), `reason`, `commit` (commit exactly the files the write changed, with 
 a failed commit leaves the write in place and returns `commitError`. `apply_changes` does not take them.
 
 When the project declares an `[agents]` policy (`syscribe policy`), every write tool is held to it: a
-`protected_paths` match, a `human_only_status`, or a PlanningItem set `done` before `require_before_done`
+`protected_paths` match, a `human_only_status`, an answer to a question reserved to a person (`human_only_answers`,
+or a question's own `answerBy: human` — this one applies even without `[agents]`), or a PlanningItem set `done` before `require_before_done`
 holds is refused with the rule named, in each operation of an `apply_changes` batch too. There is no
 `--as-human` over MCP — a person uses the CLI or edits the file.
 

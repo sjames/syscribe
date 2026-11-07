@@ -45,12 +45,36 @@ pub fn select(elements: &[RawElement], f: &Filter) -> Result<Vec<Question>, Stri
     Ok(qs)
 }
 
+/// The questions as JSON, each with `answerBy` — who may answer it once the project default
+/// (`[agents] human_only_answers`) is applied: `human` or `any` — and, for an answered question whose
+/// writer git can tell, `answerProvenance: {by, agent, at, commit}` (GH #457). Shared with the MCP tool.
+pub fn json_rows(model_root: &std::path::Path, elements: &[RawElement], qs: &[Question]) -> Vec<serde_json::Value> {
+    let policy = syscribe_model::agent_policy::load(model_root);
+    let d = syscribe_model::agent_policy::default_human(policy.as_ref());
+    let wanted: std::collections::HashSet<(String, String)> = qs.iter().filter(|q| q.answer.is_some()).map(|q| (q.item.clone(), q.id.clone())).collect();
+    let prov = if wanted.is_empty() {
+        Default::default()
+    } else {
+        syscribe_model::agent_policy::answer_provenance(model_root, elements, policy.as_ref(), |q| wanted.contains(&(q.item.clone(), q.id.clone())))
+    };
+    qs.iter()
+        .map(|q| {
+            let mut v = serde_json::to_value(q).unwrap_or_default();
+            v["answerBy"] = serde_json::json!(q.effective_answer_by(d));
+            if let Some(p) = prov.get(&(q.item.clone(), q.id.clone())) {
+                v["answerProvenance"] = serde_json::to_value(p).unwrap_or_default();
+            }
+            v
+        })
+        .collect()
+}
+
 fn cell(s: &str) -> String {
     s.replace('|', "\\|").replace('\n', " ")
 }
 
 /// `args` are the tokens after `questions`. Returns the exit code.
-pub fn cmd_questions(elements: &[RawElement], args: &[String]) -> i32 {
+pub fn cmd_questions(model_root: &std::path::Path, elements: &[RawElement], args: &[String]) -> i32 {
     let value = |flag: &str| args.windows(2).find(|w| w[0] == flag).map(|w| w[1].clone());
     let json = args.iter().any(|a| a == "--json");
     let mut f = Filter { status: value("--status"), item: value("--item") };
@@ -69,14 +93,18 @@ pub fn cmd_questions(elements: &[RawElement], args: &[String]) -> i32 {
         }
     };
     if json {
-        println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "schemaVersion": "1.0", "questions": qs })).unwrap());
+        println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "schemaVersion": "1.0", "questions": json_rows(model_root, elements, &qs) })).unwrap());
         return 0;
     }
     if qs.is_empty() {
         println!("No questions{}.", if f.status.is_some() || f.item.is_some() { " match" } else { "" });
         return 0;
     }
+    let d = syscribe_model::agent_policy::default_human(syscribe_model::agent_policy::load(model_root).as_ref());
     println!("# Questions ({})\n", qs.len());
+    if qs.iter().any(|q| q.reserved(d)) {
+        println!("Questions marked *(for a person)* are answered by a person only (`answerBy: human`); an agent records them, it does not answer them.\n");
+    }
     println!("| Question | Status | Text | Recommended | Answer |");
     println!("|---|---|---|---|---|");
     for q in &qs {
@@ -86,8 +114,9 @@ pub fn cmd_questions(elements: &[RawElement], args: &[String]) -> i32 {
             _ => String::new(),
         };
         println!(
-            "| {} | {} | {} | {} | {} |",
+            "| {}{} | {} | {} | {} | {} |",
             q.reference(),
+            if q.reserved(d) { " *(for a person)*" } else { "" },
             q.status,
             cell(&q.text),
             cell(q.recommended.as_deref().unwrap_or("")),

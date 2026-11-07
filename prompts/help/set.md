@@ -32,7 +32,10 @@ own severity; the write still proceeds.
 `question.answer` sets `status: answered`, `answer`, `answeredAt` (and `answeredBy` from `by=`), replacing
 a previous answer; `question.defer` sets `status: deferred`. Only the edited entry's lines change —
 comments and order elsewhere are byte-identical. An unknown `Qn`, an empty text or a non-PlanningItem
-is refused (exit 1, nothing written).
+is refused (exit 1, nothing written). A question reserved to a person (`answerBy: human`, or every
+question under `[agents] human_only_answers = true` unless it says `answerBy: any`) cannot be answered by
+an agent (`--by` without `--as-human`): `question.answer` is refused naming `human_only_answers`, also
+under `--dry-run`. A person answers it without `--by`, or with `--by <person> --as-human`.
 
 **`evidence.add`** appends one entry to `evidence:` without disturbing existing
 order. `ref=<id>` must resolve to some model element (permissive by kind, like

@@ -2487,7 +2487,7 @@ fn main() {
                 }
             }
             "questions" => {
-                let code = questions::cmd_questions(&elems, subcommand_args.get(1..).unwrap_or(&[]));
+                let code = questions::cmd_questions(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

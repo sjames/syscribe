@@ -198,6 +198,24 @@ Two simultaneously-active (`in_progress` or claimed) `PlanningItem`s that overla
 or an `evidence[].path` raise `W311` on the next `validate` — the same signal, surfaced
 automatically even if `claim` was skipped.
 
+When an agent is blocked on a decision, it records the question on the item instead of guessing
+(`set <PI> question.add text="…" [recommended=…]`). Some decisions belong to a person — a product
+owner — and the model can say so: a question with `answerBy: human` (or every question, when
+`.syscribe.toml` sets `[agents] human_only_answers = true`, unless it says `answerBy: any`) is refused
+to an agent's `question.answer` and to every MCP write tool, and `validate` raises `W323` when git
+history shows an agent wrote its answer anyway. `syscribe questions --json` gives each question's
+`answerBy` and, once committed, who wrote the answer (`answerProvenance`), so a script gating on owner
+answers can trust them:
+
+```yaml
+questions:
+  - id: Q1
+    text: Ship the UART2 console in the release build?
+    recommended: "no"
+    status: open
+    answerBy: human        # only a person answers this one
+```
+
 ---
 
 ## Diagram Generation

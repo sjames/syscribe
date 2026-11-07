@@ -5,6 +5,7 @@
 //! [agents]
 //! protected_paths = ["model/Safety/**"]                       # tools may not write these
 //! human_only_status = { Requirement = ["approved"], ADR = ["accepted"] }
+//! human_only_answers = true                                   # PlanningItem questions are answered by a person
 //! require_before_done = ["validate", "evidence"]             # before an agent sets a PlanningItem done
 //! require_by = true                                           # every model-writing command names its actor
 //! actors = ["agent-*", "*[bot]"]                              # git authors that count as agents in the audit
@@ -17,11 +18,12 @@
 //! reached the files by another route.
 
 use crate::element::{ElementType, RawElement};
+use crate::questions::Question;
 use crate::validator::{Finding, Severity};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "require_before_done", "require_by", "actors", "audit_limit"];
+const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "human_only_answers", "require_before_done", "require_by", "actors", "audit_limit"];
 const BEFORE_DONE: &[&str] = &["validate", "evidence"];
 const DEFAULT_AUDIT_LIMIT: usize = 200;
 
@@ -31,6 +33,8 @@ pub struct Policy {
     pub protected_paths: Vec<String>,
     /// Element type -> statuses only a person sets.
     pub human_only_status: BTreeMap<String, Vec<String>>,
+    /// Every PlanningItem question is answered by a person unless it says `answerBy: any` (GH #457).
+    pub human_only_answers: bool,
     /// `validate` and/or `evidence`: required before an agent sets a PlanningItem `done`.
     pub require_before_done: Vec<String>,
     /// Every model-writing command must carry `--by` (or `--as-human`).
@@ -99,6 +103,10 @@ pub fn load(model_root: &Path) -> Option<Policy> {
             "require_by" => match v.as_bool() {
                 Some(b) => p.require_by = b,
                 None => p.problems.push("[agents] require_by must be true or false".to_string()),
+            },
+            "human_only_answers" => match v.as_bool() {
+                Some(b) => p.human_only_answers = b,
+                None => p.problems.push("[agents] human_only_answers must be true or false".to_string()),
             },
             "audit_limit" => match v.as_integer().filter(|n| *n > 0) {
                 Some(n) => p.audit_limit = n as usize,
@@ -244,6 +252,9 @@ impl Policy {
         for (ty, statuses) in &self.human_only_status {
             out.push(format!("Only a person sets a {ty} to {}.", statuses.iter().map(|s| format!("`{s}`")).collect::<Vec<_>>().join(" or ")));
         }
+        if self.human_only_answers {
+            out.push("Only a person answers a PlanningItem question, unless the question says `answerBy: any`: record what you need decided with `question.add`, never `question.answer` it yourself (`questions --json` shows `answerBy` per question).".to_string());
+        }
         if !self.require_before_done.is_empty() {
             out.push(format!("Before setting a PlanningItem `done`: {}.", self.require_before_done.iter().map(|r| match r.as_str() {
                 "validate" => "the change must introduce no validation error",
@@ -260,6 +271,202 @@ impl Policy {
 
 fn label(e: &RawElement) -> String {
     e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
+}
+
+// ── Questions reserved to a person (GH #457, `REQ-TRS-AGENTPOL-004`) ─────────────────────────────────────
+
+/// Does the project reserve every question to a person by default (`[agents] human_only_answers = true`)?
+/// A question's own `answerBy:` always wins over this default.
+pub fn default_human(policy: Option<&Policy>) -> bool {
+    policy.is_some_and(|p| p.human_only_answers)
+}
+
+/// The fields that record an answer, as one comparable value.
+fn answer_state(q: &Question) -> (bool, Option<&str>, Option<&str>, Option<&str>) {
+    (q.status == "answered", q.answer.as_deref(), q.answered_by.as_deref(), q.answered_at.as_deref())
+}
+
+/// An agent's change from `before` to `after` may not answer a reserved question: set its `answer`,
+/// `answeredBy` or `answeredAt`, or move it to `answered`. Nor may it lift a reservation (turn a reserved
+/// question into one anybody may answer) — otherwise one write could unreserve and answer. Questions are
+/// matched by their item's stable id and their own id, so a move of the item is not mistaken for a new
+/// answer. Reopening or deleting a question, or editing its text, is not answering it.
+pub fn check_answer_change(before: &[Question], after: &[Question], default_human: bool) -> Result<(), Refusal> {
+    for a in after {
+        let b = before.iter().find(|b| b.item == a.item && b.id == a.id);
+        let was_reserved = b.is_some_and(|b| b.reserved(default_human));
+        if !(was_reserved || a.reserved(default_human)) {
+            continue;
+        }
+        let why = match a.answer_by.as_deref().or(b.and_then(|b| b.answer_by.as_deref())) {
+            Some(v) => format!("`answerBy: {v}`"),
+            None => "[agents] human_only_answers".to_string(),
+        };
+        if was_reserved && !a.reserved(default_human) {
+            return Err(Refusal {
+                rule: "human_only_answers",
+                message: format!("{} is answered by a person ({why}), and an agent may not lift that reservation; {HOW_A_PERSON_PROCEEDS}.", a.reference()),
+            });
+        }
+        let now = answer_state(a);
+        let then = b.map(answer_state).unwrap_or((false, None, None, None));
+        let answers = (now.0 && !then.0) || (now != then && (now.1.is_some() || now.2.is_some() || now.3.is_some()));
+        if answers {
+            return Err(Refusal {
+                rule: "human_only_answers",
+                message: format!(
+                    "{} is answered by a person ({why}); an agent may record what it needs decided but not the answer — {HOW_A_PERSON_PROCEEDS}.",
+                    a.reference()
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// [`check_answer_change`] on the text of one file before (`None`: a new file) and after a write. Anything
+/// that is not a PlanningItem passes.
+pub fn check_answer_content(policy: Option<&Policy>, old: Option<&str>, new: &str) -> Result<(), Refusal> {
+    let after = crate::questions::parse_content(new);
+    if after.is_empty() {
+        return Ok(());
+    }
+    let before = old.map(crate::questions::parse_content).unwrap_or_default();
+    check_answer_change(&before, &after, default_human(policy))
+}
+
+/// Who wrote a question's current answer, from the git history of the item's file (#443: git is the change
+/// log). `agent` follows the audit's rule: a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an
+/// author matching `[agents] actors`.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AnswerProvenance {
+    /// The `Syscribe-Actor`, else the commit author.
+    pub by: String,
+    pub agent: bool,
+    /// The commit's author date (ISO 8601).
+    pub at: String,
+    /// The short commit id.
+    pub commit: String,
+}
+
+const RS: char = '\u{1e}';
+const US: char = '\u{1f}';
+
+/// For every answered question selected by `want`, the commit that last changed its answer — keyed by
+/// (item, question id). A question is left out when that cannot be told: the model is not in git, the
+/// answer in the working tree differs from the last commit (the latest write is not recorded yet), or no
+/// commit within `audit_limit` changed it.
+pub fn answer_provenance(
+    model_root: &Path,
+    elements: &[RawElement],
+    policy: Option<&Policy>,
+    want: impl Fn(&Question) -> bool,
+) -> std::collections::HashMap<(String, String), AnswerProvenance> {
+    let mut out = std::collections::HashMap::new();
+    let per_item: Vec<(&RawElement, Vec<Question>)> = elements
+        .iter()
+        .filter(|e| e.frontmatter.element_type == Some(ElementType::PlanningItem))
+        .map(|e| (e, crate::questions::parse(e).0.into_iter().filter(|q| q.answer.is_some() && want(q)).collect::<Vec<_>>()))
+        .filter(|(_, qs)| !qs.is_empty())
+        .collect();
+    if per_item.is_empty() {
+        return out;
+    }
+    let Ok(abs) = std::fs::canonicalize(model_root) else { return out };
+    let Some(root) = crate::config::detect_git_root(&abs) else { return out };
+    let limit = policy.map(|p| p.audit_limit).unwrap_or(DEFAULT_AUDIT_LIMIT).to_string();
+    let actors: &[String] = policy.map(|p| p.actors.as_slice()).unwrap_or(&[]);
+    for (e, qs) in per_item {
+        let file = std::fs::canonicalize(&e.file_path).unwrap_or_else(|_| Path::new(&e.file_path).to_path_buf());
+        let Ok(rel) = file.strip_prefix(&root).map(|r| r.to_string_lossy().replace('\\', "/")) else { continue };
+        let at = |rev: &str| git(&root, &["show", &format!("{rev}:{rel}")]).map(|c| crate::questions::parse_content(&c)).unwrap_or_default();
+        let head = at("HEAD");
+        let find = |list: &[Question], id: &str| list.iter().find(|q| q.id == id).map(|q| answer_state(q)).map(|(a, b, c, d)| (a, b.map(String::from), c.map(String::from), d.map(String::from)));
+        // Only answers already committed can be attributed.
+        let mut pending: Vec<&Question> = qs.iter().filter(|q| find(&head, &q.id) == find(std::slice::from_ref(*q), &q.id)).collect();
+        if pending.is_empty() {
+            continue;
+        }
+        let Some(log) = git(&root, &["log", &format!("--format={RS}%H{US}%h{US}%an{US}%aI{US}%B{US}"), "-n", &limit, "--", &rel]) else { continue };
+        for rec in log.split(RS).filter(|r| !r.trim().is_empty()) {
+            if pending.is_empty() {
+                break;
+            }
+            let f: Vec<&str> = rec.split(US).collect();
+            if f.len() < 5 {
+                continue;
+            }
+            let (new, old) = (at(f[0]), at(&format!("{}^", f[0])));
+            pending.retain(|q| {
+                if find(&new, &q.id) == find(&old, &q.id) {
+                    return true;
+                }
+                let human = trailer(f[4], "Syscribe-As").as_deref() == Some("human");
+                let actor = trailer(f[4], "Syscribe-Actor");
+                let agent = !human && (actor.is_some() || actors.iter().any(|g| crate::annotations::glob_match(g, f[2])));
+                out.insert(
+                    (q.item.clone(), q.id.clone()),
+                    AnswerProvenance { by: actor.unwrap_or_else(|| f[2].to_string()), agent, at: f[3].to_string(), commit: f[1].to_string() },
+                );
+                false
+            });
+        }
+    }
+    out
+}
+
+/// `W323`: a question reserved to a person carries an answer an agent wrote — its `answeredBy` matches
+/// `[agents] actors`, or the git history shows the commit that last changed the answer was an agent's. Only
+/// reserved questions are looked at (so nothing runs without a policy or an `answerBy: human`); an answer
+/// whose writer cannot be told raises nothing.
+pub fn answer_audit(model_root: &Path, elements: &[RawElement], policy: Option<&Policy>) -> Vec<Finding> {
+    let d = default_human(policy);
+    let actors: &[String] = policy.map(|p| p.actors.as_slice()).unwrap_or(&[]);
+    let mut out = Vec::new();
+    let reserved = |q: &Question| q.reserved(d);
+    let mut by_field: std::collections::HashSet<(String, String)> = Default::default();
+    for e in elements {
+        for q in crate::questions::parse(e).0.into_iter().filter(|q| q.answer.is_some() && reserved(q)) {
+            if let Some(who) = q.answered_by.as_deref().filter(|w| actors.iter().any(|g| crate::annotations::glob_match(g, w))) {
+                out.push(warning(
+                    "W323",
+                    &e.file_path,
+                    format!(
+                        "{} is answered by a person, but `answeredBy: {who}` is an agent ([agents] actors) — have a person confirm or replace the answer (`set {} question.answer {} text=… --as-human`)",
+                        q.reference(),
+                        q.item,
+                        q.id
+                    ),
+                ));
+                by_field.insert((q.item.clone(), q.id.clone()));
+            }
+        }
+    }
+    let prov = answer_provenance(model_root, elements, policy, |q| reserved(q));
+    for e in elements {
+        for q in crate::questions::parse(e).0 {
+            let key = (q.item.clone(), q.id.clone());
+            if by_field.contains(&key) {
+                continue;
+            }
+            if let Some(p) = prov.get(&key).filter(|p| p.agent) {
+                out.push(warning(
+                    "W323",
+                    &e.file_path,
+                    format!(
+                        "{} is answered by a person, but its answer was written by an agent ({} in commit {}) — have a person confirm or replace the answer (`set {} question.answer {} text=… --as-human`)",
+                        q.reference(),
+                        p.by,
+                        p.commit,
+                        q.item,
+                        q.id
+                    ),
+                ));
+            }
+        }
+    }
+    out
 }
 
 fn trailer(body: &str, key: &str) -> Option<String> {
@@ -370,7 +577,9 @@ mod tests {
     use super::*;
 
     fn policy(toml: &str) -> Policy {
-        let dir = std::env::temp_dir().join(format!("syscribe-agent-policy-{}-{}", std::process::id(), toml.len()));
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("syscribe-agent-policy-{}-{}-{n}", std::process::id(), toml.len()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(".syscribe.toml"), toml).unwrap();
         let p = load(&dir);
@@ -427,6 +636,47 @@ mod tests {
         assert!(p.check_status("Requirement", "approved").is_err());
         assert!(p.check_status("Requirement", "draft").is_ok());
         assert!(p.check_status("TestCase", "approved").is_ok(), "another type is unaffected");
+    }
+
+    fn pi(questions: &str) -> String {
+        format!("---\nid: PI-1\ntype: PlanningItem\nname: P\nstatus: todo\nquestions:\n{questions}---\n\nx\n")
+    }
+    const OPEN: &str = "  - id: Q1\n    text: q\n    status: open\n";
+    const OPEN_HUMAN: &str = "  - id: Q1\n    text: q\n    status: open\n    answerBy: human\n";
+    const OPEN_ANY: &str = "  - id: Q1\n    text: q\n    status: open\n    answerBy: any\n";
+    const ANSWERED: &str = "  - id: Q1\n    text: q\n    status: answered\n    answer: a\n";
+
+    #[test]
+    fn human_only_answers_loads_and_is_described() {
+        let p = policy("[agents]\nhuman_only_answers = true\n");
+        assert!(p.problems.is_empty() && p.human_only_answers);
+        assert!(p.describe().join("\n").contains("answerBy: any"));
+        let bad = policy("[agents]\nhuman_only_answers = \"yes\"\n");
+        assert!(!bad.human_only_answers && bad.problems.iter().any(|m| m.contains("human_only_answers must be true or false")));
+    }
+
+    #[test]
+    fn a_reserved_question_cannot_be_answered_by_a_change() {
+        let on = policy("[agents]\nhuman_only_answers = true\n");
+        // The policy default reserves every question...
+        let r = check_answer_content(Some(&on), Some(&pi(OPEN)), &pi(ANSWERED)).unwrap_err();
+        assert_eq!(r.rule, "human_only_answers");
+        assert!(r.message.contains("PI-1#Q1"), "{r}");
+        // ...an explicit `answerBy: any` wins over it...
+        assert!(check_answer_content(Some(&on), Some(&pi(OPEN_ANY)), &pi(&format!("{ANSWERED}    answerBy: any\n"))).is_ok());
+        // ...and `answerBy: human` reserves a question with no policy at all.
+        assert!(check_answer_content(None, Some(&pi(OPEN_HUMAN)), &pi(&format!("{ANSWERED}    answerBy: human\n"))).is_err());
+        assert!(check_answer_content(None, Some(&pi(OPEN)), &pi(ANSWERED)).is_ok(), "nothing is reserved by default");
+        // A new file that arrives answered is an answer too; editing the text is not.
+        assert!(check_answer_content(Some(&on), None, &pi(ANSWERED)).is_err());
+        assert!(check_answer_content(Some(&on), Some(&pi(OPEN)), &pi("  - id: Q1\n    text: better q\n    status: open\n")).is_ok());
+        // Nor may a change lift the reservation and answer in one go, or just lift it.
+        assert!(check_answer_content(None, Some(&pi(OPEN_HUMAN)), &pi(&format!("{ANSWERED}    answerBy: any\n"))).is_err());
+        assert!(check_answer_content(None, Some(&pi(OPEN_HUMAN)), &pi(OPEN_ANY)).unwrap_err().message.contains("lift"));
+        // Reopening an answered question is not answering it.
+        assert!(check_answer_content(Some(&on), Some(&pi(ANSWERED)), &pi(OPEN)).is_ok());
+        // Not a PlanningItem: nothing to check.
+        assert!(check_answer_content(Some(&on), None, "---\ntype: PartDef\nname: A\n---\n").is_ok());
     }
 
     #[test]
