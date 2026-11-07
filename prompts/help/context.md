@@ -11,7 +11,8 @@ Everything needed to start work on an element in one call, instead of `show`, `t
 - upstream (what it links to) and downstream (what links to it) neighbours to `--depth`, each with
   id, type, status, the relationship and a one-line summary;
 - verifying tests with the latest verdict and the environment, build and time it ran on;
-- for a `PlanningItem`: parent and children, `achieves`, evidence, blockers, claim, assignee and
+- for a `PlanningItem`: parent and children, `achieves`, evidence (a `commit:` entry with its
+  resolved full sha and subject line, GH #455), blockers, claim, assignee and
   open questions;
 - the validation findings that sit on the element and on the neighbours listed, errors first;
 - the qualified-name parents.

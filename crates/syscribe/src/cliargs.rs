@@ -107,7 +107,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--install-hook", Switch),
         ],
         "policy" => &[("--json", Switch)],
-        "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--json", Switch)],
+        "log" => &[("--by", Value), ("--since", Value), ("--unattributed", Switch), ("--limit", Value), ("--item", Value), ("--json", Switch)],
         "questions" => &[("--open", Switch), ("--status", Value), ("--item", Value), ("--json", Switch)],
         "new" => &[("--under", Value), ("--group", Value), ("--id", Value), ("--mandatory", Switch), ("--from", Value), ("--stage", Value), ("--feature-model", Value), ("--name", Value), ("--select", Value), ("--type", Value), ("--unit", Value), ("--range", Value), ("--enum", Value), ("--default", Value), ("--required", Switch), ("--latest", Value), ("--json", Switch)],
         "timing" => &[("--json", Switch)],

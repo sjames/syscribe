@@ -253,8 +253,16 @@ fn evidence_entry_target_resolves(
     elements: &[RawElement],
     resolver: &Resolver,
     config: &ValidateConfig,
+    commits: &crate::commit_evidence::CommitCheck,
 ) -> bool {
     let Some(m) = entry.as_mapping() else { return false };
+    // GH #455: a `commit:` that resolves in the model's repository (or is well formed where git
+    // cannot be asked) is resolving evidence too.
+    if let Some(c) = crate::commit_evidence::commit_value(entry) {
+        if commits.resolves(&c) {
+            return true;
+        }
+    }
     if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
         if evidence_ref_resolves(elements, resolver, r) {
             return true;
@@ -5256,6 +5264,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // id-identified, so unlike derived_children/verified_by there is no
     // id-else-qname fallback needed here).
     let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
+    // GH #455 — every non-waived PlanningItem `evidence: - commit:` of the model, resolved against
+    // the repository containing the model root in one batch (E728, E719, W320, W321). No git or no
+    // repository: nothing is checked.
+    let commit_check = crate::commit_evidence::CommitCheck::new(
+        config.model_root.as_deref(),
+        elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::PlanningItem)))
+            .flat_map(|e| e.frontmatter.evidence.iter().flatten())
+            .filter(|entry| !evidence_entry_is_waived(entry)),
+    );
     // REQ-TRS-SYSMLV2-004 / ADR-SYS-PLUGIN-002 / ADR-SYS-ANNOTATE-001 —
     // side-channel provenance sets: which qnames were actually synthesized by
     // SysMLv2 ingestion vs. a stdio plugin vs. annotated-source scanning,
@@ -5597,6 +5616,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             ));
                         }
                     }
+                    // E728 (GH #455): a `commit:` that is malformed, or unknown / ambiguous / not a
+                    // commit in the repository containing the model. Unchecked without git.
+                    if let Some(c) = crate::commit_evidence::commit_value(entry) {
+                        if !waived {
+                            if let Some(problem) = commit_check.problem(&c) {
+                                findings.push(error("E728", &elem.file_path, &problem));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -5656,7 +5684,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let has_resolving_evidence = elem.frontmatter.evidence.as_ref().is_some_and(|ev| {
             ev.iter().any(|entry| {
                 !evidence_entry_is_waived(entry)
-                    && evidence_entry_target_resolves(entry, elements, &resolver, config)
+                    && evidence_entry_target_resolves(entry, elements, &resolver, config, &commit_check)
             })
         });
         if !has_resolving_evidence {
@@ -5665,6 +5693,104 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 &elem.file_path,
                 "leaf PlanningItem is `status: done` but has no non-waived, resolving `evidence:` entry",
             ));
+        }
+        // W321 (GH #455): `[planning] require_commit_evidence = true` — a done leaf must also name
+        // the commit that delivered it (a non-waived `commit:` entry that resolves, or that is well
+        // formed where git cannot be asked).
+        if config.planning.require_commit_evidence {
+            let has_commit = elem.frontmatter.evidence.iter().flatten().any(|entry| {
+                !evidence_entry_is_waived(entry)
+                    && crate::commit_evidence::commit_value(entry).is_some_and(|c| commit_check.resolves(&c))
+            });
+            if !has_commit {
+                findings.push(warning(
+                    "W321",
+                    &elem.file_path,
+                    &format!(
+                        "leaf PlanningItem {} is `status: done` but names no commit as evidence — add the commit that delivered it (`syscribe set {} evidence.add commit=<sha>`)",
+                        if pi_id.is_empty() { elem.qualified_name.as_str() } else { pi_id },
+                        if pi_id.is_empty() { "<PI-id>" } else { pi_id },
+                    ),
+                ));
+            }
+        }
+    }
+
+    // W320 (GH #455): `[planning] check_commit_paths = true` — a resolving commit evidence entry
+    // touches none of the paths its item names: `evidence: - path:` entries, and for each
+    // `evidence: - ref:` the element's own file, its `implementedBy:` and its `sourceFile:`. An
+    // item that names no local path is not judged. Needs the repository (no git, no finding).
+    if config.planning.check_commit_paths {
+        if let Some(repo) = commit_check.repo.as_ref() {
+            let norm = |p: std::path::PathBuf| -> std::path::PathBuf {
+                let abs = if p.is_absolute() { p } else { std::env::current_dir().map(|d| d.join(&p)).unwrap_or(p) };
+                std::fs::canonicalize(&abs).unwrap_or(abs)
+            };
+            let local = |v: &str| match config.classify_source(v) {
+                crate::config::SourceLocation::Local(p) => Some(p),
+                crate::config::SourceLocation::Remote(_) => None,
+            };
+            for elem in elements {
+                if !matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem)) {
+                    continue;
+                }
+                let Some(ev) = elem.frontmatter.evidence.as_ref() else { continue };
+                let commits: Vec<(String, String, String)> = ev
+                    .iter()
+                    .filter(|e| !evidence_entry_is_waived(e))
+                    .filter_map(|e| {
+                        let raw = crate::commit_evidence::commit_value(e)?;
+                        let (sha, subject) = commit_check.found(&raw)?;
+                        Some((raw, sha, subject))
+                    })
+                    .collect();
+                if commits.is_empty() {
+                    continue;
+                }
+                let mut named: Vec<std::path::PathBuf> = Vec::new();
+                for entry in ev {
+                    let Some(m) = entry.as_mapping() else { continue };
+                    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()).and_then(local) {
+                        named.push(norm(p));
+                    }
+                    if let Some(t) = yaml_field(m, "ref").and_then(|v| v.as_str()).and_then(|r| resolver.resolve_ref(elements, r)) {
+                        if !t.file_path.is_empty() {
+                            named.push(norm(std::path::PathBuf::from(&t.file_path)));
+                        }
+                        for s in t.frontmatter.implemented_by.iter().flatten().chain(t.frontmatter.source_file.iter()) {
+                            if let Some(p) = local(s) {
+                                named.push(norm(p));
+                            }
+                        }
+                    }
+                }
+                if named.is_empty() {
+                    continue;
+                }
+                let fulls: Vec<String> = commits.iter().map(|(_, sha, _)| sha.clone()).collect();
+                let changed = repo.changed_paths(&fulls);
+                for (raw, sha, subject) in &commits {
+                    let touched = changed.get(sha).is_some_and(|paths| paths.iter().any(|c| named.iter().any(|n| c == n || c.starts_with(n))));
+                    if !touched {
+                        let mut shown: Vec<String> = named
+                            .iter()
+                            .map(|n| n.strip_prefix(repo.top()).map(|r| r.display().to_string()).unwrap_or_else(|_| n.display().to_string()))
+                            .collect();
+                        shown.sort();
+                        shown.dedup();
+                        findings.push(warning(
+                            "W320",
+                            &elem.file_path,
+                            &format!(
+                                "evidence commit {} ('{}', from `commit: {raw}`) touches none of the paths this item names ({})",
+                                &sha[..sha.len().min(10)],
+                                subject,
+                                shown.join(", ")
+                            ),
+                        ));
+                    }
+                }
+            }
         }
     }
 

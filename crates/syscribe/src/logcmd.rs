@@ -64,7 +64,11 @@ fn commits(root: &Path, paths: &[String], follow: bool, since: Option<&str>, lim
     args.push("--".into());
     args.extend(paths.iter().cloned());
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let out = git(root, &refs)?;
+    Ok(parse_entries(&git(root, &refs)?))
+}
+
+/// Entries from `git log` output in the `RS`/`US` format above.
+fn parse_entries(out: &str) -> Vec<Entry> {
     let mut entries = Vec::new();
     for rec in out.split(RS).filter(|r| !r.trim().is_empty()) {
         let f: Vec<&str> = rec.split(US).collect();
@@ -86,7 +90,7 @@ fn commits(root: &Path, paths: &[String], follow: bool, since: Option<&str>, lim
             change: None,
         });
     }
-    Ok(entries)
+    entries
 }
 
 fn show_file(root: &Path, rev: &str, path: &str) -> Option<String> {
@@ -109,6 +113,8 @@ pub struct Query<'a> {
     pub by: Option<&'a str>,
     pub since: Option<&'a str>,
     pub unattributed: bool,
+    /// `--item <PI>`: only the commits that PlanningItem names as `evidence: - commit:` (GH #455).
+    pub item: Option<&'a str>,
     pub limit: usize,
 }
 
@@ -118,9 +124,50 @@ pub struct Log {
     pub uncommitted: Vec<String>,
 }
 
+/// `log --item <PI>` (GH #455): the commits a PlanningItem names as `evidence: - commit:`, in
+/// authored order. A hash that does not resolve is reported in the scope line, not as an error.
+fn item_commits(root: &Path, elements: &[RawElement], item: &str) -> Result<(String, Vec<Entry>), String> {
+    let e = Resolver::new(elements).resolve_ref(elements, item).ok_or_else(|| format!("element not found: {item}"))?;
+    if e.frontmatter.element_type != Some(syscribe_model::element::ElementType::PlanningItem) {
+        return Err(format!("{item} is not a PlanningItem"));
+    }
+    let label = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+    let raws: Vec<String> = e.frontmatter.evidence.iter().flatten().filter_map(syscribe_model::commit_evidence::commit_value).collect();
+    let check = syscribe_model::commit_evidence::CommitCheck::new(Some(root), e.frontmatter.evidence.iter().flatten());
+    let mut fulls: Vec<String> = Vec::new();
+    let mut unresolved: Vec<String> = Vec::new();
+    for r in &raws {
+        match check.found(r) {
+            Some((sha, _)) if !fulls.contains(&sha) => fulls.push(sha),
+            Some(_) => {}
+            None => unresolved.push(r.clone()),
+        }
+    }
+    let mut scope = format!("the commits {label} names as evidence");
+    if !unresolved.is_empty() {
+        scope.push_str(&format!(" ({} not found in this repository: {})", unresolved.len(), unresolved.join(", ")));
+    }
+    if fulls.is_empty() {
+        return Ok((scope, Vec::new()));
+    }
+    let fmt = format!("--format={RS}%h{US}%an{US}%aI{US}%s{US}%B{US}");
+    let mut args: Vec<String> = vec!["log".into(), "--no-walk=unsorted".into(), fmt, "--name-only".into(), "-m".into(), "--first-parent".into()];
+    args.extend(fulls);
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    Ok((scope, parse_entries(&git(root, &refs)?)))
+}
+
 pub fn collect(model_root: &Path, elements: &[RawElement], q: &Query) -> Result<Log, String> {
     let abs = std::fs::canonicalize(model_root).map_err(|e| format!("{}: {e}", model_root.display()))?;
     let root = detect_git_root(&abs).ok_or_else(|| format!("{} is not inside a git repository, so there is no history", model_root.display()))?;
+    if let Some(item) = q.item {
+        let (scope, mut entries) = item_commits(&root, elements, item)?;
+        if let Some(by) = q.by {
+            entries.retain(|e| e.author == by || e.actor.as_deref() == Some(by));
+        }
+        entries.truncate(q.limit);
+        return Ok(Log { scope, entries, uncommitted: Vec::new() });
+    }
     let model_rel = abs.strip_prefix(&root).unwrap_or(Path::new("")).to_string_lossy().replace('\\', "/");
     let (paths, follow, scope, file_rel) = match q.element {
         None => (vec![if model_rel.is_empty() { ".".to_string() } else { model_rel.clone() }], false, format!("the model ({})", if model_rel.is_empty() { "." } else { &model_rel }), None),
@@ -174,13 +221,13 @@ pub fn cmd_log(model_root: &Path, elements: &[RawElement], args: &[String]) -> i
             skip = false;
             return false;
         }
-        if matches!(a.as_str(), "--by" | "--since" | "--limit") {
+        if matches!(a.as_str(), "--by" | "--since" | "--limit" | "--item") {
             skip = true;
             return false;
         }
         !a.starts_with("--")
     });
-    let q = Query { element: element.map(String::as_str), by: value("--by"), since: value("--since"), unattributed: args.iter().any(|a| a == "--unattributed"), limit };
+    let q = Query { element: element.map(String::as_str), by: value("--by"), since: value("--since"), unattributed: args.iter().any(|a| a == "--unattributed"), item: value("--item"), limit };
     let log = match collect(model_root, elements, &q) {
         Ok(l) => l,
         Err(m) => {

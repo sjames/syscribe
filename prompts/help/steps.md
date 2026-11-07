@@ -7,7 +7,8 @@
 A step is a child `PlanningItem` (`parent: <PI>`), so this adds a *view*, not a field. It renders
 the item's children recursively with each node's status, `assignedTo`, `claimedBy`, what it is
 `blockedBy`, the number of open questions (`?N`) and, for a `done` leaf, whether it has any
-evidence. The header gives the roll-up: `N of M leaves done` and the counts still in progress,
+evidence, and the commits it names as evidence (`commit <sha>`, GH #455; `(unknown)`, `(ambiguous)`
+or `(malformed)` when one does not resolve). The header gives the roll-up: `N of M leaves done` and the counts still in progress,
 blocked or not started.
 
 The parent's status is not derived from its children and no rule ties them together. Where a
@@ -18,7 +19,9 @@ unaffected.
 ## OPTIONS
     --open        Hide subtrees that are entirely done (the roll-up still counts them).
     --depth N     Show N levels below the item; deeper levels are summarised.
-    --json        The tree, roll-up and notes as JSON (schemaVersion 1.0).
+    --json        The tree, roll-up and notes as JSON (schemaVersion 1.0). Each node with commit
+                  evidence carries `commits: [{commit, sha?, subject?, status}]`, `status` one of
+                  resolved, unknown, ambiguous, not-a-commit, malformed, unchecked (no git).
 
 An unknown item, or one that is not a PlanningItem, exits 1.
 

@@ -486,7 +486,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
 | W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`); ignored, the rest of the policy still applies. |
 
-## Native PlanningItem (E706–E717, E719–E727, W308–W311, W315, W317–W319, W322–W323, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E728, W308–W311, W315, W317–W323, §23, ADR-SYS-PLANITEM-001)
 
 A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) — or goal, ADR, argument, plan or baseline — it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
 
@@ -521,6 +521,9 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | W318 | A `questions:` field on an element that is not a `PlanningItem` — ignored there; move it to the PlanningItem that owns the decision. |
 | W323 | A question reserved to a person (`answerBy: human`, or the `[agents] human_only_answers` default) carries an answer an agent wrote — `answeredBy` matches `[agents] actors`, or the commit that last changed the answer is agent-made. Unattributable answers (uncommitted, no git) raise nothing. Fix: a person confirms the answer with `set <PI> question.answer <Qn> text=… --as-human`, or the question says `answerBy: any`. |
 | W319 | Opt-in, `[planning] require_testcase_evidence = true` (GH #456): a `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names, by id or qualified name. Record it with `syscribe set <PI-id> evidence.add ref=<TC-id>`, or accept the existing gap with a finding baseline (`validate --write-baseline` / `--baseline-file`). `coverage --json` reports the same set as `testCasesWithoutPlanningEvidence`. |
+| E728 | A non-waived `evidence: - commit:` entry is malformed (not 7–40 hexadecimal characters), or — resolved against the git repository containing the model — unknown, an ambiguous abbreviation, or not a commit (GH #455). The message says which. Skipped when git is unavailable or the model is in no repository (a malformed hash is still reported). |
+| W320 | Opt-in, `[planning] check_commit_paths = true` (GH #455): a resolving commit evidence entry touches none of the paths its item names (`evidence: - path:` entries; for each `evidence: - ref:` that element's file, `implementedBy:` and `sourceFile:`). An item naming no local path is not judged. |
+| W321 | Opt-in, `[planning] require_commit_evidence = true` (GH #455): a leaf item at `status: done` names no resolving, non-waived commit as evidence. Add it with `syscribe set <PI-id> evidence.add commit=<sha>`. |
 | W322 | A malformed `[planning]` entry in `.syscribe.toml` (not a table, an unknown key, or a value that is not `true`/`false`); the entry is ignored and that gate stays off. |
 | W315 | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 

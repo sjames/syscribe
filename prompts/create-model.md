@@ -760,6 +760,7 @@ achieves: [REQ-BRAKE-001]    # top-level only; a child sets parent: PI-… inste
 assignedTo: jdoe             # optional Unix-style username
 evidence:                    # a leaf claiming status: done needs ≥1 resolving entry (E719)
   - ref: TC-BRAKE-001
+  - commit: 3f9c2a1e7b       # optional: the commit that delivered it (7-40 hex, checked against git, E728)
 ---
 ```
 
@@ -770,7 +771,10 @@ Validation: `E708`/`E709` (status / itemType enums), `E712` (parent cycle), `E71
 overlap). Mark progress with `set <PI-id> status=done` / `set <PI-id> evidence.add ref=<TC-id>`.
 If `.syscribe.toml` has `[planning] require_testcase_evidence = true`, every `active` TestCase you
 deliver must be named by some item's `evidence: - ref:` (`W319`; `coverage --json` lists the
-unplanned ones as `testCasesWithoutPlanningEvidence`).
+unplanned ones as `testCasesWithoutPlanningEvidence`). Record the commit that delivered an item with
+`set <PI-id> evidence.add commit=<sha>` (never invent a hash: `E728` flags one git does not know);
+`[planning] require_commit_evidence = true` makes it required on a done leaf (`W321`) and
+`check_commit_paths = true` checks it touches the item's paths (`W320`). `log --item <PI-id>` lists them.
 When several agents share one model, `claim <PI-id> --by <agent-id>` before starting and
 `release <PI-id>` when finished (advisory `claimedBy:`/`claimedAt:` — never hand-edit them).
 Template: `template PlanningItem`.

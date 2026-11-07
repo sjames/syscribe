@@ -15,7 +15,7 @@
 //!
 //! Three operations, matching the issue's own proposed shape exactly:
 //!   syscribe set <id> status=<value>
-//!   syscribe set <id> evidence.add ref=<id> | path=<path> [rationale=<text>]
+//!   syscribe set <id> evidence.add ref=<id> | path=<path> | commit=<sha> [rationale=<text>]
 //!   syscribe set <id> achieves.add <req-id>
 
 use std::path::Path;
@@ -319,10 +319,11 @@ fn cmd_achieves_add(
     }
 }
 
-/// `evidence.add ref=<id> | path=<path> [rationale=<text>]` — a `ref:` must
+/// `evidence.add ref=<id> | path=<path> | commit=<sha> [rationale=<text>]` — a `ref:` must
 /// resolve to some model element (mirrors `E716`'s bar; permissive by kind,
 /// like `blockedBy:`); a `path:` must exist on disk under the model root or be
-/// an accepted remote URI (mirrors `E717`). Appends without disturbing
+/// an accepted remote URI (mirrors `E717`); a `commit:` must be 7–40 hex and name one commit of
+/// the model's git repository when there is one (mirrors `E728`). Appends without disturbing
 /// existing evidence order.
 fn cmd_evidence_add(
     model_root: &Path,
@@ -334,27 +335,47 @@ fn cmd_evidence_add(
 ) {
     let mut r#ref: Option<&str> = None;
     let mut path: Option<&str> = None;
+    let mut commit: Option<&str> = None;
     let mut rationale: Option<&str> = None;
     for a in kv_args {
         if let Some(v) = a.strip_prefix("ref=") {
             r#ref = Some(v);
         } else if let Some(v) = a.strip_prefix("path=") {
             path = Some(v);
+        } else if let Some(v) = a.strip_prefix("commit=") {
+            commit = Some(v);
         } else if let Some(v) = a.strip_prefix("rationale=") {
             rationale = Some(v);
         } else {
-            eprintln!("evidence.add: unrecognized argument '{a}' (expected ref=<id>, path=<path>, or rationale=<text>)");
+            eprintln!("evidence.add: unrecognized argument '{a}' (expected ref=<id>, path=<path>, commit=<sha>, or rationale=<text>)");
             std::process::exit(1);
         }
     }
 
-    if r#ref.is_none() && path.is_none() {
-        eprintln!("evidence.add requires ref=<id> or path=<path>");
-        std::process::exit(1);
+    match [r#ref, path, commit].iter().filter(|v| v.is_some()).count() {
+        0 => {
+            eprintln!("evidence.add requires ref=<id> or path=<path> (or commit=<sha>)");
+            std::process::exit(1);
+        }
+        1 => {}
+        _ => {
+            eprintln!("evidence.add: pass ref=<id> or path=<path>, not both — exactly one of ref=, path= or commit=");
+            std::process::exit(1);
+        }
     }
-    if r#ref.is_some() && path.is_some() {
-        eprintln!("evidence.add: pass ref=<id> or path=<path>, not both");
-        std::process::exit(1);
+
+    // GH #455: a commit must be well formed (7–40 hex) and, when the model is in a git repository,
+    // name exactly one commit there — the bar `E728` applies.
+    if let Some(c) = commit {
+        let entry: serde_yaml::Value = serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+            serde_yaml::Value::String("commit".into()),
+            serde_yaml::Value::String(c.to_string()),
+        )]));
+        let check = syscribe_model::commit_evidence::CommitCheck::new(Some(model_root), [&entry]);
+        if let Some(problem) = check.problem(c) {
+            eprintln!("Refusing to add evidence on {}: {problem}.", elem.qualified_name);
+            std::process::exit(1);
+        }
     }
 
     if let Some(r) = r#ref {
@@ -381,12 +402,15 @@ fn cmd_evidence_add(
     // An entry naming the same `ref:`/`path:` target already exists: a
     // reported no-op, like `achieves.add` on an existing requirement (GH
     // #152) — the existing entry (and its rationale) is kept as authored.
-    let Some((target_key, target)) = r#ref.map(|r| ("ref", r)).or(path.map(|p| ("path", p))) else {
-        eprintln!("evidence.add requires ref=<id> or path=<path>");
+    let Some((target_key, target)) = r#ref.map(|r| ("ref", r)).or(path.map(|p| ("path", p))).or(commit.map(|c| ("commit", c))) else {
+        eprintln!("evidence.add requires ref=<id> or path=<path> (or commit=<sha>)");
         std::process::exit(1);
     };
     let existing = elem.frontmatter.evidence.as_deref().unwrap_or(&[]);
     if existing.iter().any(|e| {
+        if target_key == "commit" {
+            return syscribe_model::commit_evidence::commit_value(e).is_some_and(|c| c.eq_ignore_ascii_case(target));
+        }
         e.as_mapping()
             .and_then(|m| m.get(serde_yaml::Value::String(target_key.to_string())))
             .and_then(|v| v.as_str())
@@ -593,7 +617,7 @@ pub fn cmd_set(
     crate::policy_gate::check_path(elem);
 
     let Some(&op) = op_args.first() else {
-        eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>");
+        eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path>|commit=<sha> | achieves.add <req-id>");
         std::process::exit(1);
     };
 

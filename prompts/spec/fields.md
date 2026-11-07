@@ -233,7 +233,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `itemType` | string | `bug` · `task` · `feature` (`E709`) |
 | `blockedBy` | string or list | Any elements it waits on (`E720` dangling, `E721` cycle, `W308` if set while not `blocked`) |
 | `assignedTo` | string | Unix-style username (`E723`); checked against `[users]` when that roster is non-empty (`E722`) |
-| `evidence` | list | `{ref: <element>}` or `{path: <file>}`, each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`) |
+| `evidence` | list | `{ref: <element>}`, `{path: <file>}` or `{commit: <sha>}` (7–40 hex, resolved against git — `E728`; GH #455), each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`). `[planning]` in `.syscribe.toml` can also require a commit on a done leaf (`W321`) and check it touches the item's paths (`W320`) |
 | `claimedBy` / `claimedAt` | string | Advisory ownership — set by `syscribe claim <PI> --by <agent>`, cleared by `syscribe release <PI>`; never hand-edit |
 | `questions` | list of mappings | Inline decisions awaiting an answer: `{id: Q<n>, text, recommended?, status: open\|answered\|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human\|any}` — `answerBy: human` reserves the answer to a person (default `any`, or `human` under `[agents] human_only_answers`; an agent's answer is refused, and `W323` flags one written anyway); record with `set <PI> question.add`, list with `syscribe questions`. PlanningItem only (`W318` elsewhere) |
 

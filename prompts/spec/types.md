@@ -270,6 +270,7 @@ evidence:
   - path: "repo:crates/syscribe/src/rth/mod.rs"    # local path checked to exist, or remote URI
   - path: "docs/design/rth-timing.pdf"
     rationale: "not yet committed; reviewed in RR-RTH-001"   # waives this one entry's own check
+  - commit: 3f9c2a1e7b                            # the delivering commit, 7-40 hex, resolved against git (E728)
 ```
 ```toml
 # .syscribe.toml — optional [users] roster; assignedTo: is checked against it

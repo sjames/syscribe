@@ -24,6 +24,7 @@ pub mod hints;
 pub mod modeldiff;
 pub mod binding_time;
 pub mod build_config;
+pub mod commit_evidence;
 pub mod config;
 pub mod config_inherit;
 pub mod connections;

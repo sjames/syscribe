@@ -6588,7 +6588,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
-| `W308`–`W311`, `W317`–`W319`, `W322`–`W323`, `E706`–`E727` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry; `W319`/`W322` are the opt-in `[planning]` gates) | §23.4, §23.7–§23.11; §8.18.6 for `E718` |
+| `W308`–`W311`, `W317`–`W323`, `E706`–`E728` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry; `E728` is commit evidence; `W319`–`W322` are the opt-in `[planning]` gates) | §23.4, §23.7–§23.11; §8.18.6 for `E718` |
 | `E400`–`E405`, `W400`–`W421` | Diagram elements | §8.16.2, §8.16.7, §8.16.8.2, §8.16.9, §8.16.10 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
@@ -9159,7 +9159,7 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `parent` | string | optional | absent | A single other `PlanningItem` (id or qname) this one is a child of. Absent means top-level. Resolved like `derivedFrom:`; cycles are detected the same way. |
 | `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s — or a `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` (GH #240) — (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
 | `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
-| `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
+| `evidence` | list | optional | absent | Duck-typed entries proving completion — `ref:` (an element), `path:` (a file) or `commit:` (a git commit, GH #455) — see §23.3. |
 | `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
 | `claimedBy` | string | optional | absent | Advisory claimant (agent/session) id — see §23.9. Never format-validated; written/cleared by `syscribe claim`/`syscribe release`. |
 | `claimedAt` | string | optional | absent | Opaque timestamp paired with `claimedBy` — see §23.9. Conventionally ISO-8601, never itself parsed/validated. |
@@ -9176,7 +9176,8 @@ Each entry is **duck-typed** — recognised by which key it carries, not a `type
 |---|---|---|
 | `ref` | string | Any resolvable model element (id or qname), unrestricted by kind — not limited to architecture or `TestCase`. |
 | `path` | string | A file/doc path, resolved exactly like `implementedBy:` (§12.8): a local path is checked to exist, a remote URI is accepted as external. `repo:`-prefixed paths resolve relative to the git root. |
-| `rationale` | string | Optional, on either form. A non-empty `rationale:` **waives** that one entry's own resolution check — the entry still counts toward "has evidence," it just isn't itself verified. Mirrors the `ffiRationale` co-located-waiver pattern. Every other entry in the same list is still checked normally; there is no blanket suppression. |
+| `commit` | string | A git commit that delivered the work (GH #455): 7–40 hexadecimal characters, an abbreviation or a full object name. Resolved against the repository containing the model root (`E728`); a resolving commit counts as resolving evidence for `E719`. Quote an all-digit hash so YAML keeps it a string. See §23.11 for the opt-in path and presence checks. |
+| `rationale` | string | Optional, on any form. A non-empty `rationale:` **waives** that one entry's own resolution check — the entry still counts toward "has evidence," it just isn't itself verified. Mirrors the `ffiRationale` co-located-waiver pattern. Every other entry in the same list is still checked normally; there is no blanket suppression. |
 
 ```yaml
 evidence:
@@ -9184,7 +9185,10 @@ evidence:
   - ref: TC-RTH-BATT-001
   - path: "docs/design/rth-timing-analysis.pdf"
     rationale: "External PDF not yet committed; reviewed in RR-RTH-001"
+  - commit: 3f9c2a1e7b
 ```
+
+**Commit entries.** `validate` resolves every non-waived `commit:` of the model in one batch against the git repository that contains the model root (one `git cat-file --batch-check` for all distinct hashes, one `git log` for their subjects; a resolved commit is cached for the life of the process). `E728` reports a hash that is malformed, unknown, an ambiguous abbreviation, or not a commit, and says which. When git cannot be run or the model is in no repository, resolution is skipped silently: a well-formed hash raises nothing and counts as evidence for `E719`, since it cannot be held against the item; a malformed hash is still `E728`. `steps --json` lists each item's commit entries (`commits: [{commit, sha?, subject?, status}]`, `status` one of `resolved`, `unknown`, `ambiguous`, `not-a-commit`, `malformed`, `unchecked`), `context` shows each commit's full sha and subject, `set <PI> evidence.add commit=<sha>` appends one after checking it to the `E728` bar, and `log --item <PI>` lists the commits an item names.
 
 ### 23.4 Validation Rules
 
@@ -9208,6 +9212,7 @@ evidence:
 | `W308` | A non-empty `blockedBy:` on an item whose `status` is not `blocked` — likely stale (the blocker was resolved and `status:` was never updated) |
 | `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (only checked when that roster is non-empty — see §23.7) |
 | `E723` | `assignedTo:` is not a valid Unix-style username (checked unconditionally, regardless of `[users]` — see §23.7) |
+| `E728` | A non-waived `evidence[].commit` is malformed (not 7–40 hexadecimal characters), or is unknown, an ambiguous abbreviation, or not a commit in the git repository containing the model (resolution skipped without git or a repository — see §23.3) |
 
 `E719` is graded harder than the analogous `Requirement` rule (`W300`, a warning): claiming `done` with zero resolvable evidence is a correctness defect, not a soft, time-bound gap the way an unassigned-but-still-`approved` leaf `Requirement` is. A non-leaf item (has children) is unconstrained by `E719` regardless of its own status or evidence — its completion is a function of its children, not its own evidence list. A waived-only evidence list still fails the rule: a `rationale:` excuses one entry's *check*, it does not manufacture a passing entry.
 
@@ -9326,18 +9331,22 @@ A question is private to its item (`PI-X#Q1` in messages) and is not a cross-ref
 
 **Questions reserved to a person (GH #457, `REQ-TRS-AGENTPOL-004`).** Some decisions belong to a person (a product owner), and a field an agent can write is no evidence of that. A question may declare `answerBy: human | any`. `[agents] human_only_answers = true` in `.syscribe.toml` makes `human` the default for every question; a question's own `answerBy` always wins over that default (`answerBy: any` opens one question to agents under the policy; `answerBy: human` reserves one without any `[agents]` table). An unrecognised `answerBy` is `E724` and counts as `human` until fixed. An agent's change — the agent policy's own rule: a writing command with `--by` and no `--as-human`, or any MCP write — that sets a reserved question's `answer`, `answeredBy` or `answeredAt`, moves it to `answered`, creates it already answered, or lifts its reservation is refused with the rule `human_only_answers` named (exit 1; also under `--dry-run`; nothing written). The check is made in the CLI write layer and in the MCP guarded write, so every writer is held to it; adding, rewording, deferring or reopening a question stays allowed. `validate` raises `W323` for a reserved question whose answer an agent wrote: its `answeredBy` matches `[agents] actors`, or the commit that last changed the answer (git is the change log, GH #443) carries a `Syscribe-Actor` trailer without `Syscribe-As: human` or has an author matching `actors`. An answer git cannot attribute raises nothing. `questions --json` and the MCP `questions` tool add `answerBy` (`human` | `any`, the default applied) to every question and, when git records the answer's commit, `answerProvenance: {by, agent, at, commit}`.
 
-### 23.11 The `[planning]` gates (GH #455/#456, `REQ-TRS-PIEV-001`)
+### 23.11 The `[planning]` gates (GH #455/#456, `REQ-TRS-PIEV-001`, `REQ-TRS-PICOMMIT-001`)
 
 A project can tighten how planning and delivered work are tied together with an opt-in `[planning]` table in `<model_root>/.syscribe.toml`. Every key defaults to `false`, so a model without the table validates exactly as before. Keys are accepted in snake_case or camelCase.
 
 ```toml
 [planning]
 require_testcase_evidence = true   # W319
+check_commit_paths = true          # W320
+require_commit_evidence = true     # W321
 ```
 
 | Key | Finding | Condition |
 |---|---|---|
 | `require_testcase_evidence` | `W319` | A `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names. A `ref:` names a TestCase when it resolves to it by stable id or qualified name (the resolution `E716` uses), whatever the item's status or the entry's `rationale:`. |
+| `check_commit_paths` | `W320` | A non-waived, resolving `evidence: - commit:` (§23.3) touches none of the paths its item names: the item's `evidence: - path:` entries and, for each `evidence: - ref:`, that element's own file, its `implementedBy:` and its `sourceFile:` (a directory matches any file below it; a merge commit is compared with its first parent). An item naming no local path is not judged. Needs the repository; without it nothing is reported. |
+| `require_commit_evidence` | `W321` | A **leaf** `PlanningItem` at `status: done` has no non-waived `evidence: - commit:` that resolves (or that is well formed where git cannot be asked). In addition to, not instead of, `E719`. |
 
 A malformed entry — `[planning]` not a table, an unknown key, or a value that is not `true`/`false` — is `W322`; the entry is ignored and that gate stays off.
 
