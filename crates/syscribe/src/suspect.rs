@@ -92,6 +92,11 @@ pub fn plan_accept(
     let source = suspect::resolve_target(elems, resolver, source_ref)
         .ok_or_else(|| format!("source `{source_ref}` does not resolve to any element"))?;
 
+    // Item-granular link (GH #453, REQ-TRS-ITEMREF-005): `REQ-X#slug`.
+    if let Some((elem_part, part)) = syscribe_model::req_items::parse_ref(target_ref) {
+        return plan_accept_item(elems, resolver, source, source_ref, target_ref, &elem_part, &part);
+    }
+
     // The `traceBaselines` key must be the ref exactly as authored on the link, so
     // validation looks it up identically. Match the requested target either by the
     // exact authored string or by resolving to the same element.
@@ -119,6 +124,68 @@ pub fn plan_accept(
     let hash = suspect::projection_hash(tgt);
 
     Ok(AcceptPlan { source_file: source.file_path.clone(), authored_key, hash })
+}
+
+/// [`plan_accept`] for an item-level target `REQ-X#slug`. Only an anchor can be baselined:
+/// a by-number reference moves when an item is inserted, and a question is not content.
+fn plan_accept_item(
+    elems: &[RawElement],
+    resolver: &Resolver,
+    source: &RawElement,
+    source_ref: &str,
+    target_ref: &str,
+    elem_part: &str,
+    part: &syscribe_model::req_items::Part,
+) -> Result<AcceptPlan, String> {
+    use syscribe_model::req_items::{self as ri, Part};
+    let target = ri::resolve_elem(elems, resolver, elem_part)
+        .ok_or_else(|| format!("target `{elem_part}` does not resolve to any element"))?;
+    let slug = match part {
+        Part::Anchor(s) => s.clone(),
+        Part::Number(n) => {
+            return Err(format!(
+                "`{target_ref}` cites item {n} by number, which cannot be baselined — numbers shift when an item is inserted. \
+                 Give the item an anchor (`{n}. {{#<slug>}} …` in {elem_part}), cite it as `{elem_part}#<slug>`, then accept that"
+            ))
+        }
+        Part::Question(q) => {
+            return Err(format!("`{target_ref}` is a question reference ({q}); only requirement items (`REQ-X#slug`) can be baselined"))
+        }
+    };
+    if !ri::applies(target, part) {
+        return Err(format!("`{elem_part}` is not a Requirement; item anchors exist only in Requirement bodies"));
+    }
+    let item = match ri::lookup(target, part) {
+        Ok(ri::Target::Item(it)) => it,
+        Ok(_) => return Err(format!("`{target_ref}` is not an item")),
+        Err(why) => return Err(why),
+    };
+    if is_sheet_row(source) {
+        return Err(format!("cannot baseline links of `{source_ref}`: {ROW_SOURCE_MSG}"));
+    }
+    // The key is the citation exactly as written in the source body (or an existing key).
+    let cited = ri::scan_citations(&source.doc).into_iter().find(|c| {
+        c.part == Part::Anchor(slug.clone())
+            && ri::resolve_elem(elems, resolver, &c.elem).map(|e| &e.qualified_name) == Some(&target.qualified_name)
+    });
+    let existing = source.frontmatter.trace_baselines.as_ref().and_then(|m| {
+        m.keys().find(|k| {
+            ri::parse_ref(k).is_some_and(|(e, p)| {
+                p == Part::Anchor(slug.clone())
+                    && ri::resolve_elem(elems, resolver, &e).map(|x| &x.qualified_name) == Some(&target.qualified_name)
+            })
+        })
+    });
+    let authored_key = match (cited, existing) {
+        (Some(c), _) => c.raw,
+        (None, Some(k)) => k.clone(),
+        (None, None) => {
+            return Err(format!(
+                "`{source_ref}` does not cite `{target_ref}` in its body — nothing to baseline (write `{target_ref}` where the item is relied on)"
+            ))
+        }
+    };
+    Ok(AcceptPlan { source_file: source.file_path.clone(), authored_key, hash: ri::item_hash(&item) })
 }
 
 /// `suspect accept <source> <target>` or `suspect accept --all[-unbaselined]`.

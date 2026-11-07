@@ -68,6 +68,7 @@ pub mod projection;
 pub mod provenance;
 pub mod model_delta;
 pub mod questions;
+pub mod req_items;
 pub mod remote;
 pub mod plantuml;
 pub mod residual_risk;

@@ -107,6 +107,11 @@ pub fn type_page(ty: &str) -> String {
         }
         let _ = writeln!(o);
     }
+    if let Some(notes) = type_notes(ty) {
+        let _ = writeln!(o, "## NOTES");
+        let _ = writeln!(o, "{}", notes.trim_end());
+        let _ = writeln!(o);
+    }
     let codes = codes_for(ty);
     if !codes.is_empty() {
         let _ = writeln!(o, "## VALIDATION CODES");
@@ -128,6 +133,29 @@ pub fn type_page(ty: &str) -> String {
     let _ = writeln!(o, "    {:<18} findings for one element's file", "validate --file");
     let _ = writeln!(o, "\nDetails: `syscribe help <command>`.");
     o
+}
+
+/// Type-specific notes that no field schema conveys: body conventions and how to cite parts
+/// of an element (GH #453).
+fn type_notes(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Requirement" => Some(
+            "Item anchors: each top-level numbered item of the body is citable. Write `{#slug}` after the\n\
+             number to anchor it (`1. {#grant-keys} **Server keys.** ...`; slug `[a-z][a-z0-9-]*`); show\n\
+             and export-html hide the token. Cite an item from any element body as `REQ-X#grant-keys`\n\
+             (preferred), `REQ-X#5` or `REQ-X item 5` (by position — shifts when an item is inserted).\n\
+             validate: W092 dangling item reference or duplicate/malformed anchor. Resolve with\n\
+             `check-ref REQ-X#grant-keys`; list citers with `refs REQ-X#grant-keys`; `impact REQ-X#grant-keys`;\n\
+             baseline one item with `suspect accept <src> REQ-X#grant-keys` (anchors only).",
+        ),
+        "PlanningItem" => Some(
+            "Questions are citable from any element body as `PI-X#Q3`. validate: W092 the question does not\n\
+             exist; W093 an element past draft cites a question that is still open; W094 an answered question\n\
+             is cited with \"to confirm\"-style wording ([references] open_markers). `check-ref PI-X#Q3` prints\n\
+             its status and answer; `refs PI-X#Q3` lists who cites it.",
+        ),
+        _ => None,
+    }
 }
 
 /// The `help tasks` page: intents mapped to commands.

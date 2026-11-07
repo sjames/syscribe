@@ -9079,6 +9079,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Inline PlanningItem questions (GH #436): E724–E727, W317.
     findings.extend(crate::questions::findings(elements));
 
+    // Item anchors and item / question references in prose (GH #453): W092–W094.
+    {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.extend(crate::req_items::findings(elements, &resolver, &config.references, &cfg_file));
+    }
+
     // OPT-IN: workflow hints (GH #439) — informational, only under `validate --hints`.
     if config.hints {
         findings.extend(crate::hints::hint_findings(elements));
