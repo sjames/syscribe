@@ -355,6 +355,7 @@ Run these; each must exit 0 (`1` errors, `2` a tripped gate).
 - Rename or move with `syscribe -m model/ move <src> <dest>`, which rewrites every reference.
 - Own shared work with `syscribe -m model/ claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`.
 - Preview before writing where the command allows it: `--dry-run` on `set`, `move`, `claim`, `release` and `applies-when`.
+- Cite one item of a requirement by its anchor, not its number: write `{#slug}` after the item's number in the requirement body and cite it as `REQ-X#slug` (a number such as `REQ-X#5` shifts when an item is inserted); cite a PlanningItem question as `PI-X#Q3`. `check-ref REQ-X#slug` confirms it resolves; a dangling citation is `W092`.
 - Check a reference with `check-ref <ref>`; an unfamiliar finding with `syscribe explain <code>`; a type with `syscribe help <Type>`.
 - A task is not finished until every command under "Before declaring work done" exits 0.
 

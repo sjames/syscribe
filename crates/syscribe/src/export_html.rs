@@ -441,7 +441,13 @@ fn element_page(
     // Documentation (rendered Markdown — also yields mermaid <pre> blocks).
     if !elem.doc.trim().is_empty() {
         body.push_str("<div class=\"doc\">\n");
-        body.push_str(&markdown_to_html(&elem.doc));
+        // Item anchors `{#slug}` become HTML anchors `id="item-<slug>"` (GH #453).
+        // The token goes through Markdown as private-use-delimited text, then becomes the
+        // anchor (only a well-formed slug matches, so model text cannot inject markup).
+        let doc = syscribe_model::req_items::rewrite_anchors(&elem.doc, |slug| format!("\u{E000}{slug}\u{E001}"));
+        let html = markdown_to_html(&doc);
+        let anchor_re = regex::Regex::new("\u{E000}([a-z][a-z0-9-]*)\u{E001}").unwrap();
+        body.push_str(&anchor_re.replace_all(&html, "<a id=\"item-$1\"></a>"));
         body.push_str("</div>\n");
     }
 

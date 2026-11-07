@@ -23,6 +23,14 @@ User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are
 trace links too: they are listed, baselined and flagged like any other, keyed by the
 target as authored, unless the link type declares `suspect = false`.
 
+**Item-level links (GH #453).** A citation of an anchored requirement item in a
+source's body — `REQ-X#grant-keys`, the item written `1. {#grant-keys} …` — is an
+item-level trace link (kind `cites`). Its baseline hashes that item's text only, so
+W090 fires when that item changes and not when another item is edited, inserted or
+reordered. A by-number reference (`REQ-X#5`, `REQ-X item 5`) cannot be baselined —
+the number moves when an item is inserted — so `accept` refuses it and asks for an
+anchor; a question reference (`PI-Y#Q3`) cannot be baselined either.
+
 Detection is **opt-in and additive**: a link with no baseline is never flagged
 during `validate`. `suspect list` still surfaces unbaselined links so coverage
 gaps stay discoverable.
@@ -36,7 +44,8 @@ gaps stay discoverable.
         Re-baseline one link: capture <target>'s current projection hash into
         <source>'s `traceBaselines` map. <source> and <target> may be a stable id
         or a qualified name. It is an error if <target> is not referenced by any
-        trace link on <source>.
+        trace link on <source>. <target> may be an item anchor `REQ-X#slug` that
+        <source>'s body cites; the key stored is the citation as written.
 
     accept --all
         Re-baseline every currently-suspect link across the model in one pass
@@ -54,6 +63,7 @@ W090 is a Warning: draft-visible, non-fatal by default, and gateable in CI with
 ## EXAMPLES
     syscribe -m model/ suspect list
     syscribe -m model/ suspect accept TC-UAV-CARGO-001 REQ-UAV-CARGO-001
+    syscribe -m model/ suspect accept <src-id> REQ-TRS-ITEMREF-005#by-number   # one cited item
     syscribe -m model/ suspect accept --all
     syscribe -m model/ suspect accept --all-unbaselined   # one-time onboarding
     syscribe -m model/ validate --deny W090

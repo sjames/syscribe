@@ -128,7 +128,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ export [--ndjson] [--config <C>]` | The structured model graph as JSON / NDJSON |
 | `syscribe -m model/ render <diagram-path>` | Print a hand-authored `Diagram` with element links injected |
 | `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
-| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
+| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it); `refs REQ-X#slug` / `PI-X#Q3` lists who cites that item or question |
 | `syscribe -m model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
 | `syscribe -m model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
 | `syscribe -m model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
@@ -224,7 +224,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ validate --file <path>` | Findings for a single file only |
 | `syscribe -m model/ template <type> [--prefix P]` | Print a ready-to-fill frontmatter skeleton (`Requirement` defaults to the first `[ids.prefixes]` prefix; `--prefix` picks another) |
 | `syscribe -m model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
-| `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
+| `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it; also an item/question citation (`REQ-X#slug`, `PI-X#Q3`) |
 | `syscribe -m model/ path-for <qname\|id>` | Print the file path for an element |
 | `syscribe -m model/ set <qname\|id> status=<v>` / `evidence.add ref=<id>` / `achieves.add <req-id>` | Validated single-field edit (value checked **before** writing); `--dry-run` previews |
 | `syscribe -m model/ applies-when <element> [--set "<expr>" \| --clear]` | Show (with inheritance) or edit an element's `appliesWhen:` gate |
@@ -579,6 +579,28 @@ custom_fields:
 
 - The Markdown body **before the first `##` heading** is the normative text.
 - It must be **non-empty** (error E012) and contain the word **`shall`** (warning W001).
+
+### Numbered items, anchors and citations
+
+When a requirement lists several obligations, write them as a top-level numbered list and give
+each item that others may rely on a stable **anchor** right after its number — `{#slug}`, slug
+lowercase letters/digits/`-`, starting with a letter:
+
+```markdown
+The key server shall:
+
+1. {#grant-keys} **Server keys.** Hold the grant keys in an HSM.
+2. {#rotate} **Rotation.** Rotate the keys every 12 months.
+```
+
+Items are numbered by position; `show`/`export-html` hide the token. From any other element's body,
+cite an item **by anchor**: `REQ-KEY-001#grant-keys`. Avoid `REQ-KEY-001#2` and the legacy
+`REQ-KEY-001 item 2`: a number shifts when an item is inserted, and only an anchored citation can be
+baselined (`suspect accept <src> REQ-KEY-001#grant-keys`, so `W090` fires only when that item changes).
+Cite a PlanningItem question as `PI-KEY-001#Q3`. Confirm with `check-ref REQ-KEY-001#grant-keys`.
+Validation: `W092` dangling item/question reference or duplicate anchor; `W093` a non-draft element
+cites a still-open question (answer it first); `W094` an answered question is still cited as "to
+confirm" (state the answer instead; phrases set by `[references] open_markers`).
 
 ### Requirement hierarchy
 
@@ -1383,6 +1405,9 @@ draft → review → approved → implemented → verified
 | E630 | `links:` key is not a declared link type | Use a type listed in the message / by `link-types`; never invent one |
 | E631 | `links:` not a map, or a value not a ref / list of refs | `links: { <type>: <ref> }` or `<type>: [<ref>, …]` |
 | E632 | `links:` ref does not resolve | `check-ref` the id or qname |
+| W092 | Body cites a missing item/question (`REQ-X#slug`, `REQ-X#5`, `PI-X#Q3`) or a requirement repeats an anchor | Fix the citation (`check-ref REQ-X#slug`) or add/rename the `{#slug}` anchor |
+| W093 | A non-draft element cites a question that is still `open` | Answer the question (`set PI-X question.answer Q3 text=…`) or keep the element `draft` |
+| W094 | An answered question is cited with "to confirm"-style wording | Rewrite the sentence to state the answer |
 | E633 | Element type not in the link type's `sourceTypes` | Hold the link on a permitted source type (see `link-types`) |
 | E634 | Target type not in the link type's `targetTypes` | Point at a permitted target type |
 | E635 | More targets than the `cardinality` upper bound | Remove targets or split across elements |

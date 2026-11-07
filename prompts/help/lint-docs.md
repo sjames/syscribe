@@ -9,12 +9,18 @@ elements that do not resolve in the loaded model: stable-ID tokens in prose, qua
 names inside Mermaid blocks, SVG `sysml:ref` manifests, and local image/diagram embed
 paths.
 
+It also checks item and question references (GH #453) — `REQ-X#slug`, `REQ-X#5`,
+`REQ-X item 5`, `PI-Y#Q3` — with the rules `validate` applies to element bodies: `W092`
+for an item or question that does not exist (fails the run), `W094` (advisory) for an
+answered question cited with "to confirm"-style wording (phrases from
+`[references] open_markers` in `.syscribe.toml`).
+
 It also flags a package `_index.md` that hand-enumerates its own members (`W103`,
 advisory): membership is generated from the directory by `show <package>`, the web UI
 and `export-html`, so a hand-maintained list only drifts.
 
-Exits non-zero if any unresolvable references are found (`W099`–`W102`), enabling CI
-gating. `W103` alone never makes it exit non-zero unless you opt in with `--deny W103`.
+Exits non-zero if any unresolvable references are found (`W092`, `W099`–`W102`), enabling CI
+gating. `W094` and `W103` alone never make it exit non-zero unless you opt in with `--deny`.
 
 Every path must exist: a nonexistent path is a usage error (each missing path is
 named on stderr, nothing is scanned, exit 1), so a typo in a CI path cannot pass as a
@@ -23,11 +29,11 @@ clean run.
 ## OPTIONS
     <path>...    Files or directories to scan (.md and .svg).
     --json       Emit findings as a JSON array of {file, line, code, token|ref|path|detail}
-                 (`detail` carries the W103 message).
+                 (`detail` carries the W103/W094 message; `ref` the W092 reference).
     --deny <CODES>
-                 Comma-separated lint-docs codes (W099–W103; repeatable, or --deny=<CODES>)
-                 treated as failures. W099–W102 already fail the run, so this matters for
-                 the advisory W103: `--deny W103` makes it exit 1. Any other code, or an
+                 Comma-separated lint-docs codes (W092, W094, W099–W103; repeatable, or
+                 --deny=<CODES>) treated as failures. W092 and W099–W102 already fail the
+                 run, so this matters for the advisory W094/W103: `--deny W103` makes it exit 1. Any other code, or an
                  unknown option, is a usage error (exit 1).
 
 ## EXAMPLES
@@ -39,12 +45,18 @@ clean run.
     syscribe -m model/ lint-docs model/ --deny W103
 
 ## EXIT CODES
-    0  no W099–W102 finding (W103 is advisory unless denied)
-    1  a W099–W102 finding, a finding whose code is in --deny, or a usage error
+    0  no W092/W099–W102 finding (W094/W103 are advisory unless denied)
+    1  a W092/W099–W102 finding, a finding whose code is in --deny, or a usage error
        (nonexistent path, unknown --deny code, unknown option, no path)
 
 ## NOTES
-Findings (W099–W102 always fail the run; W103 only with `--deny W103`):
+Findings (W092 and W099–W102 always fail the run; W094/W103 only with `--deny`):
+
+- **W092** — an item or question reference whose element resolves but whose anchor,
+  item number or question does not exist (`REQ-X#gone`, `REQ-X#9` past the last item,
+  `PI-Y#Q99`). Fix the reference; `check-ref` shows what resolves.
+- **W094** (advisory) — an answered question cited with "to confirm"-style wording in
+  the same sentence; rewrite the sentence to state the answer.
 
 - **W099** — an unresolvable stable-ID token (`REQ-*`, `TC-*`, …) in prose.
 - **W100** — a qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not

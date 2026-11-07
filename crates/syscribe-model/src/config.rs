@@ -169,6 +169,9 @@ pub struct ValidateConfig {
 
     /// `[planning]` opt-in gates (GH #455/#456): `W319`, `W320`, `W321`; problems are `W322`.
     pub planning: PlanningPolicy,
+    /// GH #453 — the `[references]` table (`open_markers` for `W094`); malformed entries
+    /// are reported as `W094` against `.syscribe.toml`.
+    pub references: crate::req_items::ReferencesConfig,
 
     /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
     /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
@@ -734,11 +737,13 @@ impl ValidateConfig {
         let root_for_cyber = root.clone();
         let (breakdown_adr_optional, traceability_problems) = load_traceability(&root);
         let planning = PlanningPolicy::load(&root);
+        let references = crate::req_items::ReferencesConfig::load(&root);
         Self {
             machine_config: None,
             breakdown_adr_optional,
             traceability_problems,
             planning,
+            references,
             model_root: Some(root),
             repo_root,
             matchers,

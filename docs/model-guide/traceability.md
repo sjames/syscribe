@@ -210,6 +210,18 @@ the guarded `suspect_accept`.
 Custom links declared under `[linkTypes]` take part in suspect-link detection too, unless a
 type opts out with `suspect = false` (see below).
 
+**One item at a time.** When a requirement is a numbered list, a source usually relies on one
+item, not the whole requirement. Anchor that item (`1. {#grant-keys} …` in the requirement
+body), cite it in the source's body as `REQ-X#grant-keys`, and baseline that citation:
+
+```bash
+syscribe -m model/ suspect accept TC-KEY-004 REQ-KEY-001#grant-keys
+```
+
+The stored hash covers that item's text only, so `W090` fires when that item changes and not
+when another item is edited or inserted. A by-number citation (`REQ-X#5`) cannot be
+baselined. See [item anchors and references](requirements.md#item-anchors-and-references).
+
 ## Project-defined relationships — user-defined link types (`ADR-SYS-LINKTYPE-001`)
 
 When a relationship the format does not name is needed — `mitigates`, `conflictsWith`,

@@ -684,6 +684,21 @@ un-baselined links stay silent in `validate` and are listed only by `suspect lis
 |---|---|
 | W090 | Suspect link: a trace-link target's normative content changed since the source's `traceBaselines:` entry for it was captured. Review, then re-baseline with `suspect accept <src> <tgt>`. Gate with `--deny W090` |
 
+## Item and question references (W092–W094, GH #453)
+
+A Requirement body's top-level numbered items are citable: by position (`REQ-X#5`, legacy
+`REQ-X item 5`) or, better, by a stable anchor written after the number
+(`1. {#grant-keys} …` → `REQ-X#grant-keys`). PlanningItem questions are cited as
+`PI-Y#Q31`. `validate` checks these references in every element body (outside fenced code);
+`lint-docs` checks them in external Markdown. See
+[Requirements — item anchors](../model-guide/requirements.md#item-anchors-and-references).
+
+| Code | Condition |
+|---|---|
+| `W092` | Dangling item or question reference (missing anchor, item number out of range, missing question), or a duplicate / malformed `{#slug}` anchor in one Requirement. Fix the reference (`check-ref REQ-X#slug`) or the anchor |
+| `W093` | An element past draft cites a question that is still `open`. Answer the question, or move the element back to `draft` |
+| `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence (phrases configurable via `[references] open_markers`); also a malformed `[references]` table. Rewrite the sentence to state the answer. Advisory in `lint-docs` |
+
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 
 A result recorded with `ingest-results --format records` is joined to its `TestCase` and stores a hash of that

@@ -1,7 +1,7 @@
 # impact — change impact analysis over the traceability graph
 
 ## SYNOPSIS
-    syscribe -m <root> impact <qname|id> [--direction downstream|upstream|both]
+    syscribe -m <root> impact <qname|id|REQ-id#anchor|PI-id#Qn> [--direction downstream|upstream|both]
                                [--depth <N>] [--format text|json|dot] [--kinds <csv>]
     syscribe -m <root> impact (--files <path>... | --since <rev>) [--direction D] [--depth N]
                                [--format text|json] [--fail-on-unreviewed]
@@ -19,6 +19,12 @@ may need to change?". Read-only.
 User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are traversed
 too: upstream along the link (source → target, labelled with the type name), downstream
 against it (labelled with the type's `inverse`, or `<type> (inbound)`).
+
+**From one requirement item (GH #453).** `impact REQ-X#grant-keys` (or `REQ-X#5`, or a
+question `PI-Y#Q3`) starts from a single item: downstream it lists the elements whose body
+cites that item (`via cited by`) and everything downstream of them; upstream it shows the
+owning element (`via item of`). Changing one item therefore reaches only the elements that
+rely on it, not every element that cites `REQ-X` as a whole.
 
 **From changed files.** During review the question is usually the reverse: *given these changed
 files (or this revision range), what is affected?* `--files <path>...` and `--since <rev>` (the
@@ -63,6 +69,7 @@ Cycles are handled (each element is visited once). Works for qualified names and
 
 ## EXAMPLES
     syscribe -m examples/planning-item/model/ impact REQ-RTH-001 --direction both
+    syscribe -m model/ impact REQ-TRS-ITEMREF-005#by-number   # who relies on that item
     syscribe -m examples/planning-item/model/ impact --files examples/planning-item/model/Requirements/REQ-RTH-001.md
 
 ## SEE ALSO
