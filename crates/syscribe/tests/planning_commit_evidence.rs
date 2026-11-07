@@ -107,7 +107,7 @@ fn with<'a>(fs: &'a [(String, String)], code: &str) -> Vec<&'a str> {
 fn a_resolving_commit_is_evidence_for_a_done_leaf() {
     let r = Repo::new("");
     let short = &r.sha("HEAD~1")[..9];
-    r.pi("PI-CM-001", "done", &format!("  - commit: {short}\n"));
+    r.pi("PI-CM-001", "done", &format!("  - commit: \"{short}\"\n"));
     let fs = r.codes();
     assert!(with(&fs, "E728").is_empty(), "{fs:?}");
     assert!(with(&fs, "E719").is_empty(), "{fs:?}");
@@ -158,11 +158,11 @@ fn w320_a_commit_that_touches_none_of_the_items_paths() {
     let r = Repo::new("[planning]\ncheck_commit_paths = true\n");
     let (c1, c2) = (r.sha("HEAD~1"), r.sha("HEAD"));
     // Names src/a.rs by path; c2 only touched src/b.rs.
-    r.pi("PI-CM-001", "todo", &format!("  - path: repo:src/a.rs\n  - commit: {}\n", &c2[..10]));
+    r.pi("PI-CM-001", "todo", &format!("  - path: repo:src/a.rs\n  - commit: \"{}\"\n", &c2[..10]));
     // Names src/a.rs through the TestCase's sourceFile; c1 touched it.
-    r.pi("PI-CM-002", "todo", &format!("  - ref: TC-CM-001\n  - commit: {}\n", &c1[..10]));
+    r.pi("PI-CM-002", "todo", &format!("  - ref: TC-CM-001\n  - commit: \"{}\"\n", &c1[..10]));
     // Names no path at all: nothing to compare against.
-    r.pi("PI-CM-003", "todo", &format!("  - commit: {}\n", &c2[..10]));
+    r.pi("PI-CM-003", "todo", &format!("  - commit: \"{}\"\n", &c2[..10]));
     let fs = r.codes();
     let w = with(&fs, "W320");
     assert_eq!(w.len(), 1, "{fs:?}");
@@ -173,7 +173,7 @@ fn w320_a_commit_that_touches_none_of_the_items_paths() {
 fn w320_is_off_by_default() {
     let r = Repo::new("");
     let c2 = r.sha("HEAD");
-    r.pi("PI-CM-001", "todo", &format!("  - path: repo:src/a.rs\n  - commit: {c2}\n"));
+    r.pi("PI-CM-001", "todo", &format!("  - path: repo:src/a.rs\n  - commit: \"{c2}\"\n"));
     assert!(with(&r.codes(), "W320").is_empty());
 }
 
@@ -182,7 +182,7 @@ fn w321_a_done_leaf_without_commit_evidence() {
     let r = Repo::new("[planning]\nrequire_commit_evidence = true\n");
     let c1 = r.sha("HEAD~1");
     r.pi("PI-CM-001", "done", "  - path: repo:src/a.rs\n");
-    r.pi("PI-CM-002", "done", &format!("  - path: repo:src/a.rs\n  - commit: {c1}\n"));
+    r.pi("PI-CM-002", "done", &format!("  - path: repo:src/a.rs\n  - commit: \"{c1}\"\n"));
     r.pi("PI-CM-003", "in_progress", "  - path: repo:src/a.rs\n");
     let fs = r.codes();
     let w = with(&fs, "W321");
@@ -200,7 +200,7 @@ fn w321_a_done_leaf_without_commit_evidence() {
 fn steps_and_context_show_the_resolved_commit() {
     let r = Repo::new("");
     let c1 = r.sha("HEAD~1");
-    r.pi("PI-CM-001", "done", &format!("  - commit: {}\n", &c1[..8]));
+    r.pi("PI-CM-001", "done", &format!("  - commit: \"{}\"\n", &c1[..8]));
     let (out, e, c) = r.run(&["steps", "PI-CM-001", "--json"]);
     assert_eq!(c, 0, "{e}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
@@ -221,7 +221,9 @@ fn set_evidence_add_commit_checks_and_writes_the_entry() {
     let (_o, e, c) = r.run(&["set", "PI-CM-001", "evidence.add", &format!("commit={}", &c1[..7])]);
     assert_eq!(c, 0, "{e}");
     let text = r.read("model/P/PI-CM-001.md");
-    assert!(text.contains(&format!("- commit: {}", &c1[..7])), "{text}");
+    // `set` quotes a hash YAML would read as a number (e.g. `7666202e104`), so accept either form.
+    let short = &c1[..7];
+    assert!(text.contains(&format!("- commit: {short}")) || text.contains(&format!("- commit: \"{short}\"")) || text.contains(&format!("- commit: '{short}'")), "{text}");
     // Unknown and malformed hashes are refused, nothing written.
     let (_o, e, c) = r.run(&["set", "PI-CM-001", "evidence.add", "commit=0123456789abcdef0123456789abcdef01234567"]);
     assert_eq!(c, 1, "{e}");
@@ -236,7 +238,7 @@ fn set_evidence_add_commit_checks_and_writes_the_entry() {
 fn log_item_lists_the_commits_named_as_evidence() {
     let r = Repo::new("");
     let c1 = r.sha("HEAD~1");
-    r.pi("PI-CM-001", "done", &format!("  - commit: {}\n", &c1[..8]));
+    r.pi("PI-CM-001", "done", &format!("  - commit: \"{}\"\n", &c1[..8]));
     let (out, e, c) = r.run(&["log", "--item", "PI-CM-001", "--json"]);
     assert_eq!(c, 0, "{e}");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
@@ -248,4 +250,14 @@ fn log_item_lists_the_commits_named_as_evidence() {
     assert!(out.contains("add a"), "{out}");
     let (_o, e, c) = r.run(&["log", "--item", "REQ-CM-001"]);
     assert_eq!(c, 1, "{e}");
+}
+
+#[test]
+fn an_unquoted_hash_yaml_reads_as_a_number_is_e728_asking_for_quotes() {
+    let r = Repo::new("");
+    r.pi("PI-CM-001", "todo", "  - commit: 7666202e104\n");
+    let fs = r.codes();
+    let e = with(&fs, "E728");
+    assert_eq!(e.len(), 1, "{fs:?}");
+    assert!(e[0].contains("7.666202e110") && e[0].contains("quote it"), "{fs:?}");
 }

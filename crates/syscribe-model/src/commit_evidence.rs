@@ -38,13 +38,23 @@ pub enum Lookup {
     NotACommit(String),
 }
 
-/// The `commit:` value of an evidence entry as text, if the entry has one. A number (an
-/// all-digit hash YAML read as an integer) is turned back into its digits.
+/// A raw value as written for messages (an unquoted number shows as the number YAML read).
+pub fn display_value(raw: &str) -> &str {
+    raw.strip_prefix(NUMBER_MARK).unwrap_or(raw)
+}
+
+/// Prefix [`commit_value`] puts on a value YAML read as a number, so [`check_shape`] can report it.
+const NUMBER_MARK: &str = "\u{0}number:";
+
+/// The `commit:` value of an evidence entry as text, if the entry has one. An unquoted hash made
+/// only of digits, or of digits around one `e` (`7666202e104`), is read by YAML as a number and its
+/// own characters are lost (leading zeros, the exponent form), so it is never guessed back: it is
+/// marked and [`check_shape`] reports it as malformed, asking for quotes.
 pub fn commit_value(entry: &serde_yaml::Value) -> Option<String> {
     let v = entry.as_mapping()?.get(serde_yaml::Value::String("commit".into()))?;
     Some(match v {
         serde_yaml::Value::String(s) => s.trim().to_string(),
-        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Number(n) => format!("{NUMBER_MARK}{n}"),
         serde_yaml::Value::Null => String::new(),
         other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
     })
@@ -53,6 +63,11 @@ pub fn commit_value(entry: &serde_yaml::Value) -> Option<String> {
 /// Check the shape of a hash: 7–40 hexadecimal characters. Returns the lower-cased hash, or why
 /// it is malformed.
 pub fn check_shape(raw: &str) -> Result<String, String> {
+    if let Some(n) = raw.strip_prefix(NUMBER_MARK) {
+        return Err(format!(
+            "YAML read the unquoted value as the number {n}, so the hash itself is lost — quote it (`commit: \"<hash>\"`)"
+        ));
+    }
     let s = raw.trim();
     if s.is_empty() {
         return Err("it is empty".into());
@@ -263,15 +278,16 @@ impl CommitCheck {
 
     /// The `E728` message for a raw value, or `None` when it is fine (or cannot be checked).
     pub fn problem(&self, raw: &str) -> Option<String> {
+        let shown = display_value(raw);
         let top = self.repo.as_ref().map(|r| r.top().display().to_string()).unwrap_or_default();
         match self.state(raw) {
             State::Malformed(why) => Some(format!(
-                "PlanningItem evidence `commit` '{raw}' is malformed: {why} (expected {MIN_LEN}–{MAX_LEN} hexadecimal characters; quote an all-digit hash)"
+                "PlanningItem evidence `commit` '{shown}' is malformed: {why} (expected {MIN_LEN}–{MAX_LEN} hexadecimal characters)"
             )),
             State::Unchecked | State::Resolved(Lookup::Found { .. }) => None,
-            State::Resolved(Lookup::Unknown) => Some(format!("PlanningItem evidence `commit` '{raw}' is unknown: no commit of the repository at {top} has that name (a typo, or rebased or not fetched?)")),
-            State::Resolved(Lookup::Ambiguous) => Some(format!("PlanningItem evidence `commit` '{raw}' is ambiguous: it abbreviates more than one object — give more characters")),
-            State::Resolved(Lookup::NotACommit(t)) => Some(format!("PlanningItem evidence `commit` '{raw}' names a {t}, not a commit")),
+            State::Resolved(Lookup::Unknown) => Some(format!("PlanningItem evidence `commit` '{shown}' is unknown: no commit of the repository at {top} has that name (a typo, or rebased or not fetched?)")),
+            State::Resolved(Lookup::Ambiguous) => Some(format!("PlanningItem evidence `commit` '{shown}' is ambiguous: it abbreviates more than one object — give more characters")),
+            State::Resolved(Lookup::NotACommit(t)) => Some(format!("PlanningItem evidence `commit` '{shown}' names a {t}, not a commit")),
         }
     }
 
@@ -320,9 +336,15 @@ mod tests {
     }
 
     #[test]
-    fn an_all_digit_hash_read_as_a_number_keeps_its_digits() {
-        let v: serde_yaml::Value = serde_yaml::from_str("commit: 1234567").unwrap();
-        assert_eq!(commit_value(&v).as_deref(), Some("1234567"));
+    fn a_hash_yaml_read_as_a_number_is_malformed_and_asks_for_quotes() {
+        for (yaml, shown) in [("commit: 1234567", "1234567"), ("commit: 7666202e104", "7.666202e110")] {
+            let v: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+            let raw = commit_value(&v).unwrap();
+            assert_eq!(display_value(&raw), shown, "{yaml}");
+            assert!(check_shape(&raw).unwrap_err().contains("quote it"), "{yaml}");
+        }
+        let v: serde_yaml::Value = serde_yaml::from_str("commit: 0012345").unwrap(); // leading zeros keep it a string
+        assert_eq!(check_shape(&commit_value(&v).unwrap()).unwrap(), "0012345");
         let v: serde_yaml::Value = serde_yaml::from_str("ref: TC-1").unwrap();
         assert_eq!(commit_value(&v), None);
     }

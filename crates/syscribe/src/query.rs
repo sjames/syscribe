@@ -3965,7 +3965,7 @@ achieves:
 #   - ref: TC-PREFIX-001
 #   - path: src/some_file.rs
 #     rationale: "Why this entry is waived instead of resolving"
-#   - commit: 3f9c2a1        # the commit that delivered it: 7-40 hex, checked against git (E728);
+#   - commit: "3f9c2a1"      # the commit that delivered it: 7-40 hex, checked against git (E728);
 #                            # quote an all-digit hash. [planning] in .syscribe.toml can require one
 #                            # on a done leaf (W321) and check it touches the paths above (W320).
 # questions:                # decisions awaiting an answer; add with `set PI-PREFIX-001 question.add text=…`

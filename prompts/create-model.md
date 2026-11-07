@@ -760,7 +760,7 @@ achieves: [REQ-BRAKE-001]    # top-level only; a child sets parent: PI-… inste
 assignedTo: jdoe             # optional Unix-style username
 evidence:                    # a leaf claiming status: done needs ≥1 resolving entry (E719)
   - ref: TC-BRAKE-001
-  - commit: 3f9c2a1e7b       # optional: the commit that delivered it (7-40 hex, checked against git, E728)
+  - commit: "3f9c2a1e7b"     # optional: the commit that delivered it (7-40 hex, checked against git, E728)
 ---
 ```
 

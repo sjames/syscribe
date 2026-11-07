@@ -9176,7 +9176,7 @@ Each entry is **duck-typed** — recognised by which key it carries, not a `type
 |---|---|---|
 | `ref` | string | Any resolvable model element (id or qname), unrestricted by kind — not limited to architecture or `TestCase`. |
 | `path` | string | A file/doc path, resolved exactly like `implementedBy:` (§12.8): a local path is checked to exist, a remote URI is accepted as external. `repo:`-prefixed paths resolve relative to the git root. |
-| `commit` | string | A git commit that delivered the work (GH #455): 7–40 hexadecimal characters, an abbreviation or a full object name. Resolved against the repository containing the model root (`E728`); a resolving commit counts as resolving evidence for `E719`. Quote an all-digit hash so YAML keeps it a string. See §23.11 for the opt-in path and presence checks. |
+| `commit` | string | A git commit that delivered the work (GH #455): 7–40 hexadecimal characters, an abbreviation or a full object name. Resolved against the repository containing the model root (`E728`); a resolving commit counts as resolving evidence for `E719`. Quote the hash (`commit: "3f9c2a1"`): an unquoted hash made of digits, or digits around one `e` (`7666202e104`), is read by YAML as a number and is `E728`. See §23.11 for the opt-in path and presence checks. |
 | `rationale` | string | Optional, on any form. A non-empty `rationale:` **waives** that one entry's own resolution check — the entry still counts toward "has evidence," it just isn't itself verified. Mirrors the `ffiRationale` co-located-waiver pattern. Every other entry in the same list is still checked normally; there is no blanket suppression. |
 
 ```yaml
@@ -9185,7 +9185,7 @@ evidence:
   - ref: TC-RTH-BATT-001
   - path: "docs/design/rth-timing-analysis.pdf"
     rationale: "External PDF not yet committed; reviewed in RR-RTH-001"
-  - commit: 3f9c2a1e7b
+  - commit: "3f9c2a1e7b"
 ```
 
 **Commit entries.** `validate` resolves every non-waived `commit:` of the model in one batch against the git repository that contains the model root (one `git cat-file --batch-check` for all distinct hashes, one `git log` for their subjects; a resolved commit is cached for the life of the process). `E728` reports a hash that is malformed, unknown, an ambiguous abbreviation, or not a commit, and says which. When git cannot be run or the model is in no repository, resolution is skipped silently: a well-formed hash raises nothing and counts as evidence for `E719`, since it cannot be held against the item; a malformed hash is still `E728`. `steps --json` lists each item's commit entries (`commits: [{commit, sha?, subject?, status}]`, `status` one of `resolved`, `unknown`, `ambiguous`, `not-a-commit`, `malformed`, `unchecked`), `context` shows each commit's full sha and subject, `set <PI> evidence.add commit=<sha>` appends one after checking it to the `E728` bar, and `log --item <PI>` lists the commits an item names.
