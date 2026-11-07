@@ -169,7 +169,7 @@ fn rules(root: &str) -> Vec<String> {
     vec![
         format!("Never invent an id: `syscribe -m {root} next-id <PREFIX>-<AREA>` returns the next free one; start a new element from `syscribe template <Type>` (no model needed)."),
         format!("Change an existing field with `syscribe -m {root} set <id> status=<value>` (also `evidence.add`, `achieves.add`, `<list>.add`) rather than editing YAML: the value is checked before anything is written."),
-        format!("When blocked on a decision, record it instead of guessing: `syscribe -m {root} set <PI> question.add text=\"…\" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`."),
+        format!("When blocked on a decision, record it instead of guessing: `syscribe -m {root} set <PI> question.add text=\"…\" [recommended=…]`; list the open ones with `questions --open` and see a breakdown with `steps <PI>`. A question with `answerBy: human` (shown in `questions --json`, marked *(for a person)* in `questions`) is a person's to answer, never yours."),
         format!("Attribute and record a change: add `--by <you> --reason \"<why>\" --commit` to a writing command and it commits just the files it changed, you as author; `syscribe -m {root} log <element>` shows who changed what. `--expect-hash <contentHash>` (from `show`) refuses an edit based on a stale read."),
         format!("Rename or move with `syscribe -m {root} move <src> <dest>`, which rewrites every reference."),
         format!("Own shared work with `syscribe -m {root} claim <PI-id> --by <agent>` and `release <PI-id>`; never hand-edit `claimedBy`/`claimedAt`."),

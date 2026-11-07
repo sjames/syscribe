@@ -441,9 +441,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front |
 | `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
-| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type, an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
+| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
 
-## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W318, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W318, W323, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -468,12 +468,13 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W309` | A `[users]` key in `.syscribe.toml` is not a valid username — entry ignored, excluded from the roster |
 | `W310` | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly — an active TestCase for a leaf, an active integration-level (`L3`/`L4`/`L5`) TestCase for a parent (mirrors `W002`/`W305`, scoped to the specific PlanningItem, issue #114) |
 | `W311` | Two `PlanningItem`s that are both active (`status: in_progress`, or explicitly claimed via `claimedBy:`) overlap by a shared `achieves:` Requirement or an `evidence[].path` resolving to the same repo-relative path — likely duplicate concurrent work (issue #115) |
-| `E724` | A `PlanningItem` `questions:` is not a list of mappings, or an entry lacks `id`/`text` or has an `id` that is not `Q<n>` |
+| `E724` | A `PlanningItem` `questions:` is not a list of mappings, or an entry lacks `id`/`text` or has an `id` that is not `Q<n>`, or its `answerBy` is not `human · any` (until fixed, an unrecognised `answerBy` counts as `human`) |
 | `E725` | Two `questions:` entries on one `PlanningItem` share an `id` |
 | `E726` | A question's `status` is absent or outside `open · answered · deferred` |
 | `E727` | A question is `answered` but has no non-empty `answer` |
 | `W317` | A `PlanningItem` at `status: done` has an `open` question — answer it or `defer` it (`deferred`/`answered` raise nothing) |
 | `W318` | A `questions:` field on an element that is not a `PlanningItem` — it is ignored there; move it to the PlanningItem that owns the decision |
+| `W323` | A `PlanningItem` question reserved to a person (its own `answerBy: human`, or no `answerBy` under `[agents] human_only_answers = true`) is answered, but an agent wrote the answer: its `answeredBy` matches `[agents] actors`, or the git history shows the commit that last changed the answer was an agent's (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`). An answer git cannot attribute (not committed yet, or not in git) raises nothing. Fix: a person confirms or replaces the answer — `syscribe set <PI> question.answer <Qn> text=… --by <person> --as-human --commit` — or, if agents may answer it, the question says `answerBy: any`. Gate with `--deny W323` |
 
 `claimedBy:`/`claimedAt:` are advisory ownership markers (issue #115), written/cleared by the
 dedicated `claim <PI-id> --by <agent-id>`/`release <PI-id>` commands — not the generic MCP

@@ -8,8 +8,12 @@ Lists the inline `questions:` of every `PlanningItem` — the decisions awaiting
 the owning item (`PI-X#Q1`), status, text, the recommendation and the answer. A question is
 detected from the field, never inferred from prose, and is private to its item.
 
-An entry is `{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}` with `status`
-`open | answered | deferred`. Record and resolve them with `set`:
+An entry is `{id, text, recommended?, status, answer?, answeredBy?, answeredAt?, answerBy?}` with `status`
+`open | answered | deferred`. `answerBy: human | any` says who may answer it: `human` reserves the
+decision to a person (an owner), so an agent's `question.answer` is refused (`human_only_answers`) and an
+answer an agent wrote anyway is `W323`. With no `answerBy`, the default is `any`, or `human` when
+`.syscribe.toml` sets `[agents] human_only_answers = true`; a question's own `answerBy` always wins.
+Reserved questions are marked *(for a person)* in the table. Record and resolve them with `set`:
 
     syscribe -m <root> set <PI> question.add text="Which UART?" recommended=UART2
     syscribe -m <root> set <PI> question.answer Q1 text=UART2 by=alice
@@ -24,7 +28,10 @@ not make an item `blocked` — `blockedBy:` stays for dependencies.
     --open            Only open questions (same as --status open).
     --status <s>      Only questions with this status.
     --item <PI>       Only this item's questions (id or qualified name); unknown or not a PlanningItem exits 1.
-    --json            Machine-readable output (schemaVersion 1.0).
+    --json            Machine-readable output (schemaVersion 1.0). Each question also carries `answerBy`
+                      (`human` | `any`, the default applied) and, when git records the commit that last
+                      changed its answer, `answerProvenance: {by, agent, at, commit}` — `by` is the
+                      `Syscribe-Actor` (else the author), `agent` whether that commit was an agent's.
 
 ## EXAMPLES
     # against the bundled PlanningItem example (examples/planning-item/model/)

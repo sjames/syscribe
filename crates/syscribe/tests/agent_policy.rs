@@ -348,3 +348,122 @@ fn the_guide_tells_agents_to_pass_by_unless_it_is_mandatory() {
     let out = mandatory.run(&["agent-guide"]).0;
     assert!(out.contains("Every model-writing command must name its actor") && !out.contains("always pass `--by <you>`"), "{out}");
 }
+
+// ── questions reserved to a person (TC-TRS-AGENTPOL-004, GH #457) ───────────
+
+fn pi_q(id: &str, q: &str) -> String {
+    pi(id, "todo", &format!("questions:\n  - id: Q1\n    text: Which UART?\n    status: open\n{q}"))
+}
+
+#[test]
+fn human_only_answers_refuses_an_agent_answer_also_under_dry_run() {
+    let r = Repo::new("[agents]\nhuman_only_answers = true\nactors = [\"bot-*\"]\n");
+    r.write("model/Planning/PI-AP-003.md", &pi_q("PI-AP-003", ""));
+    r.commit("question");
+    let before = r.read("model/Planning/PI-AP-003.md");
+    for extra in [&[][..], &["--dry-run"][..]] {
+        let mut args = vec!["set", "PI-AP-003", "question.answer", "Q1", "text=UART2", "--by", "agent-1"];
+        args.extend_from_slice(extra);
+        let (_o, err, code) = r.run(&args);
+        assert_eq!(code, 1, "{extra:?}: {err}");
+        assert!(err.contains("human_only_answers") && err.contains("PI-AP-003#Q1") && err.contains("--as-human"), "{err}");
+    }
+    assert_eq!(r.read("model/Planning/PI-AP-003.md"), before, "nothing was written");
+    // An agent may still record a question; a person may answer.
+    assert_eq!(r.run(&["set", "PI-AP-003", "question.add", "text=Baud?", "--by", "agent-1"]).2, 0);
+    let (_o, err, code) = r.run(&["set", "PI-AP-003", "question.answer", "Q1", "text=UART2", "--by", "alice", "--as-human"]);
+    assert_eq!(code, 0, "{err}");
+    assert!(r.read("model/Planning/PI-AP-003.md").contains("answer: UART2"));
+    assert_eq!(r.run(&["set", "PI-AP-003", "question.answer", "Q2", "text=115200"]).2, 0, "no --by: a person at a terminal");
+}
+
+#[test]
+fn answer_by_on_the_question_decides_and_wins_over_the_policy_default() {
+    // No [agents] table at all: `answerBy: human` still reserves that one question.
+    let r = Repo::new("[ids]\nmax_digits = 4\n");
+    r.write("model/Planning/PI-AP-003.md", &pi_q("PI-AP-003", "    answerBy: human\n"));
+    r.write("model/Planning/PI-AP-004.md", &pi_q("PI-AP-004", ""));
+    r.commit("questions");
+    let (_o, err, code) = r.run(&["set", "PI-AP-003", "question.answer", "Q1", "text=x", "--by", "agent-1"]);
+    assert_eq!(code, 1, "{err}");
+    assert!(err.contains("human_only_answers") && err.contains("answerBy: human"), "{err}");
+    assert_eq!(r.run(&["set", "PI-AP-004", "question.answer", "Q1", "text=x", "--by", "agent-1"]).2, 0, "unreserved");
+    // With the policy on, `answerBy: any` opens one question to agents.
+    let r = Repo::new("[agents]\nhuman_only_answers = true\n");
+    r.write("model/Planning/PI-AP-003.md", &pi_q("PI-AP-003", "    answerBy: any\n"));
+    r.commit("q");
+    assert_eq!(r.run(&["set", "PI-AP-003", "question.answer", "Q1", "text=x", "--by", "agent-1"]).2, 0);
+    // A bad value is E724 and counts as `human`.
+    r.write("model/Planning/PI-AP-004.md", &pi_q("PI-AP-004", "    answerBy: owner\n"));
+    assert!(findings(&r, "E724").iter().any(|l| l.contains("answerBy `owner`")), "{:?}", findings(&r, "E724"));
+    assert_eq!(r.run(&["set", "PI-AP-004", "question.answer", "Q1", "text=x", "--by", "agent-1"]).2, 1);
+}
+
+fn answered(id: &str, by: &str, answer_by: &str) -> String {
+    pi(id, "todo", &format!("questions:\n  - id: Q1\n    text: Which UART?\n    status: answered\n    answer: UART2\n    answeredBy: {by}\n{answer_by}"))
+}
+
+#[test]
+fn validate_flags_a_reserved_answer_an_agent_wrote() {
+    let r = Repo::new("[agents]\nhuman_only_answers = true\nactors = [\"bot-*\"]\n");
+    r.write("model/Planning/PI-AP-003.md", &pi_q("PI-AP-003", ""));
+    r.write("model/Planning/PI-AP-004.md", &pi_q("PI-AP-004", ""));
+    r.write("model/Planning/PI-AP-005.md", &pi_q("PI-AP-005", ""));
+    r.write("model/Planning/PI-AP-006.md", &pi_q("PI-AP-006", "    answerBy: any\n"));
+    r.commit("questions");
+    // (1) A commit attributed to an agent (Syscribe-Actor trailer) wrote the answer, claiming the owner answered.
+    r.write("model/Planning/PI-AP-003.md", &answered("PI-AP-003", "owner", ""));
+    commit_as(&r, "Human", "answer\n\nSyscribe-Command: hand edit\nSyscribe-Actor: agent-9");
+    // (2) A person wrote this one.
+    r.write("model/Planning/PI-AP-004.md", &answered("PI-AP-004", "owner", ""));
+    commit_as(&r, "Human", "owner answers");
+    // (3) `answeredBy` itself names an agent.
+    r.write("model/Planning/PI-AP-005.md", &answered("PI-AP-005", "bot-2", ""));
+    commit_as(&r, "Human", "pasted");
+    // (4) Open to agents: an agent answer is fine.
+    r.write("model/Planning/PI-AP-006.md", &answered("PI-AP-006", "bot-2", "    answerBy: any\n"));
+    commit_as(&r, "bot-2", "agent answers an open question");
+
+    let w323 = findings(&r, "W323");
+    assert_eq!(w323.len(), 2, "{w323:?}");
+    assert!(w323.iter().any(|l| l.contains("PI-AP-003#Q1") && l.contains("agent-9")), "{w323:?}");
+    assert!(w323.iter().any(|l| l.contains("PI-AP-005#Q1") && l.contains("bot-2")), "{w323:?}");
+    assert_eq!(r.run(&["validate"]).2, 0, "a warning");
+    assert_eq!(r.run(&["validate", "--deny", "W323"]).2, 2);
+
+    // An answer not yet committed cannot be attributed: nothing is said about it.
+    r.write("model/Planning/PI-AP-004.md", &answered("PI-AP-004", "carol", ""));
+    assert!(!findings(&r, "W323").iter().any(|l| l.contains("PI-AP-004")));
+
+    // questions --json: answerBy and the answer's provenance.
+    let v = json(&r.run(&["questions", "--json"]).0);
+    let q = |item: &str| v["questions"].as_array().unwrap().iter().find(|q| q["item"] == item).cloned().unwrap();
+    assert_eq!(q("PI-AP-003")["answerBy"], "human");
+    assert_eq!(q("PI-AP-006")["answerBy"], "any");
+    assert_eq!(q("PI-AP-003")["answerProvenance"]["by"], "agent-9");
+    assert_eq!(q("PI-AP-003")["answerProvenance"]["agent"], true);
+    assert_eq!(q("PI-AP-006")["answerProvenance"]["agent"], true, "bot-2 matches [agents] actors");
+    assert!(q("PI-AP-003")["answerProvenance"]["commit"].is_string() && q("PI-AP-003")["answerProvenance"]["at"].is_string());
+    assert!(q("PI-AP-004").get("answerProvenance").is_none(), "uncommitted: unknown");
+    // The text table marks the reserved ones.
+    assert!(r.run(&["questions"]).0.contains("| PI-AP-003#Q1 *(for a person)* |"));
+}
+
+#[test]
+fn without_a_policy_only_answer_by_human_questions_are_audited() {
+    let r = Repo::new("[ids]\nmax_digits = 4\n");
+    r.write("model/Planning/PI-AP-003.md", &answered("PI-AP-003", "owner", "    answerBy: human\n"));
+    r.write("model/Planning/PI-AP-004.md", &answered("PI-AP-004", "owner", ""));
+    commit_as(&r, "Human", "answers\n\nSyscribe-Command: set\nSyscribe-Actor: agent-1");
+    let w323 = findings(&r, "W323");
+    assert_eq!(w323.len(), 1, "{w323:?}");
+    assert!(w323[0].contains("PI-AP-003#Q1"), "{}", w323[0]);
+}
+
+#[test]
+fn the_policy_states_human_only_answers() {
+    let r = Repo::new("[agents]\nhuman_only_answers = true\n");
+    assert!(r.run(&["policy"]).0.contains("answerBy: any"));
+    assert_eq!(json(&r.run(&["policy", "--json"]).0)["humanOnlyAnswers"], true);
+    assert!(r.run(&["agent-guide"]).0.contains("Only a person answers a PlanningItem question"));
+}

@@ -3442,7 +3442,7 @@ pub fn cmd_validate(
     // protected path or set a human-only status. Plain validation only — it reads git history.
     let mut all = result.findings;
     if let Some(root) = &config.model_root {
-        all.extend(crate::policy_gate::audit_findings(root));
+        all.extend(crate::policy_gate::audit_findings(root, elements));
     }
     let (findings, view) = apply_baseline(&all, gate, elements, config, file_filter, &|e, c| {
         syscribe_model::validator::validate_with_config(e, c).findings
@@ -3965,6 +3965,13 @@ achieves:
 #   - ref: TC-PREFIX-001
 #   - path: src/some_file.rs
 #     rationale: "Why this entry is waived instead of resolving"
+# questions:                # decisions awaiting an answer; add with `set PI-PREFIX-001 question.add text=…`
+#   - id: Q1
+#     text: "Which UART does the debug console use?"
+#     recommended: UART2
+#     status: open           # open | answered | deferred
+#     answerBy: human        # human | any — human: only a person answers it (an agent's answer is refused, W323);
+#                            # default any, or human under [agents] human_only_answers = true
 ---
 
 Describe the work item. Inspect with `syscribe -m model/ show PI-PREFIX-001`.

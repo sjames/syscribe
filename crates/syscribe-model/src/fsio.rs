@@ -27,6 +27,23 @@ fn guarded(path: &Path) -> std::io::Result<()> {
     }
 }
 
+type ContentGuard = Box<dyn Fn(&Path, &[u8]) -> Result<(), String> + Send + Sync>;
+static CONTENT_GUARD: std::sync::OnceLock<ContentGuard> = std::sync::OnceLock::new();
+
+/// Install a check that also sees what a write would put in the file (the old content is still on disk when
+/// it runs). The agent policy uses it so no command can answer a question reserved to a person (GH #457).
+/// Set once, by the CLI.
+pub fn set_content_guard(g: impl Fn(&Path, &[u8]) -> Result<(), String> + Send + Sync + 'static) {
+    let _ = CONTENT_GUARD.set(Box::new(g));
+}
+
+fn content_guarded(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    match CONTENT_GUARD.get() {
+        Some(g) => g(path, contents).map_err(|m| std::io::Error::new(std::io::ErrorKind::PermissionDenied, m)),
+        None => Ok(()),
+    }
+}
+
 static DRY_RUN: AtomicBool = AtomicBool::new(false);
 static RECORD: AtomicBool = AtomicBool::new(false);
 static WRITTEN: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
@@ -91,6 +108,7 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Res
     let path = path.as_ref();
     // Refused even in a dry run: a dry run must report what a real run would be refused.
     guarded(path)?;
+    content_guarded(path, contents.as_ref())?;
     if is_dry_run() {
         declined(path, "write");
         return Ok(());

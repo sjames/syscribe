@@ -1,7 +1,7 @@
 //! Inline `PlanningItem` questions (GH #436, `ADR-SYS-PLANITEM-001` addendum,
 //! `REQ-TRS-PIQ-001`): the decisions awaiting an answer, kept on the item they block.
 //!
-//! A question is `{id, text, recommended?, status, answer?, answeredBy?, answeredAt?}`. It is
+//! A question is `{id, text, recommended?, status, answer?, answeredBy?, answeredAt?, answerBy?}`. It is
 //! private to its item (`PI-X#Q1` in messages), never a cross-reference target, and detected
 //! structurally — from the field, never from prose.
 
@@ -12,6 +12,8 @@ use serde_yaml::Value;
 use std::collections::HashSet;
 
 pub const STATUSES: &[&str] = &["open", "answered", "deferred"];
+/// Who may answer a question (GH #457, `REQ-TRS-AGENTPOL-004`): `human` reserves it to a person.
+pub const ANSWER_BY: &[&str] = &["human", "any"];
 
 /// One well-formed question and the item that owns it.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -31,12 +33,32 @@ pub struct Question {
     pub answered_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answered_at: Option<String>,
+    /// `answerBy:` as declared (`human` | `any`); absent means the project default
+    /// (`[agents] human_only_answers`). An unrecognised value is reported (`E724`), kept here, and
+    /// counts as `human`, so a typo never opens a question to agents.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer_by: Option<String>,
 }
 
 impl Question {
     /// `PI-X#Q1`.
     pub fn reference(&self) -> String {
         format!("{}#{}", self.item, self.id)
+    }
+
+    /// Only a person answers this question: its own `answerBy:` says so (or is unrecognised), or it says
+    /// nothing and the project default (`[agents] human_only_answers`) reserves every question.
+    pub fn reserved(&self, default_human: bool) -> bool {
+        match self.answer_by.as_deref() {
+            Some("any") => false,
+            Some(_) => true,
+            None => default_human,
+        }
+    }
+
+    /// `"human"` or `"any"`: who may answer it, once the project default is applied.
+    pub fn effective_answer_by(&self, default_human: bool) -> &'static str {
+        if self.reserved(default_human) { "human" } else { "any" }
     }
 }
 
@@ -66,13 +88,34 @@ pub fn is_question_id(s: &str) -> bool {
 /// The questions of one element and the problems found in them: `(code, message)`.
 /// Only a `PlanningItem` has questions; anything else yields nothing.
 pub fn parse(e: &RawElement) -> (Vec<Question>, Vec<(&'static str, String)>) {
+    if e.frontmatter.element_type != Some(ElementType::PlanningItem) {
+        return (Vec::new(), Vec::new());
+    }
+    match &e.frontmatter.questions {
+        Some(raw) => parse_value(&label(e), &e.qualified_name, raw),
+        None => (Vec::new(), Vec::new()),
+    }
+}
+
+/// The questions in a `.md` file's text, when it is a PlanningItem whose frontmatter parses. The owning
+/// item is named by its `id` (the qualified name is not known from the text alone and is left empty).
+pub fn parse_content(content: &str) -> Vec<Question> {
+    let (Some(yaml), _) = crate::frontmatter::split_frontmatter(content) else { return Vec::new() };
+    let Ok(fm) = crate::frontmatter::parse_frontmatter(yaml) else { return Vec::new() };
+    if fm.element_type != Some(ElementType::PlanningItem) {
+        return Vec::new();
+    }
+    match &fm.questions {
+        Some(raw) => parse_value(fm.id.as_deref().unwrap_or(""), "", raw).0,
+        None => Vec::new(),
+    }
+}
+
+/// The questions of one item's `questions:` value; `item` is its stable id (else qualified name).
+pub fn parse_value(item: &str, qualified_name: &str, raw: &Value) -> (Vec<Question>, Vec<(&'static str, String)>) {
     let mut qs = Vec::new();
     let mut problems: Vec<(&'static str, String)> = Vec::new();
-    if e.frontmatter.element_type != Some(ElementType::PlanningItem) {
-        return (qs, problems);
-    }
-    let Some(raw) = &e.frontmatter.questions else { return (qs, problems) };
-    let item = label(e);
+    let item = item.to_string();
     let Value::Sequence(entries) = raw else {
         problems.push(("E724", format!("`questions:` on {item} must be a list of mappings")));
         return (qs, problems);
@@ -115,9 +158,16 @@ pub fn parse(e: &RawElement) -> (Vec<Question>, Vec<(&'static str, String)>) {
         if status == "answered" && answer.is_none() {
             problems.push(("E727", format!("question {item}#{id} is `answered` but has no `answer`")));
         }
+        let answer_by = field(m, "answerBy");
+        if let Some(a) = answer_by.as_deref().filter(|a| !ANSWER_BY.contains(a)) {
+            problems.push((
+                "E724",
+                format!("question {item}#{id} has answerBy `{a}`; expected {} (until fixed it counts as `human`)", ANSWER_BY.join(" | ")),
+            ));
+        }
         qs.push(Question {
             item: item.clone(),
-            item_qualified_name: e.qualified_name.clone(),
+            item_qualified_name: qualified_name.to_string(),
             id,
             text,
             recommended: field(m, "recommended"),
@@ -125,6 +175,7 @@ pub fn parse(e: &RawElement) -> (Vec<Question>, Vec<(&'static str, String)>) {
             answer,
             answered_by: field(m, "answeredBy"),
             answered_at: field(m, "answeredAt"),
+            answer_by,
         });
     }
     (qs, problems)

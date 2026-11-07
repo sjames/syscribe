@@ -265,6 +265,7 @@ pub fn run(model_root: &Path, elem: &RawElement, op: &Op, dry_run: bool) {
             std::process::exit(1);
         }
     };
+    crate::policy_gate::check_answers(elem, &new_content);
     if preview_or_write(model_root, elem, &new_content, dry_run) {
         crate::say!("{}", plan.summary);
     }

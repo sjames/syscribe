@@ -172,3 +172,32 @@ fn an_item_cannot_be_created_already_done_without_evidence() {
     assert!(refused(&batch).contains("require_before_done"));
     assert!(!model.join("Planning/PI-SP-102.md").exists());
 }
+
+/// TC-TRS-AGENTPOL-004 (GH #457): no MCP write tool answers a question reserved to a person.
+#[test]
+fn no_write_tool_answers_a_question_reserved_to_a_person() {
+    let (_root, model) = setup("\n[agents]\nhuman_only_answers = true\n");
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let file = model.join("Planning/PI-SP-001.md");
+    let before = std::fs::read_to_string(&file).unwrap();
+    let answered = json!([{"id": "Q1", "text": "q", "status": "answered", "answer": "a", "answeredBy": "owner"}]);
+    for dry_run in [true, false] {
+        for (tool, args) in [
+            ("question", json!({"item": "PI-SP-001", "op": "answer", "id": "Q1", "text": "a", "dry_run": dry_run})),
+            ("update_element", json!({"ref": "PI-SP-001", "fields": {"questions": answered.clone()}, "dry_run": dry_run})),
+            ("apply_changes", json!({"operations": [{"op": "update", "ref": "PI-SP-001", "fields": {"questions": answered.clone()}}], "dry_run": dry_run})),
+        ] {
+            let r = mcp.call_tool_raw(tool, args);
+            let s = refused(&r);
+            assert!(s.contains("human_only_answers") && s.contains("PI-SP-001#Q1"), "{tool} (dry_run {dry_run}): {s}");
+        }
+    }
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), before, "nothing was written");
+    // Recording a question is still fine.
+    let ok = mcp.call_tool("question", json!({"item": "PI-SP-001", "op": "add", "text": "another", "dry_run": false}));
+    assert_eq!(ok["written"], true, "{ok}");
+    // questions exposes who may answer.
+    let qs = mcp.call_tool("questions", json!({"item": "PI-SP-001"}));
+    assert_eq!(qs["questions"][0]["answerBy"], "human", "{qs}");
+}
