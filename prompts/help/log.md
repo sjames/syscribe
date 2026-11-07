@@ -3,6 +3,7 @@
 ## SYNOPSIS
     syscribe -m <root> log [<element>] [--by <actor>] [--since <date>] [--unattributed]
                            [--limit N] [--json]
+    syscribe -m <root> log --item <PI> [--by <actor>] [--limit N] [--json]
 
 ## DESCRIPTION
 There is no separate change log: git is the record. A writing command run with `--commit` (or with
@@ -27,6 +28,9 @@ There is no separate change log: git is the record. A writing command run with `
 - **`--since <date>`** keeps commits after a date (anything `git log --since` accepts).
 - **`--unattributed`** keeps the commits that touched the model without syscribe's trailers — edits
   made by hand, or by a tool that was not told to commit.
+- **`--item <PI>`** lists the commits a `PlanningItem` names as `evidence: - commit:` (GH #455),
+  in the order the item lists them; a hash that does not resolve is named in the header instead.
+  A ref that is not a PlanningItem exits `1`.
 
 Uncommitted changes to the model are not in git yet; they are listed at the top so they are not
 mistaken for missing history. A model outside a git repository exits `1`.
@@ -36,12 +40,14 @@ mistaken for missing history. A model outside a git repository exits `1`.
     --since <date>    Only commits after this date.
     --unattributed    Only commits without Syscribe-* trailers.
     --limit N         At most N commits (default 50).
+    --item <PI>       Only the commits this PlanningItem names as evidence.
     --json            Machine-readable output (schemaVersion 1.0).
 
 ## EXAMPLES
     syscribe -m model/ log --limit 10
     syscribe -m model/ log REQ-TRS-PIQ-001
     syscribe -m model/ log --unattributed --since 2026-11-01 --json
+    syscribe -m model/ log --item PI-HPLE-001
 
 ## SEE ALSO
     changes, set, claim, validate

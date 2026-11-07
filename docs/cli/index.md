@@ -2092,6 +2092,36 @@ syscribe -m model/ list PlanningItem --open-questions
 
 **Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.
 
+## The planning gates: `[planning]`
+
+An opt-in `[planning]` table in `<model_root>/.syscribe.toml` tightens how PlanningItems and delivered work are tied together. Every key defaults to `false` (no table, no finding); keys are snake_case or camelCase; a malformed entry (not a table, unknown key, non-boolean value) is `W322` and ignored.
+
+```toml
+[planning]
+require_testcase_evidence = true   # W319: an active TestCase no PlanningItem's evidence names
+check_commit_paths = true          # W320: a commit evidence entry touches none of the item's paths
+require_commit_evidence = true     # W321: a done leaf item names no commit as evidence
+```
+
+```bash
+syscribe -m model/ coverage --json        # testCasesWithoutPlanningEvidence: the W319 set, reported whether or not the gate is on
+syscribe -m model/ validate --write-baseline accepted.json   # accept today's gap…
+syscribe -m model/ validate --baseline-file accepted.json --deny W319   # …and fail only on new ones
+```
+
+**`require_testcase_evidence`** (`W319`, GH #456): each `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (by id or qualified name) — work done and tested but never recorded against a plan. Record it with `syscribe set <PI-id> evidence.add ref=<TC-id>`. Bare `coverage` (text) and `coverage --json` (the MCP `coverage` tool's document) list the same set as `testCasesWithoutPlanningEvidence`.
+
+**Commit evidence** (GH #455). A PlanningItem `evidence:` entry may name the commit that delivered the work, beside `ref:` and `path:`:
+
+```bash
+syscribe -m model/ set PI-RTH-001 evidence.add commit=3f9c2a1   # checked first: refused if malformed, unknown or ambiguous
+syscribe -m model/ log --item PI-RTH-001                        # the commits PI-RTH-001 names as evidence (--json too)
+syscribe -m model/ steps PI-RTH-001 --json                      # each node's commits: {commit, sha, subject, status}
+syscribe -m model/ context PI-RTH-001                           # evidence lines show the full sha and subject
+```
+
+`validate` resolves every non-waived `commit:` (7–40 hex) against the git repository containing the model, all distinct hashes in one `git cat-file --batch-check`: a malformed, unknown or ambiguous hash, or one naming a non-commit object, is `E728` (the message says which). Without git or outside a repository, resolution is skipped silently (a malformed hash is still reported). A resolving commit counts as evidence for `E719`. `check_commit_paths` (`W320`) compares each commit's changed files with the paths the item names — its `evidence: - path:` entries and, for each `evidence: - ref:`, that element's file, `implementedBy:` and `sourceFile:`; an item naming no path is not judged. `require_commit_evidence` (`W321`) wants at least one resolving commit on every done leaf. The MCP `log` tool takes `item` the same way.
+
 ## Writing safely: `--dry-run`, provenance in git, `log`, `--expect-hash`
 
 Several people and agents can change one model on the mainline. These options are global — accepted by every command, before or after its name — and make each change previewable, attributable and safe against a concurrent edit.

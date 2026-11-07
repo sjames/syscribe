@@ -190,8 +190,15 @@ pub fn build(elements: &[RawElement], results: Option<&ResultsData>, findings: &
             let b = resolver.resolve_ref(elements, a).map(|e| brief(e)).unwrap_or_else(|| serde_json::Map::from_iter([("id".to_string(), json!(a))]));
             planning.push(with(b, "role", json!("achieves")));
         }
+        // A `commit:` entry carries the resolved full sha and subject line (GH #455).
+        let dir = std::path::Path::new(&root.file_path).parent().map(|d| if d.as_os_str().is_empty() { std::path::Path::new(".") } else { d });
+        let commits = syscribe_model::commit_evidence::CommitCheck::new(dir, f.evidence.iter().flatten());
         for ev in f.evidence.iter().flatten() {
-            planning.push(json!({"role": "evidence", "entry": serde_yaml_to_json(ev)}));
+            let mut item = json!({"role": "evidence", "entry": serde_yaml_to_json(ev)});
+            if let Some(raw) = syscribe_model::commit_evidence::commit_value(ev) {
+                item["commit"] = syscribe_model::commit_evidence::describe(&commits, &raw);
+            }
+            planning.push(item);
         }
         for b in f.blocked_by.iter().flatten() {
             planning.push(json!({"role": "blockedBy", "id": b}));
@@ -266,6 +273,12 @@ fn line(v: &Value) -> String {
     }
     if v.get("entry").is_some() {
         s.push_str(&format!(" {}", v["entry"]));
+    }
+    if let Some(c) = v.get("commit") {
+        match (c["sha"].as_str(), c["subject"].as_str()) {
+            (Some(sha), Some(subject)) => s.push_str(&format!(" → {sha} \"{subject}\"")),
+            _ => s.push_str(&format!(" ({})", c["status"].as_str().unwrap_or(""))),
+        }
     }
     s
 }

@@ -216,6 +216,15 @@ questions:
     answerBy: human        # only a person answers this one
 ```
 
+A project can make the link between planning and delivered work stricter with the opt-in `[planning]` table in `.syscribe.toml` (format spec §23.11). `require_testcase_evidence = true` warns (`W319`) on every `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names — tested work that was never recorded against a plan. `syscribe coverage --json` lists the same set as `testCasesWithoutPlanningEvidence` whether or not the gate is on; accept an existing backlog with `validate --write-baseline` / `--baseline-file` and fail only on new gaps. A malformed `[planning]` entry is `W322`.
+
+```toml
+[planning]
+require_testcase_evidence = true
+```
+
+The commit that delivered the work can be evidence too — `evidence: - commit: <sha>` (7–40 hex), resolved against the repository's history by `validate` (`E728` for a typo'd, rebased-away or ambiguous hash; skipped when the model is not in a git repository). Record it with `syscribe set <PI-id> evidence.add commit=<sha>`, list an item's commits with `syscribe log --item <PI-id>`; `steps --json` and `context` show each commit's full sha and subject. `[planning] require_commit_evidence = true` warns (`W321`) on a done leaf with no commit, and `check_commit_paths = true` warns (`W320`) when a commit touches none of the paths the item names.
+
 ---
 
 ## Diagram Generation

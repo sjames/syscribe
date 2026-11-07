@@ -133,6 +133,17 @@ pub fn build(model_root: &Path, elements: &[RawElement]) -> Guide {
             gates.push(format!("coverage `{}` — at least {}% complete", g.text, g.min_complete));
         }
     }
+    // `[planning]` gates (GH #455/#456): warnings, so `validate` alone does not fail on them.
+    let planning = syscribe_model::config::PlanningPolicy::load(model_root);
+    if planning.require_testcase_evidence {
+        gates.push(format!("planning `require_testcase_evidence` — record every active TestCase you deliver as evidence on its PlanningItem (`syscribe -m {root} set <PI-id> evidence.add ref=<TC-id>`), or `W319` is raised"));
+    }
+    if planning.require_commit_evidence {
+        gates.push(format!("planning `require_commit_evidence` — before a leaf PlanningItem is done, record the commit that delivered it (`syscribe -m {root} set <PI-id> evidence.add commit=<sha>`), or `W321` is raised"));
+    }
+    if planning.check_commit_paths {
+        gates.push("planning `check_commit_paths` — a commit named as evidence must touch a path the item names (its `path:` evidence, or the file, `implementedBy:` or `sourceFile:` of its `ref:` evidence), or `W320` is raised".to_string());
+    }
     let mut validate = vec![(
         format!("syscribe -m {root} validate"),
         if gates.is_empty() { "the model's own checks".to_string() } else { "the model's own checks and the gates above".to_string() },

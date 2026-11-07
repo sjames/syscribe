@@ -1419,8 +1419,19 @@ fn main() {
             "coverage" => {
                 // Coverage roll-up through the derivation tree (GH #252). Read-only. Exit 0 · 1 usage/unresolved.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                // Bare `coverage [--json]`: the model-wide summary (GH #456), the MCP `coverage` document.
+                if rest.iter().all(|a| a == "--json") {
+                    let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
+                    let cov = syscribe_model::link_types::coverage_view(&elems, &vcfg.link_types);
+                    let results = runhist::load_results(model_root);
+                    let code = coverage::cmd_coverage_summary(&cov, &result, results.as_ref(), !rest.is_empty());
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                    return;
+                }
                 if rest.first().map(|s| s.as_str()) != Some("tree") {
-                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
+                    eprintln!("Usage: syscribe --model <root> coverage [--json] | coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = &rest[1..];

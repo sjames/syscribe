@@ -340,6 +340,8 @@ struct LogArgs {
     unattributed: bool,
     /// At most this many commits (default 50).
     limit: Option<u32>,
+    /// Only the commits this PlanningItem names as `evidence: - commit:` (id or qualified name).
+    item: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -1033,7 +1035,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("itemType", false, "enum", Some(&["bug", "task", "feature"])),
             field_spec("parent", false, "ref", None),
             field_spec("achieves", false, "list<ref>", None),
-            field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
+            field_spec("evidence", false, "list<{ref|path|commit, rationale?}>", None),
             field_spec("blockedBy", false, "list<ref>", None),
             field_spec("assignedTo", false, "string", None),
             field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human|any}> (edit with `question`; answerBy human = only a person answers it — an agent's answer is refused)", None),
@@ -2344,7 +2346,7 @@ impl SyscribeMcp {
     #[tool(
         description = "The model's history as git records it: commits with author, date, the syscribe command, actor and reason \
         (from the commit trailers a write made with `commit` leaves), and for one element what each commit changed in it. \
-        `unattributed` lists commits that touched the model without those trailers. Same data as `syscribe log --json`.",
+        `unattributed` lists commits that touched the model without those trailers; `item` lists the commits a PlanningItem names as `evidence: - commit:`. Same data as `syscribe log --json`.",
         annotations(read_only_hint = true)
     )]
     async fn log(&self, Parameters(args): Parameters<LogArgs>) -> Result<CallToolResult, ErrorData> {
@@ -2354,6 +2356,7 @@ impl SyscribeMcp {
             by: args.by.as_deref(),
             since: args.since.as_deref(),
             unattributed: args.unattributed,
+            item: args.item.as_deref(),
             limit: args.limit.map(|l| l as usize).unwrap_or(50),
         };
         match crate::logcmd::collect(&store.model_root, &store.elements, &q) {
@@ -2525,7 +2528,7 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Requirement verification coverage: counts plus the unverified requirements.",
+        description = "Requirement verification coverage: counts plus the unverified requirements, and the active TestCases that no PlanningItem's evidence names (testCasesWithoutPlanningEvidence).",
         annotations(read_only_hint = true)
     )]
     async fn coverage(
@@ -2539,31 +2542,7 @@ impl SyscribeMcp {
         // authored elements.
         let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let summary = crate::coverage::coverage_summary(&cov, &result, store.config.results.as_ref());
-
-        let entries = |v: &[crate::coverage::CoverageEntry]| -> Vec<Value> {
-            v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect()
-        };
-        let unverified_leaves = entries(&summary.unverified_leaves);
-        let planned = entries(&summary.planned);
-        let parents_missing_integration: Vec<Value> = summary
-            .parents_missing_integration
-            .iter()
-            .map(|e| {
-                json!({
-                    "qname": e.qname,
-                    "id": e.id,
-                    "name": e.name,
-                    "childCount": e.child_count.unwrap_or(0),
-                })
-            })
-            .collect();
-
-        ok(json!({
-            "verifiedCount": summary.verified_count,
-            "unverifiedLeaves": unverified_leaves,
-            "planned": planned,
-            "parentsMissingIntegrationTest": parents_missing_integration,
-        }))
+        ok(crate::coverage::summary_json(&summary))
     }
 
     #[tool(

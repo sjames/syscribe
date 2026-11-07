@@ -167,6 +167,9 @@ pub struct ValidateConfig {
     /// Problems with the `[traceability]` table, reported as `W632`.
     pub traceability_problems: Vec<String>,
 
+    /// `[planning]` opt-in gates (GH #455/#456): `W319`, `W320`, `W321`; problems are `W322`.
+    pub planning: PlanningPolicy,
+
     /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
     /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
     /// `simple` rank-sum method, so existing models validate byte-identically.
@@ -730,10 +733,12 @@ impl ValidateConfig {
         let audit = AuditConfig::load(&root);
         let root_for_cyber = root.clone();
         let (breakdown_adr_optional, traceability_problems) = load_traceability(&root);
+        let planning = PlanningPolicy::load(&root);
         Self {
             machine_config: None,
             breakdown_adr_optional,
             traceability_problems,
+            planning,
             model_root: Some(root),
             repo_root,
             matchers,
@@ -1080,6 +1085,58 @@ fn load_traceability(model_root: &Path) -> (bool, Vec<String>) {
         }
     }
     (optional, problems)
+}
+
+/// `[planning]` (GH #455/#456, `REQ-TRS-PIEV-001`, `REQ-TRS-PICOMMIT-001`): opt-in PlanningItem
+/// evidence gates. Every key defaults to `false`, so a model without the table behaves as before.
+///
+/// ```toml
+/// [planning]
+/// require_testcase_evidence = true   # W319: an active TestCase no PlanningItem's evidence names
+/// check_commit_paths = true          # W320: commit evidence touches none of the item's paths
+/// require_commit_evidence = true     # W321: a done leaf item without commit evidence
+/// ```
+///
+/// Keys are accepted in snake_case or camelCase. A malformed value or unknown key is ignored and
+/// reported as `W322`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanningPolicy {
+    pub require_testcase_evidence: bool,
+    pub check_commit_paths: bool,
+    pub require_commit_evidence: bool,
+    /// Human-readable defects found while loading (`W322`).
+    pub problems: Vec<String>,
+}
+
+impl PlanningPolicy {
+    /// Read `[planning]` from `<model_root>/.syscribe.toml`; the default when absent or unparseable.
+    pub fn load(model_root: &Path) -> Self {
+        let mut p = PlanningPolicy::default();
+        let Some(root) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok().and_then(|t| toml::from_str::<toml::Value>(&t).ok()) else {
+            return p;
+        };
+        let Some(tbl) = root.get("planning") else { return p };
+        let Some(tbl) = tbl.as_table() else {
+            p.problems.push("[planning] must be a table".into());
+            return p;
+        };
+        for (k, v) in tbl {
+            let slot = match k.as_str() {
+                "require_testcase_evidence" | "requireTestcaseEvidence" | "requireTestCaseEvidence" => &mut p.require_testcase_evidence,
+                "check_commit_paths" | "checkCommitPaths" => &mut p.check_commit_paths,
+                "require_commit_evidence" | "requireCommitEvidence" => &mut p.require_commit_evidence,
+                other => {
+                    p.problems.push(format!("[planning] unknown key '{other}' (expected require_testcase_evidence, check_commit_paths or require_commit_evidence)"));
+                    continue;
+                }
+            };
+            match v.as_bool() {
+                Some(b) => *slot = b,
+                None => p.problems.push(format!("[planning] {k} must be true or false, got {v}")),
+            }
+        }
+        p
+    }
 }
 
 /// Read `[ids] check_file_names` (GH #185); `false` when unset.

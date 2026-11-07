@@ -4,6 +4,7 @@
     syscribe -m <root> set <qname|id> status=<value> [--dry-run]
     syscribe -m <root> set <qname|id> evidence.add ref=<id> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> evidence.add path=<path> [rationale=<text>] [--dry-run]
+    syscribe -m <root> set <qname|id> evidence.add commit=<sha> [rationale=<text>] [--dry-run]
     syscribe -m <root> set <qname|id> achieves.add <req-id> [--dry-run]
     syscribe -m <root> set <PI> question.add text=<question> [recommended=<proposal>] [--dry-run]
     syscribe -m <root> set <PI> question.answer <Qn> text=<answer> [by=<actor>] [--dry-run]
@@ -40,9 +41,12 @@ under `--dry-run`. A person answers it without `--by`, or with `--by <person> --
 **`evidence.add`** appends one entry to `evidence:` without disturbing existing
 order. `ref=<id>` must resolve to some model element (permissive by kind, like
 `blockedBy:`); `path=<path>` must exist on disk under the model root, or be an
-`http(s)://` URI (accepted as external, same as `sourceFile`/`implementedBy`).
+`http(s)://` URI (accepted as external, same as `sourceFile`/`implementedBy`);
+`commit=<sha>` (GH #455) must be 7–40 hexadecimal characters and, when the model is in
+a git repository, name exactly one commit there (the `E728` bar) — a malformed,
+unknown or ambiguous hash is refused with nothing written.
 An optional `rationale=<text>` marks the entry waived. If an entry naming the
-same target already exists (the same `ref:`, or the same `path:`), the command
+same target already exists (the same `ref:`, `path:` or `commit:`), the command
 reports it and changes nothing — the existing entry, rationale included, is
 kept as authored.
 
@@ -90,6 +94,7 @@ Also accepts the global write options (see `syscribe help`): `--by <actor>`, `--
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 status=in_progress
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 evidence.add ref=TC-RTH-BATT-001
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 evidence.add path=docs/rth-design.txt
+    syscribe -m <root> set PI-X-001 evidence.add commit=3f9c2a1   # a commit of your repository
     syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 achieves.add REQ-RTH-002
 
 ## SEE ALSO

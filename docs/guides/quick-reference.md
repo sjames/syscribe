@@ -83,6 +83,9 @@ syscribe -m model ingest-results --format cargo-json test-output.json   # or jun
 # PlanningItem (multi-agent coordination)
 syscribe -m model claim PI-X-001 --by agent-session-01VRUS  # refuses if claimed by someone else
 syscribe -m model release PI-X-001                           # on completion or handoff
+syscribe -m model set PI-X-001 evidence.add commit=3f9c2a1   # the delivering commit, checked against git (E728)
+syscribe -m model log --item PI-X-001                        # the commits an item names as evidence
+syscribe -m model coverage --json                            # testCasesWithoutPlanningEvidence (W319 with [planning])
 ```
 
 ### Integrity level gating — what syscribe checks

@@ -158,6 +158,7 @@ fn evidence_tokens(m: &BTreeMap<String, Value>) -> BTreeSet<String> {
                 Value::Object(o) => o
                     .get("ref")
                     .or_else(|| o.get("path"))
+                    .or_else(|| o.get("commit"))
                     .and_then(|v| v.as_str())
                     .map(String::from)
                     .unwrap_or_else(|| e.to_string()),

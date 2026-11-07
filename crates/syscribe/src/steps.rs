@@ -22,6 +22,9 @@ pub struct Node {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub blocked_by: Vec<String>,
     pub evidence: usize,
+    /// `evidence: - commit:` entries (GH #455): `{commit, sha?, subject?, status}`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub commits: Vec<serde_json::Value>,
     pub open_questions: usize,
     /// A `done` leaf with no evidence entry at all (`E719` territory) — shown, not judged here.
     pub done_without_evidence: bool,
@@ -61,15 +64,30 @@ pub fn tree(elements: &[RawElement], root: &str) -> Result<Node, String> {
     for v in kids.values_mut() {
         v.sort_by_key(|e| label(e));
     }
-    fn build(e: &RawElement, kids: &HashMap<&str, Vec<&RawElement>>, seen: &mut Vec<String>) -> Node {
+    // Every commit entry of the model, resolved in one batch against the repository holding the
+    // root item's file (GH #455).
+    let dir = std::path::Path::new(&r.file_path).parent().map(|d| if d.as_os_str().is_empty() { std::path::Path::new(".") } else { d });
+    let commits = syscribe_model::commit_evidence::CommitCheck::new(
+        dir,
+        elements.iter().filter(|e| is_pi(e)).flat_map(|e| e.frontmatter.evidence.iter().flatten()),
+    );
+    fn build(e: &RawElement, kids: &HashMap<&str, Vec<&RawElement>>, seen: &mut Vec<String>, cc: &syscribe_model::commit_evidence::CommitCheck) -> Node {
         seen.push(e.qualified_name.clone());
         // `seen` guards against a `parent:` cycle (E712), which must not hang the view.
         let mut children: Vec<Node> = Vec::new();
         for c in kids.get(e.qualified_name.as_str()).into_iter().flatten() {
             if !seen.contains(&c.qualified_name) {
-                children.push(build(c, kids, seen));
+                children.push(build(c, kids, seen, cc));
             }
         }
+        let commits = e
+            .frontmatter
+            .evidence
+            .iter()
+            .flatten()
+            .filter_map(syscribe_model::commit_evidence::commit_value)
+            .map(|raw| syscribe_model::commit_evidence::describe(cc, &raw))
+            .collect();
         seen.pop();
         let evidence = e.frontmatter.evidence.as_ref().map(|v| v.len()).unwrap_or(0);
         let status = e.frontmatter.status.clone().unwrap_or_default();
@@ -84,11 +102,12 @@ pub fn tree(elements: &[RawElement], root: &str) -> Result<Node, String> {
             assigned_to: e.frontmatter.assigned_to.clone(),
             blocked_by: e.frontmatter.blocked_by.clone().unwrap_or_default(),
             evidence,
+            commits,
             open_questions: questions::parse(e).0.iter().filter(|q| q.status == "open").count(),
             children,
         }
     }
-    Ok(build(r, &kids, &mut Vec::new()))
+    Ok(build(r, &kids, &mut Vec::new(), &commits))
 }
 
 /// Leaves of the tree (a childless root is its own only leaf).
@@ -154,6 +173,14 @@ fn suffix(n: &Node) -> String {
     }
     if n.done_without_evidence {
         s.push_str("  no evidence");
+    }
+    for c in &n.commits {
+        let short = c["sha"].as_str().or(c["commit"].as_str()).unwrap_or("").chars().take(10).collect::<String>();
+        match c["status"].as_str() {
+            Some("resolved") | Some("unchecked") => s.push_str(&format!("  commit {short}")),
+            Some(other) => s.push_str(&format!("  commit {short} ({other})")),
+            None => {}
+        }
     }
     s
 }

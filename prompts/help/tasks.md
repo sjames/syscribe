@@ -9,6 +9,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Check a reference resolves       syscribe -m model/ check-ref <ref>
     Change status / one field        syscribe -m model/ set <id> status=approved [--dry-run]
     Add evidence to a planning item  syscribe -m model/ set <PI-id> evidence.add ref=<TC-id>
+    Record the delivering commit     syscribe -m model/ set <PI-id> evidence.add commit=<sha>
+    Commits that delivered an item   syscribe -m model/ log --item <PI-id>
     Rename or move, fixing refs      syscribe -m model/ move <src> <dest> [--dry-run]
     Claim / release shared work      syscribe -m model/ claim <PI-id> --by <agent>  /  release <PI-id>
     Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
@@ -28,6 +30,7 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Who verifies a requirement       syscribe -m model/ who-verifies <REQ-id>
 
 ## Evidence and variants
+    Unplanned tests (no item names)  syscribe -m model/ coverage --json     (testCasesWithoutPlanningEvidence; W319 with [planning])
     Record test results              syscribe -m model/ ingest-results <file>
     Requirement verdicts             syscribe -m model/ requirement-coverage --config <CONF>
     Compare two variants             syscribe -m model/ diff --config <A> --config <B>

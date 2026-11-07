@@ -233,7 +233,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `itemType` | string | `bug` · `task` · `feature` (`E709`) |
 | `blockedBy` | string or list | Any elements it waits on (`E720` dangling, `E721` cycle, `W308` if set while not `blocked`) |
 | `assignedTo` | string | Unix-style username (`E723`); checked against `[users]` when that roster is non-empty (`E722`) |
-| `evidence` | list | `{ref: <element>}` or `{path: <file>}`, each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`) |
+| `evidence` | list | `{ref: <element>}`, `{path: <file>}` or `{commit: <sha>}` (7–40 hex, resolved against git — `E728`; GH #455), each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`). `[planning]` in `.syscribe.toml` can also require a commit on a done leaf (`W321`) and check it touches the item's paths (`W320`) |
 | `claimedBy` / `claimedAt` | string | Advisory ownership — set by `syscribe claim <PI> --by <agent>`, cleared by `syscribe release <PI>`; never hand-edit |
 | `questions` | list of mappings | Inline decisions awaiting an answer: `{id: Q<n>, text, recommended?, status: open\|answered\|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human\|any}` — `answerBy: human` reserves the answer to a person (default `any`, or `human` under `[agents] human_only_answers`; an agent's answer is refused, and `W323` flags one written anyway); record with `set <PI> question.add`, list with `syscribe questions`. PlanningItem only (`W318` elsewhere) |
 
@@ -548,6 +548,9 @@ file at all) is always legal.
 | `[baselines]` | `element_dir` (alias `elementDir`) | No | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
 | `[baselines]` | `manifest_dir` (alias `manifestDir`) | No | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
 | `[users]` | `<username> = "<display name>"` | No | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
+| `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
+| `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
 | `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
 | `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
@@ -601,6 +604,9 @@ manifest_dir = "baselines"
 [users]
 alice = "Alice Nakamura"
 bob = "Bob Patel"
+
+[planning]
+require_testcase_evidence = true
 
 [profiles.ci]
 promote = ["W015", "W300"]
