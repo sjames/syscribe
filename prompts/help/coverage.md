@@ -1,9 +1,23 @@
 # coverage — roll test coverage up the derivation tree
 
 ## SYNOPSIS
+    syscribe -m <root> coverage [--json]
     syscribe -m <root> coverage tree <req> [--plan <TP-id>] [--config <id>] [--json]
 
 ## DESCRIPTION
+Bare `coverage` prints the model-wide summary: the number of verified
+requirements, the unverified leaf requirements, the leaves with only draft
+TestCases, the parents without an integration-level (L3-L5) TestCase, and the
+active TestCases that no PlanningItem's `evidence: - ref:` names — unplanned
+tests (GH #456 — the
+set `W319` warns about when `[planning] require_testcase_evidence = true`;
+listed whether or not that gate is on). `--json` prints the same document the
+MCP `coverage` tool returns: `verifiedCount`, `unverifiedLeaves`, `planned`,
+`parentsMissingIntegrationTest`, `testCasesWithoutPlanningEvidence` (each entry
+`{qname, id, name}`).
+
+    syscribe -m model/ coverage --json | jq '.testCasesWithoutPlanningEvidence[].id'
+
 `coverage tree` shows how well a requirement and everything derived below it
 (`derivedFrom:` children, recursively) is verified. Computed on the fly, never
 stored.
@@ -65,11 +79,11 @@ loosened integrity-rated parent as `E898`.
 ## OPTIONS
     --plan <TP-id>   evaluate on the test-plan lens (see DESCRIPTION)
     --config <id>    project onto a Configuration first (see DESCRIPTION)
-    --json     the same tree as JSON (leavesActive/leavesPlanned/leavesUncovered,
+    --json     bare `coverage`: the summary as JSON; `coverage tree`: the same tree as JSON (leavesActive/leavesPlanned/leavesUncovered,
                directTests, verdict = complete|partial|none|na, glyph, children)
 
-Exit 0 · 1 when `<req>` does not resolve to a requirement or the subcommand is
-not `tree`.
+Exit 0 · 1 when `<req>` does not resolve to a requirement or an argument other than `--json` is given without
+`tree`.
 
 ## SEE ALSO
     matrix, trace, audit

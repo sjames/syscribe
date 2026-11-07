@@ -31,6 +31,55 @@ pub struct CoverageSummary {
     pub planned: Vec<CoverageEntry>,
     /// Non-draft parent requirements lacking an integration-level (L3+) TestCase.
     pub parents_missing_integration: Vec<CoverageEntry>,
+    /// Active TestCases that no PlanningItem's `evidence: - ref:` names (GH #456; the `W319` set).
+    pub testcases_without_planning_evidence: Vec<CoverageEntry>,
+}
+
+/// The coverage summary as JSON — the document of the MCP `coverage` tool and of `coverage --json`.
+pub fn summary_json(summary: &CoverageSummary) -> serde_json::Value {
+    use serde_json::json;
+    let entries = |v: &[CoverageEntry]| -> Vec<serde_json::Value> { v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect() };
+    let parents: Vec<serde_json::Value> = summary
+        .parents_missing_integration
+        .iter()
+        .map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name, "childCount": e.child_count.unwrap_or(0) }))
+        .collect();
+    json!({
+        "verifiedCount": summary.verified_count,
+        "unverifiedLeaves": entries(&summary.unverified_leaves),
+        "planned": entries(&summary.planned),
+        "parentsMissingIntegrationTest": parents,
+        "testCasesWithoutPlanningEvidence": entries(&summary.testcases_without_planning_evidence),
+    })
+}
+
+/// `coverage [--json]` — the model-wide coverage summary (the MCP `coverage` tool's document).
+/// `result` must come from `validate_with_config` over the same `elements`. Returns the exit code.
+pub fn cmd_coverage_summary(elements: &[RawElement], result: &ValidationResult, results: Option<&ResultsData>, json: bool) -> i32 {
+    let s = coverage_summary(elements, result, results);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&summary_json(&s)).unwrap_or_default());
+        return 0;
+    }
+    let label = |e: &CoverageEntry| match (&e.id, &e.name) {
+        (Some(id), Some(n)) => format!("{id}  {n}"),
+        (Some(id), None) => id.clone(),
+        _ => e.qname.clone(),
+    };
+    println!("# Coverage\n");
+    println!("{} requirement(s) verified.", s.verified_count);
+    for (title, list) in [
+        ("Unverified leaf requirements", &s.unverified_leaves),
+        ("Leaf requirements with only draft TestCases", &s.planned),
+        ("Parent requirements without an integration-level (L3-L5) TestCase", &s.parents_missing_integration),
+        ("Active TestCases that no PlanningItem's evidence names", &s.testcases_without_planning_evidence),
+    ] {
+        println!("\n## {title} ({})", list.len());
+        for e in list.iter() {
+            println!("- {}", label(e));
+        }
+    }
+    0
 }
 
 /// Compute the coverage partition. `result` must come from
@@ -99,7 +148,13 @@ pub fn coverage_summary(
         }
     }
 
+    let testcases_without_planning_evidence = syscribe_model::planning_evidence::testcases_without_planning_evidence(elements, &resolver)
+        .into_iter()
+        .map(|e| entry(e, None))
+        .collect();
+
     CoverageSummary {
+        testcases_without_planning_evidence,
         verified_count,
         unverified_leaves,
         planned,

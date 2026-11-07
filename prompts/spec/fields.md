@@ -548,6 +548,9 @@ file at all) is always legal.
 | `[baselines]` | `element_dir` (alias `elementDir`) | No | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
 | `[baselines]` | `manifest_dir` (alias `manifestDir`) | No | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
 | `[users]` | `<username> = "<display name>"` | No | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
+| `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
+| `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
 | `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
 | `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
@@ -601,6 +604,9 @@ manifest_dir = "baselines"
 [users]
 alice = "Alice Nakamura"
 bob = "Bob Patel"
+
+[planning]
+require_testcase_evidence = true
 
 [profiles.ci]
 promote = ["W015", "W300"]

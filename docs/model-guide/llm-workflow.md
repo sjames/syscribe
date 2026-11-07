@@ -216,6 +216,13 @@ questions:
     answerBy: human        # only a person answers this one
 ```
 
+A project can make the link between planning and delivered work stricter with the opt-in `[planning]` table in `.syscribe.toml` (format spec §23.11). `require_testcase_evidence = true` warns (`W319`) on every `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names — tested work that was never recorded against a plan. `syscribe coverage --json` lists the same set as `testCasesWithoutPlanningEvidence` whether or not the gate is on; accept an existing backlog with `validate --write-baseline` / `--baseline-file` and fail only on new gaps. A malformed `[planning]` entry is `W322`.
+
+```toml
+[planning]
+require_testcase_evidence = true
+```
+
 ---
 
 ## Diagram Generation

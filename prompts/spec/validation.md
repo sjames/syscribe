@@ -443,7 +443,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
 | `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
 
-## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W318, W323, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E727, W308–W311, W317–W319, W322–W323, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -475,6 +475,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W317` | A `PlanningItem` at `status: done` has an `open` question — answer it or `defer` it (`deferred`/`answered` raise nothing) |
 | `W318` | A `questions:` field on an element that is not a `PlanningItem` — it is ignored there; move it to the PlanningItem that owns the decision |
 | `W323` | A `PlanningItem` question reserved to a person (its own `answerBy: human`, or no `answerBy` under `[agents] human_only_answers = true`) is answered, but an agent wrote the answer: its `answeredBy` matches `[agents] actors`, or the git history shows the commit that last changed the answer was an agent's (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`). An answer git cannot attribute (not committed yet, or not in git) raises nothing. Fix: a person confirms or replaces the answer — `syscribe set <PI> question.answer <Qn> text=… --by <person> --as-human --commit` — or, if agents may answer it, the question says `answerBy: any`. Gate with `--deny W323` |
+| `W319` | Opt-in, `[planning] require_testcase_evidence = true` in `.syscribe.toml` (GH #456): a `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (by id or qualified name) — work done and tested but never recorded against a plan. Fix: add it to the item that delivered it, `syscribe set <PI-id> evidence.add ref=<TC-id>`; accept an existing gap with `validate --write-baseline` / `--baseline-file`. `coverage --json` lists the same set as `testCasesWithoutPlanningEvidence` |
+| `W322` | A malformed `[planning]` entry in `.syscribe.toml` — the value is not a table, a key is not one of `require_testcase_evidence`, `check_commit_paths`, `require_commit_evidence` (snake_case or camelCase), or a value is not `true`/`false`. The entry is ignored and the gate stays off |
 
 `claimedBy:`/`claimedAt:` are advisory ownership markers (issue #115), written/cleared by the
 dedicated `claim <PI-id> --by <agent-id>`/`release <PI-id>` commands — not the generic MCP

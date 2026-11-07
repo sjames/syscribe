@@ -2525,7 +2525,7 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Requirement verification coverage: counts plus the unverified requirements.",
+        description = "Requirement verification coverage: counts plus the unverified requirements, and the active TestCases that no PlanningItem's evidence names (testCasesWithoutPlanningEvidence).",
         annotations(read_only_hint = true)
     )]
     async fn coverage(
@@ -2539,31 +2539,7 @@ impl SyscribeMcp {
         // authored elements.
         let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let summary = crate::coverage::coverage_summary(&cov, &result, store.config.results.as_ref());
-
-        let entries = |v: &[crate::coverage::CoverageEntry]| -> Vec<Value> {
-            v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect()
-        };
-        let unverified_leaves = entries(&summary.unverified_leaves);
-        let planned = entries(&summary.planned);
-        let parents_missing_integration: Vec<Value> = summary
-            .parents_missing_integration
-            .iter()
-            .map(|e| {
-                json!({
-                    "qname": e.qname,
-                    "id": e.id,
-                    "name": e.name,
-                    "childCount": e.child_count.unwrap_or(0),
-                })
-            })
-            .collect();
-
-        ok(json!({
-            "verifiedCount": summary.verified_count,
-            "unverifiedLeaves": unverified_leaves,
-            "planned": planned,
-            "parentsMissingIntegrationTest": parents_missing_integration,
-        }))
+        ok(crate::coverage::summary_json(&summary))
     }
 
     #[tool(

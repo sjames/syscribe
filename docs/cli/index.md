@@ -2092,6 +2092,23 @@ syscribe -m model/ list PlanningItem --open-questions
 
 **Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.
 
+## The planning gates: `[planning]`
+
+An opt-in `[planning]` table in `<model_root>/.syscribe.toml` tightens how PlanningItems and delivered work are tied together. Every key defaults to `false` (no table, no finding); keys are snake_case or camelCase; a malformed entry (not a table, unknown key, non-boolean value) is `W322` and ignored.
+
+```toml
+[planning]
+require_testcase_evidence = true   # W319: an active TestCase no PlanningItem's evidence names
+```
+
+```bash
+syscribe -m model/ coverage --json        # testCasesWithoutPlanningEvidence: the W319 set, reported whether or not the gate is on
+syscribe -m model/ validate --write-baseline accepted.json   # accept today's gap…
+syscribe -m model/ validate --baseline-file accepted.json --deny W319   # …and fail only on new ones
+```
+
+**`require_testcase_evidence`** (`W319`, GH #456): each `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (by id or qualified name) — work done and tested but never recorded against a plan. Record it with `syscribe set <PI-id> evidence.add ref=<TC-id>`. Bare `coverage` (text) and `coverage --json` (the MCP `coverage` tool's document) list the same set as `testCasesWithoutPlanningEvidence`.
+
 ## Writing safely: `--dry-run`, provenance in git, `log`, `--expect-hash`
 
 Several people and agents can change one model on the mainline. These options are global — accepted by every command, before or after its name — and make each change previewable, attributable and safe against a concurrent edit.

@@ -61,6 +61,7 @@ pub mod system_mut;
 pub mod system_run;
 pub mod system_scen;
 pub mod typecheck;
+pub mod planning_evidence;
 pub mod plugins;
 pub mod projection;
 pub mod provenance;

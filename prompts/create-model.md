@@ -768,6 +768,9 @@ Validation: `E708`/`E709` (status / itemType enums), `E712` (parent cycle), `E71
 `E720`/`E721` (`blockedBy:` dangling / cycle), `W308` (`blockedBy:` set but not `blocked`),
 `W310` (done, but the achieved Requirement lacks the required TestCase), `W311` (two active items
 overlap). Mark progress with `set <PI-id> status=done` / `set <PI-id> evidence.add ref=<TC-id>`.
+If `.syscribe.toml` has `[planning] require_testcase_evidence = true`, every `active` TestCase you
+deliver must be named by some item's `evidence: - ref:` (`W319`; `coverage --json` lists the
+unplanned ones as `testCasesWithoutPlanningEvidence`).
 When several agents share one model, `claim <PI-id> --by <agent-id>` before starting and
 `release <PI-id>` when finished (advisory `claimedBy:`/`claimedAt:` — never hand-edit them).
 Template: `template PlanningItem`.

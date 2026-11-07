@@ -6588,7 +6588,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
-| `W308`–`W311`, `W317`–`W318`, `W323`, `E706`–`E727` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.10; §8.18.6 for `E718` |
+| `W308`–`W311`, `W317`–`W319`, `W322`–`W323`, `E706`–`E727` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry; `W319`/`W322` are the opt-in `[planning]` gates) | §23.4, §23.7–§23.11; §8.18.6 for `E718` |
 | `E400`–`E405`, `W400`–`W421` | Diagram elements | §8.16.2, §8.16.7, §8.16.8.2, §8.16.9, §8.16.10 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
@@ -9325,6 +9325,23 @@ A question is private to its item (`PI-X#Q1` in messages) and is not a cross-ref
 **Surface.** `syscribe questions [--open] [--status S] [--item PI] [--json]` lists them across the model; `list PlanningItem --open-questions` keeps items with an open one; `show` prints them. `syscribe set <PI> question.add text=… [recommended=…]`, `question.answer <Qn> text=… [by=…]` and `question.defer <Qn>` edit only the affected entry, keeping comments and order; the MCP `questions` and `steps` tools read, and the guarded `question` tool writes (dry-run by default; hidden under `--read-only`).
 
 **Questions reserved to a person (GH #457, `REQ-TRS-AGENTPOL-004`).** Some decisions belong to a person (a product owner), and a field an agent can write is no evidence of that. A question may declare `answerBy: human | any`. `[agents] human_only_answers = true` in `.syscribe.toml` makes `human` the default for every question; a question's own `answerBy` always wins over that default (`answerBy: any` opens one question to agents under the policy; `answerBy: human` reserves one without any `[agents]` table). An unrecognised `answerBy` is `E724` and counts as `human` until fixed. An agent's change — the agent policy's own rule: a writing command with `--by` and no `--as-human`, or any MCP write — that sets a reserved question's `answer`, `answeredBy` or `answeredAt`, moves it to `answered`, creates it already answered, or lifts its reservation is refused with the rule `human_only_answers` named (exit 1; also under `--dry-run`; nothing written). The check is made in the CLI write layer and in the MCP guarded write, so every writer is held to it; adding, rewording, deferring or reopening a question stays allowed. `validate` raises `W323` for a reserved question whose answer an agent wrote: its `answeredBy` matches `[agents] actors`, or the commit that last changed the answer (git is the change log, GH #443) carries a `Syscribe-Actor` trailer without `Syscribe-As: human` or has an author matching `actors`. An answer git cannot attribute raises nothing. `questions --json` and the MCP `questions` tool add `answerBy` (`human` | `any`, the default applied) to every question and, when git records the answer's commit, `answerProvenance: {by, agent, at, commit}`.
+
+### 23.11 The `[planning]` gates (GH #455/#456, `REQ-TRS-PIEV-001`)
+
+A project can tighten how planning and delivered work are tied together with an opt-in `[planning]` table in `<model_root>/.syscribe.toml`. Every key defaults to `false`, so a model without the table validates exactly as before. Keys are accepted in snake_case or camelCase.
+
+```toml
+[planning]
+require_testcase_evidence = true   # W319
+```
+
+| Key | Finding | Condition |
+|---|---|---|
+| `require_testcase_evidence` | `W319` | A `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names. A `ref:` names a TestCase when it resolves to it by stable id or qualified name (the resolution `E716` uses), whatever the item's status or the entry's `rationale:`. |
+
+A malformed entry — `[planning]` not a table, an unknown key, or a value that is not `true`/`false` — is `W322`; the entry is ignored and that gate stays off.
+
+`W319` exists for the reverse direction of `E719`: `E719` says a done item needs proof; `W319` says delivered, tested work should be recorded against some item. A project that turns it on with an existing backlog accepts the current gap with the finding baseline (`validate --write-baseline <f>` then `validate --baseline-file <f>`, or `--new-since <rev>`, GH #431) and fails only on new ones. `coverage --json` (and the MCP `coverage` tool) report the same set as `testCasesWithoutPlanningEvidence` whether or not the warning is on, and plain `coverage` lists it.
 
 ## Appendix A: Frontmatter Field Reference
 

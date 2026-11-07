@@ -28,6 +28,7 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Who verifies a requirement       syscribe -m model/ who-verifies <REQ-id>
 
 ## Evidence and variants
+    Unplanned tests (no item names)  syscribe -m model/ coverage --json     (testCasesWithoutPlanningEvidence; W319 with [planning])
     Record test results              syscribe -m model/ ingest-results <file>
     Requirement verdicts             syscribe -m model/ requirement-coverage --config <CONF>
     Compare two variants             syscribe -m model/ diff --config <A> --config <B>

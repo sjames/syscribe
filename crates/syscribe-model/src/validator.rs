@@ -1089,6 +1089,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(warning("W632", &cfg_file, problem));
     }
 
+    // W322: malformed `[planning]` config (GH #455/#456) — entries ignored, defaults (off) kept.
+    for problem in &config.planning.problems {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W322", &cfg_file, problem));
+    }
+
     // W934: malformed `[audit]` config (GH #216) — entries ignored, defaults kept.
     for problem in &config.audit.problems {
         let cfg_file = config
@@ -5654,6 +5664,22 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "E719",
                 &elem.file_path,
                 "leaf PlanningItem is `status: done` but has no non-waived, resolving `evidence:` entry",
+            ));
+        }
+    }
+
+    // W319 (GH #456, REQ-TRS-PIEV-001): `[planning] require_testcase_evidence = true` — an active
+    // TestCase that no PlanningItem's `evidence: - ref:` names: work done and tested but never
+    // recorded against a plan. Off by default; `coverage --json` reports the same set regardless.
+    if config.planning.require_testcase_evidence {
+        for tc in crate::planning_evidence::testcases_without_planning_evidence(elements, &resolver) {
+            let id = tc.frontmatter.id.as_deref().unwrap_or(&tc.qualified_name);
+            findings.push(warning(
+                "W319",
+                &tc.file_path,
+                &format!(
+                    "active TestCase {id} is named by no PlanningItem's `evidence:` — record it on the item that delivered it (`syscribe set <PI-id> evidence.add ref={id}`)"
+                ),
             ));
         }
     }
