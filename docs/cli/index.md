@@ -660,6 +660,14 @@ Traverses the traceability graph (§17) from an element and reports every reacha
 
 User-defined links (`links:`, declared under `[linkTypes]`) are traversed too — upstream along the link, downstream against it — and `--kinds` accepts custom link-type names (e.g. `--kinds mitigates,partiallySatisfies`). A link type that `extends` a built-in link is also traversed as that base kind. To walk a single link type, use [`follow`](#follow-one-link-type-follow).
 
+## Code no element names (`trace-code`)
+
+```bash
+syscribe -m model/ trace-code [--root <repo>] [--json] [--all] [--write-baseline]
+```
+
+Lists the code units under the `[traceCode]` roots of `.syscribe.toml` (cargo crates, build directories, single files — per the `units` rules) that no `implementedBy:` or `sourceFile:` names: neither the unit itself, a file inside it, nor a directory above it (GH #451). Paths resolve exactly as for W023. The baseline file (`[[untraced]]` entries with `path` and `reason`) records accepted gaps and only shrinks: exit `2` on a new untraced unit or a baseline entry that is now traced, gone or no longer a unit; `0` otherwise; `1` on a usage or configuration error (including no `[traceCode]` table). `--write-baseline` refreshes it (reasons kept, new entries `TODO`, stale ones dropped) through the guarded write layer; `--all` adds the traced units and what names them; `--json` follows `crates/syscribe/schemas/trace-code.schema.json`. `[repos]` peers with their own `[traceCode]` table are checked against their own elements. `[traceCode] validate = true` adds W326/W327 to `validate`; malformed entries are W328. MCP: `trace_code`. See `syscribe help trace-code` and [traceability](../model-guide/traceability.md).
+
 ## Lint external docs (`lint-docs`)
 
 ```bash

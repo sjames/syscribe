@@ -396,6 +396,12 @@ struct CoverageArgs {}
 struct LinkTypesArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct TraceCodeArgs {
+    /// Also list the traced code units and the elements that name them.
+    all: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct BindingTimesArgs {}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -3665,6 +3671,27 @@ impl SyscribeMcp {
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
+    }
+
+    #[tool(
+        description = "Code that no design element or TestCase names (GH #451): the code units under \
+        the [traceCode] roots of .syscribe.toml (cargo crates, build directories, files) that no \
+        implementedBy: or sourceFile: names (itself, a file inside it, or a directory above it), each \
+        with inBaseline, plus stale baseline entries (now traced, missing, or no longer a unit) and, \
+        with `all`, the traced units and what names them; [repos] peers with their own [traceCode] \
+        are checked against their own elements under `peers`. Read-only (refresh the baseline with \
+        `trace-code --write-baseline`). Same data as `trace-code --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn trace_code(&self, Parameters(args): Parameters<TraceCodeArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::tracecode::analyse_local(&store.model_root, &store.elements, &store.config, None) {
+            Ok(local) => {
+                let peers = crate::tracecode::analyse_peers(&store.config);
+                ok(crate::tracecode::to_json(&local, &peers, args.all.unwrap_or(false)))
+            }
+            Err(e) => tool_error(e),
+        }
     }
 
     #[tool(

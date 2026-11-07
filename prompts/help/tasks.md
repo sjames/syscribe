@@ -33,6 +33,9 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Only what a change introduced    syscribe -m model/ validate --new-since <rev>
     Explain a finding code           syscribe explain E106
     Is everything traced and tested  syscribe -m model/ audit
+    Code no design/test names        syscribe -m model/ trace-code          (untraced code: no implementedBy/sourceFile; needs [traceCode])
+    Baseline the untraced backlog    syscribe -m <root> trace-code --write-baseline   (then replace each TODO with a reason; the list only shrinks)
+    Fail CI on new untraced code     [traceCode] validate = true  ->  validate raises W326 (new) / W327 (stale); gate with --deny W326 --deny W327
 
 ## Understand a change
     What changed between revisions   syscribe -m model/ changes <revA> [<revB>]

@@ -776,6 +776,16 @@ impl ValidateConfig {
         }
     }
 
+    /// Just the two roots path classification needs ([`Self::classify_source`]): the model root and
+    /// the repository root (`repo_root` in `.syscribe.toml`, else the enclosing git work tree). Unlike
+    /// [`Self::with_model_root`] it installs no process-wide vocabulary, so it is safe for reading a
+    /// `[repos]` peer's paths while the composing model's configuration stays active (GH #451).
+    pub fn paths_only(model_root: impl Into<PathBuf>) -> Self {
+        let root = model_root.into();
+        let repo_root = resolve_repo_root(&root);
+        Self { model_root: Some(root), repo_root, ..Default::default() }
+    }
+
     /// REQ-TRS-TYPE-021 — true when any peer repo is configured (`[repos]`).
     /// The cross-repo validation block and resolution are inert when this is false.
     pub fn has_repos(&self) -> bool {
@@ -1403,6 +1413,39 @@ pub fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     } else {
         Some(s)
     }
+}
+
+/// `p` made absolute (against the working directory) with `.`/`..` removed, and the longest existing
+/// prefix canonicalised, so a path that no longer exists (a deleted file) still compares equal to the
+/// canonical form of a path under the same directory. Shared by `impact --files` and `trace-code`.
+pub fn lenient_canonical(p: &Path) -> PathBuf {
+    let abs = if p.is_absolute() { p.to_path_buf() } else { std::env::current_dir().unwrap_or_default().join(p) };
+    let mut clean = PathBuf::new();
+    for c in abs.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                clean.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => clean.push(other.as_os_str()),
+        }
+    }
+    let mut rest: Vec<std::ffi::OsString> = Vec::new();
+    let mut base = clean.clone();
+    while !base.exists() {
+        match (base.file_name().map(|n| n.to_os_string()), base.parent().map(Path::to_path_buf)) {
+            (Some(n), Some(parent)) => {
+                rest.push(n);
+                base = parent;
+            }
+            _ => break,
+        }
+    }
+    let mut out = std::fs::canonicalize(&base).unwrap_or(base);
+    for n in rest.into_iter().rev() {
+        out.push(n);
+    }
+    out
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.

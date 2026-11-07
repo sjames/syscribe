@@ -121,6 +121,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "context" => &[("--depth", Value), ("--max-bytes", Value), ("--format", Value), ("--json", Switch)],
         "steps" => &[("--open", Switch), ("--depth", Value), ("--json", Switch)],
         "agent-guide" => &[("--format", Value), ("--sections", Value), ("--write", Value), ("--check", Value)],
+        "trace-code" => &[("--root", Value), ("--json", Switch), ("--all", Switch), ("--write-baseline", Switch)],
         "changes" => &[("--json", Switch), ("--types", ValueOrEq), ("--package", ValueOrEq)],
         "claim" => &[("--by", Value), ("--dry-run", Switch), ("--json", Switch)],
         "meta" => &[("--def", Value), ("--group-by", Value), ("--json", Switch)],

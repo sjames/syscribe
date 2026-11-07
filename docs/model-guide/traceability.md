@@ -140,6 +140,27 @@ Discoverability:
 - `syscribe links <element>` lists the `implementedBy` paths as outbound relationships.
 - `syscribe refs <path-or-dir>` reverse-maps a source path (or a directory prefix) back to the architecture element(s) that declare it.
 
+### The reverse direction — code no element names (`trace-code`, §12.8.1)
+
+`implementedBy:` and `sourceFile:` say which code realises or verifies an element; `syscribe trace-code` reports the opposite: code units in the repository that **no** element names — a crate, a build directory, a script or a test file added without a design element or TestCase. Switch it on with a `[traceCode]` table in `.syscribe.toml`:
+
+```toml
+[traceCode]
+roots = ["crates", "scripts", "tests"]       # repository-relative
+exclude = ["crates/*/vendor/**"]             # target/, node_modules/, .git/ always excluded
+baseline = "trace-code-baseline.toml"        # relative to the model root (default)
+validate = false                             # true: W326/W327 in validate
+units = [
+  { kind = "cargo-crate", under = "crates" },               # a dir with Cargo.toml [package]
+  { kind = "file", under = "scripts", extensions = ["sh", "py"] },
+  { kind = "file", under = "tests", extensions = ["rs"] },
+]
+```
+
+`build-dir` is the third kind (a directory holding any of `build_files`, default `Cargo.toml`, `package.json`, `CMakeLists.txt`, `Makefile`, `go.mod`, `pyproject.toml`, `setup.py`). A unit is traced when an entry — resolved exactly like W023 — names the unit itself, a file inside it, or a directory containing it. Units do not nest.
+
+Known gaps go in the baseline with a reason (`[[untraced]]` tables of `path` + `reason`). The list **only shrinks**: `trace-code` exits `2` on an untraced unit missing from the baseline and on a baseline entry that is now traced, gone or no longer a unit; `trace-code --write-baseline` refreshes the file (reasons kept, new entries `TODO`, stale ones dropped). With `validate = true`, `validate` raises **W326** (new untraced unit) and **W327** (stale entry); a malformed entry is **W328**. Under `[repos]`, each peer with its own `[traceCode]` is checked against its own elements. This repository runs it on its own crates (`model/.syscribe.toml`, baseline `model/trace-code-baseline.toml`).
+
 ## Integration test coverage for parent requirements (W305)
 
 Leaf-level TestCases (L1/L2) verify individual derived requirements but do not cover the emergent, composed behaviour expressed by the parent. A parent requirement at `approved`, `implemented`, or `verified` status must have at least one active TestCase at `testLevel: L3` (formal proof), `L4` (integration on an emulator) or `L5` (hardware-in-the-loop).

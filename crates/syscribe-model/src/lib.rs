@@ -98,6 +98,7 @@ pub mod structural_refs;
 pub mod security_checks;
 pub mod structure_checks;
 pub mod suspect;
+pub mod trace_code;
 pub mod tagged_values;
 pub mod sysmlv2;
 pub mod testplan;

@@ -1107,6 +1107,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(warning("W322", &cfg_file, problem));
     }
 
+    // W326/W327/W328: `[traceCode]` (GH #451, REQ-TRS-TRACECODE-003) — code that no implementedBy:/
+    // sourceFile: names and is not baselined (W326, only with `validate = true`), stale baseline
+    // entries (W327, likewise), and malformed entries (W328, whenever the table is present).
+    if let Some(root) = &config.model_root {
+        for (code, file, msg) in crate::trace_code::validate_findings(root, elements, config) {
+            findings.push(warning(code, &file, &msg));
+        }
+    }
+
     // W934: malformed `[audit]` config (GH #216) — entries ignored, defaults kept.
     for problem in &config.audit.problems {
         let cfg_file = config
