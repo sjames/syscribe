@@ -256,6 +256,17 @@ mod tests {
     }
 
     #[test]
+    fn questions_reserved_to_a_person_are_discoverable() {
+        // GH #457: `answerBy`, `human_only_answers` and W323 reach the type page, the template and search.
+        let p = type_page("PlanningItem");
+        assert!(p.contains("answerBy: human") && p.contains("W323"), "{p}");
+        for kw in ["answerBy", "human_only_answers", "owner", "answer human"] {
+            let names: Vec<String> = search(kw).into_iter().map(|h| h.name).collect();
+            assert!(names.iter().any(|n| n == "questions" || n == "policy"), "{kw}: {names:?}");
+        }
+    }
+
+    #[test]
     fn an_exact_command_name_ranks_first() {
         assert_eq!(search("claim")[0].name, "claim");
     }

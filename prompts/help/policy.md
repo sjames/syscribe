@@ -12,6 +12,7 @@ is opt-in.
     [agents]
     protected_paths     = ["model/Safety/**"]       # tools may not write these (repository-relative globs)
     human_only_status   = { Requirement = ["approved"], ADR = ["accepted"] }
+    human_only_answers  = true                      # PlanningItem questions are answered by a person (unless `answerBy: any`)
     require_before_done = ["validate", "evidence"]  # before an agent sets a PlanningItem done
     require_by          = true                      # every model-writing command names its actor
     actors              = ["agent-*"]               # git authors the audit counts as agents
@@ -29,12 +30,19 @@ under `--dry-run`, so a dry run reports what a real run would be refused:
 - `require_before_done`: setting a PlanningItem `done` needs resolving `evidence` (no `E719`) and/or that the
   change introduce no validation error;
 - `require_by`: a model-writing command with neither `--by` nor `--as-human` is refused.
+- `human_only_answers`: an agent may not answer a PlanningItem question — set its `answer`, `answeredBy` or
+  `answeredAt`, move it to `answered`, create it answered, or lift the reservation (`set … question.answer`,
+  the MCP `question`/`update_element`/`apply_changes` tools, any writer). A question's own `answerBy: human | any`
+  wins over this default, and `answerBy: human` reserves a question even with no `[agents]` table. An agent
+  still records what it needs decided with `question.add`; `questions --json` shows `answerBy` per question.
 
 **What is audited.** `validate` reads the last `audit_limit` commits that touched the model and reports
 violations that reached the files by another route: `W760` an agent-made commit changed a protected path;
 `W761` one set a human-only status. A commit is agent-made when it carries a `Syscribe-Actor` trailer (and no
 `Syscribe-As: human`) or its author matches `actors`. `W762` reports a malformed `[agents]` entry. All are
-warnings: gate them with `validate --deny W760,W761`.
+warnings: gate them with `validate --deny W760,W761`. `W323` (a PlanningItem finding) reports a reserved question
+whose answer an agent wrote: `answeredBy` matches `actors`, or the commit that last changed the answer is
+agent-made by the same rule. An answer git cannot attribute (uncommitted, not versioned) raises nothing.
 
 ## OPTIONS
     --json    Machine-readable output (schemaVersion 1.0).

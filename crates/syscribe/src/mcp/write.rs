@@ -160,8 +160,22 @@ where
     let allow_new_errors = std::env::var("SYSCRIBE_MCP_ALLOW_NEW_ERRORS")
         .map(|v| v == "1")
         .unwrap_or(false);
-    let (outcome, _, candidate) = run_guarded(store, dry_run, gate, allow_new_errors, apply, None::<&dyn Fn(&[syscribe_model::element::RawElement]) -> ()>, |_| true);
+    // Every MCP client is an agent: whatever tool made the change, it may not answer a question reserved to a
+    // person (GH #457). Judged on the candidate model, so `update_element`, `batch` or any later tool cannot go
+    // round it; refused under a dry run too, so the preview says what the commit would be refused.
+    let policy = syscribe_model::agent_policy::load(&store.model_root);
+    let default_human = syscribe_model::agent_policy::default_human(policy.as_ref());
+    let before = syscribe_model::questions::collect(&store.elements);
+    let check = move |elems: &[syscribe_model::element::RawElement]| {
+        syscribe_model::agent_policy::check_answer_change(&before, &syscribe_model::questions::collect(elems), default_human).map_err(|r| r.to_string())
+    };
+    let (outcome, checked, candidate) = run_guarded(store, dry_run, gate, allow_new_errors, apply, Some(&check), |c: &Option<Result<(), String>>| !matches!(c, Some(Err(_))));
     let delta = delta_json(&outcome);
+    if let Some(Err(m)) = &checked {
+        let mut extra = extra;
+        extra.insert("refusedBy".into(), Value::String("human_only_answers".into()));
+        return result(&extra, false, delta, &outcome.diff, Some(m));
+    }
     if !outcome.written {
         return result(&extra, false, delta, &outcome.diff, outcome.reason.as_deref());
     }

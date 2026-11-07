@@ -61,6 +61,17 @@ fn candidates(path: &Path) -> Vec<String> {
 pub fn init(model_root: &Path, command: &str, args: &[String]) -> Result<(), String> {
     let policy = agent_policy::load(model_root);
     let _ = POLICY.set(policy);
+    // Questions reserved to a person (GH #457) are guarded in the write layer for an agent, policy or not:
+    // a question's own `answerBy: human` reserves it without any `[agents]` table.
+    if agent_active() {
+        syscribe_model::fsio::set_content_guard(|path, new| {
+            if path.extension().is_none_or(|e| e != "md") {
+                return Ok(());
+            }
+            let old = std::fs::read_to_string(path).ok();
+            agent_policy::check_answer_content(policy_ref(), old.as_deref(), &String::from_utf8_lossy(new)).map_err(|r| r.to_string())
+        });
+    }
     let Some(p) = policy_ref() else { return Ok(()) };
     let g = crate::provenance::get();
     if p.require_by && is_model_write(command, args) && g.by.is_none() && !g.as_human {
@@ -127,6 +138,18 @@ pub fn check_paths(paths: &[PathBuf]) {
     }
 }
 
+/// An agent may not answer a question reserved to a person (GH #457): `new_content` is what the element's
+/// file would become. Checked up front so a dry run is refused exactly as the real write would be.
+pub fn check_answers(elem: &RawElement, new_content: &str) {
+    if !agent_active() {
+        return;
+    }
+    let old = std::fs::read_to_string(&elem.file_path).ok();
+    if let Err(r) = agent_policy::check_answer_content(policy(), old.as_deref(), new_content) {
+        refuse(r);
+    }
+}
+
 /// An agent may not set this status, and may not mark an item done until `require_before_done` holds.
 pub fn check_status(model_root: &Path, elements: &[RawElement], elem: &RawElement, status: &str) {
     let (Some(p), true) = (policy(), agent_active()) else { return };
@@ -141,12 +164,13 @@ pub fn check_status(model_root: &Path, elements: &[RawElement], elem: &RawElemen
 }
 
 /// The findings `validate` adds for the policy: malformed `[agents]` entries and, from git history, agent
-/// commits that changed a protected path or set a human-only status.
-pub fn audit_findings(model_root: &Path) -> Vec<syscribe_model::validator::Finding> {
-    match agent_policy::load(model_root) {
-        Some(p) => agent_policy::audit(model_root, &p),
-        None => Vec::new(),
-    }
+/// commits that changed a protected path or set a human-only status, and (`W323`) reserved questions whose
+/// answer an agent wrote — the last also without a policy, for a question that says `answerBy: human`.
+pub fn audit_findings(model_root: &Path, elements: &[RawElement]) -> Vec<syscribe_model::validator::Finding> {
+    let p = agent_policy::load(model_root);
+    let mut out = p.as_ref().map(|p| agent_policy::audit(model_root, p)).unwrap_or_default();
+    out.extend(agent_policy::answer_audit(model_root, elements, p.as_ref()));
+    out
 }
 
 /// `policy [--json]` — the effective policy and how this invocation is treated.
@@ -176,6 +200,7 @@ pub fn cmd_policy(model_root: &Path, args: &[String]) -> i32 {
                 "configured": true,
                 "protectedPaths": p.protected_paths,
                 "humanOnlyStatus": p.human_only_status,
+                "humanOnlyAnswers": p.human_only_answers,
                 "requireBeforeDone": p.require_before_done,
                 "requireBy": p.require_by,
                 "actors": p.actors,

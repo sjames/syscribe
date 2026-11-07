@@ -11,6 +11,9 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Add evidence to a planning item  syscribe -m model/ set <PI-id> evidence.add ref=<TC-id>
     Rename or move, fixing refs      syscribe -m model/ move <src> <dest> [--dry-run]
     Claim / release shared work      syscribe -m model/ claim <PI-id> --by <agent>  /  release <PI-id>
+    Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
+    Reserve a decision to a person   answerBy: human on the question (or [agents] human_only_answers = true); see `help policy`
+    Who may answer / who answered    syscribe -m model/ questions --json     (answerBy, answerProvenance)
 
 ## Check
     Validate the model               syscribe -m model/ validate
