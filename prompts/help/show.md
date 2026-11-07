@@ -9,6 +9,11 @@ domain, …), its inline features, and its documentation body. Accepts a qualifi
 name (Pkg::Sub::Name) or a stable id (REQ-*, TC-*, SG-*, …). User-defined links
 (`links:`) appear as one `links.<type>` row per link type.
 
+An `ADR` or `Requirement` with `amendments:` (GH #454) gets an `## Amendments` table before
+the documentation body — one row per well-formed entry in authored order: Date, Kind
+(`clarification`/`scope-change`), By, Reason, Ref. Add an entry with
+`set <id> amendment.add`.
+
 After the documentation body come the §3.10 annotations attached from other files:
 one `## Documentation (<locale>)` section per locale variant (`locale:` +
 `qualifiedName:`), and one `## Note: <name>` section per `about:` comment that lists

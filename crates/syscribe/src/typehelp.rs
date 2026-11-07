@@ -146,7 +146,25 @@ fn type_notes(ty: &str) -> Option<&'static str> {
              (preferred), `REQ-X#5` or `REQ-X item 5` (by position — shifts when an item is inserted).\n\
              validate: W092 dangling item reference or duplicate/malformed anchor. Resolve with\n\
              `check-ref REQ-X#grant-keys`; list citers with `refs REQ-X#grant-keys`; `impact REQ-X#grant-keys`;\n\
-             baseline one item with `suspect accept <src> REQ-X#grant-keys` (anchors only).",
+             baseline one item with `suspect accept <src> REQ-X#grant-keys` (anchors only).\n\n\
+             Amendments: once approved (or implemented/verified), record each change to the text in\n\
+             `amendments:` instead of editing silently — `syscribe set REQ-X amendment.add\n\
+             kind=clarification|scope-change reason=\"…\" [ref=PI-X#Q1|RR-id|<commit>] --by <you>` (date = today).\n\
+             E330 malformed entry or unresolved ref; W325 a scope-change without an owner reference\n\
+             (answered question, ReviewRecord, or a person's commit); W324 (opt-in, [traceability]\n\
+             require_amendments = true) the normative content changed since approval with no amendment\n\
+             dated on or after the change. An amendment alone never makes links suspect.",
+        ),
+        "ADR" => Some(
+            "Amendments: an accepted decision is amended, never silently edited. When implementation shows\n\
+             it must change, edit the text and record why in `amendments:` — `syscribe set ADR-X amendment.add\n\
+             kind=clarification|scope-change reason=\"…\" [ref=PI-X#Q1|RR-id|<commit>] --by <you>` fills\n\
+             `date` (today) and `by`. `kind: clarification` keeps the meaning; `kind: scope-change` changes it\n\
+             and needs `ref:` to the owner's decision — an answered question, a ReviewRecord, or a commit a\n\
+             person made (else W325). E330: malformed entry or a ref that resolves to nothing. W324 (opt-in,\n\
+             [traceability] require_amendments = true): the body or normative fields changed since the commit\n\
+             that set `accepted`, with no amendment dated on or after the change. show and export-html print\n\
+             the history; to replace a decision instead, write a new ADR with `supersedes:`.",
         ),
         "PlanningItem" => Some(
             "Questions are citable from any element body as `PI-X#Q3`. validate: W092 the question does not\n\

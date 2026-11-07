@@ -37,6 +37,7 @@
 | `E304` | `ADR.status` not in `proposed · accepted · deprecated · superseded` |
 | `E320` | `ADR.supersedes:` names an element that does not resolve or is not an `ADR` |
 | `E321` | An `ADR` is on a `supersedes:` cycle (a self-reference included) |
+| `E330` | `amendments:` on an `ADR` or `Requirement` is malformed — not a list of mappings, an entry missing `date`/`by`/`reason`/`kind`, an unknown key, a `date` that is not an ISO date (`YYYY-MM-DD`), a `kind` other than `clarification`/`scope-change` — or an entry's `ref` resolves to nothing (not a question `PI-X#Qn` that exists, an element id or qualified name, or a commit of the model's repository). Fix: correct the entry, or add it with `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`, which checks it first (GH #454) |
 
 ## Model-time errors — core (E101–E106, E310–E315)
 
@@ -104,6 +105,8 @@
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |
 | `W313` | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
+| `W324` | Opt-in, `[traceability] require_amendments = true` (GH #454): an `accepted` `ADR`, or a `Requirement` at `approved`/`implemented`/`verified`, whose normative content (body plus normative frontmatter — the suspect projection, without `status`, `amendments` or editorial fields) changed since the commit that set that status, with no `amendments:` entry dated on or after the latest change. The status commit is the oldest of the newest unbroken run of commits of the file at such a status (`git log --follow`, at most `[agents] audit_limit`, default 200); an uncommitted edit counts, dated today. No git, or the status set only in the working tree: nothing is reported. Fix: `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`; to replace a decision instead, write a new ADR with `supersedes:` |
+| `W325` | A `kind: scope-change` amendment has no owner reference: no `ref`, or its `ref` is not an answered question (`PI-X#Qn` with `status: answered`), a `ReviewRecord`, or a commit made by a person (one with a `Syscribe-As: human` trailer, or with no `Syscribe-Actor` trailer and an author matching none of `[agents] actors`). Fix: get the owner's decision recorded — answer the question, or file the ReviewRecord — and set `ref:` to it (GH #454) |
 | `W315` | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 | `W312` | Results-gated: `Requirement` at `approved`/`implemented` has an active verifying `TestCase` whose ingested verdict is Fail |
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
@@ -818,7 +821,7 @@ Dormant unless `.syscribe.toml` declares `[linkTypes]` or an element carries `li
 | `E634` | A resolved target's `type:` is not in the link type's declared `targetTypes` (names the target) |
 | `E635` | An element holds more targets of a link type than its `cardinality` upper bound |
 | `W631` | A non-`draft` element whose type is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound |
-| `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
+| `W632` | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr`/`require_amendments` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force, `W324` stays off) |
 | `E636` | A cycle — including a self-link — formed solely by links of an `acyclic = true` type; reported once per cycle, naming its members |
 
 A type that `extends` `satisfies`/`verifies`/`derivedFrom`/`refines` is treated as that base link by

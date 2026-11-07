@@ -67,6 +67,13 @@ require_breakdown_adr = false   # default true
 
 A `breakdownAdr:` that is present is still checked (`E311`, `W303`). A malformed entry is `W632` and the default stays.
 
+The same table holds the opt-in amendment check (see [Architecture Decisions](adrs.md#amending-an-accepted-adr)):
+
+```toml
+[traceability]
+require_amendments = true       # default false: W324 on an accepted ADR / confirmed requirement edited without an amendment
+```
+
 ## Rule 3 — Leaf assignment (§12.3)
 
 Requirements are decomposed until each leaf can be assigned to the architecture that fulfils it. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.

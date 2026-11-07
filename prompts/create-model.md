@@ -57,6 +57,7 @@ Change type (pick all that apply):
   [ ] New architecture element satisfying an existing requirement
   [ ] New interface or operation on an existing PortDef/InterfaceDef
   [ ] Supersede an existing ADR with a revised decision
+  [ ] Amend an accepted ADR or approved requirement (record it in `amendments:`)
   [ ] Other: ...
 
 Elements affected by this change (qualified names):
@@ -629,6 +630,8 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 | `status` | `proposed` · `accepted` · `deprecated` · `superseded` |
 
 **ADR must be `accepted` before any Requirement can cite it in `breakdownAdr:`** (warning W303 if still `proposed`).
+
+**Amend, never silently edit, an accepted ADR.** When a decision must change after acceptance, edit its text **and** record the change: `syscribe -m model/ set <ADR-id> amendment.add kind=clarification|scope-change reason="…" [ref=…] --by <you>` appends `{date, by, reason, ref?, kind}` to `amendments:` (date = today). `clarification` keeps the meaning; `scope-change` changes it and needs `ref:` to the owner's decision — an answered question `PI-X#Qn`, a `ReviewRecord`, or a person's commit (else `W325`). `E330`: malformed entry or unresolved `ref`. With `[traceability] require_amendments = true`, an edit since acceptance with no amendment dated on or after it is `W324`. The same applies to a `Requirement` at `approved`/`implemented`/`verified`. Never fold the change into the prose silently, and never reset `status:` to dodge the check; to replace a decision, use Pattern F.
 
 Body structure: `## Context`, `## Decision`, `## Consequences` (conventional — not validated beyond being non-empty).
 
@@ -1353,6 +1356,9 @@ draft → review → approved → implemented → verified
 ### Pattern E — Replace a requirement
 **Create:** new `Requirement` with a new ID; new TestCase.
 **Update:** old Requirement — leave the file, do not change the ID; update `satisfies:` in architecture elements; retire old TestCase.
+
+### Pattern E2 — Amend an accepted ADR or approved Requirement
+**Edit:** the decision/requirement text. **Record:** `syscribe -m model/ set <id> amendment.add kind=clarification|scope-change reason="…" [ref=<PI-X#Qn | RR-id>] --by <you>` — a `scope-change` needs the owner's answered question or ReviewRecord as `ref` (`W325`). Keep `status:` as it is. Links to it go suspect only through the text edit (`W090`), never through the amendment entry.
 
 ### Pattern F — Supersede an ADR
 **Create:** new ADR (`status: accepted`) with `supersedes: <old ADR>` (one reference or a list). **Deprecate:** old ADR (`status: superseded`; `W313` if you forget). The reverse `supersededBy` is computed and shown by `show`/`links`; `E320` unresolved/non-ADR target, `E321` cycle, `W314` a `breakdownAdr:` that still cites the superseded ADR. **Update:** any Requirement with `breakdownAdr:` pointing to the old ADR — update to the new one.

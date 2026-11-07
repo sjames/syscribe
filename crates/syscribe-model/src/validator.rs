@@ -1360,6 +1360,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.checks.is_some() && !matches!(fm.element_type, Some(ElementType::MetadataDef)) {
             unknown_keys.push("checks");
         }
+        // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
+        if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
+            unknown_keys.push("amendments");
+        }
         unknown_keys.sort_unstable();
         for key in unknown_keys {
             findings.push(warning(
@@ -9078,6 +9082,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
     // Inline PlanningItem questions (GH #436): E724–E727, W317.
     findings.extend(crate::questions::findings(elements));
+
+    // Amendment records on ADRs / Requirements (GH #454): E330, W325, and — behind
+    // `[traceability] require_amendments` — W324 from the git history of each accepted /
+    // confirmed element's file.
+    {
+        let policy = config.model_root.as_deref().and_then(crate::agent_policy::load);
+        let actors: &[String] = policy.as_ref().map(|p| p.actors.as_slice()).unwrap_or(&[]);
+        findings.extend(crate::amendments::findings(elements, &resolver, config.model_root.as_deref(), actors));
+        if config.require_amendments {
+            if let Some(root) = config.model_root.as_deref() {
+                let limit = policy.as_ref().map(|p| p.audit_limit).unwrap_or(crate::amendments::HISTORY_LIMIT);
+                findings.extend(crate::amendments::change_findings(elements, root, limit, &crate::residual_risk::today()));
+            }
+        }
+    }
 
     // Item anchors and item / question references in prose (GH #453): W092–W094.
     {
