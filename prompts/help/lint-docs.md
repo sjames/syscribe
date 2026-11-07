@@ -15,12 +15,17 @@ for an item or question that does not exist (fails the run), `W094` (advisory) f
 answered question cited with "to confirm"-style wording (phrases from
 `[references] open_markers` in `.syscribe.toml`).
 
+With `[references] copied_values = true` it also flags a copied value (GH #452):
+`W095` (advisory) for a numeric literal equal to the current value of an attribute of
+an element the document references with a value reference `{{Elem.attr}}` — write the
+reference instead of the number. Values below 10 and years are ignored.
+
 It also flags a package `_index.md` that hand-enumerates its own members (`W103`,
 advisory): membership is generated from the directory by `show <package>`, the web UI
 and `export-html`, so a hand-maintained list only drifts.
 
 Exits non-zero if any unresolvable references are found (`W092`, `W099`–`W102`), enabling CI
-gating. `W094` and `W103` alone never make it exit non-zero unless you opt in with `--deny`.
+gating. `W094`, `W095` and `W103` alone never make it exit non-zero unless you opt in with `--deny`.
 
 Every path must exist: a nonexistent path is a usage error (each missing path is
 named on stderr, nothing is scanned, exit 1), so a typo in a CI path cannot pass as a
@@ -29,11 +34,11 @@ clean run.
 ## OPTIONS
     <path>...    Files or directories to scan (.md and .svg).
     --json       Emit findings as a JSON array of {file, line, code, token|ref|path|detail}
-                 (`detail` carries the W103/W094 message; `ref` the W092 reference).
+                 (`detail` carries the W103/W094/W095 message; `ref` the W092 reference).
     --deny <CODES>
-                 Comma-separated lint-docs codes (W092, W094, W099–W103; repeatable, or
+                 Comma-separated lint-docs codes (W092, W094, W095, W099–W103; repeatable, or
                  --deny=<CODES>) treated as failures. W092 and W099–W102 already fail the
-                 run, so this matters for the advisory W094/W103: `--deny W103` makes it exit 1. Any other code, or an
+                 run, so this matters for the advisory W094/W095/W103: `--deny W103` makes it exit 1. Any other code, or an
                  unknown option, is a usage error (exit 1).
 
 ## EXAMPLES
@@ -45,18 +50,21 @@ clean run.
     syscribe -m model/ lint-docs model/ --deny W103
 
 ## EXIT CODES
-    0  no W092/W099–W102 finding (W094/W103 are advisory unless denied)
+    0  no W092/W099–W102 finding (W094/W095/W103 are advisory unless denied)
     1  a W092/W099–W102 finding, a finding whose code is in --deny, or a usage error
        (nonexistent path, unknown --deny code, unknown option, no path)
 
 ## NOTES
-Findings (W092 and W099–W102 always fail the run; W094/W103 only with `--deny`):
+Findings (W092 and W099–W102 always fail the run; W094/W095/W103 only with `--deny`):
 
 - **W092** — an item or question reference whose element resolves but whose anchor,
   item number or question does not exist (`REQ-X#gone`, `REQ-X#9` past the last item,
   `PI-Y#Q99`). Fix the reference; `check-ref` shows what resolves.
 - **W094** (advisory) — an answered question cited with "to confirm"-style wording in
   the same sentence; rewrite the sentence to state the answer.
+- **W095** (advisory, opt-in `[references] copied_values = true`) — a numeric literal
+  equal to the current value of an attribute of an element the document references
+  with `{{Elem.attr}}`; replace it with the reference the message suggests.
 
 - **W099** — an unresolvable stable-ID token (`REQ-*`, `TC-*`, …) in prose.
 - **W100** — a qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not

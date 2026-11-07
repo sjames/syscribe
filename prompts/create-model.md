@@ -129,7 +129,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ export [--ndjson] [--config <C>]` | The structured model graph as JSON / NDJSON |
 | `syscribe -m model/ render <diagram-path>` | Print a hand-authored `Diagram` with element links injected |
 | `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
-| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it); `refs REQ-X#slug` / `PI-X#Q3` lists who cites that item or question |
+| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it); `refs REQ-X#slug` / `PI-X#Q3` lists who cites that item or question; `refs <Elem>.<attr>` lists the uses, literal copies and stale copies of an attribute value |
 | `syscribe -m model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
 | `syscribe -m model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
 | `syscribe -m model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
@@ -602,6 +602,20 @@ Cite a PlanningItem question as `PI-KEY-001#Q3`. Confirm with `check-ref REQ-KEY
 Validation: `W092` dangling item/question reference or duplicate anchor; `W093` a non-draft element
 cites a still-open question (answer it first); `W094` an answered question is still cited as "to
 confirm" (state the answer instead; phrases set by `[references] open_markers`).
+
+### Design values: reference, never copy
+
+When a requirement, TestCase scenario or planning item states a number that a design element
+holds as an attribute (a size budget, a limit, a rate), write a **value reference** instead of the
+number: `{{Elem.attr}}`, where `Elem` is the element's stable id, qualified name or (if unique) basic name and `attr` the
+attribute — a `features:` entry with a `value:` (nested: `outer.inner`), an `Attribute` child, a
+tagged value `Stereotype.key`, or a budget field such as `ram` or `period`. It works in prose and
+inside ` ```gherkin ` scenarios (not in other code). `show`/`export-html` render the current value
+and unit, so the text follows the design when it changes; a copied number goes stale. Validation:
+`E331` the reference does not resolve (the message lists the element's attributes — pick one);
+`W096` a literal equals a previous value of an attribute of a linked element (a stale copy — replace
+it with the reference); `W095` (opt-in `[references] copied_values = true`) a literal equals its
+current value. `refs Elem.attr` lists every use and copy.
 
 ### Requirement hierarchy
 
@@ -1414,6 +1428,9 @@ draft → review → approved → implemented → verified
 | W092 | Body cites a missing item/question (`REQ-X#slug`, `REQ-X#5`, `PI-X#Q3`) or a requirement repeats an anchor | Fix the citation (`check-ref REQ-X#slug`) or add/rename the `{#slug}` anchor |
 | W093 | A non-draft element cites a question that is still `open` | Answer the question (`set PI-X question.answer Q3 text=…`) or keep the element `draft` |
 | W094 | An answered question is cited with "to confirm"-style wording | Rewrite the sentence to state the answer |
+| E331 | A value reference `{{Elem.attr}}` does not resolve (unknown element or attribute, or no scalar value) | Pick an attribute from the list in the message; name the element by id or full qualified name |
+| W095 | (opt-in `[references] copied_values`) A literal equals the current value of an attribute of a linked element | Replace the number with the suggested `{{Elem.attr}}` |
+| W096 | A literal equals a previous value of an attribute of a linked element (a stale copy, from git history) | Replace it with the suggested `{{Elem.attr}}`, or update it |
 | E633 | Element type not in the link type's `sourceTypes` | Hold the link on a permitted source type (see `link-types`) |
 | E634 | Target type not in the link type's `targetTypes` | Point at a permitted target type |
 | E635 | More targets than the `cardinality` upper bound | Remove targets or split across elements |

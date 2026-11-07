@@ -60,6 +60,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E560–E561, W560–W563 | Annotated source | Bad `annotationFormat:` config, invalid marker YAML, skipped blocks, conflicting ingestion modes, auto-filled `implementedBy:` |
 | W090 | Suspect links | A baselined trace-link target changed since review |
 | W092–W094 | Item and question references | A citation (`REQ-X#slug`, `REQ-X#5`, `PI-Y#Qn`) of a missing item/question or a duplicate anchor; an open question cited by a non-draft element; an answered question still cited as "to confirm" |
+| E331, W095, W096 | Value references (§5.8) | An unresolvable `{{Elem.attr}}` (E331); a literal copy of a linked attribute's current value (W095, opt-in `[references] copied_values`); a literal equal to a previous value from git history (W096) |
 | W091 | Stale results | A recorded test result predates a change to its TestCase or to a requirement it verifies |
 | W104 | Untested architecture element | An active, non-abstract `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` with no direct (`verifiesElement:`) or satisfied-requirement test and no `testExempt:` rationale |
 | W099–W103 | Documentation linting (`lint-docs`) | Dangling ids, qnames, SVG refs and image paths in external docs; enumerated package members |

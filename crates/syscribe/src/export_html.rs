@@ -470,7 +470,9 @@ fn element_page(
         // Item anchors `{#slug}` become HTML anchors `id="item-<slug>"` (GH #453).
         // The token goes through Markdown as private-use-delimited text, then becomes the
         // anchor (only a well-formed slug matches, so model text cannot inject markup).
-        let doc = syscribe_model::req_items::rewrite_anchors(&elem.doc, |slug| format!("\u{E000}{slug}\u{E001}"));
+        // Value references `{{Elem.attr}}` render as the value and its unit (GH #452).
+        let doc = syscribe_model::value_refs::render(elements, resolver, &elem.doc);
+        let doc = syscribe_model::req_items::rewrite_anchors(&doc, |slug| format!("\u{E000}{slug}\u{E001}"));
         let html = markdown_to_html(&doc);
         let anchor_re = regex::Regex::new("\u{E000}([a-z][a-z0-9-]*)\u{E001}").unwrap();
         body.push_str(&anchor_re.replace_all(&html, "<a id=\"item-$1\"></a>"));

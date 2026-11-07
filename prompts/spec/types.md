@@ -131,6 +131,11 @@ performs: [Behavior::MissionExecution]
 exhibitsStates: [Behavior::FlightStates]
 ```
 
+A `features:` entry with a single `value:` (else `default:`) and `unit:` is an attribute other bodies
+cite as `{{FlightController.<name>}}` (qualified name or id, then the feature name; nested features by
+dotted path) instead of copying the number; budget fields (`ram`, `flash`, `period`, `wcet`, …) and an
+`Attribute` child's `value:` are cited the same way (GH #452, spec §5.8).
+
 ### PortDef / InterfaceDef / Port
 
 ```yaml
@@ -212,6 +217,16 @@ position). `W092` flags a dangling item reference or a duplicate/malformed ancho
 question is cited as `PI-X#Q3` (`W093` open question cited by a non-draft element, `W094` answered
 question still cited as "to confirm").
 
+**Value references (GH #452, spec §5.8).** State a design value in a body as `{{Elem.attr}}`
+instead of copying the number — `Elem` a stable id, qualified name or unique basic name, `attr` one of its attributes
+(a `features:` entry's `value:`/`default:`, nested by dotted path; an `Attribute` child's `value:`; a
+tagged value `Stereotype.key`; a budget field such as `ram`, `period`, `wcet`). Read outside code,
+and inside ` ```gherkin ` scenario blocks; `show`/`export-html` render the value and its unit.
+`E331` an unresolvable reference (the message lists the attributes with a value); `W095` (opt-in,
+`[references] copied_values = true`) a numeric literal equal to the current value of an attribute of
+an element the body's holder links to; `W096` a literal equal to a previous value from git history (a
+stale copy). `refs Elem.attr` lists uses, literal copies and stale copies.
+
 ### native TestCase
 
 ```yaml
@@ -228,7 +243,9 @@ testFunctions:
   - function: test_safe_landing
     scenario: "Safe landing on battery critical"
 ```
-Body must contain at least one ` ```gherkin ` fenced block (E011).
+Body must contain at least one ` ```gherkin ` fenced block (E011). Write design values in
+scenarios as value references (`Given a snapshot of {{PolicydBounds.snapshotFixedBytes}}`), not as
+copied numbers — see *Value references* under native Requirement.
 
 ### ADR
 

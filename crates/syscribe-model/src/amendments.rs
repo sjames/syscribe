@@ -407,6 +407,26 @@ fn project(content: &str, qualified_name: &str, file_path: &str) -> Option<(Opti
 /// The newest-first history of one file (following renames), at most `limit` commits, each read
 /// back through a single `git cat-file --batch`.
 fn history(top: &Path, rel: &str, limit: usize, qualified_name: &str) -> Vec<Version> {
+    file_versions(top, rel, limit)
+        .into_iter()
+        .map(|(sha, date, path, content)| {
+            let (status, projection) = match content.as_deref().and_then(|c| project(c, qualified_name, &path)) {
+                Some((s, p)) => (s, Some(p)),
+                None => (None, None),
+            };
+            Version { sha, date, status, projection }
+        })
+        .collect()
+}
+
+/// One committed version of a file: `(sha, author date YYYY-MM-DD, path at that commit, content)`;
+/// `content` is `None` when the blob could not be read.
+pub(crate) type FileVersion = (String, String, String, Option<String>);
+
+/// The newest-first committed versions of one file (following renames), at most `limit` commits:
+/// one `git log --follow` and one `git cat-file --batch` for all of them. Shared with the
+/// stale-copy check of value references (GH #452). Empty without git or outside a repository.
+pub(crate) fn file_versions(top: &Path, rel: &str, limit: usize) -> Vec<FileVersion> {
     let n = limit.to_string();
     let Some(log) = git_bytes(top, &["log", "--follow", "--format=%x1e%H%x1f%as", "--name-only", "-n", &n, "--", rel], None) else {
         return Vec::new();
@@ -433,22 +453,19 @@ fn history(top: &Path, rel: &str, limit: usize, qualified_name: &str) -> Vec<Ver
         pos += nl + 1;
         let mut parts = header.split_whitespace();
         let (_oid, kind, size) = (parts.next(), parts.next(), parts.next().and_then(|s| s.parse::<usize>().ok()));
-        let (status, projection) = match (kind, size) {
+        let content = match (kind, size) {
             (Some("blob"), Some(size)) if pos + size <= blob.len() => {
                 let content = String::from_utf8_lossy(&blob[pos..pos + size]).into_owned();
                 pos += size + 1; // the content and its trailing newline
-                match project(&content, qualified_name, &path) {
-                    Some((s, p)) => (s, Some(p)),
-                    None => (None, None),
-                }
+                Some(content)
             }
             (Some(_), Some(size)) if pos + size <= blob.len() => {
                 pos += size + 1;
-                (None, None)
+                None
             }
-            _ => (None, None), // `<name> missing`
+            _ => None, // `<name> missing`
         };
-        out.push(Version { sha, date, status, projection });
+        out.push((sha, date, path, content));
     }
     out
 }

@@ -700,7 +700,19 @@ A Requirement body's top-level numbered items are citable: by position (`REQ-X#5
 |---|---|
 | `W092` | Dangling item or question reference (missing anchor, item number out of range, missing question), or a duplicate / malformed `{#slug}` anchor in one Requirement. Fix the reference (`check-ref REQ-X#slug`) or the anchor |
 | `W093` | An element past draft cites a question that is still `open`. Answer the question, or move the element back to `draft` |
-| `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence (phrases configurable via `[references] open_markers`); also a malformed `[references]` table. Rewrite the sentence to state the answer. Advisory in `lint-docs` |
+| `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence (phrases configurable via `[references] open_markers`); also a malformed `[references]` table (including `copied_values` not `true`/`false`). Rewrite the sentence to state the answer. Advisory in `lint-docs` |
+
+## Value references (E331, W095, W096, GH #452)
+
+An element body may state a design value by reference, `{{Elem.attr}}`, instead of copying the
+number; `show` and `export-html` render the value and its unit. See
+[Value references](../model-guide/value-references.md).
+
+| Code | Condition |
+|---|---|
+| `E331` | A value reference does not resolve: unknown element, a basic name several elements share (lists their qualified names), unknown attribute (the message lists the attributes with a value), or an attribute with no single scalar value. Fix the element (id or full qualified name) or the attribute name |
+| `W095` | Opt-in (`[references] copied_values = true`): a numeric literal in prose or a scenario equals the current value of an attribute of an element the holder links to. Whole tokens only; values below 10 and years ignored. Replace it with the suggested `{{Elem.attr}}`. Advisory in `lint-docs` |
+| `W096` | A non-draft element states a previous value (from the git history of the attribute's file, capped by `[agents] audit_limit`) of an attribute of an element it links to: a stale copy. Update it or replace it with `{{Elem.attr}}` |
 
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 

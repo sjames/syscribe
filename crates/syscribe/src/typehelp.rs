@@ -107,9 +107,11 @@ pub fn type_page(ty: &str) -> String {
         }
         let _ = writeln!(o);
     }
-    if let Some(notes) = type_notes(ty) {
+    let value_notes = value_ref_notes(ty);
+    if type_notes(ty).is_some() || value_notes.is_some() {
         let _ = writeln!(o, "## NOTES");
-        let _ = writeln!(o, "{}", notes.trim_end());
+        let notes: Vec<&str> = [type_notes(ty), value_notes].into_iter().flatten().map(str::trim_end).collect();
+        let _ = writeln!(o, "{}", notes.join("\n\n"));
         let _ = writeln!(o);
     }
     let codes = codes_for(ty);
@@ -171,6 +173,32 @@ fn type_notes(ty: &str) -> Option<&'static str> {
              exist; W093 an element past draft cites a question that is still open; W094 an answered question\n\
              is cited with \"to confirm\"-style wording ([references] open_markers). `check-ref PI-X#Q3` prints\n\
              its status and answer; `refs PI-X#Q3` lists who cites it.",
+        ),
+        _ => None,
+    }
+}
+
+/// Value references (GH #452): how a body states a design value without copying it — on the
+/// types whose bodies commonly state values, and on the types that hold them.
+fn value_ref_notes(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Requirement" | "TestCase" | "PlanningItem" | "ADR" => Some(
+            "Value references: state a design value as `{{Elem.attr}}` instead of copying the number —\n\
+             `Elem` is a stable id, qualified name or unique basic name, `attr` an attribute of it (a `features:` entry with a\n\
+             value, an Attribute child, a tagged value `Stereotype.key`, or a budget field such as `ram`;\n\
+             dotted for nested features). It resolves in the body and in ```gherkin scenarios, not in other\n\
+             code; show and export-html render the value with its unit (`47244 B`). validate: E331 an\n\
+             unresolvable reference (lists the attributes); W096 a literal equal to a previous value of an\n\
+             attribute of a linked element (a stale copy, from git history); W095 (opt-in, [references]\n\
+             copied_values = true) a literal equal to its current value. `refs Elem.attr` lists the uses,\n\
+             literal copies and stale copies.",
+        ),
+        "PartDef" | "Part" | "AttributeDef" | "Attribute" | "InterfaceDef" | "ItemDef" | "PortDef" => Some(
+            "Value references: an attribute with a single value — a `features:` entry's `value:` (else\n\
+             `default:`) and `unit:`, an Attribute child's `value:`, a tagged value, or a budget field\n\
+             (`ram`, `flash`, `period`, `wcet`, …) — is cited from any body as `{{Elem.attr}}` (dotted for\n\
+             nested features, `{{Elem.Stereotype.key}}` for a tagged value) and rendered with its unit by\n\
+             show and export-html. `refs Elem.attr` lists every use, literal copy and stale copy.",
         ),
         _ => None,
     }
@@ -309,6 +337,19 @@ mod tests {
         for kw in ["answerBy", "human_only_answers", "owner", "answer human"] {
             let names: Vec<String> = search(kw).into_iter().map(|h| h.name).collect();
             assert!(names.iter().any(|n| n == "questions" || n == "policy"), "{kw}: {names:?}");
+        }
+    }
+
+    #[test]
+    fn value_references_are_discoverable() {
+        // GH #452: `{{Elem.attr}}`, `refs Elem.attr`, W095/W096 reach search and the type pages.
+        for kw in ["value reference", "attribute", "copied value", "stale"] {
+            let names: Vec<String> = search(kw).into_iter().map(|h| h.name).collect();
+            assert!(names.iter().any(|n| n == "refs"), "{kw}: {names:?}");
+        }
+        for t in ["TestCase", "Requirement", "PartDef"] {
+            let p = type_page(t);
+            assert!(p.contains("{{Elem.attr}}") && p.contains("refs Elem.attr"), "{t}: {p}");
         }
     }
 

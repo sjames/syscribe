@@ -1157,8 +1157,22 @@ fn main() {
             "refs" => {
                 // --config lens (REQ-TRS-PROJ-001, GH #139).
                 let config = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let view = lensed_for_key(&elems, config, key);
-                query::cmd_refs(&view, &Resolver::new(&view), key);
+                // `refs Elem.attr [--json]` (GH #452): uses and copies of one attribute value.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                // Under a lens the start-element check applies to the element part.
+                let lens_key = match key.split_once('.') {
+                    Some((elem_part, _)) if config.is_some() && resolver.resolve_ref(&elems, key).is_none() => elem_part,
+                    _ => key,
+                };
+                let view = lensed_for_key(&elems, config, lens_key);
+                let vres = Resolver::new(&view);
+                if !query::refs_value(&view, &vres, model_root, key, json) {
+                    if json {
+                        eprintln!("refs --json is supported for an attribute value reference (`refs <Elem>.<attr> --json`); `{key}` is not one");
+                        std::process::exit(1);
+                    }
+                    query::cmd_refs(&view, &vres, key);
+                }
             }
             "plantuml" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
