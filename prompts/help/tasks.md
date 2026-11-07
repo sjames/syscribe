@@ -19,6 +19,10 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Anchor a requirement item        write `1. {#grant-keys} ...` in the REQ body (syscribe help Requirement)
     Cite a requirement item          write REQ-X#grant-keys in prose; check: check-ref REQ-X#grant-keys
     Cite a planning question         write PI-X#Q3 in prose; check: check-ref PI-X#Q3
+    Amend an accepted decision       edit the ADR text, then: syscribe -m model/ set <ADR-id> amendment.add kind=clarification|scope-change reason="…" [ref=<PI-id>#Q2] --by <you>
+    Amend a confirmed requirement    same, on the REQ: set <REQ-id> amendment.add …  (a scope-change needs ref= to the owner's decision, W325)
+    Flag edits made without one      [traceability] require_amendments = true  ->  validate raises W324
+    Replace a decision instead       new ADR with supersedes: <old ADR>; set the old one status=superseded
 
 ## Check
     Validate the model               syscribe -m model/ validate

@@ -10,8 +10,8 @@ loaded model and `.syscribe.toml` so it cannot go stale the way a hand-written i
 
 - **ids** — the id prefix of each type in use (plus any extra `[ids.prefixes]`) and the `next-id` command for it;
 - **types** — per lifecycle type: the status vocabulary, the required fields, and the commands that act on it;
-- **gates** — the exact `validate` commands to run (one per `[profiles.<name>]`), and the `[gates]` they enforce, each of which must exit 0 before work is called done, and the `[planning]` evidence gates that are switched on (`require_testcase_evidence` → `W319`, `require_commit_evidence` → `W321`, `check_commit_paths` → `W320`), with the command that satisfies each;
-- **rules** — safe mutation: `next-id`/`template` for new elements, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews, citing a requirement item by its anchor (`REQ-X#slug`) rather than its number, and that a question with `answerBy: human` is a person's to answer;
+- **gates** — the exact `validate` commands to run (one per `[profiles.<name>]`), and the `[gates]` they enforce, each of which must exit 0 before work is called done, and the `[planning]` evidence gates that are switched on (`require_testcase_evidence` → `W319`, `require_commit_evidence` → `W321`, `check_commit_paths` → `W320`) and `[traceability] require_amendments` (→ `W324`), with the command that satisfies each;
+- **rules** — safe mutation: `next-id`/`template` for new elements, `set`/`move`/`claim`/`release` instead of hand edits, `--dry-run` previews, citing a requirement item by its anchor (`REQ-X#slug`) rather than its number, amending (`set <id> amendment.add`) rather than silently editing an accepted ADR or approved Requirement, and that a question with `answerBy: human` is a person's to answer;
 - **policy** — the project's `[agents]` rules in plain words (e.g. `human_only_answers`: only a person answers questions), when it has any.
 
 The output is deterministic (no timestamps, no tool version), so it only changes when the

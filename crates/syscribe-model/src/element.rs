@@ -1682,6 +1682,11 @@ pub struct ColdFrontmatter3 {
     /// `FaultTreeEvent`/`FMEAEntry.rateStatus` — `verified | secondary | unverified` (GH #343, E986).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub rate_status: Option<String>,
+    /// `ADR`/`Requirement.amendments` — the recorded changes to an accepted decision or a confirmed
+    /// requirement, `{date, by, reason, ref?, kind}` (GH #454). Kept as raw YAML so a malformed list
+    /// or entry is reported (`E330`) rather than lost; parsed by [`crate::amendments`]. On any other
+    /// type it is reported as an unrecognized field (`W047`).
+    pub amendments: Option<serde_yaml::Value>,
 }
 
 /// `include:`: a list (the members of a derived diagram's subject, or an annotated package's globs), or, on a
@@ -2451,6 +2456,11 @@ struct ColdWire {
     /// `FaultTreeEvent`/`FMEAEntry.rateStatus` — `verified | secondary | unverified` (GH #343, E986).
     #[serde(default, deserialize_with = "lenient_string::deserialize")]
     pub rate_status: Option<String>,
+    /// `ADR`/`Requirement.amendments` — the recorded changes to an accepted decision or a confirmed
+    /// requirement, `{date, by, reason, ref?, kind}` (GH #454). Kept as raw YAML so a malformed list
+    /// or entry is reported (`E330`) rather than lost; parsed by [`crate::amendments`]. On any other
+    /// type it is reported as an unrecognized field (`W047`).
+    pub amendments: Option<serde_yaml::Value>,
 }
 
 impl ColdWire {
@@ -2771,6 +2781,7 @@ impl ColdWire {
                     target: w.target,
                     rate_source: w.rate_source,
                     rate_status: w.rate_status,
+                    amendments: w.amendments,
                 }),
             }),
         }

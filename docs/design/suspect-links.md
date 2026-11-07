@@ -106,7 +106,7 @@ on. Default surface, then per-type overrides:
 
 > **Resolved (§8, decision 2):** v1 ships the default projection — the body plus
 > all frontmatter except editorial/presentation fields (`name`, `displayOrder`,
-> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251; `status` stays in the projection for retiring values such as `deprecated`/`superseded`), the removed `title`, `traceBaselines`, and diagram
+> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251; `status` stays in the projection for retiring values such as `deprecated`/`superseded`), the amendment record `amendments` (GH #454: an amendment entry alone never makes a link suspect — the edit it records does), the removed `title`, `traceBaselines`, and diagram
 > `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`). Per-type surfaces are deferred
 > until false positives justify them.
 

@@ -164,6 +164,11 @@ pub struct ValidateConfig {
     /// the derived default (`false`) keeps the rule in force.
     pub breakdown_adr_optional: bool,
 
+    /// `[traceability] require_amendments = true` (GH #454, `REQ-TRS-AMEND-002`): an accepted ADR or a
+    /// confirmed Requirement whose normative content changed since the commit that set that status needs
+    /// an `amendments:` entry dated on or after the change, else `W324`. Off by default.
+    pub require_amendments: bool,
+
     /// Problems with the `[traceability]` table, reported as `W632`.
     pub traceability_problems: Vec<String>,
 
@@ -735,12 +740,13 @@ impl ValidateConfig {
         crate::binding_time::install(&binding_times);
         let audit = AuditConfig::load(&root);
         let root_for_cyber = root.clone();
-        let (breakdown_adr_optional, traceability_problems) = load_traceability(&root);
+        let (breakdown_adr_optional, require_amendments, traceability_problems) = load_traceability(&root);
         let planning = PlanningPolicy::load(&root);
         let references = crate::req_items::ReferencesConfig::load(&root);
         Self {
             machine_config: None,
             breakdown_adr_optional,
+            require_amendments,
             traceability_problems,
             planning,
             references,
@@ -1068,28 +1074,38 @@ fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
     toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
 }
 
-/// Read `[traceability]` (REQ-TRS-BADR-001): `(breakdown ADR optional, problems)`.
-fn load_traceability(model_root: &Path) -> (bool, Vec<String>) {
+/// Whether `[traceability] require_amendments = true` is set (GH #454) — `W324` is on.
+pub fn require_amendments(model_root: &Path) -> bool {
+    load_traceability(model_root).1
+}
+
+/// Read `[traceability]` (REQ-TRS-BADR-001, GH #454): `(breakdown ADR optional, require amendments, problems)`.
+fn load_traceability(model_root: &Path) -> (bool, bool, Vec<String>) {
     let mut problems = Vec::new();
     let Some(root) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok().and_then(|t| toml::from_str::<toml::Value>(&t).ok()) else {
-        return (false, problems);
+        return (false, false, problems);
     };
-    let Some(tbl) = root.get("traceability") else { return (false, problems) };
+    let Some(tbl) = root.get("traceability") else { return (false, false, problems) };
     let Some(tbl) = tbl.as_table() else {
         problems.push("[traceability] must be a table".into());
-        return (false, problems);
+        return (false, false, problems);
     };
     let mut optional = false;
+    let mut amendments = false;
     for (k, v) in tbl {
         match k.as_str() {
             "require_breakdown_adr" | "requireBreakdownAdr" => match v.as_bool() {
                 Some(b) => optional = !b,
                 None => problems.push(format!("[traceability] {k} must be true or false, got {v}")),
             },
-            other => problems.push(format!("[traceability] unknown key '{other}'")),
+            "require_amendments" | "requireAmendments" => match v.as_bool() {
+                Some(b) => amendments = b,
+                None => problems.push(format!("[traceability] {k} must be true or false, got {v}")),
+            },
+            other => problems.push(format!("[traceability] unknown key '{other}' (known: require_breakdown_adr, require_amendments)")),
         }
     }
-    (optional, problems)
+    (optional, amendments, problems)
 }
 
 /// `[planning]` (GH #455/#456, `REQ-TRS-PIEV-001`, `REQ-TRS-PICOMMIT-001`): opt-in PlanningItem

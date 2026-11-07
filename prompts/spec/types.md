@@ -237,8 +237,22 @@ type: ADR
 id: ADR-SW-SCHED-001         # required; ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: accepted             # proposed | accepted | deprecated | superseded
+amendments:                  # optional (GH #454): each change made after acceptance
+  - date: 2026-03-01         # ISO date
+    by: alice
+    reason: "Name the timeout unit"
+    kind: clarification      # clarification | scope-change
+    # ref: PI-X-001#Q2       # answered question, ReviewRecord id or commit (needed for scope-change, W325)
 ```
 Body sections: `## Context`, `## Decision`, `## Consequences`.
+
+An accepted ADR is **amended, never silently edited**: change the text and append an `amendments:`
+entry (`syscribe set ADR-X amendment.add kind=clarification|scope-change reason="…" [ref=…] --by <you>`;
+`date` = today). `E330` malformed entry or unresolved `ref`; `W325` a scope-change whose `ref` is not
+an answered question, a `ReviewRecord` or a person's commit; `W324` (opt-in, `[traceability]
+require_amendments = true`) the body or normative fields changed since the commit that set `accepted`
+with no amendment dated on or after the change. A `Requirement` at `approved`/`implemented`/`verified`
+takes `amendments:` the same way. To replace a decision rather than amend it, use `supersedes:`.
 
 ### native TestPlan
 

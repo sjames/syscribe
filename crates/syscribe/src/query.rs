@@ -1331,6 +1331,29 @@ pub fn cmd_show(
         }
     }
 
+    // Amendment history (GH #454): one row per well-formed entry, in authored order.
+    {
+        let (amendments, _) = syscribe_model::amendments::parse(elem);
+        if !amendments.is_empty() {
+            println!();
+            println!("## Amendments");
+            println!();
+            println!("| Date | Kind | By | Reason | Ref |");
+            println!("|---|---|---|---|---|");
+            let cell = |s: &str| s.replace('|', "\\|").replace('\n', " ");
+            for a in &amendments {
+                println!(
+                    "| {} | {} | {} | {} | {} |",
+                    a.date,
+                    a.kind,
+                    cell(&a.by),
+                    cell(&a.reason),
+                    a.reference.as_deref().map(cell).unwrap_or_default()
+                );
+            }
+        }
+    }
+
     // Doc
     // Item anchors `{#slug}` are an authoring aid, not display text (GH #453).
     let shown_doc = syscribe_model::req_items::strip_anchors(&elem.doc);
@@ -3955,6 +3978,12 @@ verificationMethod: test
 # decompositionKind: independent   # ASIL D / SIL 4 decomposition: independent | redundant | diverse
 # derivedFromSafetyGoal: SG-PREFIX-001
 # derivedFromCybersecurityGoal: CSG-PREFIX-001
+# amendments:   # once approved, record every change instead of editing silently (W324 with [traceability] require_amendments)
+#   - date: 2026-01-31          # ISO date of the change
+#     by: alice                 # who made it
+#     reason: "Also covers message B"
+#     kind: clarification       # clarification | scope-change (a scope-change needs ref: to the owner's decision, W325)
+#     ref: PI-PREFIX-001#Q1     # optional: answered question, ReviewRecord id or commit sha
 ---
 
 The system shall ...
@@ -4033,6 +4062,12 @@ id: ADR-PREFIX-001
 name: "Decision title"
 status: proposed
 # supersedes: ADR-PREFIX-000   # the ADR(s) this replaces; mark them status: superseded
+# amendments:   # once accepted, amend instead of editing silently: `syscribe set ADR-PREFIX-001 amendment.add kind=… reason=… --by <you>`
+#   - date: 2026-01-31          # ISO date of the change
+#     by: alice                 # who made it
+#     reason: "Patch also applies to message B"
+#     kind: scope-change        # clarification | scope-change (a scope-change needs ref: to the owner's decision, W325)
+#     ref: PI-PREFIX-001#Q1     # answered question, ReviewRecord id or commit sha
 ---
 
 ## Context
