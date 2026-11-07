@@ -47,6 +47,9 @@ pub const DEFAULT_OPEN_MARKERS: &[&str] =
 pub struct ReferencesConfig {
     /// `open_markers`; `None` = [`DEFAULT_OPEN_MARKERS`]. An empty list disables `W094`.
     pub open_markers: Option<Vec<String>>,
+    /// `copied_values = true` (GH #452): `W095` for a literal copy of a linked element's
+    /// attribute value. Off by default.
+    pub copied_values: bool,
     /// Malformed entries (reported as `W094` against `.syscribe.toml`; the entry is ignored).
     pub problems: Vec<String>,
 }
@@ -76,7 +79,13 @@ impl ReferencesConfig {
                         "[references] {k} must be a list of non-empty strings, got {v}; the default phrases are used"
                     )),
                 },
-                other => cfg.problems.push(format!("[references] unknown key '{other}' (expected open_markers)")),
+                "copied_values" | "copiedValues" => match v.as_bool() {
+                    Some(b) => cfg.copied_values = b,
+                    None => cfg.problems.push(format!(
+                        "[references] {k} must be true or false, got {v}; W095 stays off"
+                    )),
+                },
+                other => cfg.problems.push(format!("[references] unknown key '{other}' (expected open_markers, copied_values)")),
             }
         }
         cfg

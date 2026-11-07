@@ -650,6 +650,11 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
         for e in elements {
             let mut seen: Vec<String> = Vec::new();
             for raw in texts(e).iter().flat_map(|t| malformed(t)) {
+                // `{{Elem.a.b}}` naming a non-FeatureDef element is a value reference (GH #452).
+                let head = raw.trim_start_matches('{').trim().split('.').next().unwrap_or("");
+                if crate::value_refs::is_value_target(elements, resolver, head) {
+                    continue;
+                }
                 if seen.contains(&raw) {
                     continue;
                 }
@@ -678,7 +683,9 @@ pub fn findings(elements: &[RawElement], resolver: &Resolver) -> Vec<(bool, &'st
     let sels: Vec<crate::projection::Selection> =
         configs.iter().map(|c| variability::canon_selection(&c.frontmatter.feature_selections(), &alias)).collect();
     for e in elements {
-        let phs = of_element(e);
+        // A `{{Elem.attr}}` whose element resolves to a non-FeatureDef is a value reference (GH #452).
+        let phs: Vec<Placeholder> =
+            of_element(e).into_iter().filter(|ph| !crate::value_refs::is_value_target(elements, resolver, &ph.feature)).collect();
         if phs.is_empty() {
             continue;
         }

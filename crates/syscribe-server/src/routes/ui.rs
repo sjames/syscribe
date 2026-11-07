@@ -360,7 +360,7 @@ pub async fn element_detail(
                 element_type,
                 qualified_name: e.qualified_name.clone(),
                 elem_id: e.frontmatter.id.clone().unwrap_or_default(),
-                doc_html: markdown_to_html(syscribe_model::req_items::strip_anchors(&e.doc).trim()),
+                doc_html: markdown_to_html(syscribe_model::value_refs::render(&store.elements, &store.resolver, &syscribe_model::req_items::strip_anchors(&e.doc)).trim()),
                 doc_raw: e.doc.trim().to_string(),
                 badge_class,
                 custom_fields: e
@@ -453,7 +453,7 @@ pub async fn element_card(
             qualified_name: e.qualified_name.clone(),
             elem_id: e.frontmatter.id.clone().unwrap_or_default(),
             status: e.frontmatter.status.clone().unwrap_or_default(),
-            doc_html: markdown_to_html(syscribe_model::req_items::strip_anchors(&doc_of.doc).trim()),
+            doc_html: markdown_to_html(syscribe_model::value_refs::render(&store.elements, &store.resolver, &syscribe_model::req_items::strip_anchors(&doc_of.doc)).trim()),
             feature,
         }
     };

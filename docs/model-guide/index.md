@@ -105,6 +105,7 @@ Its shape:
 
 - [Requirements & Test Cases](requirements.md) — stable IDs, lifecycle, Gherkin
 - [Traceability](traceability.md) — the seven §12 rules, including `implementedBy:`/`W023`, plus suspect-link detection (`traceBaselines:`/`W090`, the `suspect` commands)
+- [Value References](value-references.md) — cite a design value as `{{Elem.attr}}` instead of copying it; `E331`, copied values (`W095`), stale copies from git history (`W096`), `refs Elem.attr`
 - [Architecture Decisions](adrs.md) — ADR lifecycle and breakdown rules
 - [State Machines](state-machines.md) — `StateDef` transitions, hierarchy/parallel regions, the `W070`–`W079` and `W929` completeness checks
 - [System Composition](system-composition.md) — executing the parts of a composite together: `send` effects, port connections with delay, bindings, part-qualified scenarios (`E930`–`E934`, `W936`)

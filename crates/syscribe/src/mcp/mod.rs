@@ -1511,7 +1511,9 @@ impl SyscribeMcp {
     #[tool(
         description = "Fetch one element by stable id, qualified name, or display name. \
         Summary by default; pass detail=true to include the Markdown body and frontmatter, \
-        or fields=[..] to project a chosen subset of frontmatter keys.",
+        or fields=[..] to project a chosen subset of frontmatter keys. With detail, a body \
+        holding value references ({{Elem.attr}}) also returns docRendered, the body with each \
+        reference replaced by its value and unit (doc stays raw).",
         annotations(read_only_hint = true)
     )]
     async fn get_element(
@@ -1537,7 +1539,16 @@ impl SyscribeMcp {
                     }
                     ok(with_stereotypes(&store, e, out))
                 } else if args.detail {
-                    ok(with_stereotypes(&store, e, elem_detail(e)))
+                    let mut d = elem_detail(e);
+                    // Value references `{{Elem.attr}}` (GH #452): `doc` stays raw; the body with
+                    // each reference replaced by its value and unit is added when it differs.
+                    let rendered = syscribe_model::value_refs::render(&store.elements, &store.resolver, &e.doc);
+                    if rendered != e.doc {
+                        if let Some(obj) = d.as_object_mut() {
+                            obj.insert("docRendered".into(), Value::String(rendered));
+                        }
+                    }
+                    ok(with_stereotypes(&store, e, d))
                 } else {
                     ok(with_stereotypes(&store, e, elem_summary(e)))
                 }
