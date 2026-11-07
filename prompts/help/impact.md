@@ -41,9 +41,10 @@ The default reach is both directions to depth 2 — unit → the requirement it 
 that verify it; widen it with `--depth`. The report lists the mapping, then the affected elements
 grouped by type, each marked `changed` (its own file is in the same change set) or `not changed`,
 so a reviewer sees what was updated and what was not. Files that map to no element are listed
-separately under *Not mapped*, never silently dropped. `--fail-on-unreviewed` exits `2` when an
-affected requirement or test was not itself changed — a CI gate that wants the model to move with
-the code. `--format dot` and `--kinds` are for the single-element form.
+separately under *Not mapped*, never silently dropped. The opposite census — every code unit
+in the repository that no `implementedBy:` or `sourceFile:` names at all — is `trace-code`.
+`--fail-on-unreviewed` exits `2` when an affected requirement or test was not itself changed —
+a CI gate that wants the model to move with the code. `--format dot` and `--kinds` are for the single-element form.
 
 ## OPTIONS
     --files <path>...  Changed files (repository-relative or relative to the working directory).
@@ -73,4 +74,4 @@ Cycles are handled (each element is visited once). Works for qualified names and
     syscribe -m examples/planning-item/model/ impact --files examples/planning-item/model/Requirements/REQ-RTH-001.md
 
 ## SEE ALSO
-    links, connectivity, n2, follow, link-types, changes, check-staged
+    links, connectivity, n2, follow, link-types, changes, check-staged, trace-code

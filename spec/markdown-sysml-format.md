@@ -6730,6 +6730,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
 | `E331`, `W095`, `W096` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`) | §5.8 |
 | `E330`, `W324`, `W325` | Amendment records on accepted ADRs and confirmed requirements (`amendments:`, `[traceability] require_amendments`) | §8.17.5 |
+| `W326`–`W328` | Code trace, the reverse of the implementation trace (`[traceCode]`, `syscribe trace-code`) | §12.8.1 |
 | `W760`–`W762` | Agent policy (`[agents]` in `.syscribe.toml`) | catalogue; `syscribe policy`; `ADR-SYS-AGENTPOLICY-001` |
 | `W091` | Stale results | §11.12, `ingest-results --format records`; `REQ-TRS-RESJOIN-001` |
 | `I910`–`I913` | Workflow hints (`validate --hints`, opt-in, informational): a hand-edited claim, a duplicate evidence entry, a status outside the type's vocabulary | catalogue; `syscribe explain <code>` |
@@ -6901,6 +6902,9 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
 | `W324` | Opt-in, `[traceability] require_amendments = true` (GH #454): an `accepted` `ADR`, or a `Requirement` at `approved`/`implemented`/`verified`, whose normative content (body plus normative frontmatter — the suspect projection, without `status`, `amendments` or editorial fields) changed since the commit that set that status, with no `amendments:` entry dated on or after the latest change. The status commit is the oldest of the newest unbroken run of commits of the file at such a status (`git log --follow`, at most `[agents] audit_limit`, default 200); an uncommitted edit counts, dated today. No git, or the status set only in the working tree: nothing is reported. Fix: `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`; to replace a decision instead, write a new ADR with `supersedes:` |
 | `W325` | A `kind: scope-change` amendment has no owner reference: no `ref`, or its `ref` is not an answered question (`PI-X#Qn` with `status: answered`), a `ReviewRecord`, or a commit made by a person (one with a `Syscribe-As: human` trailer, or with no `Syscribe-Actor` trailer and an author matching none of `[agents] actors`). Fix: get the owner's decision recorded — answer the question, or file the ReviewRecord — and set `ref:` to it (GH #454) |
+| `W326` | Opt-in, `[traceCode] validate = true` (GH #451): a code unit under the `[traceCode]` roots (a cargo crate, a build directory or a file, per the `units` rules) that no `implementedBy:` or `sourceFile:` names — not the unit itself, a file inside it, or a directory containing it — and that is not in the trace-code baseline: code added without a design element or TestCase. Fix: add the design element (`implementedBy:`) or TestCase (`sourceFile:`) that names it; or, for accepted backlog, run `syscribe trace-code --write-baseline` and replace its `TODO` with the reason. Gate with `--deny W326`; `syscribe trace-code` lists the same set (exit 2) |
+| `W327` | Opt-in, `[traceCode] validate = true` (GH #451): a trace-code baseline entry that no longer describes untraced code — the unit is now traced, its path no longer exists, or it is no longer a code unit under the `[traceCode]` rules. The baseline only shrinks, so a fixed entry must be removed. Fix: `syscribe trace-code --write-baseline` drops every stale entry and keeps the other reasons. Gate with `--deny W327` |
+| `W328` | A malformed `[traceCode]` entry in `.syscribe.toml` (GH #451): the value is not a table, an unknown key (known: `roots`, `units`, `exclude`, `build_files`, `baseline`, `validate`, snake_case or camelCase), `roots` missing/empty or naming no directory, a `units` entry with an unknown `kind` (known: `cargo-crate`, `build-dir`, `file`) or key, a non-boolean `validate`, or an unreadable baseline file. The entry is ignored (`validate` keeps going; `syscribe trace-code` refuses to run, exit 1). Fix the entry; `syscribe help trace-code` shows the shape |
 | `W315` | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 | `W316` | `[metadata] profiles` names an element that is not a package with `profile: true` (or does not exist) |
 | `W650` | A `MetadataDef` `checks:` entry with `severity: warning` fails on an element that carries the stereotype. Draft-suppressed; gate with `--deny W650`. |
@@ -7851,6 +7855,58 @@ implementedBy:
   - repo:src/scheduler/bitmap.rs
 ---
 ```
+
+#### 12.8.1 The reverse direction: code no element names (GH #451)
+
+`implementedBy:` and `sourceFile:` say which code realises or verifies an element; nothing in the
+rule above reports code that **no** element names. A project that follows "design before code" can
+switch that check on with an opt-in `[traceCode]` table in `<model_root>/.syscribe.toml`:
+
+```toml
+[traceCode]
+roots = ["crates", "scripts", "tests"]       # repository-relative source roots
+exclude = ["crates/*/vendor/**"]             # globs; target/, node_modules/, .git/ always excluded
+baseline = "trace-code-baseline.toml"        # relative to the model root (default)
+validate = false                             # true: W326/W327 in validate
+build_files = ["Cargo.toml", "package.json"] # what makes a build-dir (default list below)
+units = [
+  { kind = "cargo-crate", under = "crates" },
+  { kind = "file", under = "scripts", extensions = ["sh", "py"] },
+]
+```
+
+- **Roots** are resolved against the repository root that `repo:` paths use (`repo_root` in
+  `.syscribe.toml`, else the git work tree), or the model root's parent when there is neither.
+- **Code units.** A `cargo-crate` unit is a directory holding a `Cargo.toml` with a `[package]`
+  table; a `build-dir` unit is a directory holding any of `build_files` (default `Cargo.toml`,
+  `package.json`, `CMakeLists.txt`, `Makefile`, `go.mod`, `pyproject.toml`, `setup.py`); a `file`
+  unit is a single file, filtered by `extensions` when given. Each rule applies below its optional
+  `under`; `units` may be one kind as a string; the default is `build-dir`. Units do not nest:
+  below a directory unit nothing else is a unit.
+- **The containment rule.** A unit is *traced* when an `implementedBy:` or `sourceFile:` entry of
+  any element — resolved exactly as for `W023` above, so remote URIs and package-registry
+  references name no local code — is the unit path itself, a path inside it, or a directory
+  containing it.
+- **The baseline only shrinks.** The baseline file is a list of `[[untraced]]` tables, each with
+  `path` (repository-relative) and `reason`. A new untraced unit (absent from the baseline) and a
+  *stale* entry (the unit is now traced, its path is gone, or it is no longer a unit) are both
+  failures, so the list can only get shorter.
+
+`syscribe trace-code [--root <repo>] [--json] [--all] [--write-baseline]` reports the untraced
+units (each marked in the baseline or new) and the stale entries; `--all` adds the traced units
+with the elements that name them. It exits `0` when there is nothing new and nothing stale, `2`
+otherwise, and `1` on a usage or configuration error (no `[traceCode]` table, a malformed entry, a
+root that is not a directory, an unreadable baseline). `--write-baseline` writes the baseline from
+the current state, keeping every existing reason, giving new entries `reason = "TODO"` and dropping
+stale ones; it is a guarded write (the agent policy's `protected_paths` applies). With `[repos]`
+configured (§14), each peer that has its own `[traceCode]` table is checked against its **own**
+elements and reported separately; an element of the composing model that names peer code does not
+trace it.
+
+**Validation (W326–W328).** With `validate = true`, `validate` raises `W326` for each new untraced
+unit and `W327` for each stale baseline entry (both warnings, gateable with `--deny`). A malformed
+`[traceCode]` entry is `W328` and ignored, whether or not `validate` is set. Without the table
+nothing runs.
 
 ---
 

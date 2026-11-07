@@ -53,6 +53,7 @@ mod mv;
 mod bcov;
 mod impact;
 mod impactfiles;
+mod tracecode;
 mod n2;
 mod plantuml;
 mod query;
@@ -2231,6 +2232,11 @@ fn main() {
                     include_planned: rest.iter().any(|a| a == "--include-planned"),
                 };
                 bcov::cmd_behavioral_coverage(&elems, &opts);
+            }
+            "trace-code" => {
+                // GH #451: code that no implementedBy:/sourceFile: names, against a shrink-only baseline.
+                let code = tracecode::cmd_trace_code(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
             }
             "impact" => {
                 // Change impact analysis (§17, GH #65). Read-only.

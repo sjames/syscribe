@@ -66,33 +66,7 @@ pub struct Report {
 /// `p` made absolute (against the working directory) with `.`/`..` removed, and the longest existing
 /// prefix canonicalised, so a path that no longer exists (a deleted file) still compares equal.
 pub(crate) fn lenient_canonical(p: &Path) -> PathBuf {
-    let abs = if p.is_absolute() { p.to_path_buf() } else { std::env::current_dir().unwrap_or_default().join(p) };
-    let mut clean = PathBuf::new();
-    for c in abs.components() {
-        match c {
-            std::path::Component::ParentDir => {
-                clean.pop();
-            }
-            std::path::Component::CurDir => {}
-            other => clean.push(other.as_os_str()),
-        }
-    }
-    let mut rest: Vec<std::ffi::OsString> = Vec::new();
-    let mut base = clean.clone();
-    while !base.exists() {
-        match (base.file_name().map(|n| n.to_os_string()), base.parent().map(Path::to_path_buf)) {
-            (Some(n), Some(parent)) => {
-                rest.push(n);
-                base = parent;
-            }
-            _ => break,
-        }
-    }
-    let mut out = std::fs::canonicalize(&base).unwrap_or(base);
-    for n in rest.into_iter().rev() {
-        out.push(n);
-    }
-    out
+    syscribe_model::config::lenient_canonical(p)
 }
 
 /// [`lenient_canonical`] under the name other modules use.

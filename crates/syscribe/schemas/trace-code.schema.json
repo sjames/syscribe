@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://syscribe.dev/schemas/trace-code.schema.json",
+  "title": "syscribe trace-code --json / MCP trace_code",
+  "description": "Stable contract (GH #451). A new optional property is compatible; removing or retyping one, or changing its meaning, bumps schemaVersion.",
+  "type": "object",
+  "required": ["schemaVersion", "repoRoot", "baseline", "untraced", "stale"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "repoRoot": { "type": "string" },
+    "baseline": { "type": "string" },
+    "untraced": { "type": "array", "items": { "$ref": "#/$defs/untraced" } },
+    "stale": { "type": "array", "items": { "$ref": "#/$defs/stale" } },
+    "traced": { "type": "array", "items": { "$ref": "#/$defs/traced" } },
+    "peers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["alias", "modelRoot", "checked"],
+        "properties": {
+          "alias": { "type": ["string", "null"] },
+          "modelRoot": { "type": "string" },
+          "checked": { "type": "boolean" },
+          "note": { "type": "string" },
+          "repoRoot": { "type": "string" },
+          "baseline": { "type": "string" },
+          "untraced": { "type": "array", "items": { "$ref": "#/$defs/untraced" } },
+          "stale": { "type": "array", "items": { "$ref": "#/$defs/stale" } },
+          "traced": { "type": "array", "items": { "$ref": "#/$defs/traced" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "unit": { "enum": ["cargo-crate", "build-dir", "file"] },
+    "untraced": {
+      "type": "object",
+      "required": ["path", "unit", "inBaseline"],
+      "properties": {
+        "path": { "type": "string" },
+        "unit": { "$ref": "#/$defs/unit" },
+        "inBaseline": { "type": "boolean" }
+      }
+    },
+    "stale": {
+      "type": "object",
+      "required": ["path", "reason", "why"],
+      "properties": {
+        "path": { "type": "string" },
+        "reason": { "type": "string" },
+        "why": { "enum": ["traced", "missing", "not-a-unit"] }
+      }
+    },
+    "traced": {
+      "type": "object",
+      "required": ["path", "unit", "namedBy"],
+      "properties": {
+        "path": { "type": "string" },
+        "unit": { "$ref": "#/$defs/unit" },
+        "namedBy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["element", "via"],
+            "properties": {
+              "element": { "type": "string" },
+              "via": { "enum": ["implementedBy", "sourceFile"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

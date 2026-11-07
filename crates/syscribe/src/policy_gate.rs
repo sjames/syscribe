@@ -33,6 +33,7 @@ pub fn is_model_write(command: &str, args: &[String]) -> bool {
         "scaffold-gherkin" => has("--fix"),
         "baseline" => args.first().map(String::as_str) == Some("create"),
         "suspect" => args.first().map(String::as_str) == Some("accept"),
+        "trace-code" => has("--write-baseline"),
         _ => false,
     }
 }

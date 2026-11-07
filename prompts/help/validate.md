@@ -12,6 +12,10 @@ Runs the full per-element validation pass and prints the findings (errors and
 warnings) only. By default a model with warnings but no errors exits 0; the
 gating flags promote chosen warnings to build failures.
 
+With `[traceCode] validate = true` in `.syscribe.toml`, validate also reports code that no
+`implementedBy:`/`sourceFile:` names and the trace-code baseline does not list (`W326`) and stale
+baseline entries (`W327`) — the same result `trace-code` gives; gate with `--deny W326 --deny W327`.
+
 ## OPTIONS
     --file <path>           Report (and gate on) only the findings for files matching <path>
                             (applies with --config and --all-configs too).
@@ -104,4 +108,4 @@ its error.
     Exit 2 always means "no errors, but a gate failed" — never a usage error.
 
 ## SEE ALSO
-    audit, verification-depth, matrix, spec validation
+    audit, verification-depth, matrix, spec validation, trace-code

@@ -555,6 +555,12 @@ file at all) is always legal.
 | `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
 | `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
 | `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
+| `[traceCode]` | `roots` | Yes (when the table is present) | list of strings | — | Repository-relative source roots for `trace-code` (§12.8.1, GH #451), resolved against the repository root `repo:` paths use (else the model root's parent). A root that is not a directory is `W328`. |
+| `[traceCode]` | `units` | No | kind string, or list of kinds / `{kind, under?, extensions?}` tables | `"build-dir"` | How a code unit is recognised: `cargo-crate` (dir with `Cargo.toml` `[package]`), `build-dir` (dir with one of `build_files`), `file` (one file, filtered by `extensions`); `under` limits a rule to a repository-relative subtree. Units do not nest. |
+| `[traceCode]` | `build_files` (alias `buildFiles`) | No | list of strings | `Cargo.toml`, `package.json`, `CMakeLists.txt`, `Makefile`, `go.mod`, `pyproject.toml`, `setup.py` | What makes a `build-dir` unit. |
+| `[traceCode]` | `exclude` | No | list of globs | `[]` | Repository-relative globs not walked (`target/`, `node_modules/`, `.git/` always excluded). |
+| `[traceCode]` | `baseline` | No | string | `trace-code-baseline.toml` | Baseline file, relative to the model root: `[[untraced]]` tables of `path` + `reason`; it only shrinks (`trace-code --write-baseline` refreshes it). |
+| `[traceCode]` | `validate` | No | bool | `false` | `W326` (an untraced unit not in the baseline) and `W327` (a stale baseline entry) in `validate`. A malformed `[traceCode]` entry (unknown key, unknown unit kind, wrong type) is `W328` and ignored. |
 | `[references]` | `open_markers` (alias `openMarkers`) | No | list of strings | `["to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"]` | Phrases that mark a citation of an `answered` PlanningItem question (`PI-X#Q3`) as stale — `W094` when one occurs, case-insensitively as whole words, in the citing sentence. Replaces the defaults; `[]` disables `W094`. A malformed entry (unknown key, not a list of non-empty strings) is `W094` on `.syscribe.toml` and ignored. GH #453, spec §5.7. |
 | `[references]` | `copied_values` (alias `copiedValues`) | No | bool | `false` | `W095`: a numeric literal in an element body (prose or scenario) equal to the current value of an attribute of an element it links to, not written as a value reference `{{Elem.attr}}` (spec §5.8, GH #452). Whole tokens only; values below 10 and years (1900–2100) are ignored. Not a Boolean: `W094` against `.syscribe.toml`, and W095 stays off. `W096` (stale copies of previous values) does not need it. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
@@ -613,6 +619,14 @@ bob = "Bob Patel"
 
 [planning]
 require_testcase_evidence = true
+
+[traceCode]
+roots = ["crates", "scripts"]
+units = [
+  { kind = "cargo-crate", under = "crates" },
+  { kind = "file", under = "scripts", extensions = ["sh", "py"] },
+]
+validate = true
 
 [references]
 open_markers = ["to confirm", "TBC", "pending owner"]

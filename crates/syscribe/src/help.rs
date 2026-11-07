@@ -95,6 +95,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("design-report", include_str!("../../../prompts/help/design-report.md")),
             ("refs", include_str!("../../../prompts/help/refs.md")),
             ("impact", include_str!("../../../prompts/help/impact.md")),
+            ("trace-code", include_str!("../../../prompts/help/trace-code.md")),
             ("n2", include_str!("../../../prompts/help/n2.md")),
             ("matrix", include_str!("../../../prompts/help/matrix.md")),
             ("verification-depth", include_str!("../../../prompts/help/verification-depth.md")),

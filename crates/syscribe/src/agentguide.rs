@@ -152,10 +152,18 @@ pub fn build(model_root: &Path, elements: &[RawElement]) -> Guide {
     if syscribe_model::req_items::ReferencesConfig::load(model_root).copied_values {
         gates.push("references `copied_values` — write a design value as `{{Elem.attr}}`, not as the number, in the body of an element that links to it, or `W095` is raised".to_string());
     }
+    // `[traceCode]` (GH #451): code no element names. `validate = true` makes it W326/W327 (warnings).
+    let trace_code = syscribe_model::trace_code::TraceCodeConfig::load(model_root);
+    if trace_code.as_ref().is_some_and(|c| c.validate) {
+        gates.push(format!("traceCode `validate` — design before code: new code (a crate, build directory or file under the `[traceCode]` roots) must be named by a design element's `implementedBy:` or a TestCase's `sourceFile:`, or `W326` is raised; a baseline entry that is now traced must be dropped (`syscribe -m {root} trace-code --write-baseline`), or `W327` is raised"));
+    }
     let mut validate = vec![(
         format!("syscribe -m {root} validate"),
         if gates.is_empty() { "the model's own checks".to_string() } else { "the model's own checks and the gates above".to_string() },
     )];
+    if trace_code.is_some() {
+        validate.push((format!("syscribe -m {root} trace-code"), "every code unit under the `[traceCode]` roots is named by an `implementedBy:`/`sourceFile:` or listed in the trace-code baseline".to_string()));
+    }
     let mut profiles: Vec<(String, syscribe_model::config::Profile)> =
         syscribe_model::config::load_profiles(model_root).into_iter().collect();
     profiles.sort_by(|a, b| a.0.cmp(&b.0));
@@ -196,6 +204,7 @@ fn rules(root: &str) -> Vec<String> {
         format!("Amend, never silently edit, an accepted ADR or an approved Requirement: change the text and record why with `syscribe -m {root} set <id> amendment.add kind=clarification|scope-change reason=\"…\" [ref=…] --by <you>`; a scope-change needs `ref=` to the owner's decision (an answered question `PI-X#Qn` or a ReviewRecord). To replace a decision, write a new ADR with `supersedes:`."),
         "Cite one item of a requirement by its anchor, not its number: write `{#slug}` after the item's number in the requirement body and cite it as `REQ-X#slug` (a number such as `REQ-X#5` shifts when an item is inserted); cite a PlanningItem question as `PI-X#Q3`. `check-ref REQ-X#slug` confirms it resolves; a dangling citation is `W092`.".to_string(),
         format!("Write a design value as a value reference, never a copied number: `{{{{Elem.attr}}}}` (an element id or qualified name, then an attribute such as a `features:` entry with a `value:`) in prose or a gherkin scenario renders the current value and unit; `syscribe -m {root} refs <Elem>.<attr>` lists every use and every copy. An unresolvable reference is `E331`; a literal equal to a previous value of a linked attribute is `W096` (a stale copy)."),
+        format!("Design before code: before adding a crate, module, script or test file, add the design element whose `implementedBy:` names it or the TestCase whose `sourceFile:` names it; `syscribe -m {root} trace-code` lists the code nothing names (with a `[traceCode]` table in `.syscribe.toml`)."),
         "Check a reference with `check-ref <ref>`; an unfamiliar finding with `syscribe explain <code>`; a type with `syscribe help <Type>`.".to_string(),
         "A task is not finished until every command under \"Before declaring work done\" exits 0.".to_string(),
     ]
@@ -381,7 +390,11 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
     if !g.gates.is_empty() || g.validate.len() > 1 {
         o.push_str("Gates: ");
         let mut parts: Vec<String> = g.gates.clone();
-        parts.extend(g.validate.iter().skip(1).map(|(c, _)| c.rsplit("validate ").next().unwrap_or("").to_string()).map(|p| format!("profile run `validate {p}`")));
+        parts.extend(g.validate.iter().skip(1).map(|(c, _)| match c.split_once(" validate ") {
+            Some((_, p)) => format!("profile run `validate {p}`"),
+            // Not a profile: another command that must exit 0 (`trace-code`, GH #451).
+            None => format!("run `{}`", c.split_once(&format!("-m {} ", g.root)).map_or(c.as_str(), |(_, rest)| rest)),
+        }));
         o.push_str(&parts.join("; "));
         o.push_str(".\n");
     }
