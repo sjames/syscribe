@@ -87,7 +87,7 @@ fn req(id: &str, status: &str, body: &str, extra: &str) -> String {
     format!("---\nid: {id}\ntype: Requirement\nname: {id}\nstatus: {status}\nreqDomain: software\nreqClass: system\n{extra}---\n\n{body}\n")
 }
 fn amendment(date: &str, kind: &str, r: Option<&str>) -> String {
-    let r = r.map(|r| format!("    ref: {r}\n")).unwrap_or_default();
+    let r = r.map(|r| format!("    ref: \"{r}\"\n")).unwrap_or_default(); // quoted: a hash may read as a number
     format!("amendments:\n  - date: {date}\n    by: owner\n    reason: covers message B too\n{r}    kind: {kind}\n")
 }
 fn today() -> String {
@@ -322,4 +322,12 @@ fn template_and_help_teach_amendments() {
         let (out, _e, _c) = r.run(&["help", "--search", term]);
         assert!(out.to_lowercase().contains("amend"), "{term}: {out}");
     }
+}
+
+#[test]
+fn an_unquoted_ref_yaml_reads_as_a_number_is_e330_asking_for_quotes() {
+    let r = Repo::new("", false);
+    r.write("model/Decisions/ADR-AM-001.md", &adr("accepted", "X.", "amendments:\n  - date: 2026-01-01\n    by: owner\n    reason: also B\n    ref: 7666202e104\n    kind: clarification\n"));
+    let e = r.findings("E330");
+    assert!(e.iter().any(|m| m.contains("read as a number") && m.contains("quote it")), "{e:?}");
 }

@@ -150,6 +150,12 @@ pub fn parse_value(owner: &str, raw: &Value) -> (Vec<Amendment>, Vec<String>) {
             problems.push(format!("`amendments:` entry {n} on {owner} has kind `{kind}` (expected {})", KINDS.join(" or ")));
             bad = true;
         }
+        // An unquoted commit hash of digits, or digits around one `e`, is read by YAML as a number and
+        // its characters are lost; never guess it back (GH #455's rule for `evidence: - commit:`).
+        if let Some(Value::Number(num)) = m.get(Value::String("ref".into())) {
+            problems.push(format!("`amendments:` entry {n} on {owner} has `ref` {num}, which YAML read as a number — quote it (`ref: \"<hash>\"`)"));
+            bad = true;
+        }
         if bad {
             continue;
         }
@@ -408,7 +414,7 @@ fn project(content: &str, qualified_name: &str, file_path: &str) -> Option<(Opti
 /// back through a single `git cat-file --batch`.
 fn history(top: &Path, rel: &str, limit: usize, qualified_name: &str) -> Vec<Version> {
     let n = limit.to_string();
-    let Some(log) = git_bytes(top, &["log", "--follow", "--format=%x1e%H%x1f%as", "--name-only", "-n", &n, "--", rel], None) else {
+    let Some(log) = git_bytes(top, &["log", "--follow", "--format=%x1e%H%x1f%at", "--name-only", "-n", &n, "--", rel], None) else {
         return Vec::new();
     };
     let log = String::from_utf8_lossy(&log).into_owned();
@@ -418,7 +424,10 @@ fn history(top: &Path, rel: &str, limit: usize, qualified_name: &str) -> Vec<Ver
         let Some(head) = lines.next() else { continue };
         let Some((sha, date)) = head.split_once('\u{1f}') else { continue };
         let path = lines.map(str::trim).find(|l| !l.is_empty()).unwrap_or(rel).to_string();
-        commits.push((sha.trim().to_string(), date.trim().to_string(), path));
+        // Dated in UTC from the author timestamp, like `today()` for an uncommitted edit, so a change and
+        // an amendment made on the same day compare equal whatever the author's time zone.
+        let date = date.trim().parse::<i64>().map(crate::residual_risk::utc_date).unwrap_or_default();
+        commits.push((sha.trim().to_string(), date, path));
     }
     if commits.is_empty() {
         return Vec::new();
