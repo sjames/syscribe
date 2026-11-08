@@ -340,6 +340,8 @@ struct LogArgs {
     unattributed: bool,
     /// At most this many commits (default 50).
     limit: Option<u32>,
+    /// Only the commits this PlanningItem names as `evidence: - commit:` (id or qualified name).
+    item: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -392,6 +394,12 @@ struct CoverageArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct LinkTypesArgs {}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct TraceCodeArgs {
+    /// Also list the traced code units and the elements that name them.
+    all: Option<bool>,
+}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct BindingTimesArgs {}
@@ -1025,6 +1033,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("derivedFrom", false, "list<ref>", None),
             field_spec("breakdownAdr", false, "ref", None),
             field_spec("verificationMethod", false, "string", None),
+            field_spec("amendments", false, "list<{date: YYYY-MM-DD, by, reason, ref?, kind: clarification|scope-change}> (record each change after acceptance; add with `set <id> amendment.add`)", None),
         ],
         "PlanningItem" => vec![
             field_spec("id", true, "string", None),
@@ -1033,7 +1042,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("itemType", false, "enum", Some(&["bug", "task", "feature"])),
             field_spec("parent", false, "ref", None),
             field_spec("achieves", false, "list<ref>", None),
-            field_spec("evidence", false, "list<{ref|path, rationale?}>", None),
+            field_spec("evidence", false, "list<{ref|path|commit, rationale?}>", None),
             field_spec("blockedBy", false, "list<ref>", None),
             field_spec("assignedTo", false, "string", None),
             field_spec("questions", false, "list<{id, text, recommended?, status: open|answered|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human|any}> (edit with `question`; answerBy human = only a person answers it — an agent's answer is refused)", None),
@@ -1045,6 +1054,7 @@ pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
             field_spec("name", true, "string", None),
             field_spec("status", true, "enum", Some(&["proposed", "accepted", "deprecated", "superseded"])),
             field_spec("supersedes", false, "list<ref>", None),
+            field_spec("amendments", false, "list<{date: YYYY-MM-DD, by, reason, ref?, kind: clarification|scope-change}> (record each change after acceptance; add with `set <id> amendment.add`)", None),
         ],
         "TestCase" => vec![
             field_spec("id", true, "string", None),
@@ -1507,7 +1517,9 @@ impl SyscribeMcp {
     #[tool(
         description = "Fetch one element by stable id, qualified name, or display name. \
         Summary by default; pass detail=true to include the Markdown body and frontmatter, \
-        or fields=[..] to project a chosen subset of frontmatter keys.",
+        or fields=[..] to project a chosen subset of frontmatter keys. With detail, a body \
+        holding value references ({{Elem.attr}}) also returns docRendered, the body with each \
+        reference replaced by its value and unit (doc stays raw).",
         annotations(read_only_hint = true)
     )]
     async fn get_element(
@@ -1533,7 +1545,16 @@ impl SyscribeMcp {
                     }
                     ok(with_stereotypes(&store, e, out))
                 } else if args.detail {
-                    ok(with_stereotypes(&store, e, elem_detail(e)))
+                    let mut d = elem_detail(e);
+                    // Value references `{{Elem.attr}}` (GH #452): `doc` stays raw; the body with
+                    // each reference replaced by its value and unit is added when it differs.
+                    let rendered = syscribe_model::value_refs::render(&store.elements, &store.resolver, &e.doc);
+                    if rendered != e.doc {
+                        if let Some(obj) = d.as_object_mut() {
+                            obj.insert("docRendered".into(), Value::String(rendered));
+                        }
+                    }
+                    ok(with_stereotypes(&store, e, d))
                 } else {
                     ok(with_stereotypes(&store, e, elem_summary(e)))
                 }
@@ -2344,7 +2365,7 @@ impl SyscribeMcp {
     #[tool(
         description = "The model's history as git records it: commits with author, date, the syscribe command, actor and reason \
         (from the commit trailers a write made with `commit` leaves), and for one element what each commit changed in it. \
-        `unattributed` lists commits that touched the model without those trailers. Same data as `syscribe log --json`.",
+        `unattributed` lists commits that touched the model without those trailers; `item` lists the commits a PlanningItem names as `evidence: - commit:`. Same data as `syscribe log --json`.",
         annotations(read_only_hint = true)
     )]
     async fn log(&self, Parameters(args): Parameters<LogArgs>) -> Result<CallToolResult, ErrorData> {
@@ -2354,6 +2375,7 @@ impl SyscribeMcp {
             by: args.by.as_deref(),
             since: args.since.as_deref(),
             unattributed: args.unattributed,
+            item: args.item.as_deref(),
             limit: args.limit.map(|l| l as usize).unwrap_or(50),
         };
         match crate::logcmd::collect(&store.model_root, &store.elements, &q) {
@@ -2525,7 +2547,7 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Requirement verification coverage: counts plus the unverified requirements.",
+        description = "Requirement verification coverage: counts plus the unverified requirements, and the active TestCases that no PlanningItem's evidence names (testCasesWithoutPlanningEvidence).",
         annotations(read_only_hint = true)
     )]
     async fn coverage(
@@ -2539,31 +2561,7 @@ impl SyscribeMcp {
         // authored elements.
         let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let summary = crate::coverage::coverage_summary(&cov, &result, store.config.results.as_ref());
-
-        let entries = |v: &[crate::coverage::CoverageEntry]| -> Vec<Value> {
-            v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect()
-        };
-        let unverified_leaves = entries(&summary.unverified_leaves);
-        let planned = entries(&summary.planned);
-        let parents_missing_integration: Vec<Value> = summary
-            .parents_missing_integration
-            .iter()
-            .map(|e| {
-                json!({
-                    "qname": e.qname,
-                    "id": e.id,
-                    "name": e.name,
-                    "childCount": e.child_count.unwrap_or(0),
-                })
-            })
-            .collect();
-
-        ok(json!({
-            "verifiedCount": summary.verified_count,
-            "unverifiedLeaves": unverified_leaves,
-            "planned": planned,
-            "parentsMissingIntegrationTest": parents_missing_integration,
-        }))
+        ok(crate::coverage::summary_json(&summary))
     }
 
     #[tool(
@@ -3044,7 +3042,7 @@ impl SyscribeMcp {
                 None,
             ));
         }
-        let findings = lint_docs_findings(&store.elements, &paths, args.codes.as_deref());
+        let findings = lint_docs_findings(&store.elements, Some(&store.model_root), &paths, args.codes.as_deref());
         ok(json!({ "findings": findings }))
     }
 
@@ -3676,6 +3674,27 @@ impl SyscribeMcp {
     }
 
     #[tool(
+        description = "Code that no design element or TestCase names (GH #451): the code units under \
+        the [traceCode] roots of .syscribe.toml (cargo crates, build directories, files) that no \
+        implementedBy: or sourceFile: names (itself, a file inside it, or a directory above it), each \
+        with inBaseline, plus stale baseline entries (now traced, missing, or no longer a unit) and, \
+        with `all`, the traced units and what names them; [repos] peers with their own [traceCode] \
+        are checked against their own elements under `peers`. Read-only (refresh the baseline with \
+        `trace-code --write-baseline`). Same data as `trace-code --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn trace_code(&self, Parameters(args): Parameters<TraceCodeArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::tracecode::analyse_local(&store.model_root, &store.elements, &store.config, None) {
+            Ok(local) => {
+                let peers = crate::tracecode::analyse_peers(&store.config);
+                ok(crate::tracecode::to_json(&local, &peers, args.all.unwrap_or(false)))
+            }
+            Err(e) => tool_error(e),
+        }
+    }
+
+    #[tool(
         description = "List the project's user-defined link types (declared in [linkTypes] of \
         .syscribe.toml): name, description, inverse, sourceTypes/targetTypes, cardinality, \
         acyclic, suspect, the built-in link it extends with its relaxed codes and coverage, \
@@ -3954,7 +3973,9 @@ impl SyscribeMcp {
         hash into the source's traceBaselines, clearing its suspect flag (W090). Obeys the \
         write guard — dry_run defaults to true (returns a diff + validation delta, clearing \
         the link shows the W090 under resolvedWarnings; nothing is written). Pass \
-        dry_run:false to commit. source/target accept a stable id or qualified name.",
+        dry_run:false to commit. source/target accept a stable id or qualified name; target may \
+        also be an anchored requirement item the source's body cites (REQ-X#slug), baselining \
+        that item only (a by-number REQ-X#5 is refused).",
         annotations(read_only_hint = false)
     )]
     async fn suspect_accept(

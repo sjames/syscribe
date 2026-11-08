@@ -350,7 +350,12 @@ fn is_date(s: &str) -> bool {
 
 /// Today's date (UTC) as `YYYY-MM-DD`.
 pub fn today() -> String {
-    let days = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() / 86_400).unwrap_or(0) as i64;
+    utc_date(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0))
+}
+
+/// The UTC calendar date (`YYYY-MM-DD`) of a Unix timestamp in seconds.
+pub fn utc_date(unix_secs: i64) -> String {
+    let days = unix_secs.div_euclid(86_400);
     // days since 1970-01-01 → civil date (Howard Hinnant's algorithm)
     let z = days + 719_468;
     let era = z.div_euclid(146_097);

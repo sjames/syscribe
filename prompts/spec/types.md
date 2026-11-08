@@ -131,6 +131,11 @@ performs: [Behavior::MissionExecution]
 exhibitsStates: [Behavior::FlightStates]
 ```
 
+A `features:` entry with a single `value:` (else `default:`) and `unit:` is an attribute other bodies
+cite as `{{FlightController.<name>}}` (qualified name or id, then the feature name; nested features by
+dotted path) instead of copying the number; budget fields (`ram`, `flash`, `period`, `wcet`, …) and an
+`Attribute` child's `value:` are cited the same way (GH #452, spec §5.8).
+
 ### PortDef / InterfaceDef / Port
 
 ```yaml
@@ -205,6 +210,23 @@ tags: [safety, contingency]
 ```
 Body must contain at least one `shall` statement (W001 if absent).
 
+Top-level numbered items of the body are citable (GH #453, spec §5.7, §8.11.6). Anchor an item by
+writing `{#slug}` after its number (`1. {#grant-keys} **Server keys.** …`; slug `[a-z][a-z0-9-]*`);
+cite it from any element body as `REQ-X#grant-keys` (preferred), `REQ-X#5` or `REQ-X item 5` (by
+position). `W092` flags a dangling item reference or a duplicate/malformed anchor. A PlanningItem
+question is cited as `PI-X#Q3` (`W093` open question cited by a non-draft element, `W094` answered
+question still cited as "to confirm").
+
+**Value references (GH #452, spec §5.8).** State a design value in a body as `{{Elem.attr}}`
+instead of copying the number — `Elem` a stable id, qualified name or unique basic name, `attr` one of its attributes
+(a `features:` entry's `value:`/`default:`, nested by dotted path; an `Attribute` child's `value:`; a
+tagged value `Stereotype.key`; a budget field such as `ram`, `period`, `wcet`). Read outside code,
+and inside ` ```gherkin ` scenario blocks; `show`/`export-html` render the value and its unit.
+`E331` an unresolvable reference (the message lists the attributes with a value); `W095` (opt-in,
+`[references] copied_values = true`) a numeric literal equal to the current value of an attribute of
+an element the body's holder links to; `W096` a literal equal to a previous value from git history (a
+stale copy). `refs Elem.attr` lists uses, literal copies and stale copies.
+
 ### native TestCase
 
 ```yaml
@@ -221,7 +243,9 @@ testFunctions:
   - function: test_safe_landing
     scenario: "Safe landing on battery critical"
 ```
-Body must contain at least one ` ```gherkin ` fenced block (E011).
+Body must contain at least one ` ```gherkin ` fenced block (E011). Write design values in
+scenarios as value references (`Given a snapshot of {{PolicydBounds.snapshotFixedBytes}}`), not as
+copied numbers — see *Value references* under native Requirement.
 
 ### ADR
 
@@ -230,8 +254,22 @@ type: ADR
 id: ADR-SW-SCHED-001         # required; ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: accepted             # proposed | accepted | deprecated | superseded
+amendments:                  # optional (GH #454): each change made after acceptance
+  - date: 2026-03-01         # ISO date
+    by: alice
+    reason: "Name the timeout unit"
+    kind: clarification      # clarification | scope-change
+    # ref: PI-X-001#Q2       # answered question, ReviewRecord id or commit (needed for scope-change, W325)
 ```
 Body sections: `## Context`, `## Decision`, `## Consequences`.
+
+An accepted ADR is **amended, never silently edited**: change the text and append an `amendments:`
+entry (`syscribe set ADR-X amendment.add kind=clarification|scope-change reason="…" [ref=…] --by <you>`;
+`date` = today). `E330` malformed entry or unresolved `ref`; `W325` a scope-change whose `ref` is not
+an answered question, a `ReviewRecord` or a person's commit; `W324` (opt-in, `[traceability]
+require_amendments = true`) the body or normative fields changed since the commit that set `accepted`
+with no amendment dated on or after the change. A `Requirement` at `approved`/`implemented`/`verified`
+takes `amendments:` the same way. To replace a decision rather than amend it, use `supersedes:`.
 
 ### native TestPlan
 
@@ -270,6 +308,7 @@ evidence:
   - path: "repo:crates/syscribe/src/rth/mod.rs"    # local path checked to exist, or remote URI
   - path: "docs/design/rth-timing.pdf"
     rationale: "not yet committed; reviewed in RR-RTH-001"   # waives this one entry's own check
+  - commit: "3f9c2a1e7b"                          # the delivering commit, 7-40 hex, resolved against git (E728)
 ```
 ```toml
 # .syscribe.toml — optional [users] roster; assignedTo: is checked against it

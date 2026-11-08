@@ -144,6 +144,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E402", "companion SVG not on disk"),
     ("W414", "companion .puml not on disk"),
     ("E717", "PlanningItem evidence path not on disk"),
+    ("E728", "PlanningItem evidence commit is illustrative and not in this repository (GH #455); a malformed hash shares the code"),
     // ── Coverage / orphan advisories: an element shown on its own is, by
     //    construction, not yet traced to the rest of a model.
     ("W002", "Requirement has no active TestCase"),

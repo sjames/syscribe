@@ -184,16 +184,72 @@ pub(crate) fn traverse(
     order
 }
 
+/// Impact of an item / question (GH #453, REQ-TRS-ITEMREF-004): downstream, the elements
+/// citing it in prose (`via cites`) and then everything downstream of those; upstream, the
+/// element that owns it (`via item of`).
+fn item_order(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    owner: &RawElement,
+    part: &syscribe_model::req_items::Part,
+    root_q: &str,
+    opts: &ImpactOptions,
+    kind_ok: &dyn Fn(&str) -> bool,
+) -> Vec<Node> {
+    let mut order: Vec<Node> = Vec::new();
+    if opts.depth == Some(0) {
+        return order;
+    }
+    if matches!(opts.direction, Direction::Upstream | Direction::Both) {
+        order.push(Node { qname: owner.qualified_name.clone(), depth: 1, via: "item of", parent: Some(root_q.to_string()) });
+    }
+    if matches!(opts.direction, Direction::Downstream | Direction::Both) {
+        let mut citers: Vec<String> = syscribe_model::req_items::citers_of(elements, resolver, &owner.qualified_name, Some(part))
+            .into_iter()
+            .map(|c| c.source.qualified_name.clone())
+            .filter(|q| q != &owner.qualified_name)
+            .collect();
+        citers.sort();
+        citers.dedup();
+        for c in &citers {
+            order.push(Node { qname: c.clone(), depth: 1, via: "cited by", parent: Some(root_q.to_string()) });
+        }
+        let rest = traverse(elements, resolver, &citers, Direction::Downstream, opts.depth.map(|d| d - 1), kind_ok);
+        let known: HashSet<String> = order.iter().map(|n| n.qname.clone()).collect();
+        order.extend(rest.into_iter().filter(|n| !known.contains(&n.qname)).map(|mut n| {
+            n.depth += 1;
+            n
+        }));
+    }
+    order
+}
+
 pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
     let resolver = Resolver::new(elements);
-    let root_el = match resolver.resolve_ref(elements, opts.root) {
+    // An item / question reference (GH #453): `REQ-X#slug`, `REQ-X#5`, `PI-Y#Q3`.
+    let item_root = match resolver.resolve_ref(elements, opts.root) {
+        Some(_) => None,
+        None => syscribe_model::req_items::parse_ref(opts.root).and_then(|(e, p)| {
+            syscribe_model::req_items::resolve_elem(elements, &resolver, &e).map(|t| (t, p))
+        }),
+    };
+    let root_el = match resolver.resolve_ref(elements, opts.root).or(item_root.as_ref().map(|(t, _)| *t)) {
         Some(e) => e,
         None => {
             eprintln!("impact: '{}' does not resolve to a known element.", opts.root);
             std::process::exit(1);
         }
     };
-    let root_q = root_el.qualified_name.clone();
+    let root_q = match &item_root {
+        Some((t, p)) => {
+            if let Err(why) = syscribe_model::req_items::lookup(t, p) {
+                eprintln!("impact: '{}' does not resolve: {why}", opts.root);
+                std::process::exit(1);
+            }
+            format!("{}{}", t.qualified_name, p.suffix())
+        }
+        None => root_el.qualified_name.clone(),
+    };
     // `--kinds` names match an edge's base kind. A declared link type's `inverse`
     // selects that type's edges too (REQ-TRS-LINKTYPE-009) — in addition to any
     // built-in kind of the same name. An unknown name is a usage error (exit 1).
@@ -222,15 +278,35 @@ pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
     let kind_ok = |base: &str| kinds.as_ref().is_none_or(|ks| ks.iter().any(|k| k == base));
 
     // BFS spanning tree from the root in the chosen direction(s); cycle-safe.
-    let order = traverse(elements, &resolver, std::slice::from_ref(&root_q), opts.direction, opts.depth, &kind_ok);
+    let order = match &item_root {
+        None => traverse(elements, &resolver, std::slice::from_ref(&root_q), opts.direction, opts.depth, &kind_ok),
+        Some((t, p)) => item_order(elements, &resolver, t, p, &root_q, opts, &kind_ok),
+    };
 
+    let item_label = item_root.as_ref().map(|(t, p)| {
+        let id = t.frontmatter.id.clone().unwrap_or_else(|| t.qualified_name.clone());
+        let kind = if matches!(p, syscribe_model::req_items::Part::Question(_)) { "question" } else { "item" };
+        (format!("{id}{}", p.suffix()), kind)
+    });
     let type_of = |q: &str| -> String {
+        if q == root_q {
+            if let Some((_, kind)) = &item_label {
+                return kind.to_string();
+            }
+        }
         resolver
             .resolve_ref(elements, q)
             .and_then(|e| e.frontmatter.element_type.as_ref().map(|t| format!("{:?}", t)))
             .unwrap_or_else(|| "?".into())
     };
-    let id_of = |q: &str| -> Option<String> { resolver.resolve_ref(elements, q).and_then(|e| e.frontmatter.id.clone()) };
+    let id_of = |q: &str| -> Option<String> {
+        if q == root_q {
+            if let Some((l, _)) = &item_label {
+                return Some(l.clone());
+            }
+        }
+        resolver.resolve_ref(elements, q).and_then(|e| e.frontmatter.id.clone())
+    };
     let status_of = |q: &str| -> Option<String> { resolver.resolve_ref(elements, q).and_then(|e| e.frontmatter.status.clone()) };
     let disp = |q: &str| -> String { id_of(q).unwrap_or_else(|| q.to_string()) };
 

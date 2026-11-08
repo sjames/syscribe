@@ -58,7 +58,7 @@ fn edit_distance(a: &str, b: &str) -> usize {
 fn evidence_key(v: &serde_yaml::Value) -> Option<String> {
     match v {
         serde_yaml::Value::String(s) => Some(s.clone()),
-        serde_yaml::Value::Mapping(m) => ["ref", "path"].iter().find_map(|k| {
+        serde_yaml::Value::Mapping(m) => ["ref", "path", "commit"].iter().find_map(|k| {
             m.get(serde_yaml::Value::String((*k).into())).and_then(|x| x.as_str()).map(|s| format!("{k}: {s}"))
         }),
         _ => None,

@@ -9,25 +9,44 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Check a reference resolves       syscribe -m model/ check-ref <ref>
     Change status / one field        syscribe -m model/ set <id> status=approved [--dry-run]
     Add evidence to a planning item  syscribe -m model/ set <PI-id> evidence.add ref=<TC-id>
+    Record the delivering commit     syscribe -m model/ set <PI-id> evidence.add commit=<sha>
+    Commits that delivered an item   syscribe -m model/ log --item <PI-id>
     Rename or move, fixing refs      syscribe -m model/ move <src> <dest> [--dry-run]
     Claim / release shared work      syscribe -m model/ claim <PI-id> --by <agent>  /  release <PI-id>
     Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
     Reserve a decision to a person   answerBy: human on the question (or [agents] human_only_answers = true); see `help policy`
     Who may answer / who answered    syscribe -m model/ questions --json     (answerBy, answerProvenance)
+    Anchor a requirement item        write `1. {#grant-keys} ...` in the REQ body (syscribe help Requirement)
+    Cite a requirement item          write REQ-X#grant-keys in prose; check: check-ref REQ-X#grant-keys
+    Cite a planning question         write PI-X#Q3 in prose; check: check-ref PI-X#Q3
+    Use a design value, not a copy   write {{Elem.attr}} in prose or a gherkin scenario (e.g. {{PolicydBounds.snapshotFixedBytes}}); show renders "47244 B"
+    Find every use of a value        syscribe -m model/ refs UAV::Avionics::FlightController.flightMode   (uses, literal copies, stale copies; --json)
+    Find copied values               [references] copied_values = true  ->  validate raises W095 for a literal equal to a linked attribute's value
+    Find stale copies of a value     validate raises W096 for a literal equal to a previous value (git history); refs <Elem>.<attr> lists them
+    Amend an accepted decision       edit the ADR text, then: syscribe -m model/ set <ADR-id> amendment.add kind=clarification|scope-change reason="…" [ref=<PI-id>#Q2] --by <you>
+    Amend a confirmed requirement    same, on the REQ: set <REQ-id> amendment.add …  (a scope-change needs ref= to the owner's decision, W325)
+    Flag edits made without one      [traceability] require_amendments = true  ->  validate raises W324
+    Replace a decision instead       new ADR with supersedes: <old ADR>; set the old one status=superseded
 
 ## Check
     Validate the model               syscribe -m model/ validate
     Only what a change introduced    syscribe -m model/ validate --new-since <rev>
     Explain a finding code           syscribe explain E106
     Is everything traced and tested  syscribe -m model/ audit
+    Code no design/test names        syscribe -m model/ trace-code          (untraced code: no implementedBy/sourceFile; needs [traceCode])
+    Baseline the untraced backlog    syscribe -m <root> trace-code --write-baseline   (then replace each TODO with a reason; the list only shrinks)
+    Fail CI on new untraced code     [traceCode] validate = true  ->  validate raises W326 (new) / W327 (stale); gate with --deny W326 --deny W327
 
 ## Understand a change
     What changed between revisions   syscribe -m model/ changes <revA> [<revB>]
     What a change affects            syscribe -m model/ impact <id>
     Trace one requirement            syscribe -m model/ trace <REQ-id>
     Who verifies a requirement       syscribe -m model/ who-verifies <REQ-id>
+    Who cites one requirement item   syscribe -m model/ refs REQ-X#grant-keys   (or impact REQ-X#grant-keys)
+    Baseline an item-level link      syscribe -m model/ suspect accept <src-id> REQ-X#grant-keys
 
 ## Evidence and variants
+    Unplanned tests (no item names)  syscribe -m model/ coverage --json     (testCasesWithoutPlanningEvidence; W319 with [planning])
     Record test results              syscribe -m model/ ingest-results <file>
     Requirement verdicts             syscribe -m model/ requirement-coverage --config <CONF>
     Compare two variants             syscribe -m model/ diff --config <A> --config <B>

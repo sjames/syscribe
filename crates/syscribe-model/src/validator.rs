@@ -253,8 +253,16 @@ fn evidence_entry_target_resolves(
     elements: &[RawElement],
     resolver: &Resolver,
     config: &ValidateConfig,
+    commits: &crate::commit_evidence::CommitCheck,
 ) -> bool {
     let Some(m) = entry.as_mapping() else { return false };
+    // GH #455: a `commit:` that resolves in the model's repository (or is well formed where git
+    // cannot be asked) is resolving evidence too.
+    if let Some(c) = crate::commit_evidence::commit_value(entry) {
+        if commits.resolves(&c) {
+            return true;
+        }
+    }
     if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
         if evidence_ref_resolves(elements, resolver, r) {
             return true;
@@ -1089,6 +1097,25 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.push(warning("W632", &cfg_file, problem));
     }
 
+    // W322: malformed `[planning]` config (GH #455/#456) — entries ignored, defaults (off) kept.
+    for problem in &config.planning.problems {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W322", &cfg_file, problem));
+    }
+
+    // W326/W327/W328: `[traceCode]` (GH #451, REQ-TRS-TRACECODE-003) — code that no implementedBy:/
+    // sourceFile: names and is not baselined (W326, only with `validate = true`), stale baseline
+    // entries (W327, likewise), and malformed entries (W328, whenever the table is present).
+    if let Some(root) = &config.model_root {
+        for (code, file, msg) in crate::trace_code::validate_findings(root, elements, config) {
+            findings.push(warning(code, &file, &msg));
+        }
+    }
+
     // W934: malformed `[audit]` config (GH #216) — entries ignored, defaults kept.
     for problem in &config.audit.problems {
         let cfg_file = config
@@ -1341,6 +1368,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
         if fm.checks.is_some() && !matches!(fm.element_type, Some(ElementType::MetadataDef)) {
             unknown_keys.push("checks");
+        }
+        // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
+        if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
+            unknown_keys.push("amendments");
         }
         unknown_keys.sort_unstable();
         for key in unknown_keys {
@@ -5246,6 +5277,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // id-identified, so unlike derived_children/verified_by there is no
     // id-else-qname fallback needed here).
     let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
+    // GH #455 — every non-waived PlanningItem `evidence: - commit:` of the model, resolved against
+    // the repository containing the model root in one batch (E728, E719, W320, W321). No git or no
+    // repository: nothing is checked.
+    let commit_check = crate::commit_evidence::CommitCheck::new(
+        config.model_root.as_deref(),
+        elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::PlanningItem)))
+            .flat_map(|e| e.frontmatter.evidence.iter().flatten())
+            .filter(|entry| !evidence_entry_is_waived(entry)),
+    );
     // REQ-TRS-SYSMLV2-004 / ADR-SYS-PLUGIN-002 / ADR-SYS-ANNOTATE-001 —
     // side-channel provenance sets: which qnames were actually synthesized by
     // SysMLv2 ingestion vs. a stdio plugin vs. annotated-source scanning,
@@ -5587,6 +5629,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             ));
                         }
                     }
+                    // E728 (GH #455): a `commit:` that is malformed, or unknown / ambiguous / not a
+                    // commit in the repository containing the model. Unchecked without git.
+                    if let Some(c) = crate::commit_evidence::commit_value(entry) {
+                        if !waived {
+                            if let Some(problem) = commit_check.problem(&c) {
+                                findings.push(error("E728", &elem.file_path, &problem));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -5646,7 +5697,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let has_resolving_evidence = elem.frontmatter.evidence.as_ref().is_some_and(|ev| {
             ev.iter().any(|entry| {
                 !evidence_entry_is_waived(entry)
-                    && evidence_entry_target_resolves(entry, elements, &resolver, config)
+                    && evidence_entry_target_resolves(entry, elements, &resolver, config, &commit_check)
             })
         });
         if !has_resolving_evidence {
@@ -5654,6 +5705,120 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "E719",
                 &elem.file_path,
                 "leaf PlanningItem is `status: done` but has no non-waived, resolving `evidence:` entry",
+            ));
+        }
+        // W321 (GH #455): `[planning] require_commit_evidence = true` — a done leaf must also name
+        // the commit that delivered it (a non-waived `commit:` entry that resolves, or that is well
+        // formed where git cannot be asked).
+        if config.planning.require_commit_evidence {
+            let has_commit = elem.frontmatter.evidence.iter().flatten().any(|entry| {
+                !evidence_entry_is_waived(entry)
+                    && crate::commit_evidence::commit_value(entry).is_some_and(|c| commit_check.resolves(&c))
+            });
+            if !has_commit {
+                findings.push(warning(
+                    "W321",
+                    &elem.file_path,
+                    &format!(
+                        "leaf PlanningItem {} is `status: done` but names no commit as evidence — add the commit that delivered it (`syscribe set {} evidence.add commit=<sha>`)",
+                        if pi_id.is_empty() { elem.qualified_name.as_str() } else { pi_id },
+                        if pi_id.is_empty() { "<PI-id>" } else { pi_id },
+                    ),
+                ));
+            }
+        }
+    }
+
+    // W320 (GH #455): `[planning] check_commit_paths = true` — a resolving commit evidence entry
+    // touches none of the paths its item names: `evidence: - path:` entries, and for each
+    // `evidence: - ref:` the element's own file, its `implementedBy:` and its `sourceFile:`. An
+    // item that names no local path is not judged. Needs the repository (no git, no finding).
+    if config.planning.check_commit_paths {
+        if let Some(repo) = commit_check.repo.as_ref() {
+            let norm = |p: std::path::PathBuf| -> std::path::PathBuf {
+                let abs = if p.is_absolute() { p } else { std::env::current_dir().map(|d| d.join(&p)).unwrap_or(p) };
+                std::fs::canonicalize(&abs).unwrap_or(abs)
+            };
+            let local = |v: &str| match config.classify_source(v) {
+                crate::config::SourceLocation::Local(p) => Some(p),
+                crate::config::SourceLocation::Remote(_) => None,
+            };
+            for elem in elements {
+                if !matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem)) {
+                    continue;
+                }
+                let Some(ev) = elem.frontmatter.evidence.as_ref() else { continue };
+                let commits: Vec<(String, String, String)> = ev
+                    .iter()
+                    .filter(|e| !evidence_entry_is_waived(e))
+                    .filter_map(|e| {
+                        let raw = crate::commit_evidence::commit_value(e)?;
+                        let (sha, subject) = commit_check.found(&raw)?;
+                        Some((raw, sha, subject))
+                    })
+                    .collect();
+                if commits.is_empty() {
+                    continue;
+                }
+                let mut named: Vec<std::path::PathBuf> = Vec::new();
+                for entry in ev {
+                    let Some(m) = entry.as_mapping() else { continue };
+                    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()).and_then(local) {
+                        named.push(norm(p));
+                    }
+                    if let Some(t) = yaml_field(m, "ref").and_then(|v| v.as_str()).and_then(|r| resolver.resolve_ref(elements, r)) {
+                        if !t.file_path.is_empty() {
+                            named.push(norm(std::path::PathBuf::from(&t.file_path)));
+                        }
+                        for s in t.frontmatter.implemented_by.iter().flatten().chain(t.frontmatter.source_file.iter()) {
+                            if let Some(p) = local(s) {
+                                named.push(norm(p));
+                            }
+                        }
+                    }
+                }
+                if named.is_empty() {
+                    continue;
+                }
+                let fulls: Vec<String> = commits.iter().map(|(_, sha, _)| sha.clone()).collect();
+                let changed = repo.changed_paths(&fulls);
+                for (raw, sha, subject) in &commits {
+                    let touched = changed.get(sha).is_some_and(|paths| paths.iter().any(|c| named.iter().any(|n| c == n || c.starts_with(n))));
+                    if !touched {
+                        let mut shown: Vec<String> = named
+                            .iter()
+                            .map(|n| n.strip_prefix(repo.top()).map(|r| r.display().to_string()).unwrap_or_else(|_| n.display().to_string()))
+                            .collect();
+                        shown.sort();
+                        shown.dedup();
+                        findings.push(warning(
+                            "W320",
+                            &elem.file_path,
+                            &format!(
+                                "evidence commit {} ('{}', from `commit: {raw}`) touches none of the paths this item names ({})",
+                                &sha[..sha.len().min(10)],
+                                subject,
+                                shown.join(", ")
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // W319 (GH #456, REQ-TRS-PIEV-001): `[planning] require_testcase_evidence = true` — an active
+    // TestCase that no PlanningItem's `evidence: - ref:` names: work done and tested but never
+    // recorded against a plan. Off by default; `coverage --json` reports the same set regardless.
+    if config.planning.require_testcase_evidence {
+        for tc in crate::planning_evidence::testcases_without_planning_evidence(elements, &resolver) {
+            let id = tc.frontmatter.id.as_deref().unwrap_or(&tc.qualified_name);
+            findings.push(warning(
+                "W319",
+                &tc.file_path,
+                &format!(
+                    "active TestCase {id} is named by no PlanningItem's `evidence:` — record it on the item that delivered it (`syscribe set <PI-id> evidence.add ref={id}`)"
+                ),
             ));
         }
     }
@@ -8926,6 +9091,50 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
     // Inline PlanningItem questions (GH #436): E724–E727, W317.
     findings.extend(crate::questions::findings(elements));
+
+    // Amendment records on ADRs / Requirements (GH #454): E330, W325, and — behind
+    // `[traceability] require_amendments` — W324 from the git history of each accepted /
+    // confirmed element's file.
+    {
+        let policy = config.model_root.as_deref().and_then(crate::agent_policy::load);
+        let actors: &[String] = policy.as_ref().map(|p| p.actors.as_slice()).unwrap_or(&[]);
+        findings.extend(crate::amendments::findings(elements, &resolver, config.model_root.as_deref(), actors));
+        if config.require_amendments {
+            if let Some(root) = config.model_root.as_deref() {
+                let limit = policy.as_ref().map(|p| p.audit_limit).unwrap_or(crate::amendments::HISTORY_LIMIT);
+                findings.extend(crate::amendments::change_findings(elements, root, limit, &crate::residual_risk::today()));
+            }
+        }
+    }
+
+    // Item anchors and item / question references in prose (GH #453): W092–W094.
+    {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.extend(crate::req_items::findings(elements, &resolver, &config.references, &cfg_file));
+    }
+
+    // Value references in prose and scenarios (GH #452): E331, W095 (opt-in via
+    // `[references] copied_values`), W096 (stale copies, from the git history of the
+    // attribute's file, capped by `[agents] audit_limit`).
+    {
+        let limit = config
+            .model_root
+            .as_deref()
+            .and_then(crate::agent_policy::load)
+            .map(|p| p.audit_limit)
+            .unwrap_or(crate::amendments::HISTORY_LIMIT);
+        findings.extend(crate::value_refs::findings(
+            elements,
+            &resolver,
+            config.references.copied_values,
+            config.model_root.as_deref(),
+            limit,
+        ));
+    }
 
     // OPT-IN: workflow hints (GH #439) — informational, only under `validate --hints`.
     if config.hints {

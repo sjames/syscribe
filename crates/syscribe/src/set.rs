@@ -15,8 +15,9 @@
 //!
 //! Three operations, matching the issue's own proposed shape exactly:
 //!   syscribe set <id> status=<value>
-//!   syscribe set <id> evidence.add ref=<id> | path=<path> [rationale=<text>]
+//!   syscribe set <id> evidence.add ref=<id> | path=<path> | commit=<sha> [rationale=<text>]
 //!   syscribe set <id> achieves.add <req-id>
+//!   syscribe set <ADR|REQ> amendment.add kind=clarification|scope-change reason=<text> [ref=<ref>] [by=<who>] [date=<YYYY-MM-DD>]
 
 use std::path::Path;
 
@@ -319,10 +320,11 @@ fn cmd_achieves_add(
     }
 }
 
-/// `evidence.add ref=<id> | path=<path> [rationale=<text>]` — a `ref:` must
+/// `evidence.add ref=<id> | path=<path> | commit=<sha> [rationale=<text>]` — a `ref:` must
 /// resolve to some model element (mirrors `E716`'s bar; permissive by kind,
 /// like `blockedBy:`); a `path:` must exist on disk under the model root or be
-/// an accepted remote URI (mirrors `E717`). Appends without disturbing
+/// an accepted remote URI (mirrors `E717`); a `commit:` must be 7–40 hex and name one commit of
+/// the model's git repository when there is one (mirrors `E728`). Appends without disturbing
 /// existing evidence order.
 fn cmd_evidence_add(
     model_root: &Path,
@@ -334,27 +336,47 @@ fn cmd_evidence_add(
 ) {
     let mut r#ref: Option<&str> = None;
     let mut path: Option<&str> = None;
+    let mut commit: Option<&str> = None;
     let mut rationale: Option<&str> = None;
     for a in kv_args {
         if let Some(v) = a.strip_prefix("ref=") {
             r#ref = Some(v);
         } else if let Some(v) = a.strip_prefix("path=") {
             path = Some(v);
+        } else if let Some(v) = a.strip_prefix("commit=") {
+            commit = Some(v);
         } else if let Some(v) = a.strip_prefix("rationale=") {
             rationale = Some(v);
         } else {
-            eprintln!("evidence.add: unrecognized argument '{a}' (expected ref=<id>, path=<path>, or rationale=<text>)");
+            eprintln!("evidence.add: unrecognized argument '{a}' (expected ref=<id>, path=<path>, commit=<sha>, or rationale=<text>)");
             std::process::exit(1);
         }
     }
 
-    if r#ref.is_none() && path.is_none() {
-        eprintln!("evidence.add requires ref=<id> or path=<path>");
-        std::process::exit(1);
+    match [r#ref, path, commit].iter().filter(|v| v.is_some()).count() {
+        0 => {
+            eprintln!("evidence.add requires ref=<id> or path=<path> (or commit=<sha>)");
+            std::process::exit(1);
+        }
+        1 => {}
+        _ => {
+            eprintln!("evidence.add: pass ref=<id> or path=<path>, not both — exactly one of ref=, path= or commit=");
+            std::process::exit(1);
+        }
     }
-    if r#ref.is_some() && path.is_some() {
-        eprintln!("evidence.add: pass ref=<id> or path=<path>, not both");
-        std::process::exit(1);
+
+    // GH #455: a commit must be well formed (7–40 hex) and, when the model is in a git repository,
+    // name exactly one commit there — the bar `E728` applies.
+    if let Some(c) = commit {
+        let entry: serde_yaml::Value = serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+            serde_yaml::Value::String("commit".into()),
+            serde_yaml::Value::String(c.to_string()),
+        )]));
+        let check = syscribe_model::commit_evidence::CommitCheck::new(Some(model_root), [&entry]);
+        if let Some(problem) = check.problem(c) {
+            eprintln!("Refusing to add evidence on {}: {problem}.", elem.qualified_name);
+            std::process::exit(1);
+        }
     }
 
     if let Some(r) = r#ref {
@@ -381,12 +403,15 @@ fn cmd_evidence_add(
     // An entry naming the same `ref:`/`path:` target already exists: a
     // reported no-op, like `achieves.add` on an existing requirement (GH
     // #152) — the existing entry (and its rationale) is kept as authored.
-    let Some((target_key, target)) = r#ref.map(|r| ("ref", r)).or(path.map(|p| ("path", p))) else {
-        eprintln!("evidence.add requires ref=<id> or path=<path>");
+    let Some((target_key, target)) = r#ref.map(|r| ("ref", r)).or(path.map(|p| ("path", p))).or(commit.map(|c| ("commit", c))) else {
+        eprintln!("evidence.add requires ref=<id> or path=<path> (or commit=<sha>)");
         std::process::exit(1);
     };
     let existing = elem.frontmatter.evidence.as_deref().unwrap_or(&[]);
     if existing.iter().any(|e| {
+        if target_key == "commit" {
+            return syscribe_model::commit_evidence::commit_value(e).is_some_and(|c| c.eq_ignore_ascii_case(target));
+        }
         e.as_mapping()
             .and_then(|m| m.get(serde_yaml::Value::String(target_key.to_string())))
             .and_then(|v| v.as_str())
@@ -415,6 +440,112 @@ fn cmd_evidence_add(
     let committed = preview_or_write(model_root, elem, &new_content, dry_run);
     if committed {
         crate::say!("Added evidence entry on {}", elem.qualified_name);
+    }
+}
+
+/// `amendment.add kind=clarification|scope-change reason=<text> [ref=<ref>] [by=<who>] [date=<YYYY-MM-DD>]`
+/// (GH #454) — appends one entry to an ADR's or Requirement's `amendments:`. `date` defaults to today
+/// (UTC), `by` to `--by`. Refused when the element does not host amendments, a value is malformed, or
+/// the `ref` resolves to nothing (the bar `E330` applies); a `scope-change` without an owner
+/// reference is written with the `W325` note on stderr.
+fn cmd_amendment_add(
+    model_root: &Path,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    elem: &RawElement,
+    kv_args: &[&str],
+    dry_run: bool,
+) {
+    let label = elem.frontmatter.id.clone().unwrap_or_else(|| elem.qualified_name.clone());
+    if !syscribe_model::amendments::hosts(elem.frontmatter.element_type.as_ref()) {
+        eprintln!("Refusing: {label} is not an ADR or a Requirement — only those carry `amendments:`.");
+        std::process::exit(1);
+    }
+    let (mut kind, mut reason, mut r#ref, mut by, mut date): (Option<&str>, Option<&str>, Option<&str>, Option<String>, Option<String>) =
+        (None, None, None, None, None);
+    for a in kv_args {
+        if let Some(v) = a.strip_prefix("kind=") {
+            kind = Some(v);
+        } else if let Some(v) = a.strip_prefix("reason=") {
+            reason = Some(v);
+        } else if let Some(v) = a.strip_prefix("ref=") {
+            r#ref = Some(v);
+        } else if let Some(v) = a.strip_prefix("by=") {
+            by = Some(v.to_string());
+        } else if let Some(v) = a.strip_prefix("date=") {
+            date = Some(v.to_string());
+        } else {
+            eprintln!("amendment.add: unrecognized argument '{a}' (expected kind=, reason=, ref=, by= or date=)");
+            std::process::exit(1);
+        }
+    }
+    let kinds = syscribe_model::amendments::KINDS;
+    let Some(kind) = kind.filter(|k| kinds.contains(k)) else {
+        eprintln!("amendment.add needs kind={} (got {})", kinds.join("|"), kind.map(|k| format!("'{k}'")).unwrap_or_else(|| "none".into()));
+        std::process::exit(1);
+    };
+    let Some(reason) = reason.map(str::trim).filter(|r| !r.is_empty()) else {
+        eprintln!("amendment.add needs a non-empty reason=<why the accepted text changed>");
+        std::process::exit(1);
+    };
+    let Some(by) = by.or_else(|| crate::provenance::get().by.clone()).filter(|b| !b.trim().is_empty()) else {
+        eprintln!("amendment.add needs who made the change: pass --by <you> (or by=<name>)");
+        std::process::exit(1);
+    };
+    let date = date.unwrap_or_else(syscribe_model::residual_risk::today);
+    if !syscribe_model::amendments::is_iso_date(&date) {
+        eprintln!("amendment.add: date '{date}' is not an ISO date (YYYY-MM-DD)");
+        std::process::exit(1);
+    }
+    let existing: Vec<Value> = match elem.frontmatter.amendments.as_ref().map(yaml_to_json) {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(a)) => a,
+        Some(_) => {
+            eprintln!("Refusing: `amendments:` on {label} is not a list; fix that (E330) before adding an amendment.");
+            std::process::exit(1);
+        }
+    };
+    if let Some(r) = r#ref {
+        let entry = serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+            serde_yaml::Value::String("commit".into()),
+            serde_yaml::Value::String(r.to_string()),
+        )]));
+        let commits = syscribe_model::commit_evidence::CommitCheck::new(Some(model_root), [&entry]);
+        match syscribe_model::amendments::resolve_ref(elements, resolver, &commits, r) {
+            Err(why) => {
+                eprintln!("Refusing to add the amendment on {label}: `ref` {why}.");
+                std::process::exit(1);
+            }
+            Ok(t) if kind == "scope-change" => {
+                let actors = syscribe_model::agent_policy::load(model_root).map(|p| p.actors).unwrap_or_default();
+                if let Err(why) = syscribe_model::amendments::owner_reference(&t, &commits, &actors) {
+                    eprintln!("warning W325: this scope-change has no owner reference ({why}); name the answered question, ReviewRecord or owner's commit in ref=.");
+                }
+            }
+            Ok(_) => {}
+        }
+    } else if kind == "scope-change" {
+        eprintln!("warning W325: a scope-change needs an owner reference — add ref=<PI-X#Qn | RR-id | commit> naming the owner's decision.");
+    }
+
+    let mut entry = serde_json::Map::new();
+    let mut lines = vec![format!("date: {}", line_scalar(&date)), format!("by: {}", line_scalar(&by)), format!("reason: {}", line_scalar(reason))];
+    entry.insert("date".into(), json!(date));
+    entry.insert("by".into(), json!(by));
+    entry.insert("reason".into(), json!(reason));
+    if let Some(r) = r#ref {
+        lines.push(format!("ref: {}", line_scalar(r)));
+        entry.insert("ref".into(), json!(r));
+    }
+    lines.push(format!("kind: {kind}"));
+    entry.insert("kind".into(), json!(kind));
+    let mut list = existing;
+    list.push(Value::Object(entry));
+
+    let content = std::fs::read_to_string(&elem.file_path).unwrap_or_default();
+    let new_content = append_to_list_field(&content, &elem.file_path, "amendments", &[lines], json!(list));
+    if preview_or_write(model_root, elem, &new_content, dry_run) {
+        crate::say!("Added {kind} amendment on {label} ({date}, by {by})");
     }
 }
 
@@ -593,7 +724,7 @@ pub fn cmd_set(
     crate::policy_gate::check_path(elem);
 
     let Some(&op) = op_args.first() else {
-        eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>");
+        eprintln!("Usage: syscribe set <qname|id> status=<value> | evidence.add ref=<id>|path=<path>|commit=<sha> | achieves.add <req-id> | amendment.add kind=<k> reason=<text> [ref=<ref>]");
         std::process::exit(1);
     };
 
@@ -609,6 +740,10 @@ pub fn cmd_set(
                 std::process::exit(1);
             }
         }
+        return;
+    }
+    if op == "amendment.add" {
+        cmd_amendment_add(model_root, elements, resolver, elem, &op_args[1..], dry_run);
         return;
     }
     if op == "evidence.add" {
@@ -645,11 +780,11 @@ pub fn cmd_set(
         let stem = op.strip_suffix(".add").unwrap_or(op);
         let hint = crate::suggest::did_you_mean(
             stem,
-            ["evidence", "achieves"].into_iter().chain(LIST_FIELDS.iter().copied()),
+            ["evidence", "achieves", "amendment"].into_iter().chain(LIST_FIELDS.iter().copied()),
         );
         let hint = if hint.is_empty() || !op.ends_with(".add") { hint } else { format!("{hint} (as '<field>.add')") };
         eprintln!(
-            "Unrecognized `set` operation '{op}'{hint} — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
+            "Unrecognized `set` operation '{op}'{hint} — expected status=<value>, <scalar>=<value>, evidence.add, achieves.add, amendment.add or <list>.add <value>. Scalar fields: {}. List fields: {}.",
             SCALAR_FIELDS.join(", "),
             LIST_FIELDS.join(", ")
         );

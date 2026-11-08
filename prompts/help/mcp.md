@@ -151,6 +151,11 @@ stable id, a qualified name, or a display name. List/grid tools accept
   `since` revision: each file is mapped to the elements that own, implement, test or cite it and
   the result is reported with `changed` flags, `unmapped` files and the `unreviewed` requirements/tests
   (default both directions, depth 2). Same data as `syscribe impact --files … --format json`.
+- `trace_code {all?}` — code that no design element or TestCase names (needs a `[traceCode]` table):
+  the untraced code units under the configured roots, each with `inBaseline`, the stale baseline
+  entries, with `all` the traced units and what names them, and `[repos]` peers checked against their
+  own elements under `peers`. Read-only (refresh the baseline with `trace-code --write-baseline`).
+  Same data as `syscribe trace-code --json`.
 - `log {element?, by?, since?, unattributed?, limit?}` — the model's history as git records it: commits
   with author, date, the syscribe command, actor and reason (the trailers a `commit` write leaves) and,
   for one `element`, what each commit changed in it. `unattributed` lists commits without the trailers

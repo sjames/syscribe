@@ -1,3 +1,15 @@
 [plantuml]
 base_url  = "https://github.com/sjames/syscribe/blob/main/model"
 style_file = "../.plantuml/sysml.iuml"
+
+# GH #451 — code that no implementedBy:/sourceFile: names (`syscribe -m model/ trace-code`). The
+# baseline lists today's backlog with a reason; it only shrinks. qual/tests is left out: its
+# scripts belong to the qualification model under qual/, not to this one.
+[traceCode]
+roots = ["crates", "editors"]
+baseline = "trace-code-baseline.toml"
+validate = true          # W326/W327 in validate (clean against the baseline)
+units = [
+  { kind = "cargo-crate", under = "crates" },
+  { kind = "build-dir", under = "editors" },
+]

@@ -1,7 +1,7 @@
 # impact — change impact analysis over the traceability graph
 
 ## SYNOPSIS
-    syscribe -m <root> impact <qname|id> [--direction downstream|upstream|both]
+    syscribe -m <root> impact <qname|id|REQ-id#anchor|PI-id#Qn> [--direction downstream|upstream|both]
                                [--depth <N>] [--format text|json|dot] [--kinds <csv>]
     syscribe -m <root> impact (--files <path>... | --since <rev>) [--direction D] [--depth N]
                                [--format text|json] [--fail-on-unreviewed]
@@ -20,6 +20,12 @@ User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are
 too: upstream along the link (source → target, labelled with the type name), downstream
 against it (labelled with the type's `inverse`, or `<type> (inbound)`).
 
+**From one requirement item (GH #453).** `impact REQ-X#grant-keys` (or `REQ-X#5`, or a
+question `PI-Y#Q3`) starts from a single item: downstream it lists the elements whose body
+cites that item (`via cited by`) and everything downstream of them; upstream it shows the
+owning element (`via item of`). Changing one item therefore reaches only the elements that
+rely on it, not every element that cites `REQ-X` as a whole.
+
 **From changed files.** During review the question is usually the reverse: *given these changed
 files (or this revision range), what is affected?* `--files <path>...` and `--since <rev>` (the
 files that differ between `<rev>` and the working tree — staged, unstaged and untracked) map each
@@ -35,9 +41,10 @@ The default reach is both directions to depth 2 — unit → the requirement it 
 that verify it; widen it with `--depth`. The report lists the mapping, then the affected elements
 grouped by type, each marked `changed` (its own file is in the same change set) or `not changed`,
 so a reviewer sees what was updated and what was not. Files that map to no element are listed
-separately under *Not mapped*, never silently dropped. `--fail-on-unreviewed` exits `2` when an
-affected requirement or test was not itself changed — a CI gate that wants the model to move with
-the code. `--format dot` and `--kinds` are for the single-element form.
+separately under *Not mapped*, never silently dropped. The opposite census — every code unit
+in the repository that no `implementedBy:` or `sourceFile:` names at all — is `trace-code`.
+`--fail-on-unreviewed` exits `2` when an affected requirement or test was not itself changed —
+a CI gate that wants the model to move with the code. `--format dot` and `--kinds` are for the single-element form.
 
 ## OPTIONS
     --files <path>...  Changed files (repository-relative or relative to the working directory).
@@ -63,7 +70,8 @@ Cycles are handled (each element is visited once). Works for qualified names and
 
 ## EXAMPLES
     syscribe -m examples/planning-item/model/ impact REQ-RTH-001 --direction both
+    syscribe -m model/ impact REQ-TRS-ITEMREF-005#by-number   # who relies on that item
     syscribe -m examples/planning-item/model/ impact --files examples/planning-item/model/Requirements/REQ-RTH-001.md
 
 ## SEE ALSO
-    links, connectivity, n2, follow, link-types, changes, check-staged
+    links, connectivity, n2, follow, link-types, changes, check-staged, trace-code

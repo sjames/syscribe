@@ -106,7 +106,7 @@ on. Default surface, then per-type overrides:
 
 > **Resolved (§8, decision 2):** v1 ships the default projection — the body plus
 > all frontmatter except editorial/presentation fields (`name`, `displayOrder`,
-> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251; `status` stays in the projection for retiring values such as `deprecated`/`superseded`), the removed `title`, `traceBaselines`, and diagram
+> `extRef`, the workflow-state fields `status`/`claimedBy`/`claimedAt`/`assignedTo` (GH #251; `status` stays in the projection for retiring values such as `deprecated`/`superseded`), the amendment record `amendments` (GH #454: an amendment entry alone never makes a link suspect — the edit it records does), the removed `title`, `traceBaselines`, and diagram
 > `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`). Per-type surfaces are deferred
 > until false positives justify them.
 
@@ -216,6 +216,25 @@ in §8 (decision 4), it raises **no** code during `validate` — detection is
 opt-in and additive — and is surfaced on demand by `suspect list`, which reports
 unbaselined links alongside suspect ones. `suspect accept --all-unbaselined` is
 the one-time switch that baselines them all.
+
+### Item-level baselines
+
+A requirement written as a numbered list can be relied on one item at a time (GH #453,
+`REQ-TRS-ITEMREF-005`). When a source's body cites an anchored item — `REQ-X#grant-keys`, the
+item written `1. {#grant-keys} …` in `REQ-X` — that citation is an item-level trace link of kind
+`cites`. Its `traceBaselines:` key is the reference as written, and its value hashes **that item's
+text only** (anchor token and positional number removed, line ends normalised):
+
+```yaml
+traceBaselines:
+  REQ-X#grant-keys: "blake3:…"
+```
+
+`suspect accept <src> REQ-X#grant-keys` captures it (as do `--all` and `--all-unbaselined`), and
+`validate` raises the same `W090` when the item's text changes. Editing another item, inserting an
+item above it or reordering the list does not. A by-number reference (`REQ-X#5`, `REQ-X item 5`)
+cannot be baselined — the number moves when an item is inserted — and `suspect accept` refuses it
+with a hint to add an anchor; a question reference (`PI-Y#Q3`) cannot be baselined either.
 
 ---
 

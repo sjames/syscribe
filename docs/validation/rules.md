@@ -237,6 +237,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | E304 | ADR `status` is not `proposed · accepted · deprecated · superseded` |
 | E320 | `ADR.supersedes:` names an element that does not resolve or is not an `ADR` |
 | E321 | An `ADR` is on a `supersedes:` cycle (a self-reference included) |
+| E330 | `amendments:` on an `ADR` or `Requirement` is malformed — not a list of mappings, an entry missing `date`/`by`/`reason`/`kind`, an unknown key, a `date` that is not an ISO date (`YYYY-MM-DD`), a `kind` other than `clarification`/`scope-change` — or an entry's `ref` resolves to nothing (not a question `PI-X#Qn` that exists, an element id or qualified name, or a commit of the model's repository). Fix: correct the entry, or add it with `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`, which checks it first (GH #454) |
 
 ## Traceability warnings (W300–W307)
 
@@ -250,6 +251,11 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | W305 | Parent Requirement (has `derivedFrom` children) at `approved`, `implemented`, or `verified` has no active TestCase at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are not sufficient to verify emergent composed behaviour |
 | W313 | An `accepted` `ADR` supersedes an ADR whose status is not `superseded` |
 | W314 | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
+| W324 | Opt-in, `[traceability] require_amendments = true` (GH #454): an `accepted` `ADR`, or a `Requirement` at `approved`/`implemented`/`verified`, whose normative content (body plus normative frontmatter — the suspect projection, without `status`, `amendments` or editorial fields) changed since the commit that set that status, with no `amendments:` entry dated on or after the latest change. The status commit is the oldest of the newest unbroken run of commits of the file at such a status (`git log --follow`, at most `[agents] audit_limit`, default 200); an uncommitted edit counts, dated today (all dates are UTC: a commit by its author timestamp). No git, or the status set only in the working tree: nothing is reported. Fix: `syscribe set <id> amendment.add kind=clarification\|scope-change reason="…" [ref=…] --by <you>`; to replace a decision instead, write a new ADR with `supersedes:` |
+| W325 | A `kind: scope-change` amendment has no owner reference: no `ref`, or its `ref` is not an answered question (`PI-X#Qn` with `status: answered`), a `ReviewRecord`, or a commit made by a person (one with a `Syscribe-As: human` trailer, or with no `Syscribe-Actor` trailer and an author matching none of `[agents] actors`). Fix: get the owner's decision recorded — answer the question, or file the ReviewRecord — and set `ref:` to it (GH #454) |
+| W326 | Opt-in, `[traceCode] validate = true` (GH #451): a code unit under the `[traceCode]` roots (a cargo crate, a build directory or a file, per the `units` rules) that no `implementedBy:` or `sourceFile:` names — not the unit itself, a file inside it, or a directory containing it — and that is not in the trace-code baseline: code added without a design element or TestCase. Fix: add the design element (`implementedBy:`) or TestCase (`sourceFile:`) that names it; or, for accepted backlog, run `syscribe trace-code --write-baseline` and replace its `TODO` with the reason. Gate with `--deny W326`; `syscribe trace-code` lists the same set (exit 2) |
+| W327 | Opt-in, `[traceCode] validate = true` (GH #451): a trace-code baseline entry that no longer describes untraced code — the unit is now traced, its path no longer exists, or it is no longer a code unit under the `[traceCode]` rules. The baseline only shrinks, so a fixed entry must be removed. Fix: `syscribe trace-code --write-baseline` drops every stale entry and keeps the other reasons. Gate with `--deny W327` |
+| W328 | A malformed `[traceCode]` entry in `.syscribe.toml` (GH #451): the value is not a table, an unknown key (known: `roots`, `units`, `exclude`, `build_files`, `baseline`, `validate`, snake_case or camelCase), `roots` missing/empty or naming no directory, a `units` entry with an unknown `kind` (known: `cargo-crate`, `build-dir`, `file`) or key, a non-boolean `validate`, or an unreadable baseline file. The entry is ignored (`validate` keeps going; `syscribe trace-code` refuses to run, exit 1). Fix the entry; `syscribe help trace-code` shows the shape |
 | W312 | Results-gated: `approved`/`implemented` Requirement has an active verifying TestCase that FAILED in the ingested results |
 | W306 | **Unsatisfied safety mechanism** — a high-integrity Requirement (`silLevel >= 4` or `asilLevel: D`) that is **not** a fully integrated safety mechanism: `status: draft`, **or** (for a **leaf**) no element satisfies it, **or** (with a feature model) active in no `Configuration`. The "unsatisfied" sub-condition applies to leaves only — a **parent** (has `derivedChildren`) is satisfied transitively and can't be satisfied directly (`E312`), so it is never flagged unsatisfied. Message names the triggering sub-condition(s). Gate with `--deny W306`. (Threshold/sub-condition tuning rides with severity profiles, #18.) |
 | W307 | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gate with `--deny W307` and promote it to a gate failure via the `[profiles.magicgrid]` profile. See the [MagicGrid](#magicgrid-overlay-e316-w307-mg010mg070) section. |
@@ -486,7 +492,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
 | W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`); ignored, the rest of the policy still applies. |
 
-## Native PlanningItem (E706–E717, E719–E727, W308–W311, W315, W317–W318, W323, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E728, W308–W311, W315, W317–W323, §23, ADR-SYS-PLANITEM-001)
 
 A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) — or goal, ADR, argument, plan or baseline — it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
 
@@ -520,6 +526,11 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | W317 | An item at `status: done` has an `open` question — answer or defer it. |
 | W318 | A `questions:` field on an element that is not a `PlanningItem` — ignored there; move it to the PlanningItem that owns the decision. |
 | W323 | A question reserved to a person (`answerBy: human`, or the `[agents] human_only_answers` default) carries an answer an agent wrote — `answeredBy` matches `[agents] actors`, or the commit that last changed the answer is agent-made. Unattributable answers (uncommitted, no git) raise nothing. Fix: a person confirms the answer with `set <PI> question.answer <Qn> text=… --as-human`, or the question says `answerBy: any`. |
+| W319 | Opt-in, `[planning] require_testcase_evidence = true` (GH #456): a `status: active` TestCase that no `PlanningItem`'s `evidence: - ref:` names, by id or qualified name. Record it with `syscribe set <PI-id> evidence.add ref=<TC-id>`, or accept the existing gap with a finding baseline (`validate --write-baseline` / `--baseline-file`). `coverage --json` reports the same set as `testCasesWithoutPlanningEvidence`. |
+| E728 | A non-waived `evidence: - commit:` entry is malformed (not 7–40 hexadecimal characters, or unquoted so YAML read it as a number — quote it), or — resolved against the git repository containing the model — unknown, an ambiguous abbreviation, or not a commit (GH #455). The message says which. Skipped when git is unavailable or the model is in no repository (a malformed hash is still reported). |
+| W320 | Opt-in, `[planning] check_commit_paths = true` (GH #455): a resolving commit evidence entry touches none of the paths its item names (`evidence: - path:` entries; for each `evidence: - ref:` that element's file, `implementedBy:` and `sourceFile:`). An item naming no local path is not judged. |
+| W321 | Opt-in, `[planning] require_commit_evidence = true` (GH #455): a leaf item at `status: done` names no resolving, non-waived commit as evidence. Add it with `syscribe set <PI-id> evidence.add commit=<sha>`. |
+| W322 | A malformed `[planning]` entry in `.syscribe.toml` (not a table, an unknown key, or a value that is not `true`/`false`); the entry is ignored and that gate stays off. |
 | W315 | A `done` `PlanningItem` achieves a non-Requirement work product (`SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan`, `Baseline`) whose status is still `draft`/`review`/`proposed` |
 
 `blockedBy:` is resolved permissively, like `evidence.ref:` — any model element, not restricted to `PlanningItem` — since an undecided `ADR` or any other unmet dependency is an equally legitimate blocker. It is graded the opposite way from `evidence:`: `status: blocked` with an **empty** `blockedBy:` raises nothing (being blocked needs no proof), while `status: done` on a leaf with no evidence does (`E719`).
@@ -550,7 +561,7 @@ A project declares its own relationship types in `[linkTypes.<name>]` tables of 
 | E636 | A cycle (including a self-link) formed solely by links of an `acyclic = true` type — once per cycle, naming its members. |
 | W630 | A `[linkTypes.<name>]` entry is malformed — bad or colliding name/`inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type in `sourceTypes`/`targetTypes`, unsupported `extends`, `relax`/`coverage` without `extends`, or a `relax` code not relaxable for the base. The whole entry is ignored (its uses then raise `E630`). An unknown key inside an entry is also `W630` (the key is ignored). |
 | W631 | A non-`draft` element whose `type:` is in the link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`). |
-| W632 | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force) |
+| W632 | A malformed `[traceability]` entry in `.syscribe.toml` (unknown key, or `require_breakdown_adr`/`require_amendments` that is not `true`/`false`); the entry is ignored and the default kept (`E310` stays in force, `W324` stays off) |
 
 A type with `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` is also checked by every rule of its base link, minus the codes it lists in `relax` — `satisfies` → `E312`, `E313`; `verifies` → `E104`; `derivedFrom` → `E105`, `E310`, `W303`; `refines` → `E316`. Relaxation never applies to the built-in field itself. Custom links participate in suspect-link detection (`W090`) unless the type sets `suspect = false`.
 
@@ -678,6 +689,33 @@ un-baselined links stay silent in `validate` and are listed only by `suspect lis
 | Code | Condition |
 |---|---|
 | W090 | Suspect link: a trace-link target's normative content changed since the source's `traceBaselines:` entry for it was captured. Review, then re-baseline with `suspect accept <src> <tgt>`. Gate with `--deny W090` |
+
+## Item and question references (W092–W094, GH #453)
+
+A Requirement body's top-level numbered items are citable: by position (`REQ-X#5`, legacy
+`REQ-X item 5`) or, better, by a stable anchor written after the number
+(`1. {#grant-keys} …` → `REQ-X#grant-keys`). PlanningItem questions are cited as
+`PI-Y#Q31`. `validate` checks these references in every element body (outside fenced code);
+`lint-docs` checks them in external Markdown. See
+[Requirements — item anchors](../model-guide/requirements.md#item-anchors-and-references).
+
+| Code | Condition |
+|---|---|
+| `W092` | Dangling item or question reference (missing anchor, item number out of range, missing question), or a duplicate / malformed `{#slug}` anchor in one Requirement. Fix the reference (`check-ref REQ-X#slug`) or the anchor |
+| `W093` | An element past draft cites a question that is still `open`. Answer the question, or move the element back to `draft` |
+| `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence (phrases configurable via `[references] open_markers`); also a malformed `[references]` table (including `copied_values` not `true`/`false`). Rewrite the sentence to state the answer. Advisory in `lint-docs` |
+
+## Value references (E331, W095, W096, GH #452)
+
+An element body may state a design value by reference, `{{Elem.attr}}`, instead of copying the
+number; `show` and `export-html` render the value and its unit. See
+[Value references](../model-guide/value-references.md).
+
+| Code | Condition |
+|---|---|
+| `E331` | A value reference does not resolve: unknown element, a basic name several elements share (lists their qualified names), unknown attribute (the message lists the attributes with a value), or an attribute with no single scalar value. Fix the element (id or full qualified name) or the attribute name |
+| `W095` | Opt-in (`[references] copied_values = true`): a numeric literal in prose or a scenario equals the current value of an attribute of an element the holder links to. Whole tokens only; values below 10 and years ignored. Replace it with the suggested `{{Elem.attr}}`. Advisory in `lint-docs` |
+| `W096` | A non-draft element states a previous value (from the git history of the attribute's file, capped by `[agents] audit_limit`) of an attribute of an element it links to: a stale copy. Update it or replace it with `{{Elem.attr}}` |
 
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 

@@ -369,7 +369,10 @@ fn element_page(
         for (key, val) in map {
             // Identity already shown in the header / meta line; `links` is
             // rendered per link type below.
-            if matches!(key.as_str(), "type" | "name" | "id" | "status" | "links") {
+            // `amendments` (GH #454) gets its own table below.
+            if matches!(key.as_str(), "type" | "name" | "id" | "status" | "links")
+                || (key == "amendments" && syscribe_model::amendments::hosts(fm.element_type.as_ref()))
+            {
                 continue;
             }
             let cell = if REF_KEYS.contains(&key.as_str()) {
@@ -438,10 +441,41 @@ fn element_page(
         body.push_str("</table>\n");
     }
 
+    // Amendment history (GH #454): one row per well-formed entry, in authored order; a `ref` that
+    // names an element links to its page.
+    let (amendments, _) = syscribe_model::amendments::parse(elem);
+    if !amendments.is_empty() {
+        body.push_str("<section id=\"amendments\">\n<h2>Amendments</h2>\n<table class=\"fm-table\">\n<tr><th>Date</th><th>Kind</th><th>By</th><th>Reason</th><th>Ref</th></tr>\n");
+        for a in &amendments {
+            let reference = match a.reference.as_deref() {
+                Some(r) if resolver.resolve_ref(elements, r).is_some() => render_refs(&[r.to_string()], elements, resolver, rel_root),
+                Some(r) => format!("<code>{}</code>", esc(r)),
+                None => String::new(),
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                esc(&a.date),
+                esc(&a.kind),
+                esc(&a.by),
+                esc(&a.reason),
+                reference
+            ));
+        }
+        body.push_str("</table>\n</section>\n");
+    }
+
     // Documentation (rendered Markdown — also yields mermaid <pre> blocks).
     if !elem.doc.trim().is_empty() {
         body.push_str("<div class=\"doc\">\n");
-        body.push_str(&markdown_to_html(&elem.doc));
+        // Item anchors `{#slug}` become HTML anchors `id="item-<slug>"` (GH #453).
+        // The token goes through Markdown as private-use-delimited text, then becomes the
+        // anchor (only a well-formed slug matches, so model text cannot inject markup).
+        // Value references `{{Elem.attr}}` render as the value and its unit (GH #452).
+        let doc = syscribe_model::value_refs::render(elements, resolver, &elem.doc);
+        let doc = syscribe_model::req_items::rewrite_anchors(&doc, |slug| format!("\u{E000}{slug}\u{E001}"));
+        let html = markdown_to_html(&doc);
+        let anchor_re = regex::Regex::new("\u{E000}([a-z][a-z0-9-]*)\u{E001}").unwrap();
+        body.push_str(&anchor_re.replace_all(&html, "<a id=\"item-$1\"></a>"));
         body.push_str("</div>\n");
     }
 

@@ -107,6 +107,13 @@ pub fn type_page(ty: &str) -> String {
         }
         let _ = writeln!(o);
     }
+    let value_notes = value_ref_notes(ty);
+    if type_notes(ty).is_some() || value_notes.is_some() {
+        let _ = writeln!(o, "## NOTES");
+        let notes: Vec<&str> = [type_notes(ty), value_notes].into_iter().flatten().map(str::trim_end).collect();
+        let _ = writeln!(o, "{}", notes.join("\n\n"));
+        let _ = writeln!(o);
+    }
     let codes = codes_for(ty);
     if !codes.is_empty() {
         let _ = writeln!(o, "## VALIDATION CODES");
@@ -128,6 +135,73 @@ pub fn type_page(ty: &str) -> String {
     let _ = writeln!(o, "    {:<18} findings for one element's file", "validate --file");
     let _ = writeln!(o, "\nDetails: `syscribe help <command>`.");
     o
+}
+
+/// Type-specific notes that no field schema conveys: body conventions and how to cite parts
+/// of an element (GH #453).
+fn type_notes(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Requirement" => Some(
+            "Item anchors: each top-level numbered item of the body is citable. Write `{#slug}` after the\n\
+             number to anchor it (`1. {#grant-keys} **Server keys.** ...`; slug `[a-z][a-z0-9-]*`); show\n\
+             and export-html hide the token. Cite an item from any element body as `REQ-X#grant-keys`\n\
+             (preferred), `REQ-X#5` or `REQ-X item 5` (by position — shifts when an item is inserted).\n\
+             validate: W092 dangling item reference or duplicate/malformed anchor. Resolve with\n\
+             `check-ref REQ-X#grant-keys`; list citers with `refs REQ-X#grant-keys`; `impact REQ-X#grant-keys`;\n\
+             baseline one item with `suspect accept <src> REQ-X#grant-keys` (anchors only).\n\n\
+             Amendments: once approved (or implemented/verified), record each change to the text in\n\
+             `amendments:` instead of editing silently — `syscribe set REQ-X amendment.add\n\
+             kind=clarification|scope-change reason=\"…\" [ref=PI-X#Q1|RR-id|<commit>] --by <you>` (date = today).\n\
+             E330 malformed entry or unresolved ref; W325 a scope-change without an owner reference\n\
+             (answered question, ReviewRecord, or a person's commit); W324 (opt-in, [traceability]\n\
+             require_amendments = true) the normative content changed since approval with no amendment\n\
+             dated on or after the change. An amendment alone never makes links suspect.",
+        ),
+        "ADR" => Some(
+            "Amendments: an accepted decision is amended, never silently edited. When implementation shows\n\
+             it must change, edit the text and record why in `amendments:` — `syscribe set ADR-X amendment.add\n\
+             kind=clarification|scope-change reason=\"…\" [ref=PI-X#Q1|RR-id|<commit>] --by <you>` fills\n\
+             `date` (today) and `by`. `kind: clarification` keeps the meaning; `kind: scope-change` changes it\n\
+             and needs `ref:` to the owner's decision — an answered question, a ReviewRecord, or a commit a\n\
+             person made (else W325). E330: malformed entry or a ref that resolves to nothing. W324 (opt-in,\n\
+             [traceability] require_amendments = true): the body or normative fields changed since the commit\n\
+             that set `accepted`, with no amendment dated on or after the change. show and export-html print\n\
+             the history; to replace a decision instead, write a new ADR with `supersedes:`.",
+        ),
+        "PlanningItem" => Some(
+            "Questions are citable from any element body as `PI-X#Q3`. validate: W092 the question does not\n\
+             exist; W093 an element past draft cites a question that is still open; W094 an answered question\n\
+             is cited with \"to confirm\"-style wording ([references] open_markers). `check-ref PI-X#Q3` prints\n\
+             its status and answer; `refs PI-X#Q3` lists who cites it.",
+        ),
+        _ => None,
+    }
+}
+
+/// Value references (GH #452): how a body states a design value without copying it — on the
+/// types whose bodies commonly state values, and on the types that hold them.
+fn value_ref_notes(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Requirement" | "TestCase" | "PlanningItem" | "ADR" => Some(
+            "Value references: state a design value as `{{Elem.attr}}` instead of copying the number —\n\
+             `Elem` is a stable id, qualified name or unique basic name, `attr` an attribute of it (a `features:` entry with a\n\
+             value, an Attribute child, a tagged value `Stereotype.key`, or a budget field such as `ram`;\n\
+             dotted for nested features). It resolves in the body and in ```gherkin scenarios, not in other\n\
+             code; show and export-html render the value with its unit (`47244 B`). validate: E331 an\n\
+             unresolvable reference (lists the attributes); W096 a literal equal to a previous value of an\n\
+             attribute of a linked element (a stale copy, from git history); W095 (opt-in, [references]\n\
+             copied_values = true) a literal equal to its current value. `refs Elem.attr` lists the uses,\n\
+             literal copies and stale copies.",
+        ),
+        "PartDef" | "Part" | "AttributeDef" | "Attribute" | "InterfaceDef" | "ItemDef" | "PortDef" => Some(
+            "Value references: an attribute with a single value — a `features:` entry's `value:` (else\n\
+             `default:`) and `unit:`, an Attribute child's `value:`, a tagged value, or a budget field\n\
+             (`ram`, `flash`, `period`, `wcet`, …) — is cited from any body as `{{Elem.attr}}` (dotted for\n\
+             nested features, `{{Elem.Stereotype.key}}` for a tagged value) and rendered with its unit by\n\
+             show and export-html. `refs Elem.attr` lists every use, literal copy and stale copy.",
+        ),
+        _ => None,
+    }
 }
 
 /// The `help tasks` page: intents mapped to commands.
@@ -263,6 +337,19 @@ mod tests {
         for kw in ["answerBy", "human_only_answers", "owner", "answer human"] {
             let names: Vec<String> = search(kw).into_iter().map(|h| h.name).collect();
             assert!(names.iter().any(|n| n == "questions" || n == "policy"), "{kw}: {names:?}");
+        }
+    }
+
+    #[test]
+    fn value_references_are_discoverable() {
+        // GH #452: `{{Elem.attr}}`, `refs Elem.attr`, W095/W096 reach search and the type pages.
+        for kw in ["value reference", "attribute", "copied value", "stale"] {
+            let names: Vec<String> = search(kw).into_iter().map(|h| h.name).collect();
+            assert!(names.iter().any(|n| n == "refs"), "{kw}: {names:?}");
+        }
+        for t in ["TestCase", "Requirement", "PartDef"] {
+            let p = type_page(t);
+            assert!(p.contains("{{Elem.attr}}") && p.contains("refs Elem.attr"), "{t}: {p}");
         }
     }
 

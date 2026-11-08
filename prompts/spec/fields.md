@@ -193,6 +193,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
 | `decomposedFrom` | string | Original ASIL (A–D) before decomposition; the notation `asilLevel: B(D)` sets it implicitly. `asilLevel` also accepts `QM` (E878, E879) |
 | `tags` | list | Free-form tags |
+| `amendments` | list | Recorded changes after acceptance/approval (GH #454, §8.17.5): `{date: YYYY-MM-DD, by, reason, ref?, kind: clarification\|scope-change}`; `ref` names an answered question `PI-X#Qn`, an element id (e.g. a `ReviewRecord`) or a commit. Add with `syscribe set <id> amendment.add kind=… reason=… [ref=…] --by <you>`. `E330` malformed or unresolved `ref`; `W325` scope-change without an owner reference; `W324` (opt-in `[traceability] require_amendments`) normative change since acceptance with no amendment. ADR/Requirement only (`W047` elsewhere); excluded from the suspect projection |
 
 ## Native TestCase extra fields
 
@@ -223,6 +224,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `date` | string | ISO-8601 date the decision was made |
 | `deciders` | string or list | Decision-makers: stakeholder `PartDef` qnames or free-text names. Display metadata, not resolved; shown by `show`. ADR-only (`W047` on any other type) |
 | `supersedes` | string or list | The `ADR`(s) this one replaces (`E320` unresolved/non-ADR, `E321` cycle, `W313` target not `superseded`, `W314` a `breakdownAdr:` still cites a superseded ADR). `supersededBy` is computed and shown by `show`/`links` |
+| `amendments` | list | Recorded changes after acceptance/approval (GH #454, §8.17.5): `{date: YYYY-MM-DD, by, reason, ref?, kind: clarification\|scope-change}`; `ref` names an answered question `PI-X#Qn`, an element id (e.g. a `ReviewRecord`) or a commit. Add with `syscribe set <id> amendment.add kind=… reason=… [ref=…] --by <you>`. `E330` malformed or unresolved `ref`; `W325` scope-change without an owner reference; `W324` (opt-in `[traceability] require_amendments`) normative change since acceptance with no amendment. ADR/Requirement only (`W047` elsewhere); excluded from the suspect projection |
 
 ## PlanningItem fields (§23)
 
@@ -233,7 +235,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `itemType` | string | `bug` · `task` · `feature` (`E709`) |
 | `blockedBy` | string or list | Any elements it waits on (`E720` dangling, `E721` cycle, `W308` if set while not `blocked`) |
 | `assignedTo` | string | Unix-style username (`E723`); checked against `[users]` when that roster is non-empty (`E722`) |
-| `evidence` | list | `{ref: <element>}` or `{path: <file>}`, each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`) |
+| `evidence` | list | `{ref: <element>}`, `{path: <file>}` or `{commit: <sha>}` (7–40 hex, resolved against git — `E728`; GH #455), each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`). `[planning]` in `.syscribe.toml` can also require a commit on a done leaf (`W321`) and check it touches the item's paths (`W320`) |
 | `claimedBy` / `claimedAt` | string | Advisory ownership — set by `syscribe claim <PI> --by <agent>`, cleared by `syscribe release <PI>`; never hand-edit |
 | `questions` | list of mappings | Inline decisions awaiting an answer: `{id: Q<n>, text, recommended?, status: open\|answered\|deferred, answer?, answeredBy?, answeredAt?, answerBy?: human\|any}` — `answerBy: human` reserves the answer to a person (default `any`, or `human` under `[agents] human_only_answers`; an agent's answer is refused, and `W323` flags one written anyway); record with `set <PI> question.add`, list with `syscribe questions`. PlanningItem only (`W318` elsewhere) |
 
@@ -332,7 +334,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | `responsibility` | All work products | string | Accountable party/organisation (ISO 26262-8 §5 DIA/CIA split); drives W038. Opt-in. |
 | `testExempt` | Any architecture element | string | Non-empty rationale suppressing W104 (no direct test). |
 | `ffiRationale` | PartDef/Part/etc. | string | Freedom-from-interference argument for mixed-criticality on a shared resource; suppresses W034. Opt-in. |
-| `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. Never hand-edit. |
+| `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. A key may also be an item anchor `REQ-X#slug` cited in the body: its hash covers that one item (GH #453). Never hand-edit. |
 
 ## Custom fields
 
@@ -511,7 +513,7 @@ Fields defined in the full specification (`spec/markdown-sysml-format.md`) that 
 | `target` | spec §3.7.1, §8.7.6 | Qualified name, optionally suffixed `::*` or `::**` / Feature chain identifying the occurrence whose feature is being assigned (e.g., `self`, `engine`) |
 | `text` | `metadata:` entry | free text of an applied metadata entry, e.g. a `ModelingMetadata::Rationale` |
 | `unit` | spec §3.6.1, §8.3.4 | Shorthand: qualified name of the unit for quantity attributes / Unit (for scalar quantities) |
-| `value` | spec §3.6.1, §8.5.2 | Literal default value or expression body (opaque string) / Bound expression (when specializing a non-enum AttributeDef) |
+| `value` | spec §3.6.1, §8.5.2 | Literal default value or expression body (opaque string) / Bound expression (when specializing a non-enum AttributeDef). A single scalar `value:` (on a `features:` entry or an `Attribute`) is citable from prose as `{{Elem.attr}}` (§5.8, GH #452) |
 | `valueKind` | spec §3.6.1, §8.5.2 | Binding semantics: `bound` (`=`), `initial` (`:=`), `default-bound` (`default =`), `default-initial` (`default :=`) / Binding semantics (default: `bound`); see §3.6.1 |
 | `viewpoint` | View | qualified name of the `ViewpointDef` the view conforms to (`W500` if it does not resolve) |
 
@@ -548,6 +550,19 @@ file at all) is always legal.
 | `[baselines]` | `element_dir` (alias `elementDir`) | No | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
 | `[baselines]` | `manifest_dir` (alias `manifestDir`) | No | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
 | `[users]` | `<username> = "<display name>"` | No | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[traceability]` | `require_breakdown_adr` (alias `requireBreakdownAdr`) | No | bool | `true` | `false` switches `E310` off (a cited ADR is still checked). |
+| `[traceability]` | `require_amendments` (alias `requireAmendments`) | No | bool | `false` | `W324`: an accepted `ADR` or an approved/implemented/verified `Requirement` whose normative content changed since the commit that set that status, with no `amendments:` entry dated on or after the change (GH #454). Reads at most `[agents] audit_limit` (default 200) commits per file; needs git. A malformed `[traceability]` entry is `W632` and ignored. |
+| `[planning]` | `require_testcase_evidence` (alias `requireTestcaseEvidence`) | No | bool | `false` | `W319`: an `active` TestCase that no `PlanningItem`'s `evidence: - ref:` names (§23.11, GH #456). |
+| `[planning]` | `check_commit_paths` (alias `checkCommitPaths`) | No | bool | `false` | `W320`: a `PlanningItem` `evidence: - commit:` touches none of the paths the item names (§23.11, GH #455). |
+| `[planning]` | `require_commit_evidence` (alias `requireCommitEvidence`) | No | bool | `false` | `W321`: a `done` leaf `PlanningItem` names no commit as evidence (§23.11, GH #455). A malformed `[planning]` entry (unknown key, non-boolean, not a table) is `W322` and ignored. |
+| `[traceCode]` | `roots` | Yes (when the table is present) | list of strings | — | Repository-relative source roots for `trace-code` (§12.8.1, GH #451), resolved against the repository root `repo:` paths use (else the model root's parent). A root that is not a directory is `W328`. |
+| `[traceCode]` | `units` | No | kind string, or list of kinds / `{kind, under?, extensions?}` tables | `"build-dir"` | How a code unit is recognised: `cargo-crate` (dir with `Cargo.toml` `[package]`), `build-dir` (dir with one of `build_files`), `file` (one file, filtered by `extensions`); `under` limits a rule to a repository-relative subtree. Units do not nest. |
+| `[traceCode]` | `build_files` (alias `buildFiles`) | No | list of strings | `Cargo.toml`, `package.json`, `CMakeLists.txt`, `Makefile`, `go.mod`, `pyproject.toml`, `setup.py` | What makes a `build-dir` unit. |
+| `[traceCode]` | `exclude` | No | list of globs | `[]` | Repository-relative globs not walked (`target/`, `node_modules/`, `.git/` always excluded). |
+| `[traceCode]` | `baseline` | No | string | `trace-code-baseline.toml` | Baseline file, relative to the model root: `[[untraced]]` tables of `path` + `reason`; it only shrinks (`trace-code --write-baseline` refreshes it). |
+| `[traceCode]` | `validate` | No | bool | `false` | `W326` (an untraced unit not in the baseline) and `W327` (a stale baseline entry) in `validate`. A malformed `[traceCode]` entry (unknown key, unknown unit kind, wrong type) is `W328` and ignored. |
+| `[references]` | `open_markers` (alias `openMarkers`) | No | list of strings | `["to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"]` | Phrases that mark a citation of an `answered` PlanningItem question (`PI-X#Q3`) as stale — `W094` when one occurs, case-insensitively as whole words, in the citing sentence. Replaces the defaults; `[]` disables `W094`. A malformed entry (unknown key, not a list of non-empty strings) is `W094` on `.syscribe.toml` and ignored. GH #453, spec §5.7. |
+| `[references]` | `copied_values` (alias `copiedValues`) | No | bool | `false` | `W095`: a numeric literal in an element body (prose or scenario) equal to the current value of an attribute of an element it links to, not written as a value reference `{{Elem.attr}}` (spec §5.8, GH #452). Whole tokens only; values below 10 and years (1900–2100) are ignored. Not a Boolean: `W094` against `.syscribe.toml`, and W095 stays off. `W096` (stale copies of previous values) does not need it. |
 | `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
 | `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
 | `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
@@ -601,6 +616,21 @@ manifest_dir = "baselines"
 [users]
 alice = "Alice Nakamura"
 bob = "Bob Patel"
+
+[planning]
+require_testcase_evidence = true
+
+[traceCode]
+roots = ["crates", "scripts"]
+units = [
+  { kind = "cargo-crate", under = "crates" },
+  { kind = "file", under = "scripts", extensions = ["sh", "py"] },
+]
+validate = true
+
+[references]
+open_markers = ["to confirm", "TBC", "pending owner"]
+copied_values = true
 
 [profiles.ci]
 promote = ["W015", "W300"]

@@ -67,6 +67,54 @@ supersedes: ADR-SYS-004
 | `W313` | An `accepted` ADR supersedes an ADR whose status is not `superseded` (set the old one to `superseded`) |
 | `W314` | A non-draft element's `breakdownAdr:` resolves to a `superseded` ADR (cite its successor) |
 
+## Amending an accepted ADR
+
+An accepted decision is **amended, never silently edited**. When implementation shows it must change — the patch decided for message A must also cover message B — edit the decision and record the change in `amendments:`:
+
+```yaml
+id: ADR-SYS-012
+status: accepted
+amendments:
+  - date: 2026-03-01
+    by: alice
+    reason: "The patch also applies to message B"
+    kind: scope-change          # clarification | scope-change
+    ref: PI-PATCH-001#Q2        # the owner's answer that approved it
+```
+
+Let the tool write the entry — it fills `date` with today and `by` from `--by`, and checks `kind` and `ref` first:
+
+```bash
+syscribe -m model/ set ADR-SYS-012 amendment.add kind=scope-change reason="The patch also applies to message B" ref=PI-PATCH-001#Q2 --by alice
+```
+
+| Key | Meaning |
+|---|---|
+| `date` | ISO date of the change (`YYYY-MM-DD`) |
+| `by` | Who made the change |
+| `reason` | Why the accepted text changed |
+| `kind` | `clarification` — the meaning is unchanged; `scope-change` — what is decided changed |
+| `ref` | Optional: a question `PI-X#Qn`, an element id (typically a `ReviewRecord`), or a commit |
+
+A `scope-change` needs an **owner reference**: an answered question, a `ReviewRecord`, or a commit a person made (a `Syscribe-As: human` trailer, or no `Syscribe-Actor` trailer and an author outside `[agents] actors`). A `Requirement` at `approved`/`implemented`/`verified` takes `amendments:` the same way. `show` and `export-html` print the history as a table.
+
+To make unrecorded edits visible, opt in:
+
+```toml
+[traceability]
+require_amendments = true
+```
+
+`validate` then reads each accepted ADR's (and confirmed requirement's) git history: when its body or normative fields changed since the commit that set the status — uncommitted edits included — and no amendment is dated on or after the change, it raises **W324**. Without git it reports nothing.
+
+| Code | Meaning |
+|---|---|
+| `E330` | `amendments:` malformed (not a list of mappings, a missing or unknown key, a bad date or kind) or a `ref` that resolves to nothing |
+| `W324` | Opt-in: normative content changed since acceptance with no amendment dated on or after the change |
+| `W325` | A `scope-change` without an owner reference |
+
+An amendment entry alone never makes links to the ADR suspect (`amendments` is outside the suspect projection); the edit it records does (`W090`). To **replace** a decision instead of changing it, write a new ADR with `supersedes:` (above).
+
 ## Where ADRs are required
 
 The validator (rule §12.2) requires a `breakdownAdr:` on every requirement that has `derivedFrom:`. This means every time you split a parent requirement into children, you must:

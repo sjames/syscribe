@@ -1,0 +1,8 @@
+# Code units that no implementedBy: or sourceFile: names yet (GH #451).
+# `syscribe trace-code` fails on an untraced unit missing here and on an entry here that is
+# now traced or gone, so this list only shrinks. Refresh with `syscribe trace-code --write-baseline`
+# (it keeps each reason); replace every TODO with the real reason.
+
+[[untraced]]
+path = "editors/vscode"
+reason = "VS Code LSP client extension (TypeScript): no design element yet; the LSP server it launches is traced through crates/syscribe, and the extension has no automated test named by a TestCase"

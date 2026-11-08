@@ -1331,8 +1331,34 @@ pub fn cmd_show(
         }
     }
 
+    // Amendment history (GH #454): one row per well-formed entry, in authored order.
+    {
+        let (amendments, _) = syscribe_model::amendments::parse(elem);
+        if !amendments.is_empty() {
+            println!();
+            println!("## Amendments");
+            println!();
+            println!("| Date | Kind | By | Reason | Ref |");
+            println!("|---|---|---|---|---|");
+            let cell = |s: &str| s.replace('|', "\\|").replace('\n', " ");
+            for a in &amendments {
+                println!(
+                    "| {} | {} | {} | {} | {} |",
+                    a.date,
+                    a.kind,
+                    cell(&a.by),
+                    cell(&a.reason),
+                    a.reference.as_deref().map(cell).unwrap_or_default()
+                );
+            }
+        }
+    }
+
     // Doc
-    let doc = elem.doc.trim();
+    // Item anchors `{#slug}` are an authoring aid, not display text (GH #453).
+    // Value references `{{Elem.attr}}` render as the value and its unit (GH #452).
+    let shown_doc = syscribe_model::value_refs::render(elements, resolver, &syscribe_model::req_items::strip_anchors(&elem.doc));
+    let doc = shown_doc.trim();
     if !doc.is_empty() {
         println!();
         println!("## Documentation");
@@ -2578,7 +2604,205 @@ pub fn cmd_who_verifies(
 
 // ── cmd: refs ────────────────────────────────────────────────────────────────
 
+/// `refs REQ-X#slug` / `REQ-X#5` / `PI-Y#Q3` (GH #453): the elements citing that item or
+/// question in prose. `true` when `key` was such a reference (handled).
+fn refs_item(elements: &[RawElement], resolver: &Resolver, key: &str) -> bool {
+    use syscribe_model::req_items as ri;
+    // Checked before the (fuzzy) element lookup, which would otherwise guess an element.
+    if resolver.resolve_ref(elements, key).is_some() {
+        return false;
+    }
+    let Some((elem_part, part)) = ri::parse_ref(key) else { return false };
+    let Some(t) = ri::resolve_elem(elements, resolver, &elem_part) else { return false };
+    println!("# References to: {}{}", t.qualified_name, part.suffix());
+    println!();
+    if let Err(why) = ri::lookup(t, &part) {
+        println!("Note: {why}");
+        println!();
+    }
+    let cs = ri::citers_of(elements, resolver, &t.qualified_name, Some(&part));
+    if cs.is_empty() {
+        println!("No elements cite `{key}`.");
+        return true;
+    }
+    print_citers(&cs);
+    true
+}
+
+fn print_citers(cs: &[syscribe_model::req_items::Citer<'_>]) {
+    println!("| Source | Cites | Type | Line |");
+    println!("|---|---|---|---|");
+    for c in cs {
+        println!(
+            "| {} | {} | {} | {} |",
+            c.source.frontmatter.id.as_deref().unwrap_or(&c.source.qualified_name),
+            c.citation.raw,
+            tl(c.source.frontmatter.element_type.as_ref()),
+            c.citation.line + 1
+        );
+    }
+    println!();
+    println!("{} citation(s)", cs.len());
+    println!();
+}
+
+/// `refs Elem.attr` (GH #452): the value of one attribute, every `{{Elem.attr}}` use, every
+/// literal copy of the current value and every stale copy of a previous value in the elements
+/// that link to `Elem`. `false` when `key` is not such a reference (the caller falls back to the
+/// element listing).
+pub fn refs_value(elements: &[RawElement], resolver: &Resolver, model_root: &std::path::Path, key: &str, json: bool) -> bool {
+    use syscribe_model::value_refs as vr;
+    let key = key.trim().trim_start_matches("{{").trim_end_matches("}}").trim();
+    // Only an `<elem>.<attr>` shape (no path separators) is a value key; an exact id / qualified
+    // name always wins. Never the fuzzy element lookup.
+    let shape = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_\-:]*\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$").unwrap();
+    if !shape.is_match(key) || syscribe_model::req_items::resolve_elem(elements, resolver, key).is_some() {
+        return false;
+    }
+    let Some((elem_part, path)) = key.split_once('.') else { return false };
+    let t = match vr::resolve_element(elements, resolver, elem_part) {
+        // `refs FEAT-X.param` stays the element listing (feature parameters are placeholders).
+        vr::ElemMatch::Found(t) if t.frontmatter.element_type == Some(ElementType::FeatureDef) => return false,
+        vr::ElemMatch::Found(t) => t,
+        vr::ElemMatch::Ambiguous(c) => {
+            eprintln!("refs {key}: {}", vr::ambiguous_message(elem_part, &c));
+            std::process::exit(1);
+        }
+        vr::ElemMatch::None
+            if elements.iter().any(|e| {
+                e.frontmatter.implemented_by.iter().flatten().chain(e.frontmatter.source_file.iter()).any(|p| p.ends_with(key))
+            }) =>
+        {
+            return false; // a source file name such as `main.rs` (the implementedBy listing)
+        }
+        vr::ElemMatch::None => {
+            eprintln!(
+                "refs {key}: element `{elem_part}` does not resolve (by stable id, qualified name or basic name); `{key}` is read as an attribute value reference <Elem>.<attr>"
+            );
+            std::process::exit(1);
+        }
+    };
+    let children = vr::ChildIndex::new(elements);
+    let attrs = vr::attributes_of(elements, resolver, &children, t);
+    let Some(attr) = vr::lookup(&attrs, path).cloned() else {
+        eprintln!("{} has no attribute `{path}` — attributes with a value: {}", vr::label(t), vr::available(&attrs).join(", "));
+        std::process::exit(1);
+    };
+    let tlabel = vr::label(t);
+    let full = format!("{tlabel}.{}", attr.path);
+
+    // Uses: `{{…}}` references resolving to this attribute.
+    let mut uses: Vec<(&RawElement, usize, String)> = Vec::new();
+    for e in elements {
+        for r in vr::scan(&e.doc) {
+            if let vr::Resolution::Value { elem, attr: a } = vr::resolve(elements, resolver, &children, &r) {
+                if std::ptr::eq(elem, t) && a.path == attr.path {
+                    uses.push((e, r.line + 1, r.raw.clone()));
+                }
+            }
+        }
+    }
+    // Literal and stale copies in the elements that link to `t`.
+    let limit = syscribe_model::agent_policy::load(model_root).map(|p| p.audit_limit).unwrap_or(syscribe_model::amendments::HISTORY_LIMIT);
+    let mut history = vr::History::new(Some(model_root), limit);
+    let mut cache = std::collections::HashMap::new();
+    let mut copies: Vec<(&RawElement, vr::Copy)> = Vec::new();
+    let mut stale: Vec<(&RawElement, vr::Copy)> = Vec::new();
+    for e in elements {
+        if std::ptr::eq(e, t) || e.doc.is_empty() {
+            continue;
+        }
+        if !vr::linked_targets(elements, resolver, e).iter().any(|x| std::ptr::eq(*x, t)) {
+            continue;
+        }
+        let (cur, st) = vr::copies_in(elements, resolver, &children, &e.doc, &[t], &mut cache, Some(&mut history));
+        copies.extend(cur.into_iter().filter(|c| c.attr.path == attr.path).map(|c| (e, c)));
+        stale.extend(st.into_iter().filter(|c| c.attr.path == attr.path).map(|c| (e, c)));
+    }
+    let who = |e: &RawElement| vr::label(e);
+    if json {
+        let v = serde_json::json!({
+            "attribute": full,
+            "element": tlabel,
+            "path": attr.path,
+            "value": attr.value,
+            "unit": attr.unit,
+            "file": attr.file,
+            "uses": uses.iter().map(|(e, line, raw)| serde_json::json!({"element": who(e), "file": e.file_path, "line": line, "raw": raw})).collect::<Vec<_>>(),
+            "copies": copies.iter().map(|(e, c)| serde_json::json!({"element": who(e), "file": e.file_path, "line": c.literal.line + 1, "literal": c.literal.text})).collect::<Vec<_>>(),
+            "stale": stale.iter().map(|(e, c)| {
+                let (pv, sha) = c.previous.clone().unwrap_or_default();
+                serde_json::json!({"element": who(e), "file": e.file_path, "line": c.literal.line + 1, "literal": c.literal.text, "previous": pv, "commit": sha, "status": e.frontmatter.status})
+            }).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+        return true;
+    }
+    println!("# Value references to: {full}");
+    println!();
+    println!("Value: {} ({})", attr.rendered().unwrap_or_else(|| "(no scalar value)".into()), attr.file);
+    if attr.number().is_none() {
+        println!();
+        println!("Note: the value is not a plain number, so literal copies are not searched.");
+    } else if attr.number().is_some_and(vr::is_noise) {
+        println!();
+        println!("Note: the value is below {} or reads as a year, so literal copies are not searched.", vr::MIN_LITERAL);
+    }
+    println!();
+    println!("## Uses ({{{{{full}}}}})");
+    println!();
+    if uses.is_empty() {
+        println!("None.");
+    } else {
+        println!("| Element | Type | Line |");
+        println!("|---|---|---|");
+        for (e, line, _) in &uses {
+            println!("| {} | {} | {line} |", who(e), tl(e.frontmatter.element_type.as_ref()));
+        }
+    }
+    println!();
+    println!("## Literal copies of the current value");
+    println!();
+    if copies.is_empty() {
+        println!("None.");
+    } else {
+        println!("| Element | Type | Line | Literal |");
+        println!("|---|---|---|---|");
+        for (e, c) in &copies {
+            println!("| {} | {} | {} | {} |", who(e), tl(e.frontmatter.element_type.as_ref()), c.literal.line + 1, c.literal.text);
+        }
+        println!();
+        println!("Replace each with `{{{{{full}}}}}`.");
+    }
+    println!();
+    println!("## Stale copies of previous values");
+    println!();
+    if stale.is_empty() {
+        println!("None.");
+    } else {
+        println!("| Element | Type | Status | Line | Literal | Previous value | Commit |");
+        println!("|---|---|---|---|---|---|---|");
+        for (e, c) in &stale {
+            let (pv, sha) = c.previous.clone().unwrap_or_default();
+            println!(
+                "| {} | {} | {} | {} | {} | {pv} | {} |",
+                who(e),
+                tl(e.frontmatter.element_type.as_ref()),
+                e.frontmatter.status.as_deref().unwrap_or("-"),
+                c.literal.line + 1,
+                c.literal.text,
+                &sha[..sha.len().min(10)]
+            );
+        }
+    }
+    println!();
+    true
+}
+
 pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
+    if refs_item(elements, resolver, key) {
+        return;
+    }
     let Some(elem) = resolve(elements, resolver, key) else {
         // The key is not an element qname/id. It may be a raw reference target —
         // e.g. an implementedBy source path or sourceFile. Report the model
@@ -2689,7 +2913,10 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
         runs_in.sort();
     }
 
-    if rows.is_empty() && runs_in.is_empty() {
+    // Item / question citations in prose (GH #453).
+    let item_citers = syscribe_model::req_items::citers_of(elements, resolver, target_qn, None);
+
+    if rows.is_empty() && runs_in.is_empty() && item_citers.is_empty() {
         println!("No elements reference `{}`.", target_qn);
         return;
     }
@@ -2703,6 +2930,12 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
         println!();
         println!("{} reference(s)", rows.len());
         println!();
+    }
+
+    if !item_citers.is_empty() {
+        println!("## Item and question citations");
+        println!();
+        print_citers(&item_citers);
     }
 
     if !runs_in.is_empty() {
@@ -3788,6 +4021,44 @@ pub fn cmd_path_for(elements: &[RawElement], resolver: &Resolver, key: &str) {
 }
 
 pub fn cmd_check_ref(elements: &[RawElement], resolver: &Resolver, key: &str) {
+    // Item / question reference (GH #453): `REQ-X#slug`, `REQ-X#5`, `REQ-X item 5`, `PI-Y#Q3`.
+    if resolver.resolve_ref(elements, key).is_none() {
+        if let Some((elem_part, part)) = syscribe_model::req_items::parse_ref(key) {
+            use syscribe_model::req_items::{self as ri, Target};
+            let Some(t) = ri::resolve_elem(elements, resolver, &elem_part) else {
+                println!("unresolved: '{elem_part}' does not match any element qname or stable ID");
+                std::process::exit(1);
+            };
+            if !ri::applies(t, &part) {
+                println!("unresolved: '{key}' — {} is a {}; item references (`#slug`, `#5`, `item 5`) need a Requirement, question references (`#Qn`) a PlanningItem", elem_part, tl(t.frontmatter.element_type.as_ref()));
+                std::process::exit(1);
+            }
+            match ri::lookup(t, &part) {
+                Ok(Target::Item(it)) => {
+                    println!("resolved  {}{}", t.qualified_name, part.suffix());
+                    println!("type      Requirement item");
+                    println!("item      {}{}", it.number, it.anchor.as_deref().map(|a| format!(" {{#{a}}}")).unwrap_or_default());
+                    println!("text      {}", it.text.lines().next().unwrap_or("").trim());
+                    println!("file      {}", t.file_path);
+                }
+                Ok(Target::Question(q)) => {
+                    println!("resolved  {}", q.reference());
+                    println!("type      PlanningItem question");
+                    println!("status    {}", q.status);
+                    println!("text      {}", q.text);
+                    if let Some(a) = &q.answer {
+                        println!("answer    {a}");
+                    }
+                    println!("file      {}", t.file_path);
+                }
+                Err(why) => {
+                    println!("unresolved: '{key}' — {why}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+    }
     match resolver.resolve_ref(elements, key) {
         Some(e) => {
             let type_str = tl(e.frontmatter.element_type.as_ref());
@@ -3861,9 +4132,27 @@ verificationMethod: test
 # decompositionKind: independent   # ASIL D / SIL 4 decomposition: independent | redundant | diverse
 # derivedFromSafetyGoal: SG-PREFIX-001
 # derivedFromCybersecurityGoal: CSG-PREFIX-001
+# amendments:   # once approved, record every change instead of editing silently (W324 with [traceability] require_amendments)
+#   - date: 2026-01-31          # ISO date of the change
+#     by: alice                 # who made it
+#     reason: "Also covers message B"
+#     kind: clarification       # clarification | scope-change (a scope-change needs ref: to the owner's decision, W325)
+#     ref: PI-PREFIX-001#Q1     # optional: answered question, ReviewRecord id or commit sha
 ---
 
 The system shall ...
+
+<!-- Optional: state several obligations as a numbered list. `{#slug}` after the number
+     anchors an item so other elements can cite it as REQ-PREFIX-001#first-obligation
+     (preferred over REQ-PREFIX-001#1, which shifts when an item is inserted). Delete the
+     list if unneeded. -->
+1. {#first-obligation} **First obligation.** The system shall ...
+2. {#second-obligation} **Second obligation.** The system shall ...
+
+<!-- State a design value by reference, not by copy: `{{Elem.attr}}` (an id or qualified
+     name, then an attribute, e.g. `{{Design::Limits.maxFrame}}`) renders the attribute's
+     current value and unit in show and export-html; validate checks it (E331). A copied
+     number goes stale when the design changes (W096). -->
 
 ## Rationale
 
@@ -3903,6 +4192,10 @@ Feature: ...
 
 > Tip: run `syscribe scaffold-gherkin TC-PREFIX-001 --fix` to auto-insert any
 > `Scenario:` blocks missing for the `testFunctions[].scenario` entries above.
+>
+> Write a design value in a scenario as `{{Elem.attr}}`, e.g.
+> `Given a frame of {{Design::Limits.maxFrame}}`, not as a copied number: it renders as
+> the current value and unit in show and export-html, and `refs Elem.attr` finds every use.
 "#,
         "testplan" => r#"---
 type: TestPlan
@@ -3932,6 +4225,12 @@ id: ADR-PREFIX-001
 name: "Decision title"
 status: proposed
 # supersedes: ADR-PREFIX-000   # the ADR(s) this replaces; mark them status: superseded
+# amendments:   # once accepted, amend instead of editing silently: `syscribe set ADR-PREFIX-001 amendment.add kind=… reason=… --by <you>`
+#   - date: 2026-01-31          # ISO date of the change
+#     by: alice                 # who made it
+#     reason: "Patch also applies to message B"
+#     kind: scope-change        # clarification | scope-change (a scope-change needs ref: to the owner's decision, W325)
+#     ref: PI-PREFIX-001#Q1     # answered question, ReviewRecord id or commit sha
 ---
 
 ## Context
@@ -3965,6 +4264,9 @@ achieves:
 #   - ref: TC-PREFIX-001
 #   - path: src/some_file.rs
 #     rationale: "Why this entry is waived instead of resolving"
+#   - commit: "3f9c2a1"      # the commit that delivered it: 7-40 hex, checked against git (E728);
+#                            # quote an all-digit hash. [planning] in .syscribe.toml can require one
+#                            # on a done leaf (W321) and check it touches the paths above (W320).
 # questions:                # decisions awaiting an answer; add with `set PI-PREFIX-001 question.add text=…`
 #   - id: Q1
 #     text: "Which UART does the debug console use?"
@@ -4082,6 +4384,9 @@ name: MyPartDef
 #   - name: subPart
 #     type: Part
 #     typedBy: SomePackage::SomePartDef
+#   - name: maxPayload      # an attribute with a value: other bodies cite it as
+#     value: 2500           # {{MyPartDef.maxPayload}} instead of copying 2500
+#     unit: g
 ---
 
 Description of this part definition.

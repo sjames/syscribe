@@ -67,6 +67,13 @@ require_breakdown_adr = false   # default true
 
 A `breakdownAdr:` that is present is still checked (`E311`, `W303`). A malformed entry is `W632` and the default stays.
 
+The same table holds the opt-in amendment check (see [Architecture Decisions](adrs.md#amending-an-accepted-adr)):
+
+```toml
+[traceability]
+require_amendments = true       # default false: W324 on an accepted ADR / confirmed requirement edited without an amendment
+```
+
 ## Rule 3 — Leaf assignment (§12.3)
 
 Requirements are decomposed until each leaf can be assigned to the architecture that fulfils it. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.
@@ -132,6 +139,27 @@ Discoverability:
 
 - `syscribe links <element>` lists the `implementedBy` paths as outbound relationships.
 - `syscribe refs <path-or-dir>` reverse-maps a source path (or a directory prefix) back to the architecture element(s) that declare it.
+
+### The reverse direction — code no element names (`trace-code`, §12.8.1)
+
+`implementedBy:` and `sourceFile:` say which code realises or verifies an element; `syscribe trace-code` reports the opposite: code units in the repository that **no** element names — a crate, a build directory, a script or a test file added without a design element or TestCase. Switch it on with a `[traceCode]` table in `.syscribe.toml`:
+
+```toml
+[traceCode]
+roots = ["crates", "scripts", "tests"]       # repository-relative
+exclude = ["crates/*/vendor/**"]             # target/, node_modules/, .git/ always excluded
+baseline = "trace-code-baseline.toml"        # relative to the model root (default)
+validate = false                             # true: W326/W327 in validate
+units = [
+  { kind = "cargo-crate", under = "crates" },               # a dir with Cargo.toml [package]
+  { kind = "file", under = "scripts", extensions = ["sh", "py"] },
+  { kind = "file", under = "tests", extensions = ["rs"] },
+]
+```
+
+`build-dir` is the third kind (a directory holding any of `build_files`, default `Cargo.toml`, `package.json`, `CMakeLists.txt`, `Makefile`, `go.mod`, `pyproject.toml`, `setup.py`). A unit is traced when an entry — resolved exactly like W023 — names the unit itself, a file inside it, or a directory containing it. Units do not nest.
+
+Known gaps go in the baseline with a reason (`[[untraced]]` tables of `path` + `reason`). The list **only shrinks**: `trace-code` exits `2` on an untraced unit missing from the baseline and on a baseline entry that is now traced, gone or no longer a unit; `trace-code --write-baseline` refreshes the file (reasons kept, new entries `TODO`, stale ones dropped). With `validate = true`, `validate` raises **W326** (new untraced unit) and **W327** (stale entry); a malformed entry is **W328**. Under `[repos]`, each peer with its own `[traceCode]` is checked against its own elements. This repository runs it on its own crates (`model/.syscribe.toml`, baseline `model/trace-code-baseline.toml`).
 
 ## Integration test coverage for parent requirements (W305)
 
@@ -209,6 +237,18 @@ the guarded `suspect_accept`.
 
 Custom links declared under `[linkTypes]` take part in suspect-link detection too, unless a
 type opts out with `suspect = false` (see below).
+
+**One item at a time.** When a requirement is a numbered list, a source usually relies on one
+item, not the whole requirement. Anchor that item (`1. {#grant-keys} …` in the requirement
+body), cite it in the source's body as `REQ-X#grant-keys`, and baseline that citation:
+
+```bash
+syscribe -m model/ suspect accept TC-KEY-004 REQ-KEY-001#grant-keys
+```
+
+The stored hash covers that item's text only, so `W090` fires when that item changes and not
+when another item is edited or inserted. A by-number citation (`REQ-X#5`) cannot be
+baselined. See [item anchors and references](requirements.md#item-anchors-and-references).
 
 ## Project-defined relationships — user-defined link types (`ADR-SYS-LINKTYPE-001`)
 

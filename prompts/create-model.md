@@ -57,6 +57,7 @@ Change type (pick all that apply):
   [ ] New architecture element satisfying an existing requirement
   [ ] New interface or operation on an existing PortDef/InterfaceDef
   [ ] Supersede an existing ADR with a revised decision
+  [ ] Amend an accepted ADR or approved requirement (record it in `amendments:`)
   [ ] Other: ...
 
 Elements affected by this change (qualified names):
@@ -128,7 +129,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ export [--ndjson] [--config <C>]` | The structured model graph as JSON / NDJSON |
 | `syscribe -m model/ render <diagram-path>` | Print a hand-authored `Diagram` with element links injected |
 | `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
-| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
+| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it); `refs REQ-X#slug` / `PI-X#Q3` lists who cites that item or question; `refs <Elem>.<attr>` lists the uses, literal copies and stale copies of an attribute value |
 | `syscribe -m model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
 | `syscribe -m model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
 | `syscribe -m model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
@@ -224,7 +225,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ validate --file <path>` | Findings for a single file only |
 | `syscribe -m model/ template <type> [--prefix P]` | Print a ready-to-fill frontmatter skeleton (`Requirement` defaults to the first `[ids.prefixes]` prefix; `--prefix` picks another) |
 | `syscribe -m model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
-| `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
+| `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it; also an item/question citation (`REQ-X#slug`, `PI-X#Q3`) |
 | `syscribe -m model/ path-for <qname\|id>` | Print the file path for an element |
 | `syscribe -m model/ set <qname\|id> status=<v>` / `evidence.add ref=<id>` / `achieves.add <req-id>` | Validated single-field edit (value checked **before** writing); `--dry-run` previews |
 | `syscribe -m model/ applies-when <element> [--set "<expr>" \| --clear]` | Show (with inheritance) or edit an element's `appliesWhen:` gate |
@@ -234,6 +235,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ policy` | The project's agent policy (`[agents]` in .syscribe.toml): protected paths, statuses only a person sets, questions only a person answers (`human_only_answers`), what must hold before a PlanningItem is done, whether every change must name its actor. It binds a change that names an actor (`--by`); a person passes `--as-human`. A refusal names the rule and exits 1 |
 | `syscribe -m model/ log [<element>] [--by <actor>] [--unattributed]` | Who changed the model and why, from git; with an element, what each commit changed in it. Writing commands take `--by <you> --reason "…" --commit` (commit only that change, you as author) and `--expect-hash <contentHash>` (refuse a stale edit); `--dry-run` previews any of them |
 | `syscribe -m model/ check-staged [--install-hook]` / `impact --files <path>... \| --since <rev>` | Validate only what is staged (a pre-commit gate), or see what changed files affect — the elements bound to them and what those reach, marked changed or not |
+| `syscribe -m model/ trace-code [--all] [--json] [--write-baseline]` | Code that no `implementedBy:`/`sourceFile:` names (needs a `[traceCode]` table): untraced units against a shrink-only baseline; exits 2 on a new untraced unit or a stale baseline entry |
 | `syscribe -m model/ changes <revA> [<revB>]` / `validate --new-since <rev>` | Element-level diff between git revisions (status moves, links, evidence, broken refs); gate `validate` only on findings not present at `<rev>` |
 | `syscribe capabilities --json` / `syscribe schema [<name>]` | What this binary supports and the JSON Schema of each stable `--json` form (no model needed) |
 | `syscribe -m model/ bind <CONF> <feature.param> <value>` / `timeline <CONF>` | Write one checked binding/selection into a staged Configuration (previewed, refused if it adds an error); see what each stage decided |
@@ -580,6 +582,42 @@ custom_fields:
 - The Markdown body **before the first `##` heading** is the normative text.
 - It must be **non-empty** (error E012) and contain the word **`shall`** (warning W001).
 
+### Numbered items, anchors and citations
+
+When a requirement lists several obligations, write them as a top-level numbered list and give
+each item that others may rely on a stable **anchor** right after its number — `{#slug}`, slug
+lowercase letters/digits/`-`, starting with a letter:
+
+```markdown
+The key server shall:
+
+1. {#grant-keys} **Server keys.** Hold the grant keys in an HSM.
+2. {#rotate} **Rotation.** Rotate the keys every 12 months.
+```
+
+Items are numbered by position; `show`/`export-html` hide the token. From any other element's body,
+cite an item **by anchor**: `REQ-KEY-001#grant-keys`. Avoid `REQ-KEY-001#2` and the legacy
+`REQ-KEY-001 item 2`: a number shifts when an item is inserted, and only an anchored citation can be
+baselined (`suspect accept <src> REQ-KEY-001#grant-keys`, so `W090` fires only when that item changes).
+Cite a PlanningItem question as `PI-KEY-001#Q3`. Confirm with `check-ref REQ-KEY-001#grant-keys`.
+Validation: `W092` dangling item/question reference or duplicate anchor; `W093` a non-draft element
+cites a still-open question (answer it first); `W094` an answered question is still cited as "to
+confirm" (state the answer instead; phrases set by `[references] open_markers`).
+
+### Design values: reference, never copy
+
+When a requirement, TestCase scenario or planning item states a number that a design element
+holds as an attribute (a size budget, a limit, a rate), write a **value reference** instead of the
+number: `{{Elem.attr}}`, where `Elem` is the element's stable id, qualified name or (if unique) basic name and `attr` the
+attribute — a `features:` entry with a `value:` (nested: `outer.inner`), an `Attribute` child, a
+tagged value `Stereotype.key`, or a budget field such as `ram` or `period`. It works in prose and
+inside ` ```gherkin ` scenarios (not in other code). `show`/`export-html` render the current value
+and unit, so the text follows the design when it changes; a copied number goes stale. Validation:
+`E331` the reference does not resolve (the message lists the element's attributes — pick one);
+`W096` a literal equals a previous value of an attribute of a linked element (a stale copy — replace
+it with the reference); `W095` (opt-in `[references] copied_values = true`) a literal equals its
+current value. `refs Elem.attr` lists every use and copy.
+
 ### Requirement hierarchy
 
 ```
@@ -607,6 +645,8 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 | `status` | `proposed` · `accepted` · `deprecated` · `superseded` |
 
 **ADR must be `accepted` before any Requirement can cite it in `breakdownAdr:`** (warning W303 if still `proposed`).
+
+**Amend, never silently edit, an accepted ADR.** When a decision must change after acceptance, edit its text **and** record the change: `syscribe -m model/ set <ADR-id> amendment.add kind=clarification|scope-change reason="…" [ref=…] --by <you>` appends `{date, by, reason, ref?, kind}` to `amendments:` (date = today). `clarification` keeps the meaning; `scope-change` changes it and needs `ref:` to the owner's decision — an answered question `PI-X#Qn`, a `ReviewRecord`, or a person's commit (else `W325`). `E330`: malformed entry or unresolved `ref`. With `[traceability] require_amendments = true`, an edit since acceptance with no amendment dated on or after it is `W324`. The same applies to a `Requirement` at `approved`/`implemented`/`verified`. Never fold the change into the prose silently, and never reset `status:` to dodge the check; to replace a decision, use Pattern F.
 
 Body structure: `## Context`, `## Decision`, `## Consequences` (conventional — not validated beyond being non-empty).
 
@@ -760,6 +800,7 @@ achieves: [REQ-BRAKE-001]    # top-level only; a child sets parent: PI-… inste
 assignedTo: jdoe             # optional Unix-style username
 evidence:                    # a leaf claiming status: done needs ≥1 resolving entry (E719)
   - ref: TC-BRAKE-001
+  - commit: "3f9c2a1e7b"     # optional: the commit that delivered it (7-40 hex, checked against git, E728)
 ---
 ```
 
@@ -768,6 +809,12 @@ Validation: `E708`/`E709` (status / itemType enums), `E712` (parent cycle), `E71
 `E720`/`E721` (`blockedBy:` dangling / cycle), `W308` (`blockedBy:` set but not `blocked`),
 `W310` (done, but the achieved Requirement lacks the required TestCase), `W311` (two active items
 overlap). Mark progress with `set <PI-id> status=done` / `set <PI-id> evidence.add ref=<TC-id>`.
+If `.syscribe.toml` has `[planning] require_testcase_evidence = true`, every `active` TestCase you
+deliver must be named by some item's `evidence: - ref:` (`W319`; `coverage --json` lists the
+unplanned ones as `testCasesWithoutPlanningEvidence`). Record the commit that delivered an item with
+`set <PI-id> evidence.add commit=<sha>` (never invent a hash: `E728` flags one git does not know);
+`[planning] require_commit_evidence = true` makes it required on a done leaf (`W321`) and
+`check_commit_paths = true` checks it touches the item's paths (`W320`). `log --item <PI-id>` lists them.
 When several agents share one model, `claim <PI-id> --by <agent-id>` before starting and
 `release <PI-id>` when finished (advisory `claimedBy:`/`claimedAt:` — never hand-edit them).
 Template: `template PlanningItem`.
@@ -1188,6 +1235,9 @@ Once a `SafetyGoal` carries `asilLevel:`, `silLevel:`, or `plLevel:`, every down
 
 A lower level (ASIL decomposition per ISO 26262-9) is valid only when `breakdownAdr:` references an `accepted` ADR documenting the decomposition rationale.
 
+### §12.8 — Implementation trace, and design before code
+A `Part`/`PartDef`/`Interface`/`InterfaceDef` names the code that realises it with `implementedBy:`; a `TestCase` names its test with `sourceFile:` (both resolved like `repo:crates/x/src/lib.rs`; `W023` for a missing local path). Write the design element or TestCase **before** the code it names: when you add a crate, module, script or test file, add (or extend) the element whose `implementedBy:` or `sourceFile:` names it — a path inside the unit or a directory above it counts. If `.syscribe.toml` has a `[traceCode]` table, `syscribe -m model/ trace-code` lists every code unit nothing names and fails (exit 2) on one that the trace-code baseline does not list or on a baseline entry that is now traced; never add a new path to the baseline to silence it unless a person agreed, and give a real reason instead of `TODO`. With `[traceCode] validate = true`, `validate` raises the same as `W326` (new untraced code) / `W327` (stale baseline entry).
+
 ### §12.10 — User-defined link types (`links:`)
 Some projects declare their own relationships (`mitigates`, `conflictsWith`, `partiallySatisfies`, …) as `[linkTypes.<name>]` tables in `.syscribe.toml`. Elements hold instances under **one** field, `links:` — a map from a declared link-type name to a ref or list of refs (id or qname, resolved like `satisfies:`):
 
@@ -1325,6 +1375,9 @@ draft → review → approved → implemented → verified
 **Create:** new `Requirement` with a new ID; new TestCase.
 **Update:** old Requirement — leave the file, do not change the ID; update `satisfies:` in architecture elements; retire old TestCase.
 
+### Pattern E2 — Amend an accepted ADR or approved Requirement
+**Edit:** the decision/requirement text. **Record:** `syscribe -m model/ set <id> amendment.add kind=clarification|scope-change reason="…" [ref=<PI-X#Qn | RR-id>] --by <you>` — a `scope-change` needs the owner's answered question or ReviewRecord as `ref` (`W325`). Keep `status:` as it is. Links to it go suspect only through the text edit (`W090`), never through the amendment entry.
+
 ### Pattern F — Supersede an ADR
 **Create:** new ADR (`status: accepted`) with `supersedes: <old ADR>` (one reference or a list). **Deprecate:** old ADR (`status: superseded`; `W313` if you forget). The reverse `supersededBy` is computed and shown by `show`/`links`; `E320` unresolved/non-ADR target, `E321` cycle, `W314` a `breakdownAdr:` that still cites the superseded ADR. **Update:** any Requirement with `breakdownAdr:` pointing to the old ADR — update to the new one.
 
@@ -1376,6 +1429,12 @@ draft → review → approved → implemented → verified
 | E630 | `links:` key is not a declared link type | Use a type listed in the message / by `link-types`; never invent one |
 | E631 | `links:` not a map, or a value not a ref / list of refs | `links: { <type>: <ref> }` or `<type>: [<ref>, …]` |
 | E632 | `links:` ref does not resolve | `check-ref` the id or qname |
+| W092 | Body cites a missing item/question (`REQ-X#slug`, `REQ-X#5`, `PI-X#Q3`) or a requirement repeats an anchor | Fix the citation (`check-ref REQ-X#slug`) or add/rename the `{#slug}` anchor |
+| W093 | A non-draft element cites a question that is still `open` | Answer the question (`set PI-X question.answer Q3 text=…`) or keep the element `draft` |
+| W094 | An answered question is cited with "to confirm"-style wording | Rewrite the sentence to state the answer |
+| E331 | A value reference `{{Elem.attr}}` does not resolve (unknown element or attribute, or no scalar value) | Pick an attribute from the list in the message; name the element by id or full qualified name |
+| W095 | (opt-in `[references] copied_values`) A literal equals the current value of an attribute of a linked element | Replace the number with the suggested `{{Elem.attr}}` |
+| W096 | A literal equals a previous value of an attribute of a linked element (a stale copy, from git history) | Replace it with the suggested `{{Elem.attr}}`, or update it |
 | E633 | Element type not in the link type's `sourceTypes` | Hold the link on a permitted source type (see `link-types`) |
 | E634 | Target type not in the link type's `targetTypes` | Point at a permitted target type |
 | E635 | More targets than the `cardinality` upper bound | Remove targets or split across elements |

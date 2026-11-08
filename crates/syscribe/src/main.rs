@@ -53,6 +53,7 @@ mod mv;
 mod bcov;
 mod impact;
 mod impactfiles;
+mod tracecode;
 mod n2;
 mod plantuml;
 mod query;
@@ -1157,8 +1158,22 @@ fn main() {
             "refs" => {
                 // --config lens (REQ-TRS-PROJ-001, GH #139).
                 let config = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let view = lensed_for_key(&elems, config, key);
-                query::cmd_refs(&view, &Resolver::new(&view), key);
+                // `refs Elem.attr [--json]` (GH #452): uses and copies of one attribute value.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                // Under a lens the start-element check applies to the element part.
+                let lens_key = match key.split_once('.') {
+                    Some((elem_part, _)) if config.is_some() && resolver.resolve_ref(&elems, key).is_none() => elem_part,
+                    _ => key,
+                };
+                let view = lensed_for_key(&elems, config, lens_key);
+                let vres = Resolver::new(&view);
+                if !query::refs_value(&view, &vres, model_root, key, json) {
+                    if json {
+                        eprintln!("refs --json is supported for an attribute value reference (`refs <Elem>.<attr> --json`); `{key}` is not one");
+                        std::process::exit(1);
+                    }
+                    query::cmd_refs(&view, &vres, key);
+                }
             }
             "plantuml" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -1419,8 +1434,19 @@ fn main() {
             "coverage" => {
                 // Coverage roll-up through the derivation tree (GH #252). Read-only. Exit 0 · 1 usage/unresolved.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                // Bare `coverage [--json]`: the model-wide summary (GH #456), the MCP `coverage` document.
+                if rest.iter().all(|a| a == "--json") {
+                    let result = syscribe_model::validator::validate_with_config(&elems, &vcfg);
+                    let cov = syscribe_model::link_types::coverage_view(&elems, &vcfg.link_types);
+                    let results = runhist::load_results(model_root);
+                    let code = coverage::cmd_coverage_summary(&cov, &result, results.as_ref(), !rest.is_empty());
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                    return;
+                }
                 if rest.first().map(|s| s.as_str()) != Some("tree") {
-                    eprintln!("Usage: syscribe --model <root> coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
+                    eprintln!("Usage: syscribe --model <root> coverage [--json] | coverage tree <req> [--plan <TP>] [--config <id>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = &rest[1..];
@@ -2207,6 +2233,11 @@ fn main() {
                 };
                 bcov::cmd_behavioral_coverage(&elems, &opts);
             }
+            "trace-code" => {
+                // GH #451: code that no implementedBy:/sourceFile: names, against a shrink-only baseline.
+                let code = tracecode::cmd_trace_code(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
+                provenance::exit(code);
+            }
             "impact" => {
                 // Change impact analysis (§17, GH #65). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -2722,7 +2753,7 @@ fn main() {
                     }
                     std::process::exit(1);
                 }
-                let code = lint_docs::cmd_lint_docs(&elems, &paths, parsed.json, &parsed.deny);
+                let code = lint_docs::cmd_lint_docs(&elems, Some(model_root), &paths, parsed.json, &parsed.deny);
                 if code != 0 {
                     std::process::exit(code);
                 }

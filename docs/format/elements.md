@@ -153,7 +153,11 @@ Requirement or an `evidence[].path` warn `W311` (possible duplicate work). For c
 `syscribe release <PI-id>` clears them. Everything else is queried via the generic
 `list`/`show`/`ls`/`find`/`refs` commands and written via `set` or the guarded MCP
 `create_element`/`update_element`/etc. tools. Validation `E706`–`E717`, `E719`–`E723`,
-`W308`–`W311`. See `examples/planning-item/` for a complete worked example.
+`W308`–`W311`. The opt-in `[planning]` table in `.syscribe.toml` adds `W319` (an active
+`TestCase` no item's `evidence: - ref:` names, `require_testcase_evidence = true`); a malformed
+entry is `W322` (format spec §23.11). An `evidence:` entry may also be `commit: <sha>` (7–40 hex),
+resolved against the model's git history (`E728`); `[planning]` can require one on a done leaf
+(`W321`) and check it touches the item's paths (`W320`). See `examples/planning-item/` for a complete worked example.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 

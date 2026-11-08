@@ -164,8 +164,19 @@ pub struct ValidateConfig {
     /// the derived default (`false`) keeps the rule in force.
     pub breakdown_adr_optional: bool,
 
+    /// `[traceability] require_amendments = true` (GH #454, `REQ-TRS-AMEND-002`): an accepted ADR or a
+    /// confirmed Requirement whose normative content changed since the commit that set that status needs
+    /// an `amendments:` entry dated on or after the change, else `W324`. Off by default.
+    pub require_amendments: bool,
+
     /// Problems with the `[traceability]` table, reported as `W632`.
     pub traceability_problems: Vec<String>,
+
+    /// `[planning]` opt-in gates (GH #455/#456): `W319`, `W320`, `W321`; problems are `W322`.
+    pub planning: PlanningPolicy,
+    /// GH #453 — the `[references]` table (`open_markers` for `W094`); malformed entries
+    /// are reported as `W094` against `.syscribe.toml`.
+    pub references: crate::req_items::ReferencesConfig,
 
     /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
     /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
@@ -729,11 +740,16 @@ impl ValidateConfig {
         crate::binding_time::install(&binding_times);
         let audit = AuditConfig::load(&root);
         let root_for_cyber = root.clone();
-        let (breakdown_adr_optional, traceability_problems) = load_traceability(&root);
+        let (breakdown_adr_optional, require_amendments, traceability_problems) = load_traceability(&root);
+        let planning = PlanningPolicy::load(&root);
+        let references = crate::req_items::ReferencesConfig::load(&root);
         Self {
             machine_config: None,
             breakdown_adr_optional,
+            require_amendments,
             traceability_problems,
+            planning,
+            references,
             model_root: Some(root),
             repo_root,
             matchers,
@@ -758,6 +774,16 @@ impl ValidateConfig {
             coverage: CoveragePolicy::load(&root_for_cyber),
             cyber: crate::cyber_config::CyberConfig::load(&root_for_cyber),
         }
+    }
+
+    /// Just the two roots path classification needs ([`Self::classify_source`]): the model root and
+    /// the repository root (`repo_root` in `.syscribe.toml`, else the enclosing git work tree). Unlike
+    /// [`Self::with_model_root`] it installs no process-wide vocabulary, so it is safe for reading a
+    /// `[repos]` peer's paths while the composing model's configuration stays active (GH #451).
+    pub fn paths_only(model_root: impl Into<PathBuf>) -> Self {
+        let root = model_root.into();
+        let repo_root = resolve_repo_root(&root);
+        Self { model_root: Some(root), repo_root, ..Default::default() }
     }
 
     /// REQ-TRS-TYPE-021 — true when any peer repo is configured (`[repos]`).
@@ -1058,28 +1084,90 @@ fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
     toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
 }
 
-/// Read `[traceability]` (REQ-TRS-BADR-001): `(breakdown ADR optional, problems)`.
-fn load_traceability(model_root: &Path) -> (bool, Vec<String>) {
+/// Whether `[traceability] require_amendments = true` is set (GH #454) — `W324` is on.
+pub fn require_amendments(model_root: &Path) -> bool {
+    load_traceability(model_root).1
+}
+
+/// Read `[traceability]` (REQ-TRS-BADR-001, GH #454): `(breakdown ADR optional, require amendments, problems)`.
+fn load_traceability(model_root: &Path) -> (bool, bool, Vec<String>) {
     let mut problems = Vec::new();
     let Some(root) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok().and_then(|t| toml::from_str::<toml::Value>(&t).ok()) else {
-        return (false, problems);
+        return (false, false, problems);
     };
-    let Some(tbl) = root.get("traceability") else { return (false, problems) };
+    let Some(tbl) = root.get("traceability") else { return (false, false, problems) };
     let Some(tbl) = tbl.as_table() else {
         problems.push("[traceability] must be a table".into());
-        return (false, problems);
+        return (false, false, problems);
     };
     let mut optional = false;
+    let mut amendments = false;
     for (k, v) in tbl {
         match k.as_str() {
             "require_breakdown_adr" | "requireBreakdownAdr" => match v.as_bool() {
                 Some(b) => optional = !b,
                 None => problems.push(format!("[traceability] {k} must be true or false, got {v}")),
             },
-            other => problems.push(format!("[traceability] unknown key '{other}'")),
+            "require_amendments" | "requireAmendments" => match v.as_bool() {
+                Some(b) => amendments = b,
+                None => problems.push(format!("[traceability] {k} must be true or false, got {v}")),
+            },
+            other => problems.push(format!("[traceability] unknown key '{other}' (known: require_breakdown_adr, require_amendments)")),
         }
     }
-    (optional, problems)
+    (optional, amendments, problems)
+}
+
+/// `[planning]` (GH #455/#456, `REQ-TRS-PIEV-001`, `REQ-TRS-PICOMMIT-001`): opt-in PlanningItem
+/// evidence gates. Every key defaults to `false`, so a model without the table behaves as before.
+///
+/// ```toml
+/// [planning]
+/// require_testcase_evidence = true   # W319: an active TestCase no PlanningItem's evidence names
+/// check_commit_paths = true          # W320: commit evidence touches none of the item's paths
+/// require_commit_evidence = true     # W321: a done leaf item without commit evidence
+/// ```
+///
+/// Keys are accepted in snake_case or camelCase. A malformed value or unknown key is ignored and
+/// reported as `W322`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanningPolicy {
+    pub require_testcase_evidence: bool,
+    pub check_commit_paths: bool,
+    pub require_commit_evidence: bool,
+    /// Human-readable defects found while loading (`W322`).
+    pub problems: Vec<String>,
+}
+
+impl PlanningPolicy {
+    /// Read `[planning]` from `<model_root>/.syscribe.toml`; the default when absent or unparseable.
+    pub fn load(model_root: &Path) -> Self {
+        let mut p = PlanningPolicy::default();
+        let Some(root) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok().and_then(|t| toml::from_str::<toml::Value>(&t).ok()) else {
+            return p;
+        };
+        let Some(tbl) = root.get("planning") else { return p };
+        let Some(tbl) = tbl.as_table() else {
+            p.problems.push("[planning] must be a table".into());
+            return p;
+        };
+        for (k, v) in tbl {
+            let slot = match k.as_str() {
+                "require_testcase_evidence" | "requireTestcaseEvidence" | "requireTestCaseEvidence" => &mut p.require_testcase_evidence,
+                "check_commit_paths" | "checkCommitPaths" => &mut p.check_commit_paths,
+                "require_commit_evidence" | "requireCommitEvidence" => &mut p.require_commit_evidence,
+                other => {
+                    p.problems.push(format!("[planning] unknown key '{other}' (expected require_testcase_evidence, check_commit_paths or require_commit_evidence)"));
+                    continue;
+                }
+            };
+            match v.as_bool() {
+                Some(b) => *slot = b,
+                None => p.problems.push(format!("[planning] {k} must be true or false, got {v}")),
+            }
+        }
+        p
+    }
 }
 
 /// Read `[ids] check_file_names` (GH #185); `false` when unset.
@@ -1325,6 +1413,39 @@ pub fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     } else {
         Some(s)
     }
+}
+
+/// `p` made absolute (against the working directory) with `.`/`..` removed, and the longest existing
+/// prefix canonicalised, so a path that no longer exists (a deleted file) still compares equal to the
+/// canonical form of a path under the same directory. Shared by `impact --files` and `trace-code`.
+pub fn lenient_canonical(p: &Path) -> PathBuf {
+    let abs = if p.is_absolute() { p.to_path_buf() } else { std::env::current_dir().unwrap_or_default().join(p) };
+    let mut clean = PathBuf::new();
+    for c in abs.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                clean.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => clean.push(other.as_os_str()),
+        }
+    }
+    let mut rest: Vec<std::ffi::OsString> = Vec::new();
+    let mut base = clean.clone();
+    while !base.exists() {
+        match (base.file_name().map(|n| n.to_os_string()), base.parent().map(Path::to_path_buf)) {
+            (Some(n), Some(parent)) => {
+                rest.push(n);
+                base = parent;
+            }
+            _ => break,
+        }
+    }
+    let mut out = std::fs::canonicalize(&base).unwrap_or(base);
+    for n in rest.into_iter().rev() {
+        out.push(n);
+    }
+    out
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.

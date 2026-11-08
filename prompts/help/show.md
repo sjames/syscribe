@@ -9,6 +9,17 @@ domain, …), its inline features, and its documentation body. Accepts a qualifi
 name (Pkg::Sub::Name) or a stable id (REQ-*, TC-*, SG-*, …). User-defined links
 (`links:`) appear as one `links.<type>` row per link type.
 
+An `ADR` or `Requirement` with `amendments:` (GH #454) gets an `## Amendments` table before
+the documentation body — one row per well-formed entry in authored order: Date, Kind
+(`clarification`/`scope-change`), By, Reason, Ref. Add an entry with
+`set <id> amendment.add`.
+
+Value references (GH #452): each `{{Elem.attr}}` in the documentation body — outside code,
+but inside ```gherkin scenarios — is printed as the attribute's current value followed by
+its unit (`{{PolicydBounds.snapshotFixedBytes}}` → `47244 B`). The file keeps the raw form;
+an unresolvable reference is printed as written (`validate` reports it as `E331`).
+`refs Elem.attr` lists every use and every copied value.
+
 After the documentation body come the §3.10 annotations attached from other files:
 one `## Documentation (<locale>)` section per locale variant (`locale:` +
 `qualifiedName:`), and one `## Note: <name>` section per `about:` comment that lists
