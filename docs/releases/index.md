@@ -2,6 +2,31 @@
 
 `RELEASES`
 
+## 0.59.0 — 2026-11-08
+
+**Planning and decisions**
+
+- **New:** questions reserved to a person (#457, REQ-TRS-AGENTPOL-004). A question with `answerBy: human` (the default for every question under `[agents] human_only_answers = true`; a question's own `answerBy: any` wins) cannot be answered by an agent. The CLI writers, the write layer and the MCP guarded write refuse it, also under `--dry-run`. `validate` raises `W323` when git shows an agent wrote such an answer. `questions --json` adds `answerBy` and `answerProvenance`.
+- **New:** PlanningItem `evidence: - commit: <sha>` (#455, REQ-TRS-PICOMMIT-001), checked against git. A malformed, unknown or ambiguous hash, or an unquoted one YAML reads as a number, is `E728`. A resolving commit counts toward `E719`. `steps`/`context` show the sha and subject, `set … evidence.add commit=` checks before writing, and `log --item <PI>` lists an item's commits.
+- **New:** the opt-in `[planning]` table (#456, #455, REQ-TRS-PIEV-001). `require_testcase_evidence` gives `W319` for an active TestCase that no PlanningItem's evidence names; `coverage --json` always lists `testCasesWithoutPlanningEvidence`. `check_commit_paths` gives `W320` and `require_commit_evidence` gives `W321`. A malformed entry is `W322`.
+- **New:** amendment records (#454, REQ-TRS-AMEND-001..004). `amendments:` on an ADR or Requirement is a list of `{date, by, reason, ref?, kind: clarification|scope-change}`; a malformed one is `E330`. `set <id> amendment.add …` adds an entry, and `show`/`export-html` render the history. `[traceability] require_amendments = true` gives `W324` when an accepted ADR or an approved Requirement changed since that status was set with no amendment. A scope change without an owner reference is `W325`.
+
+**Referencing instead of copying**
+
+- **New:** requirement item anchors and checked references (#453, REQ-TRS-ITEMREF-001..005). `1. {#slug} …` anchors an item. `REQ-X#slug`, `REQ-X#5`, `REQ-X item 5` and `PI-Y#Qn` in prose are checked: `W092` for a missing target, `W093` for an open question cited past draft, and `W094` for an answered question still cited "to confirm", with phrases from `[references] open_markers`. `refs`, `impact` and `check-ref` accept them, and `traceBaselines` can baseline a single item.
+- **New:** value references (#452, REQ-TRS-ATTRREF-001..005). `{{Elem.attr}}` in a body or gherkin scenario renders the attribute's value with its unit. It is `E331` when it does not resolve. `W096` flags a literal that equals a previous value (a stale copy), and the opt-in `[references] copied_values` gives `W095` for a literal copy of the current value. `refs <Elem>.<attr>` lists uses, copies and stale copies.
+
+**Code traceability**
+
+- **New:** `syscribe trace-code` (#451, REQ-TRS-TRACECODE-001..004) lists code units under the `[traceCode]` roots that no `implementedBy:` or `sourceFile:` names, compared with a baseline that only shrinks. It exits 2 on a new or stale entry, `--write-baseline` refreshes the baseline, and `[repos]` peers are checked against their own elements. `validate = true` gives `W326`/`W327`, and a malformed table is `W328`. There is also a read-only MCP `trace_code` tool. This project's `model/` now uses it.
+
+**Changed (behaviour)**
+
+- Bare `syscribe coverage` prints a summary instead of a usage error.
+- A `traceBaselines:` key may name a requirement item (`REQ-X#slug`).
+- `lint-docs` adds `W092` and the advisory `W094`/`W095`.
+- New findings you may meet in an existing model without opting in: `W092`–`W094` (item and question citations), `E330` (a malformed `amendments:`), `E331` (a `{{…}}` that does not resolve), `W096` (a stale copied value), `E728` (bad commit evidence) and `W323`.
+
 ## 0.58.1 — 2026-11-05
 
 **Fixed**

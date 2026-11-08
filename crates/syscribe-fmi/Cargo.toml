@@ -1,6 +1,6 @@
 [package]
 name = "syscribe-fmi"
-version = "0.58.1"
+version = "0.59.0"
 edition = "2021"
 description = "FMI Co-Simulation plant backend for syscribe (optional, cargo feature `fmi`)"
 
