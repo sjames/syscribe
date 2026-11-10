@@ -9,15 +9,45 @@ use std::fmt;
 use crate::units::Dim;
 
 /// A dimensioned number in SI base units.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Quantity {
     pub v: f64,
     pub dim: Dim,
+    /// What a temperature value is (GH #478); [`TempKind::Neutral`] for every other quantity.
+    pub temp: TempKind,
+}
+
+/// Debug text is part of the composite evidence hash of a fault campaign (it prints injected values), so a plain
+/// quantity prints exactly as it did before `temp` existed and only a temperature kind adds a field.
+impl fmt::Debug for Quantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct("Quantity");
+        d.field("v", &self.v).field("dim", &self.dim);
+        if self.temp != TempKind::Neutral {
+            d.field("temp", &self.temp);
+        }
+        d.finish()
+    }
+}
+
+/// How a temperature quantity may be combined. `v` is always kelvin (or a kelvin difference).
+///
+/// * `Point` — an absolute reading on an offset scale (`23 degC`, `70 degF`). Two points subtract to a `Delta`;
+///   a `Delta` may be added to or taken from a point; two points cannot be added, scaled or multiplied.
+/// * `Delta` — a temperature difference (`5 delta_degC`, `5 delta_K`, or `point - point`). Scales freely.
+/// * `Neutral` — a plain kelvin value or any non-temperature quantity: ratio-scale arithmetic, and it reads as
+///   an absolute value when converted to `degC`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TempKind {
+    #[default]
+    Neutral,
+    Point,
+    Delta,
 }
 
 impl Quantity {
     pub fn scalar(v: f64) -> Self {
-        Quantity { v, dim: NONE }
+        Quantity { v, dim: NONE, temp: TempKind::Neutral }
     }
 }
 
@@ -168,6 +198,35 @@ pub fn unit_scale(unit: &str) -> Option<(f64, Dim)> {
         }
     }
     None
+}
+
+/// Temperature scales with an offset from kelvin (GH #478): `K = v * scale + offset`. A value in one of these
+/// is an **absolute** temperature; the result of `a - b` is a difference and reads in `K`.
+const AFFINE: &[(&str, f64, f64, TempKind)] = &[
+    ("degC", 1.0, 273.15, TempKind::Point),
+    ("degreeCelsius", 1.0, 273.15, TempKind::Point),
+    ("celsius", 1.0, 273.15, TempKind::Point),
+    ("degF", 5.0 / 9.0, 459.67 * 5.0 / 9.0, TempKind::Point),
+    ("degreeFahrenheit", 5.0 / 9.0, 459.67 * 5.0 / 9.0, TempKind::Point),
+    ("delta_degC", 1.0, 0.0, TempKind::Delta),
+    ("delta_degF", 5.0 / 9.0, 0.0, TempKind::Delta),
+    ("delta_K", 1.0, 0.0, TempKind::Delta),
+];
+
+/// Whether a unit names an absolute point on an offset scale, a temperature difference, or neither.
+pub fn unit_kind(unit: &str) -> TempKind {
+    let u = unit.strip_prefix("SI::").unwrap_or(unit);
+    AFFINE.iter().find(|(n, _, _, _)| *n == u).map(|(_, _, _, k)| *k).unwrap_or_default()
+}
+
+/// `unit` → (scale, offset, dimension): `SI = v * scale + offset`. Linear units have offset 0; `degC`/`degF`
+/// carry their kelvin offset. Prefer this over [`unit_scale`] wherever a value in a unit is converted.
+pub fn unit_affine(unit: &str) -> Option<(f64, f64, Dim)> {
+    let u = unit.strip_prefix("SI::").unwrap_or(unit);
+    if let Some((_, s, o, _)) = AFFINE.iter().find(|(n, _, _, _)| *n == u) {
+        return Some((*s, *o, dim(0, 0, 0, 0, 1, 0, 0)));
+    }
+    unit_scale(u).map(|(s, d)| (s, 0.0, d))
 }
 
 /// The preferred symbol of a dimension in SI base/derived units, when it has one.
@@ -500,10 +559,10 @@ impl Parser {
                 // A unit may follow the number: `50 ms`, `3.3V`.
                 if let Some(Tok::Id(u)) = self.peek().cloned() {
                     if !KEYWORDS.contains(&u.as_str()) {
-                        match unit_scale(&u) {
-                            Some((scale, d)) => {
+                        match unit_affine(&u) {
+                            Some((scale, offset, d)) => {
                                 self.at += 1;
-                                return Ok(Expr::Lit(Value::Num(Quantity { v: n * scale, dim: d })));
+                                return Ok(Expr::Lit(Value::Num(Quantity { v: n * scale + offset, dim: d, temp: unit_kind(&u) })));
                             }
                             None => return Err(ExprError::Parse(format!("unknown unit '{u}' after {n}"))),
                         }
@@ -723,6 +782,9 @@ fn compare(op: &str, l: &Value, r: &Value) -> Result<bool, ExprError> {
             if a.dim != b.dim {
                 return Err(ExprError::Dimension(format!("cannot compare {} with {}", dim_name(&a.dim), dim_name(&b.dim))));
             }
+            if (a.temp == TempKind::Point && b.temp == TempKind::Delta) || (a.temp == TempKind::Delta && b.temp == TempKind::Point) {
+                return Err(temp_err("cannot compare an absolute temperature with a temperature difference"));
+            }
             Ok(match op {
                 "==" => same_qty(a, b),
                 "!=" => !same_qty(a, b),
@@ -743,12 +805,35 @@ fn compare(op: &str, l: &Value, r: &Value) -> Result<bool, ExprError> {
     }
 }
 
+const TEMP: Dim = dim(0, 0, 0, 0, 1, 0, 0);
+
+fn temp_err(msg: &str) -> ExprError {
+    ExprError::Dimension(msg.to_string())
+}
+
 fn arith(op: &str, l: &Value, r: &Value) -> Result<Value, ExprError> {
+    use TempKind::*;
     let (a, b) = (want_num(l, op)?, want_num(r, op)?);
     let q = match op {
         "+" | "-" | "%" => {
             if a.dim != b.dim {
                 return Err(ExprError::Dimension(format!("'{op}' needs equal dimensions, got {} and {}", dim_name(&a.dim), dim_name(&b.dim))));
+            }
+            // GH #478: which kind of temperature the result is, or why the sum is meaningless.
+            let temp = match (a.temp, b.temp, op) {
+                (Point, Point, "+") => return Err(temp_err("cannot add two absolute temperatures (degC/degF are readings, not amounts): add a difference such as `5 delta_degC` or `5 delta_K`")),
+                (Point, Point, "-") => Delta,
+                (Point, Delta, "+" | "-") | (Delta, Point, "+") => Point,
+                (Delta, Point, "-") => return Err(temp_err("cannot take an absolute temperature from a temperature difference")),
+                (Point, Neutral, _) | (Neutral, Point, _) => return Err(temp_err("ambiguous: a plain K value could be a temperature or a difference; write the difference as `delta_K` (or the reading as `degC`)")),
+                (Delta, Delta, _) => Delta,
+                (Neutral, Delta, "+" | "-") | (Delta, Neutral, "+") => Neutral,
+                (Delta, Neutral, _) => return Err(temp_err("cannot take a plain K value from a temperature difference")),
+                (Neutral, Neutral, "-") if a.dim == TEMP => Delta,
+                _ => Neutral,
+            };
+            if op == "%" && (a.temp == Point || b.temp == Point) {
+                return Err(temp_err("'%' is not defined for an absolute temperature"));
             }
             let v = match op {
                 "+" => a.v + b.v,
@@ -760,14 +845,22 @@ fn arith(op: &str, l: &Value, r: &Value) -> Result<Value, ExprError> {
                     a.v % b.v
                 }
             };
-            Quantity { v: finite(v, "result")?, dim: a.dim }
+            Quantity { v: finite(v, "result")?, dim: a.dim, temp: if op == "%" { a.temp } else { temp } }
         }
-        "*" => Quantity { v: finite(a.v * b.v, "result")?, dim: dim_add(&a.dim, &b.dim, 1)? },
         _ => {
-            if b.v == 0.0 {
-                return Err(ExprError::Domain("division by zero".to_string()));
+            if a.temp == Point || b.temp == Point {
+                return Err(temp_err(&format!("cannot apply '{op}' to an absolute temperature on an offset scale (degC/degF): use K, or a difference")));
             }
-            Quantity { v: finite(a.v / b.v, "result")?, dim: dim_add(&a.dim, &b.dim, -1)? }
+            let (v, d) = if op == "*" {
+                (a.v * b.v, dim_add(&a.dim, &b.dim, 1)?)
+            } else {
+                if b.v == 0.0 {
+                    return Err(ExprError::Domain("division by zero".to_string()));
+                }
+                (a.v / b.v, dim_add(&a.dim, &b.dim, -1)?)
+            };
+            let temp = if d == TEMP && (a.temp == Delta || b.temp == Delta) { Delta } else { Neutral };
+            Quantity { v: finite(v, "result")?, dim: d, temp }
         }
     };
     Ok(Value::Num(q))
@@ -775,11 +868,15 @@ fn arith(op: &str, l: &Value, r: &Value) -> Result<Value, ExprError> {
 
 fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
     let nums: Vec<Quantity> = args.iter().map(|a| want_num(a, f)).collect::<Result<_, _>>()?;
+    // An absolute temperature on an offset scale only supports rounding, min and max (GH #478).
+    if nums.iter().any(|q| q.temp == TempKind::Point) && !matches!(f, "floor" | "ceil" | "round" | "min" | "max") {
+        return Err(temp_err(&format!("{f} is not defined for an absolute temperature (degC/degF): use K, or a difference")));
+    }
     let q = match f {
-        "abs" => Quantity { v: nums[0].v.abs(), dim: nums[0].dim },
-        "floor" => Quantity { v: nums[0].v.floor(), dim: nums[0].dim },
-        "ceil" => Quantity { v: nums[0].v.ceil(), dim: nums[0].dim },
-        "round" => Quantity { v: nums[0].v.round(), dim: nums[0].dim },
+        "abs" => Quantity { v: nums[0].v.abs(), dim: nums[0].dim, temp: nums[0].temp },
+        "floor" => Quantity { v: nums[0].v.floor(), dim: nums[0].dim, temp: nums[0].temp },
+        "ceil" => Quantity { v: nums[0].v.ceil(), dim: nums[0].dim, temp: nums[0].temp },
+        "round" => Quantity { v: nums[0].v.round(), dim: nums[0].dim, temp: nums[0].temp },
         "sqrt" => {
             if nums[0].v < 0.0 {
                 return Err(ExprError::Domain("sqrt of a negative number".to_string()));
@@ -791,7 +888,7 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
             for (o, e) in d.iter_mut().zip(nums[0].dim.0) {
                 *o = e / 2;
             }
-            Quantity { v: nums[0].v.sqrt(), dim: Dim(d) }
+            Quantity { v: nums[0].v.sqrt(), dim: Dim(d), temp: TempKind::Neutral }
         }
         // transcendental functions come from the pure-Rust `libm`, not the platform's, so a result is the same bits on
         // every machine (GH #340); each takes and gives a dimensionless number (an angle in radians)
@@ -810,7 +907,7 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
                 "cos" => libm::cos(x.v),
                 _ => libm::tanh(x.v),
             };
-            Quantity { v: finite(v, "result")?, dim: NONE }
+            Quantity { v: finite(v, "result")?, dim: NONE, temp: TempKind::Neutral }
         }
         "pow" => {
             let n = nums[1];
@@ -829,7 +926,7 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
             if v == 0.0 && nums[0].v != 0.0 {
                 return Err(ExprError::Domain("result underflows to zero".to_string()));
             }
-            Quantity { v, dim: Dim(d) }
+            Quantity { v, dim: Dim(d), temp: TempKind::Neutral }
         }
         _ => {
             // min / max: every argument the same dimension
@@ -838,7 +935,12 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
                 return Err(ExprError::Dimension(format!("{f} needs equal dimensions")));
             }
             let v = nums.iter().map(|q| q.v).fold(first.v, |a, b| if f == "min" { a.min(b) } else { a.max(b) });
-            Quantity { v, dim: first.dim }
+            let any_point = nums.iter().any(|q| q.temp == TempKind::Point);
+            if any_point && nums.iter().any(|q| q.temp != TempKind::Point) {
+                return Err(temp_err(&format!("{f} cannot mix an absolute temperature (degC/degF) with a difference or a plain K value")));
+            }
+            let temp = if nums.iter().all(|q| q.temp == first.temp) { first.temp } else { TempKind::Neutral };
+            Quantity { v, dim: first.dim, temp }
         }
     };
     Ok(Value::Num(q))
@@ -860,7 +962,10 @@ impl Expr {
                     "not" => Ok(Value::Bool(!want_bool(&v, "not")?)),
                     _ => {
                         let q = want_num(&v, "unary '-'")?;
-                        Ok(Value::Num(Quantity { v: -q.v, dim: q.dim }))
+                        if q.temp == TempKind::Point {
+                            return Err(temp_err("cannot negate an absolute temperature (degC/degF)"));
+                        }
+                        Ok(Value::Num(Quantity { v: -q.v, dim: q.dim, temp: q.temp }))
                     }
                 }
             }
@@ -957,9 +1062,18 @@ impl Expr {
 
 /// Convert a quantity to `unit` (`ms`, `kWh`, …); a dimension mismatch is an error.
 pub fn to_unit(q: &Quantity, unit: &str) -> Result<f64, ExprError> {
-    let (scale, d) = unit_scale(unit).ok_or_else(|| ExprError::Parse(format!("unknown unit '{unit}'")))?;
+    let (scale, offset, d) = unit_affine(unit).ok_or_else(|| ExprError::Parse(format!("unknown unit '{unit}'")))?;
     if d != q.dim {
         return Err(ExprError::Dimension(format!("cannot express {} in {unit} ({})", dim_name(&q.dim), dim_name(&d))));
     }
-    Ok(q.v / scale)
+    match (unit_kind(unit), q.temp) {
+        (TempKind::Point, TempKind::Delta) => {
+            return Err(ExprError::Dimension(format!("a temperature difference is not an absolute reading: express it in delta_{unit} or K, not {unit}")))
+        }
+        (TempKind::Delta, TempKind::Point) => {
+            return Err(ExprError::Dimension(format!("an absolute temperature is not a difference: express it in degC, degF or K, not {unit}")))
+        }
+        _ => {}
+    }
+    Ok((q.v - offset) / scale)
 }

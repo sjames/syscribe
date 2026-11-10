@@ -153,7 +153,7 @@ pub fn infer(e: &Expr, env: &dyn Fn(&str) -> Ty) -> Result<Ty, String> {
                     let lit = match &args[1] {
                         Expr::Lit(Value::Num(q)) => Some(*q),
                         Expr::Unary("-", inner) => match &**inner {
-                            Expr::Lit(Value::Num(q)) => Some(crate::expr::Quantity { v: -q.v, dim: q.dim }),
+                            Expr::Lit(Value::Num(q)) => Some(crate::expr::Quantity { v: -q.v, dim: q.dim, temp: crate::expr::TempKind::Neutral }),
                             _ => None,
                         },
                         _ => None,

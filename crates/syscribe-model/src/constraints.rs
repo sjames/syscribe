@@ -72,13 +72,13 @@ fn typed_value(text: &str, unit: Option<&str>, type_ref: Option<&str>) -> Option
         return Some(Value::Num(q)); // the text carried its own unit
     }
     if let Some(u) = unit.map(|u| u.strip_prefix("SI::").unwrap_or(u)).filter(|u| !u.is_empty()) {
-        if let Some((scale, dim)) = expr::unit_scale(u) {
-            return Some(Value::Num(Quantity { v: q.v * scale, dim }));
+        if let Some((scale, offset, dim)) = expr::unit_affine(u) {
+            return Some(Value::Num(Quantity { v: q.v * scale + offset, dim, temp: expr::unit_kind(u) }));
         }
         return Some(Value::Num(q));
     }
     if let Some(dim) = type_ref.and_then(quantity_dimension) {
-        return Some(Value::Num(Quantity { v: q.v, dim }));
+        return Some(Value::Num(Quantity { v: q.v, dim, temp: crate::expr::TempKind::Neutral }));
     }
     Some(Value::Num(q))
 }
@@ -195,8 +195,8 @@ fn def_params(def: &RawElement) -> Vec<(String, Option<String>, Option<String>, 
 /// other parameter is a plain-number slot.
 fn quantity_slot(ty: Option<&str>, unit: Option<&str>) -> Option<Dim> {
     unit.map(|u| u.strip_prefix("SI::").unwrap_or(u))
-        .and_then(expr::unit_scale)
-        .map(|(_, d)| d)
+        .and_then(expr::unit_affine)
+        .map(|(_, _, d)| d)
         .or_else(|| ty.and_then(quantity_dimension))
 }
 
@@ -208,8 +208,8 @@ pub fn coerce_param(v: Value, ty: Option<&str>, unit: Option<&str>) -> Value {
     match quantity_slot(ty, unit) {
         None => Value::Num(Quantity::scalar(q.v)),
         Some(dim) if q.dim == Dim([0; 7]) => {
-            let scale = unit.map(|u| u.strip_prefix("SI::").unwrap_or(u)).and_then(expr::unit_scale).map(|(s, _)| s).unwrap_or(1.0);
-            Value::Num(Quantity { v: q.v * scale, dim })
+            let scale = unit.map(|u| u.strip_prefix("SI::").unwrap_or(u)).and_then(expr::unit_affine).map(|(s, o, _)| (s, o)).unwrap_or((1.0, 0.0));
+            Value::Num(Quantity { v: q.v * scale.0 + scale.1, dim, temp: crate::expr::TempKind::Neutral })
         }
         Some(_) => Value::Num(q),
     }

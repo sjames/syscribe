@@ -582,7 +582,7 @@ pub fn check_all(elements: &[RawElement], resolver: &Resolver, elem: &RawElement
                     let pn = &spec.instances[idx].name;
                     let found = if source { p.outputs.iter().find(|v| v.name == name) } else { p.inputs.iter().find(|v| v.name == name) };
                     match found {
-                        Some(v) => Ok(Some(Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim }))),
+                        Some(v) => Ok(Some(Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim, temp: crate::expr::TempKind::Neutral }))),
                         None if p.inputs.iter().chain(&p.outputs).chain(&p.parameters).chain(&p.states).any(|v| v.name == name) => {
                             Err(format!("'{pn}.{name}' cannot be {} (a binding reads a plant output and writes a plant input)", if source { "read" } else { "written" }))
                         }

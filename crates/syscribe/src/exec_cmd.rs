@@ -1329,7 +1329,7 @@ fn parse_range(spec: &str) -> Result<(String, Vec<Value>), String> {
         if n > MAX_SWEEP_POINTS {
             return Err(format!("--param {name}: {n} values exceed the limit of {MAX_SWEEP_POINTS} points"));
         }
-        Ok((name, (0..n).map(|i| Value::Num(syscribe_model::expr::Quantity { v: lo.v + step.v * i as f64, dim: lo.dim })).collect()))
+        Ok((name, (0..n).map(|i| Value::Num(syscribe_model::expr::Quantity { v: lo.v + step.v * i as f64, dim: lo.dim, temp: syscribe_model::expr::TempKind::Neutral })).collect()))
     } else {
         let vals: Option<Vec<Value>> = range.split(',').map(|t| parse_value(t.trim())).collect();
         match vals {

@@ -161,7 +161,7 @@ fn a_state_machine_reacts_to_the_real_bouncing_ball() {
         let plant = FmiBackend.instantiate(&fmu(file), &[]).unwrap();
         let cosim = CoSim::new(vec![("ball".to_string(), plant)], vec![("ball.h".to_string(), "height".to_string())], 0.01, &m).unwrap();
         let mut r = Run::with_plants(&m, Options::default(), cosim);
-        assert_eq!(r.var("height"), Some(Value::Num(syscribe_model::expr::Quantity { v: 1.0, dim: LENGTH })), "initial output read before the first settle");
+        assert_eq!(r.var("height"), Some(Value::Num(syscribe_model::expr::Quantity { v: 1.0, dim: LENGTH, temp: syscribe_model::expr::TempKind::Neutral })), "initial output read before the first settle");
         r.advance(1.0);
         assert_eq!(r.active(), ["Bounced"], "{file}");
         let at = r.trace().iter().find(|s| s.cause.starts_with("change")).unwrap().time;

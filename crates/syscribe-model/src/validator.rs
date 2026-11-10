@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
@@ -9430,9 +9430,166 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             if text("mg_moe_measurement").is_some() {
                 if let Some(Some(u)) = text("mg_moe_unit") {
-                    if crate::expr::unit_scale(&u).is_none() && !u.is_empty() && u != "fraction" {
+                    if crate::expr::unit_affine(&u).is_none() && !u.is_empty() && u != "fraction" {
                         bad(format!("mg_moe_unit '{u}' is not a unit a recorded measurement can be converted to"));
                     }
+                }
+            }
+        }
+
+        // MG034 (GH #476): `trade-study` reads its settings from untyped custom_fields, so a misspelt or missing key
+        // would silently change the ranking. Warn on an unknown `mg_moe*`/`mg_mop*` key (with a hint), a missing
+        // required key, equal bounds, and weights that do not sum to 1 over the MoEs being ranked.
+        {
+            const MOE_KEYS: &[&str] = &[
+                "mg_moe", "mg_moe_measures", "mg_moe_direction", "mg_moe_threshold", "mg_moe_objective", "mg_moe_weight",
+                "mg_moe_source", "mg_moe_measurement", "mg_moe_aggregate", "mg_moe_unit", "mg_moe_variables", "mg_moe_inputs",
+            ];
+            const MOP_KEYS: &[&str] = &["mg_mop", "mg_mop_refines", "mg_mop_unit"];
+            fn edit_distance(a: &str, b: &str) -> usize {
+                let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+                let mut prev: Vec<usize> = (0..=b.len()).collect();
+                for i in 1..=a.len() {
+                    let mut cur = vec![i];
+                    for j in 1..=b.len() {
+                        let c = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+                        cur.push((prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + c));
+                    }
+                    prev = cur;
+                }
+                prev[b.len()]
+            }
+            let mut weight_sum = 0.0f64;
+            let mut weighted: Vec<&RawElement> = Vec::new();
+            for elem in elements {
+                let fm = &elem.frontmatter;
+                let is_moe = fm.mg_bool("mg_moe") == Some(true);
+                let is_mop = fm.mg_bool("mg_mop") == Some(true);
+                if !is_moe && !is_mop {
+                    continue;
+                }
+                let known = if is_moe { MOE_KEYS } else { MOP_KEYS };
+                let mut keys: Vec<&str> = fm.custom_fields.keys().map(|k| k.as_str()).filter(|k| k.starts_with("mg_moe") || k.starts_with("mg_mop")).collect();
+                keys.sort();
+                for k in keys {
+                    if MOE_KEYS.contains(&k) || MOP_KEYS.contains(&k) {
+                        continue;
+                    }
+                    let hint = MOE_KEYS.iter().chain(MOP_KEYS.iter()).filter(|c| known.contains(c)).min_by_key(|c| edit_distance(k, c)).filter(|c| edit_distance(k, c) <= 3);
+                    findings.push(warning(
+                        "MG034",
+                        &elem.file_path,
+                        &format!("'{}' has an unknown key '{k}'{}", elem.qualified_name, hint.map(|h| format!(" — did you mean '{h}'?")).unwrap_or_default()),
+                    ));
+                }
+                if !is_moe {
+                    continue;
+                }
+                let combined = fm.custom_fields.contains_key("mg_moe_variables") || fm.custom_fields.contains_key("mg_moe_inputs");
+                // A MoE that is another's input is scored inside it and carries no weight of its own.
+                let used_as_input = elements.iter().any(|o| {
+                    matches!(o.frontmatter.custom_fields.get("mg_moe_inputs"), Some(serde_yaml::Value::Mapping(m))
+                        if m.values().filter_map(|v| v.as_str()).any(|r| r == elem.qualified_name || Some(r) == fm.id.as_deref()))
+                });
+                let mut required = vec!["mg_moe_direction", "mg_moe_threshold", "mg_moe_objective"];
+                if !used_as_input {
+                    required.push("mg_moe_weight");
+                }
+                if !combined {
+                    required.push("mg_moe_unit");
+                }
+                if fm.mg_str("mg_moe_source").as_deref() == Some("measurement") && !combined {
+                    required.push("mg_moe_measurement");
+                }
+                for k in required {
+                    if !fm.custom_fields.contains_key(k) {
+                        findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' has no {k}; trade-study would fall back to a default and change the ranking", elem.qualified_name)));
+                    }
+                }
+                if let (Some(th), Some(ob)) = (fm.mg_f64("mg_moe_threshold"), fm.mg_f64("mg_moe_objective")) {
+                    if th == ob {
+                        findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' has threshold equal to objective ({th}); every score is 0", elem.qualified_name)));
+                    }
+                }
+                if let Some(w) = fm.mg_f64("mg_moe_weight") {
+                    if !used_as_input {
+                        weight_sum += w;
+                        weighted.push(elem);
+                    }
+                }
+            }
+            // `mg_moe_inputs` must name MoEs, and not in a cycle; every variable of an expression must be bound.
+            let moes: Vec<&RawElement> = elements.iter().filter(|e| e.frontmatter.mg_bool("mg_moe") == Some(true)).collect();
+            let find = |r: &str| moes.iter().position(|m| m.qualified_name == r || m.frontmatter.id.as_deref() == Some(r));
+            let mut edges: Vec<Vec<usize>> = vec![Vec::new(); moes.len()];
+            for (i, elem) in moes.iter().enumerate() {
+                if let Some(serde_yaml::Value::Mapping(m)) = elem.frontmatter.custom_fields.get("mg_moe_inputs") {
+                    for (var, target) in m {
+                        let (Some(var), Some(r)) = (var.as_str(), target.as_str()) else {
+                            findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' mg_moe_inputs must map a variable name to a MoE qualified name or id", elem.qualified_name)));
+                            continue;
+                        };
+                        match find(r) {
+                            Some(j) => edges[i].push(j),
+                            None => findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' mg_moe_inputs '{var}: {r}' does not resolve to a MoE (mg_moe: true)", elem.qualified_name))),
+                        }
+                    }
+                }
+            }
+            for (i, elem) in moes.iter().enumerate() {
+                // reachable from itself through inputs
+                let (mut seen, mut stack) = (vec![false; moes.len()], edges[i].clone());
+                let mut cyc = false;
+                while let Some(n) = stack.pop() {
+                    if n == i {
+                        cyc = true;
+                        break;
+                    }
+                    if !std::mem::replace(&mut seen[n], true) {
+                        stack.extend(edges[n].iter().copied());
+                    }
+                }
+                if cyc {
+                    findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' is its own input through mg_moe_inputs (cycle); its cells would be n/a", elem.qualified_name)));
+                }
+            }
+            // Names a Configuration can bind: the final `.`/`::` segment of each parameterBindings key, and the full key.
+            let mut bindable: BTreeSet<String> = BTreeSet::new();
+            let mut any_config = false;
+            for e in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration))) {
+                any_config = true;
+                if let Some(serde_yaml::Value::Mapping(m)) = e.frontmatter.effective_parameter_bindings() {
+                    for k in m.keys().filter_map(|k| k.as_str()) {
+                        bindable.insert(k.to_string());
+                        bindable.insert(k.rsplit(['.', ':']).next().unwrap_or(k).to_string());
+                    }
+                }
+            }
+            for elem in &moes {
+                let Some(expr) = elem.frontmatter.expression.as_deref().filter(|x| !x.trim().is_empty()) else { continue };
+                let mut bound: BTreeSet<String> = BTreeSet::new();
+                for key in ["mg_moe_variables", "mg_moe_inputs"] {
+                    if let Some(serde_yaml::Value::Mapping(m)) = elem.frontmatter.custom_fields.get(key) {
+                        bound.extend(m.keys().filter_map(|k| k.as_str()).map(str::to_string));
+                    }
+                }
+                let asked = std::cell::RefCell::new(BTreeSet::<String>::new());
+                let _ = crate::feature_model::eval_expr_rhs(expr, &|t: &str| {
+                    asked.borrow_mut().insert(t.to_string());
+                    Some(1.0)
+                });
+                let combined = !bound.is_empty();
+                for name in asked.into_inner() {
+                    // Without variables, inputs or any Configuration there is nothing to check a name against.
+                    if bound.contains(&name) || bindable.contains(&name) || (!combined && !any_config) {
+                        continue;
+                    }
+                    findings.push(warning("MG034", &elem.file_path, &format!("MoE '{}' expression uses '{name}', which no mg_moe_variables, mg_moe_inputs or Configuration parameterBindings key provides", elem.qualified_name)));
+                }
+            }
+            if !weighted.is_empty() && (weight_sum - 1.0).abs() > 1e-6 {
+                for elem in &weighted {
+                    findings.push(warning("MG034", &elem.file_path, &format!("MoE weights sum to {weight_sum} over the {} MoEs being ranked, not 1", weighted.len())));
                 }
             }
         }
