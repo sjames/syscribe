@@ -9580,11 +9580,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         bound.extend(m.keys().filter_map(|k| k.as_str()).map(str::to_string));
                     }
                 }
+                // GH #483: the names are the expression language's identifiers, so its functions (`min`, `abs`, ...)
+                // and keywords (`if`/`then`/`else`, `and`/`or`/`not`, `true`/`false`) are not mistaken for variables.
+                // An expression that does not parse as the language falls back to the arithmetic tokens.
                 let asked = std::cell::RefCell::new(BTreeSet::<String>::new());
-                let _ = crate::feature_model::eval_expr_rhs(expr, &|t: &str| {
-                    asked.borrow_mut().insert(t.to_string());
-                    Some(1.0)
-                });
+                match crate::expr::parse(crate::feature_model::assignment_rhs(expr)) {
+                    Ok(parsed) => asked.borrow_mut().extend(parsed.names()),
+                    Err(_) => {
+                        let _ = crate::feature_model::eval_expr_rhs(expr, &|t: &str| {
+                            asked.borrow_mut().insert(t.to_string());
+                            Some(1.0)
+                        });
+                    }
+                }
                 let combined = !bound.is_empty();
                 for name in asked.into_inner() {
                     // Without variables, inputs or any Configuration there is nothing to check a name against.

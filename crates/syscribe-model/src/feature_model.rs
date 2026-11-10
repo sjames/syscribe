@@ -324,8 +324,25 @@ pub fn eval_constraint_tri(expr: &str, resolve: &dyn Fn(&str) -> Option<(f64, f6
 /// Used by the MoE trade study (REQ-TRS-MG-007) to compute a MoE host element's
 /// `expression:` under a configuration's `parameterBindings`.
 pub fn eval_expr_rhs(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
-    let rhs = split_assignment_rhs(expr).unwrap_or(expr);
-    eval_arith(rhs, resolve)
+    let rhs = assignment_rhs(expr);
+    // Plain arithmetic keeps its exact behaviour; anything it cannot read (`min(a, b)`, `if a < b then a else b`,
+    // comparisons, `sqrt`, ...) is evaluated by the expression language over the same scalar variables (GH #483).
+    eval_arith(rhs, resolve).or_else(|| eval_language(rhs, resolve))
+}
+
+/// The expression after a leading `name =` assignment, or all of it.
+pub fn assignment_rhs(expr: &str) -> &str {
+    split_assignment_rhs(expr).unwrap_or(expr)
+}
+
+fn eval_language(rhs: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
+    use crate::expr::{Quantity, Value};
+    let parsed = crate::expr::parse(rhs).ok()?;
+    let lookup = |n: &str| resolve(n).map(|v| Value::Num(Quantity::scalar(v)));
+    match parsed.eval(&lookup).ok()? {
+        Value::Num(q) if q.dim == crate::units::Dim([0; 7]) && q.v.is_finite() => Some(q.v),
+        _ => None,
+    }
 }
 
 /// Return the slice after a single `=` that is an assignment (not part of a
