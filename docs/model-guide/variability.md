@@ -233,7 +233,7 @@ parameterConstraints:
     severity: error        # violation -> E221 (or W025 when severity: warning)
 ```
 
-A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
+A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`), reported by `validate` as well as `feature-check` so `bind` refuses a value that causes it (a constraint still undetermined because parameters are open is allowed); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
 
 ### Configuration inheritance — `derivedFrom:`
 

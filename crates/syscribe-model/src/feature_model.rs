@@ -790,6 +790,162 @@ pub fn binding_window_findings(elements: &[RawElement]) -> Vec<Finding> {
     f
 }
 
+/// Cross-feature `parameterConstraints:` (§9.7): `E213` (unresolved/ill-formed parameter path),
+/// `W014` (`appliesWhen` names a feature no Configuration selects), and the evaluation of each
+/// constraint against every Configuration it applies to — `E221`, or `W025` for `severity: warning`.
+/// A constraint still undetermined because parameters are open is not a violation (three-valued).
+/// Shared by `feature-check` (all four codes) and `validate`/`bind` (E221/W025 only, GH #465).
+pub fn parameter_constraint_findings(elements: &[RawElement]) -> Vec<Finding> {
+    let mut f = Vec::new();
+    if !has_feature_model(elements) {
+        return f;
+    }
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    let configs: Vec<&RawElement> =
+        elements.iter().filter(|e| is(e, ElementType::Configuration)).collect();
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
+    let sel_of = |cfg: &RawElement| {
+        crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias)
+    };
+
+    // ── E213/W014/E221/W025: cross-feature parameterConstraints (package _index.md) ──
+    // Canonical parameter reference is the dotted form `<FeatureDef qname>.<param>`.
+    let mut param_paths: HashSet<String> = HashSet::new();
+    let facts = param_facts(&fdefs);
+    let stage_ctx = crate::staging::StageContext::new(elements);
+    for fd in &fdefs {
+        for p in parse_params(fd) {
+            param_paths.insert(format!("{}.{}", fd.qualified_name, p.name));
+        }
+    }
+    let mut selected_anywhere: HashSet<String> = HashSet::new();
+    for cfg in &configs {
+        for (k, v) in sel_of(cfg) {
+            if v {
+                selected_anywhere.insert(k);
+            }
+        }
+    }
+    for pkg in elements.iter().filter(|e| {
+        matches!(
+            e.frontmatter.element_type,
+            Some(ElementType::Package)
+                | Some(ElementType::LibraryPackage)
+                | Some(ElementType::Namespace)
+                // REQ-TRS-FM-005: a single-file `FeatureModel` sheet is the
+                // feature model's own home for `parameterConstraints:`, not
+                // just a `Package` `_index.md`.
+                | Some(ElementType::FeatureModel)
+        )
+    }) {
+        let Some(cons) = pkg.frontmatter.parameter_constraints.as_deref() else {
+            continue;
+        };
+        for c in cons {
+            let serde_yaml::Value::Mapping(m) = c else { continue };
+            let cid = m
+                .get(serde_yaml::Value::String("id".into()))
+                .and_then(|v| v.as_str())
+                .unwrap_or("(unnamed)");
+            let expr = m
+                .get(serde_yaml::Value::String("expression".into()))
+                .and_then(|v| v.as_str());
+
+            // E213: every referenced parameter path must resolve to a declared
+            // parameter and use the canonical dotted form. A `::`-only path that
+            // would resolve if dotted is flagged explicitly (never silently dropped).
+            let mut all_resolvable = true;
+            if let Some(expr) = expr {
+                for path in extract_param_paths(expr) {
+                    if param_paths.contains(&path) {
+                        continue; // valid dotted reference
+                    }
+                    all_resolvable = false;
+                    // A `::`-only candidate whose last-`::` → `.` reinterpretation
+                    // names a declared parameter is the wrong separator, not unknown.
+                    let dotted = path.rsplit_once("::").map(|(a, b)| format!("{}.{}", a, b));
+                    if !path.contains('.')
+                        && dotted.as_deref().is_some_and(|d| param_paths.contains(d))
+                    {
+                        f.push(err("E213", &pkg.file_path, format!(
+                            "parameterConstraints '{}' references parameter '{}' with '::' before the parameter member; use the canonical dotted form '{}'",
+                            cid, path, dotted.unwrap())));
+                    } else {
+                        f.push(err("E213", &pkg.file_path, format!(
+                            "parameterConstraints '{}' references unresolved parameter path '{}'", cid, path)));
+                    }
+                }
+            }
+
+            // appliesWhen: parse with the boolean grammar (and/or/not), not as a literal.
+            // Operands keyed by a FEAT-* id are normalized to the FeatureDef qname.
+            let aw_expr = m
+                .get(serde_yaml::Value::String("appliesWhen".into()))
+                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
+                .map(|e| e.canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias)));
+            // W014: each operand feature must be selected in some Configuration.
+            if let Some(e) = &aw_expr {
+                for feat in e.operands() {
+                    if !selected_anywhere.contains(&feat) {
+                        f.push(warn("W014", &pkg.file_path, format!(
+                            "parameterConstraints '{}' appliesWhen references feature '{}' not selected in any Configuration", cid, feat)));
+                    }
+                }
+            }
+
+            // E221/W025: evaluate the expression against every Configuration whose
+            // appliesWhen predicate holds. severity: warning -> W025, else E221.
+            let Some(expr) = expr else { continue };
+            if !all_resolvable {
+                continue;
+            }
+            let warn_sev = m
+                .get(serde_yaml::Value::String("severity".into()))
+                .and_then(|v| v.as_str())
+                == Some("warning");
+            for cfg in &configs {
+                let sel = sel_of(cfg);
+                let holds = match &aw_expr {
+                    None => true,
+                    Some(e) => e.eval(&|q| sel.get(q).copied().unwrap_or(false)),
+                };
+                if !holds {
+                    continue;
+                }
+                // A staged Configuration is deliberately partial, so judge it three-valued
+                // (REQ-TRS-BT-017); an unstaged one only when fully evaluable, as before.
+                let stage = crate::staging::stage_of(cfg).ok().flatten();
+                let cfg_idx = elements.iter().position(|e| std::ptr::eq(e, *cfg));
+                let narrow = cfg_idx.map(|i| narrow_fn(&stage_ctx, i));
+                let (state, open) = constraint_state(
+                    cfg, expr, stage.is_some(), &facts, stage,
+                    &|r: &str| narrow.as_ref().and_then(|n| n(r)),
+                );
+                if state == Tri::Violated {
+                    let cfg_id = cfg
+                        .frontmatter
+                        .id
+                        .clone()
+                        .unwrap_or_else(|| cfg.qualified_name.clone());
+                    let mut msg = format!(
+                        "configuration '{}' violates parameterConstraints '{}': {}",
+                        cfg_id, cid, expr
+                    );
+                    if !open.is_empty() {
+                        msg.push_str(&format!(" — whatever the still-open parameters ({}) become", open.join(", ")));
+                    }
+                    if warn_sev {
+                        f.push(warn("W025", &cfg.file_path, msg));
+                    } else {
+                        f.push(err("E221", &cfg.file_path, msg));
+                    }
+                }
+            }
+        }
+    }
+    f
+}
+
 /// Run all feature-model validation rules. Returns an empty vector when no
 /// feature model is present (the command treats that as a dormant no-op).
 pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
@@ -977,141 +1133,9 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         }
     }
 
-    // ── E213/W014/E221/W025: cross-feature parameterConstraints (package _index.md) ──
-    // Canonical parameter reference is the dotted form `<FeatureDef qname>.<param>`.
-    let mut param_paths: HashSet<String> = HashSet::new();
-    let facts = param_facts(&fdefs);
-    let stage_ctx = crate::staging::StageContext::new(elements);
-    for fd in &fdefs {
-        for p in parse_params(fd) {
-            param_paths.insert(format!("{}.{}", fd.qualified_name, p.name));
-        }
-    }
-    let mut selected_anywhere: HashSet<String> = HashSet::new();
-    for cfg in &configs {
-        for (k, v) in sel_of(cfg) {
-            if v {
-                selected_anywhere.insert(k);
-            }
-        }
-    }
-    for pkg in elements.iter().filter(|e| {
-        matches!(
-            e.frontmatter.element_type,
-            Some(ElementType::Package)
-                | Some(ElementType::LibraryPackage)
-                | Some(ElementType::Namespace)
-                // REQ-TRS-FM-005: a single-file `FeatureModel` sheet is the
-                // feature model's own home for `parameterConstraints:`, not
-                // just a `Package` `_index.md`.
-                | Some(ElementType::FeatureModel)
-        )
-    }) {
-        let Some(cons) = pkg.frontmatter.parameter_constraints.as_deref() else {
-            continue;
-        };
-        for c in cons {
-            let serde_yaml::Value::Mapping(m) = c else { continue };
-            let cid = m
-                .get(serde_yaml::Value::String("id".into()))
-                .and_then(|v| v.as_str())
-                .unwrap_or("(unnamed)");
-            let expr = m
-                .get(serde_yaml::Value::String("expression".into()))
-                .and_then(|v| v.as_str());
-
-            // E213: every referenced parameter path must resolve to a declared
-            // parameter and use the canonical dotted form. A `::`-only path that
-            // would resolve if dotted is flagged explicitly (never silently dropped).
-            let mut all_resolvable = true;
-            if let Some(expr) = expr {
-                for path in extract_param_paths(expr) {
-                    if param_paths.contains(&path) {
-                        continue; // valid dotted reference
-                    }
-                    all_resolvable = false;
-                    // A `::`-only candidate whose last-`::` → `.` reinterpretation
-                    // names a declared parameter is the wrong separator, not unknown.
-                    let dotted = path.rsplit_once("::").map(|(a, b)| format!("{}.{}", a, b));
-                    if !path.contains('.')
-                        && dotted.as_deref().is_some_and(|d| param_paths.contains(d))
-                    {
-                        f.push(err("E213", &pkg.file_path, format!(
-                            "parameterConstraints '{}' references parameter '{}' with '::' before the parameter member; use the canonical dotted form '{}'",
-                            cid, path, dotted.unwrap())));
-                    } else {
-                        f.push(err("E213", &pkg.file_path, format!(
-                            "parameterConstraints '{}' references unresolved parameter path '{}'", cid, path)));
-                    }
-                }
-            }
-
-            // appliesWhen: parse with the boolean grammar (and/or/not), not as a literal.
-            // Operands keyed by a FEAT-* id are normalized to the FeatureDef qname.
-            let aw_expr = m
-                .get(serde_yaml::Value::String("appliesWhen".into()))
-                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
-                .map(|e| e.canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias)));
-            // W014: each operand feature must be selected in some Configuration.
-            if let Some(e) = &aw_expr {
-                for feat in e.operands() {
-                    if !selected_anywhere.contains(&feat) {
-                        f.push(warn("W014", &pkg.file_path, format!(
-                            "parameterConstraints '{}' appliesWhen references feature '{}' not selected in any Configuration", cid, feat)));
-                    }
-                }
-            }
-
-            // E221/W025: evaluate the expression against every Configuration whose
-            // appliesWhen predicate holds. severity: warning -> W025, else E221.
-            let Some(expr) = expr else { continue };
-            if !all_resolvable {
-                continue;
-            }
-            let warn_sev = m
-                .get(serde_yaml::Value::String("severity".into()))
-                .and_then(|v| v.as_str())
-                == Some("warning");
-            for cfg in &configs {
-                let sel = sel_of(cfg);
-                let holds = match &aw_expr {
-                    None => true,
-                    Some(e) => e.eval(&|q| sel.get(q).copied().unwrap_or(false)),
-                };
-                if !holds {
-                    continue;
-                }
-                // A staged Configuration is deliberately partial, so judge it three-valued
-                // (REQ-TRS-BT-017); an unstaged one only when fully evaluable, as before.
-                let stage = crate::staging::stage_of(cfg).ok().flatten();
-                let cfg_idx = elements.iter().position(|e| std::ptr::eq(e, *cfg));
-                let narrow = cfg_idx.map(|i| narrow_fn(&stage_ctx, i));
-                let (state, open) = constraint_state(
-                    cfg, expr, stage.is_some(), &facts, stage,
-                    &|r: &str| narrow.as_ref().and_then(|n| n(r)),
-                );
-                if state == Tri::Violated {
-                    let cfg_id = cfg
-                        .frontmatter
-                        .id
-                        .clone()
-                        .unwrap_or_else(|| cfg.qualified_name.clone());
-                    let mut msg = format!(
-                        "configuration '{}' violates parameterConstraints '{}': {}",
-                        cfg_id, cid, expr
-                    );
-                    if !open.is_empty() {
-                        msg.push_str(&format!(" — whatever the still-open parameters ({}) become", open.join(", ")));
-                    }
-                    if warn_sev {
-                        f.push(warn("W025", &cfg.file_path, msg));
-                    } else {
-                        f.push(err("E221", &cfg.file_path, msg));
-                    }
-                }
-            }
-        }
-    }
+    // E213/W014/E221/W025 live in `parameter_constraint_findings`, shared with `validate`
+    // (which keeps only E221/W025 so `bind` and `validate --config` refuse a violated limit).
+    f.extend(parameter_constraint_findings(elements));
 
     // ── W024: orphan FeatureDef ──────────────────────────────────────────────
     // A FeatureDef is an orphan when it is referenced by NO element's

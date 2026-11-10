@@ -179,7 +179,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
 | E229 | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
 | E213 | A `parameterConstraints` expression references an unresolved parameter path, **or** uses the legacy `::`-member form (`Features::F::param`) instead of the canonical dotted `Features::F.param` — the constraint is flagged, never silently dropped |
-| E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
+| E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity). Reported by `validate` as well as `feature-check`, so `bind` refuses a value that introduces it; still-open parameters are not a violation |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` (not `mandatory: true`) is selected in every `Configuration` (consider `mandatory: true`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
@@ -187,7 +187,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W239 | (`feature-check`) an **abstract** feature with no children: it groups nothing. Drop `isAbstract:` or add the features it groups |
 | W240 | (`feature-check`) the model has more features than the deep-analysis limit (5000), so the **abstract** features' derived values are not computed and an `appliesWhen:` on one reads false |
 | W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |
-| W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Gate with `feature-check --deny W025` |
+| W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Reported by `validate` and `feature-check`; gate with `--deny W025` |
 
 ### Deep analysis (`feature-check --deep`)
 

@@ -10,7 +10,7 @@ or `<feature>.<parameter>`, by qualified name or `FEAT-*` id; a name the model d
 suggestion. A selection takes `true` or `false`; a binding takes a number or text.
 
 The change is **previewed first** on a candidate copy of the model by the guarded-write engine. The model's own
-checks decide whether it is acceptable — the parameter's `range` and `enumValues`, its unit, the stage window it may
+checks decide whether it is acceptable — the parameter's `range` and `enumValues`, the cross-parameter `parameterConstraints:` (`E221`; one still undetermined because parameters are open is allowed), its unit, the stage window it may
 be bound in, and the narrowing a `derivedFrom:` chain allows — so the result is exactly what `validate` would say.
 The report carries the value it replaces and where that came from, the unified diff, and the errors and warnings the
 change would add or resolve. If it would add an error nothing is written and the command exits 1. Otherwise the

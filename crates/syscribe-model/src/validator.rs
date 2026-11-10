@@ -7041,6 +7041,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // E759 (a fallback outside its parameter's constraints) and W023 (an unresolvable
     // `consumedBy:`) — the late-bound parameter contract (REQ-TRS-BT-026/027).
     findings.extend(crate::feature_model::parameter_contract_findings(elements));
+    // E221/W025 — a violated cross-parameter `parameterConstraints:` entry (GH #465), so `bind`
+    // refuses it like E205 and `validate --config`/`--all-configs` report it.
+    findings.extend(crate::feature_model::parameter_constraint_findings(elements).into_iter().filter(|f| f.code == "E221" || f.code == "W025"));
     findings.extend(consumed_by_findings(elements, config));
     // W753/W754 — late-bound variability reaching a safety requirement (REQ-TRS-BT-034).
     findings.extend(crate::late_safety::findings(elements));
