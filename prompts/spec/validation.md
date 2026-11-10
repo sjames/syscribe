@@ -445,9 +445,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front. With `sidecar_writers` set, files under `.syscribe/` other than `scripts/` are not reported: git cannot tell a listed command's write from a hand edit |
+| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front. With `[agents] sidecar_writers` set, a file under `.syscribe/` other than `scripts/` is treated as `sidecar_audit` says: `exempt` (default) never reports it, because git cannot tell a listed command's write from a hand edit; `command` reports it unless the commit's `Syscribe-Command` names a listed writer (`--commit` writes that trailer) |
 | `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
-| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
+| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule, a `sidecar_audit` that is not `exempt` or `command`. The entry is ignored (`sidecar_audit` falls back to `exempt`); the rest of the policy still applies |
 
 ## Native PlanningItem (E706–E717, E719–E728, W308–W311, W317–W323, §23, ADR-SYS-PLANITEM-001)
 

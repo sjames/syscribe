@@ -8,6 +8,7 @@
 //! human_only_answers = true                                   # PlanningItem questions are answered by a person
 //! require_before_done = ["validate", "evidence"]             # before an agent sets a PlanningItem done
 //! sidecar_writers = ["ingest-results"]                        # commands that may still write `.syscribe/**` when it is protected
+//! sidecar_audit = "exempt"                                    # "exempt" (default) or "command": how the audit treats those commits
 //! require_by = true                                           # every model-writing command names its actor
 //! actors = ["agent-*", "*[bot]"]                              # git authors that count as agents in the audit
 //! audit_limit = 200                                           # how many recent commits `validate` inspects
@@ -24,9 +25,20 @@ use crate::validator::{Finding, Severity};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "human_only_answers", "require_before_done", "require_by", "actors", "audit_limit", "sidecar_writers"];
+const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "human_only_answers", "require_before_done", "require_by", "actors", "audit_limit", "sidecar_writers", "sidecar_audit"];
 const BEFORE_DONE: &[&str] = &["validate", "evidence"];
 const DEFAULT_AUDIT_LIMIT: usize = 200;
+
+/// How the audit (`W760`) treats a commit of the evidence sidecar when `sidecar_writers` is set (GH #469).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SidecarAudit {
+    /// Never report the sidecar: git cannot tell a listed command's write from a hand edit (the default).
+    #[default]
+    Exempt,
+    /// Report it unless the commit's `Syscribe-Command` names a listed writer, so a hand edit committed with plain
+    /// git is caught, and a pipeline must commit the ingest with `--commit`.
+    Command,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Policy {
@@ -41,6 +53,8 @@ pub struct Policy {
     /// Commands that may write the evidence sidecar (`<model>/.syscribe/**`) although a `protected_paths` glob
     /// covers it, so recorded evidence is not hand-editable by an agent yet an automated ingest still works (GH #469).
     pub sidecar_writers: Vec<String>,
+    /// How the audit treats a commit of that sidecar (`sidecar_audit`); default `exempt`.
+    pub sidecar_audit: SidecarAudit,
     /// Every model-writing command must carry `--by` (or `--as-human`).
     pub require_by: bool,
     /// Globs on a git author that mark a commit as agent-made, for the audit.
@@ -96,6 +110,11 @@ pub fn load(model_root: &Path) -> Option<Policy> {
             "protected_paths" => p.protected_paths = string_list(v, k, &mut p.problems),
             "actors" => p.actors = string_list(v, k, &mut p.problems),
             "sidecar_writers" => p.sidecar_writers = string_list(v, k, &mut p.problems),
+            "sidecar_audit" => match v.as_str() {
+                Some("exempt") => p.sidecar_audit = SidecarAudit::Exempt,
+                Some("command") => p.sidecar_audit = SidecarAudit::Command,
+                _ => p.problems.push("[agents] sidecar_audit must be \"exempt\" or \"command\" (using \"exempt\")".to_string()),
+            },
             "require_before_done" => {
                 for r in string_list(v, k, &mut p.problems) {
                     if BEFORE_DONE.contains(&r.as_str()) {
@@ -164,10 +183,18 @@ impl Policy {
     /// repository and to the model root; any of them matching a protected glob refuses it.
     pub fn check_path(&self, candidates: &[String]) -> Result<(), Refusal> {
         match self.protecting_pattern(candidates) {
-            Some(pat) => Err(Refusal {
-                rule: "protected_paths",
-                message: format!("`{}` is protected (`{pat}`); {HOW_A_PERSON_PROCEEDS}.", candidates.first().map(String::as_str).unwrap_or("")),
-            }),
+            Some(pat) => {
+                let mut message = format!("`{}` is protected (`{pat}`); {HOW_A_PERSON_PROCEEDS}.", candidates.first().map(String::as_str).unwrap_or(""));
+                // An agent that hits this on recorded evidence is told how a person lets an automated ingest through.
+                if candidates.iter().any(|c| looks_like_sidecar(c)) {
+                    if self.sidecar_writers.is_empty() {
+                        message.push_str(" This is the evidence sidecar: to let an automated `ingest-results` write it while it stays protected from every other writer, a person adds `sidecar_writers = [\"ingest-results\"]` under `[agents]` in `.syscribe.toml` (`syscribe help policy`).");
+                    } else {
+                        message.push_str(&format!(" This is the evidence sidecar: only {} may write it ([agents] sidecar_writers).", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
+                    }
+                }
+                Err(Refusal { rule: "protected_paths", message })
+            }
             None => Ok(()),
         }
     }
@@ -256,6 +283,9 @@ impl Policy {
         }
         if !self.protected_paths.is_empty() && !self.sidecar_writers.is_empty() {
             out.push(format!("Only {} may write the evidence sidecar (`.syscribe/**`) despite those protected paths; record results with that command, never by editing the sidecar.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
+            if self.sidecar_audit == SidecarAudit::Command {
+                out.push(format!("When you commit recorded results, commit them with `--commit` on that command (it records the command in the commit): `validate` reports a commit of the sidecar that was not made by {} as `W760`.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(" or ")));
+            }
         }
         for (ty, statuses) in &self.human_only_status {
             out.push(format!("Only a person sets a {ty} to {}.", statuses.iter().map(|s| format!("`{s}`")).collect::<Vec<_>>().join(" or ")));
@@ -525,6 +555,13 @@ pub fn is_sidecar_path(rel: &str) -> bool {
     rel.strip_prefix(".syscribe/").is_some_and(|r| !r.is_empty() && r.split('/').next() != Some("scripts"))
 }
 
+/// `is_sidecar_path` for a path spelled relative to the repository or to the model root (`model/.syscribe/results.json`).
+fn looks_like_sidecar(path: &str) -> bool {
+    let p = path.trim_start_matches("./");
+    let start = if p.starts_with(".syscribe/") { Some(0) } else { p.find("/.syscribe/").map(|i| i + 1) };
+    start.is_some_and(|i| is_sidecar_path(&p[i..]))
+}
+
 fn audit_inner(model_root: &Path, policy: &Policy) -> Vec<Finding> {
     let mut out: Vec<Finding> = policy.problems.iter().map(|m| warning("W762", ".syscribe.toml", m.clone())).collect();
     if policy.protected_paths.is_empty() && policy.human_only_status.is_empty() {
@@ -560,20 +597,25 @@ fn audit_inner(model_root: &Path, policy: &Policy) -> Vec<Finding> {
             continue;
         }
         let who = actor.unwrap_or_else(|| author.to_string());
+        // The command a tool commit records (`Syscribe-Command: ingest-results <args>`): its first word.
+        let command = trailer(body, "Syscribe-Command").and_then(|c| c.split_whitespace().next().map(str::to_string));
         for line in files.lines().filter(|l| !l.trim().is_empty()) {
             let mut parts = line.split('\t');
             let (Some(status), Some(path)) = (parts.next(), parts.next()) else { continue };
             // The policy may spell a protected path relative to the repository or to the model root.
             let spellings = [path.to_string(), path.strip_prefix(&model_prefix).unwrap_or(path).to_string()];
-            // With `sidecar_writers` set the sidecar is written by a listed command, and git cannot tell that from
-            // a hand edit, so its files are not reported (a hand-edited sidecar is then not caught by this audit).
-            let sidecar = !policy.sidecar_writers.is_empty() && path.strip_prefix(&model_prefix).is_some_and(is_sidecar_path);
-            if let Some(pat) = policy.protecting_pattern(&spellings).filter(|_| !sidecar) {
-                out.push(warning(
-                    "W760",
-                    path,
-                    format!("{path} was changed in commit {hash} by {who}, although [agents] protected_paths protects it (`{pat}`)."),
-                ));
+            // The evidence sidecar, when `sidecar_writers` names the commands that write it. `exempt` (default): never
+            // reported, because git cannot tell such a write from a hand edit. `command`: reported unless this
+            // commit's `Syscribe-Command` (what `--commit` writes) is a listed writer.
+            let is_sidecar = !policy.sidecar_writers.is_empty() && path.strip_prefix(&model_prefix).is_some_and(is_sidecar_path);
+            let by_writer = || command.as_deref().is_some_and(|c| policy.sidecar_writers.iter().any(|w| w == c));
+            let exempt = is_sidecar && (policy.sidecar_audit == SidecarAudit::Exempt || by_writer());
+            if let Some(pat) = policy.protecting_pattern(&spellings).filter(|_| !exempt) {
+                let mut message = format!("{path} was changed in commit {hash} by {who}, although [agents] protected_paths protects it (`{pat}`).");
+                if is_sidecar {
+                    message.push_str(" It is the evidence sidecar and `sidecar_audit = \"command\"` reports it unless a listed `sidecar_writers` command made the commit: commit an ingest with `--commit`, or set `sidecar_audit = \"exempt\"`.");
+                }
+                out.push(warning("W760", path, message));
             }
             let sets_reserved = added.get(&(full.to_string(), path.to_string())).is_some_and(|v| v.iter().any(|s| reserved.contains(s.as_str())));
             if status != "D" && path.ends_with(".md") && sets_reserved {
@@ -638,6 +680,27 @@ mod tests {
         assert_eq!(p.human_only_status["ADR"], ["accepted"]);
         assert!(p.protected_paths.is_empty() && p.require_before_done.is_empty() && !p.require_by);
         assert_eq!(p.audit_limit, DEFAULT_AUDIT_LIMIT);
+    }
+
+    #[test]
+    fn sidecar_audit_defaults_to_exempt_and_a_bad_value_is_a_problem_not_a_grant() {
+        assert_eq!(policy("[agents]\nrequire_by = true\n").sidecar_audit, SidecarAudit::Exempt);
+        assert_eq!(policy("[agents]\nsidecar_audit = \"command\"\n").sidecar_audit, SidecarAudit::Command);
+        let bad = policy("[agents]\nsidecar_audit = \"strict\"\n");
+        assert_eq!(bad.sidecar_audit, SidecarAudit::Exempt);
+        assert!(bad.problems.iter().any(|m| m.contains("sidecar_audit") && m.contains("exempt") && m.contains("command")), "{:?}", bad.problems);
+        let wrong_type = policy("[agents]\nsidecar_audit = true\n");
+        assert_eq!((wrong_type.sidecar_audit, wrong_type.problems.len()), (SidecarAudit::Exempt, 1));
+    }
+
+    #[test]
+    fn sidecar_paths_are_recognised_in_either_spelling_and_scripts_are_not() {
+        for p in [".syscribe/results.json", "model/.syscribe/results.json", "./.syscribe/results-history.json", "spec/.syscribe/mutation.json"] {
+            assert!(looks_like_sidecar(p), "{p}");
+        }
+        for p in [".syscribe/scripts/x.rhai", "model/.syscribe/scripts/x.rhai", "model/Safety/REQ.md", ".syscribe/", "x.syscribe/results.json"] {
+            assert!(!looks_like_sidecar(p), "{p}");
+        }
     }
 
     #[test]

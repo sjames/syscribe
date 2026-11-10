@@ -488,9 +488,9 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 
 | Code | Meaning |
 |---|---|
-| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. With `[agents] sidecar_writers` set, files under `.syscribe/` other than `scripts/` are exempt, because git cannot tell a listed command's write from a hand edit (so a hand-edited sidecar committed by an agent is not reported). |
+| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. With `[agents] sidecar_writers` set, a file under `.syscribe/` other than `scripts/` is treated as `sidecar_audit` says: `exempt` (default) never reports it, because git cannot tell a listed command's write from a hand edit; `command` reports it unless the commit's `Syscribe-Command` names a listed writer (`--commit` writes that trailer). |
 | W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
-| W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`); ignored, the rest of the policy still applies. |
+| W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`, or a `sidecar_audit` that is not `exempt`/`command`); ignored (`sidecar_audit` falls back to `exempt`), the rest of the policy still applies. |
 
 ## Native PlanningItem (E706–E717, E719–E728, W308–W311, W315, W317–W323, §23, ADR-SYS-PLANITEM-001)
 

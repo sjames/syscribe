@@ -545,3 +545,82 @@ fn without_sidecar_writers_the_same_commit_is_still_flagged_and_other_protected_
     commit_as(&s, "agent-1", "a script");
     assert!(findings(&s, "W760").iter().any(|l| l.contains(".syscribe/scripts/x.rhai")));
 }
+
+// ── sidecar_audit: how the audit treats the sidecar (GH #469) ───────────────────────────────────────────────
+
+const COMMAND_MODE: &str = "[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\nsidecar_audit = \"command\"\nactors = [\"agent-*\"]\n";
+
+#[test]
+fn in_command_mode_a_tool_commit_of_the_sidecar_is_not_flagged() {
+    let r = agent_commit_of_a_sidecar(COMMAND_MODE);
+    assert!(findings(&r, "W760").is_empty(), "{:?}", findings(&r, "W760"));
+}
+
+#[test]
+fn in_command_mode_a_plain_git_commit_or_another_command_is_flagged_with_a_hint() {
+    let r = sidecar_repo(COMMAND_MODE);
+    // A pipeline that ingests and then commits with its own `git commit` carries no Syscribe-Command.
+    r.write("model/.syscribe/results.json", "{}");
+    commit_as(&r, "agent-1", "ci: results");
+    let w = findings(&r, "W760");
+    assert_eq!(w.len(), 1, "{w:?}");
+    assert!(w[0].contains("sidecar_audit") && w[0].contains("--commit") && w[0].contains("exempt"), "the finding says what to do: {}", w[0]);
+    // A tool commit by a command that is not a listed writer is flagged as well.
+    r.write("model/.syscribe/results.json", "{\"a\": 1}");
+    commit_as(&r, "agent-1", "edit\n\nSyscribe-Command: set REQ-AP-001 status=review\nSyscribe-Actor: agent-1");
+    assert_eq!(findings(&r, "W760").len(), 2, "{:?}", findings(&r, "W760"));
+}
+
+#[test]
+fn a_trailer_can_be_written_by_hand_which_is_a_known_limit_of_command_mode() {
+    // Documented: the trailer is text in a commit message, so command mode is a guard rail, not proof.
+    let r = sidecar_repo(COMMAND_MODE);
+    r.write("model/.syscribe/results.json", "{}");
+    commit_as(&r, "agent-1", "edit\n\nSyscribe-Command: ingest-results x.xml\nSyscribe-Actor: agent-1");
+    assert!(findings(&r, "W760").is_empty());
+}
+
+#[test]
+fn in_command_mode_another_protected_path_in_a_tool_commit_is_still_flagged() {
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\", \"Safety/**\"]\nsidecar_writers = [\"ingest-results\"]\nsidecar_audit = \"command\"\nactors = [\"agent-*\"]\n");
+    r.write("model/.syscribe/results.json", "{}");
+    r.write("model/Safety/REQ-AP-002.md", &req("REQ-AP-002", "review"));
+    commit_as(&r, "agent-1", "x\n\nSyscribe-Command: ingest-results x.xml\nSyscribe-Actor: agent-1");
+    let w = findings(&r, "W760");
+    assert!(w.iter().any(|l| l.contains("Safety/REQ-AP-002.md")) && !w.iter().any(|l| l.contains(".syscribe/results.json")), "{w:?}");
+}
+
+#[test]
+fn a_bad_sidecar_audit_is_w762_and_falls_back_to_exempt() {
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\nsidecar_audit = \"strict\"\nactors = [\"agent-*\"]\n");
+    let w = findings(&r, "W762");
+    assert!(w.iter().any(|l| l.contains("sidecar_audit") && l.contains("exempt") && l.contains("command")), "{w:?}");
+    r.write("model/.syscribe/results.json", "{}");
+    commit_as(&r, "agent-1", "ci: results");
+    assert!(findings(&r, "W760").is_empty(), "the default, exempt, applies");
+}
+
+#[test]
+fn a_refused_sidecar_write_tells_an_agent_how_a_person_configures_it() {
+    // No writer named: the hint is the recipe.
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\n");
+    let (_o, err, code) = r.run(&["ingest-results", "report.xml", "--by", "agent-1"]);
+    assert_eq!(code, 1, "{err}");
+    assert!(err.contains("sidecar_writers = [\"ingest-results\"]") && err.contains("[agents]") && err.contains("help policy"), "{err}");
+    // A writer is named, but not this command: the hint says which commands may.
+    let other = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"set\"]\n");
+    let (_o, err, code) = other.run(&["ingest-results", "report.xml", "--by", "agent-1"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("only `set` may write it") && err.contains("sidecar_writers"), "{err}");
+    // A protected path that is not the sidecar gets no sidecar advice.
+    let (_o, err, _c) = Repo::new(POLICY).run(&["set", "REQ-AP-002", "status=review", "--by", "agent-1"]);
+    assert!(err.contains("protected_paths") && !err.contains("sidecar"), "{err}");
+}
+
+#[test]
+fn policy_tells_an_agent_to_commit_with_dash_dash_commit_in_command_mode() {
+    let (out, _, _) = sidecar_repo(COMMAND_MODE).run(&["policy"]);
+    assert!(out.contains("`ingest-results` may write the evidence sidecar") && out.contains("commit them with `--commit`") && out.contains("W760"), "{out}");
+    let (out, _, _) = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\n").run(&["policy"]);
+    assert!(!out.contains("commit them with"), "the default says nothing more: {out}");
+}
