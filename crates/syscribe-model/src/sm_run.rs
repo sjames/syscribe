@@ -282,7 +282,7 @@ impl<'m> Run<'m> {
         for (_, _, p) in self.pins.iter().filter(|(s, _, _)| *s == slot) {
             v = match (p, &v) {
                 (Pin::Stuck(held), _) => held.clone(),
-                (Pin::Offset(Value::Num(by)), Value::Num(q)) if by.dim == q.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim }),
+                (Pin::Offset(Value::Num(by)), Value::Num(q)) if by.dim == q.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim, temp: crate::expr::TempKind::Neutral }),
                 _ => v,
             };
         }
@@ -302,7 +302,7 @@ impl<'m> Run<'m> {
                 v.clone()
             }
             Pin::Offset(Value::Num(by)) => match &current {
-                Value::Num(q) if q.dim == by.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim }),
+                Value::Num(q) if q.dim == by.dim => Value::Num(crate::expr::Quantity { v: q.v + by.v, dim: q.dim, temp: crate::expr::TempKind::Neutral }),
                 other => return Err(format!("variable '{name}' is {} and cannot be biased by {}", other.kind(), format_value(&Value::Num(*by)))),
             },
             Pin::Offset(other) => return Err(format!("an offset must be a number, got {}", other.kind())),

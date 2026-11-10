@@ -9430,7 +9430,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             if text("mg_moe_measurement").is_some() {
                 if let Some(Some(u)) = text("mg_moe_unit") {
-                    if crate::expr::unit_scale(&u).is_none() && !u.is_empty() && u != "fraction" {
+                    if crate::expr::unit_affine(&u).is_none() && !u.is_empty() && u != "fraction" {
                         bad(format!("mg_moe_unit '{u}' is not a unit a recorded measurement can be converted to"));
                     }
                 }

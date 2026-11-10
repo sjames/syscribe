@@ -174,7 +174,7 @@ fn resolve_faults(elements: &[RawElement], resolver: &Resolver, spec: &SystemSpe
                 // a machine's variable, or a plant's output (GH #340): what a stuck or offset fault can hold
                 let var_of = |name: &str| match (&machines[p], &plants[p]) {
                     (Some(m), _) => m.variables.iter().find(|v| v.name == name).map(|v| v.value.clone()),
-                    (None, Some(ps)) => ps.info.var(name).filter(|v| matches!(v.causality, crate::plant::Causality::Output)).map(|v| Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim.unwrap_or(crate::units::Dim([0; 7])) })),
+                    (None, Some(ps)) => ps.info.var(name).filter(|v| matches!(v.causality, crate::plant::Causality::Output)).map(|v| Value::Num(crate::expr::Quantity { v: 0.0, dim: v.dim.unwrap_or(crate::units::Dim([0; 7])), temp: crate::expr::TempKind::Neutral })),
                     _ => None,
                 };
                 match &fs.kind {
@@ -352,7 +352,7 @@ fn resolve_plants(elements: &[RawElement], resolver: &Resolver, composite: &RawE
 fn as_machine_value(v: Value, var: &plant::VarInfo, machine_bool: bool, machine_dim: crate::units::Dim) -> Value {
     match v {
         Value::Num(q) if machine_bool => Value::Bool(q.v != 0.0),
-        Value::Num(q) => Value::Num(crate::expr::Quantity { v: if var.ty == plant::VarType::Integer { q.v.round() } else { q.v }, dim: machine_dim }),
+        Value::Num(q) => Value::Num(crate::expr::Quantity { v: if var.ty == plant::VarType::Integer { q.v.round() } else { q.v }, dim: machine_dim, temp: q.temp }),
         other => other,
     }
 }
@@ -362,7 +362,7 @@ fn pinned(pins: &[(usize, String, String, Pin)], part: usize, var: &str, mut v: 
     for (_, _, _, pin) in pins.iter().filter(|(p, n, _, _)| *p == part && n == var) {
         v = match (pin, &v) {
             (Pin::Stuck(s), _) => s.clone(),
-            (Pin::Offset(Value::Num(b)), Value::Num(a)) => Value::Num(crate::expr::Quantity { v: a.v + b.v, dim: a.dim }),
+            (Pin::Offset(Value::Num(b)), Value::Num(a)) => Value::Num(crate::expr::Quantity { v: a.v + b.v, dim: a.dim, temp: crate::expr::TempKind::Neutral }),
             _ => v,
         };
     }

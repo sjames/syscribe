@@ -567,10 +567,10 @@ impl PlantModel {
         let mut errs = Vec::new();
         let mut known: Vec<(String, Value)> = Vec::new();
         for p in &self.parameters {
-            known.push((p.name.clone(), Value::Num(Quantity { v: p.value, dim: p.dim })));
+            known.push((p.name.clone(), Value::Num(Quantity { v: p.value, dim: p.dim, temp: crate::expr::TempKind::Neutral })));
         }
         for v in self.inputs.iter().chain(&self.states) {
-            known.push((v.name.clone(), Value::Num(Quantity { v: 1.0, dim: v.dim })));
+            known.push((v.name.clone(), Value::Num(Quantity { v: 1.0, dim: v.dim, temp: crate::expr::TempKind::Neutral })));
         }
         let report = |what: String, e: ExprError, errs: &mut Vec<Finding>| {
             if matches!(e, ExprError::Dimension(_) | ExprError::Type(_)) {
@@ -581,13 +581,13 @@ impl PlantModel {
             let o = &self.outputs[*i];
             let lookup = |n: &str| known.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone());
             match e.eval(&lookup) {
-                Ok(Value::Num(q)) if q.dim == o.dim => known.push((o.name.clone(), Value::Num(Quantity { v: 1.0, dim: o.dim }))),
+                Ok(Value::Num(q)) if q.dim == o.dim => known.push((o.name.clone(), Value::Num(Quantity { v: 1.0, dim: o.dim, temp: crate::expr::TempKind::Neutral }))),
                 Ok(Value::Num(q)) => errs.push(("E935", format!("output '{}' is declared {} but `{} := {}` has dimension {}", o.name, o.dim.human(), o.name, e.to_source(), q.dim.human()))),
                 Ok(other) => errs.push(("E935", format!("`{} := {}` is a {}, not a number", o.name, e.to_source(), other.kind()))),
                 Err(err) => report(format!("`{} := {}`", o.name, e.to_source()), err, &mut errs),
             }
             if !known.iter().any(|(k, _)| k == &o.name) {
-                known.push((o.name.clone(), Value::Num(Quantity { v: 1.0, dim: o.dim })));
+                known.push((o.name.clone(), Value::Num(Quantity { v: 1.0, dim: o.dim, temp: crate::expr::TempKind::Neutral })));
             }
         }
         let lookup = |n: &str| known.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone());
@@ -663,7 +663,7 @@ impl EquationPlant {
     fn lookup<'a>(&'a self, states: &'a [f64], outs: &'a [Option<f64>]) -> impl Fn(&str) -> Option<Value> + 'a {
         move |n: &str| {
             let m = &self.model;
-            let q = |p: &PlantVar, v: f64| Some(Value::Num(Quantity { v, dim: p.dim }));
+            let q = |p: &PlantVar, v: f64| Some(Value::Num(Quantity { v, dim: p.dim, temp: crate::expr::TempKind::Neutral }));
             if let Some(i) = m.states.iter().position(|p| p.name == n) {
                 return q(&m.states[i], states[i]);
             }

@@ -259,7 +259,7 @@ pub fn read_si(plant: &mut dyn Plant, plant_name: &str, var: &VarInfo, machine_b
         Value::Bool(raw != 0.0)
     } else {
         let si = raw * var.factor + var.offset;
-        Value::Num(Quantity { v: if var.ty == VarType::Integer { si.round() } else { si }, dim: machine_dim })
+        Value::Num(Quantity { v: if var.ty == VarType::Integer { si.round() } else { si }, dim: machine_dim, temp: crate::expr::TempKind::Neutral })
     })
 }
 
