@@ -237,3 +237,163 @@ fn bad_results_arguments_are_refused_naming_the_problem() {
     // A repeated flag with no value is a usage error like any other option.
     fail(&["--results"], "--results");
 }
+
+// ── a retained run, by id: --run (GH #471) ──────────────────────────────────────────────────────────────────────
+
+/// Ingest `records` for one Configuration under run `run`.
+fn ingest_run(root: &Path, conf: &str, run: &str, records: &str) {
+    let name = format!("{conf}-{run}.json");
+    write(root, &format!("../{name}"), &format!("[{records}]"));
+    let f = root.parent().unwrap().join(&name);
+    let (_, e, c) = run_cli(root, &["ingest-results", "--format", "records", "--config", conf, "--run", run, f.to_str().unwrap()]);
+    assert_eq!(c, 0, "{e}");
+}
+
+fn run_cli(root: &Path, args: &[&str]) -> (String, String, i32) {
+    run(root, args)
+}
+
+fn by_run(root: &Path, run_id: &str) -> Value {
+    let (o, e, c) = run(root, &["trade-study", "--json", "--run", run_id]);
+    assert_eq!(c, 0, "{e}");
+    serde_json::from_str(&o).unwrap()
+}
+
+/// R1: B fails (2300 ms, over its limit). R2, later: B is fixed (1500 ms). The sidecar ends up holding R2 only.
+fn two_runs() -> PathBuf {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    ingest_run(&root, "CONF-TS-A", "R1", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R1", &rec("TC-TS-001", "fail", "2300 ms"));
+    ingest_run(&root, "CONF-TS-A", "R2", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R2", &rec("TC-TS-001", "pass", "1500 ms"));
+    root
+}
+
+#[test]
+fn an_earlier_run_is_ranked_by_id_after_a_later_ingest_overwrote_the_sidecar() {
+    let root = two_runs();
+    // Latest (the sidecar): R2, where B passes and wins on its better measurement.
+    let latest: Value = serde_json::from_str(&run(&root, &["trade-study", "--json"]).0).unwrap();
+    assert_eq!(rollup(&latest, "CONF-TS-B")["winner"], true, "{latest}");
+    // R1 by id: B failed then, so it is knocked out and A wins, though the sidecar no longer holds R1.
+    let r1 = by_run(&root, "R1");
+    assert_eq!((rollup(&r1, "CONF-TS-A")["winner"].clone(), rollup(&r1, "CONF-TS-B")["fail"].clone()), (true.into(), true.into()), "{r1}");
+    assert_eq!(cell(&r1, "CONF-TS-B")["measured"]["value"].as_f64(), Some(2300.0));
+    // R2 by id agrees with the latest.
+    assert_eq!(rollup(&by_run(&root, "R2"), "CONF-TS-B")["winner"], true);
+    // The run id is in the evidence, and in the text.
+    let ev = &cell(&r1, "CONF-TS-B")["measured"]["evidence"];
+    assert_eq!((ev["origin"].clone(), ev["run"].clone(), ev["count"].clone()), ("run".into(), "R1".into(), 1.into()), "{ev}");
+    assert_eq!(ev["stale"], serde_json::json!([]));
+    let (text, _, _) = run(&root, &["trade-study", "--run", "R1"]);
+    assert!(text.contains("<- run R1 (1 record(s))"), "{text}");
+}
+
+#[test]
+fn re_ingesting_a_run_supersedes_its_own_records() {
+    let root = two_runs();
+    ingest_run(&root, "CONF-TS-B", "R1", &rec("TC-TS-001", "pass", "1400 ms"));
+    let r1 = by_run(&root, "R1");
+    assert_eq!(cell(&r1, "CONF-TS-B")["measured"]["value"].as_f64(), Some(1400.0), "{r1}");
+    assert_eq!(cell(&r1, "CONF-TS-B")["measured"]["recordCount"], 1, "replaced, not appended");
+}
+
+#[test]
+fn an_unknown_run_or_one_without_records_is_refused_naming_what_to_do() {
+    let root = two_runs();
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R9"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("no run 'R9'") && e.contains("R1") && e.contains("R2"), "{e}");
+    // A function-level run keeps verdicts, not records: there is nothing to rank.
+    write(&root, "../r.xml", "<testsuite name=\"s\"><testcase classname=\"c\" name=\"t_one\"/></testsuite>");
+    let (_, e, c) = run(&root, &["ingest-results", "--format", "junit", "--run", "R3", root.parent().unwrap().join("r.xml").to_str().unwrap()]);
+    assert_eq!(c, 0, "{e}");
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R3"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("holds no records for any compared Configuration") && e.contains("--config"), "{e}");
+    // No history at all.
+    let (_, e, c) = run(&model(SCORED_BY_MEASUREMENT, false), &["trade-study", "--run", "R1"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("none is") && e.contains("ingest-results --run"), "{e}");
+}
+
+#[test]
+fn run_and_a_results_directory_are_alternatives_but_one_named_file_overrides_the_run() {
+    let root = two_runs();
+    let d = run_dir(&root, "run6", Some(rec("TC-TS-001", "pass", "1650 ms")), None);
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R1", "--results", d.to_str().unwrap()]);
+    assert_eq!(c, 1);
+    assert!(e.contains("--run and a --results directory both cover every compared Configuration"), "{e}");
+    // A named file wins for that Configuration; the run covers the other.
+    write(&root, "../b-fixed.json", &format!("[{}]", rec("TC-TS-001", "pass", "1500 ms")));
+    let spec = format!("CONF-TS-B={}", root.parent().unwrap().join("b-fixed.json").display());
+    let v: Value = serde_json::from_str(&run(&root, &["trade-study", "--json", "--run", "R1", "--results", &spec]).0).unwrap();
+    assert_eq!(cell(&v, "CONF-TS-B")["measured"]["evidence"]["origin"], "external");
+    assert_eq!((cell(&v, "CONF-TS-A")["measured"]["evidence"]["origin"].clone(), cell(&v, "CONF-TS-A")["measured"]["evidence"]["run"].clone()), ("run".into(), "R1".into()));
+    assert_eq!(rollup(&v, "CONF-TS-B")["fail"], false, "the file's passing B replaces R1's failing one: {v}");
+}
+
+#[test]
+fn a_run_read_after_the_model_changed_says_so() {
+    let root = two_runs();
+    // The TestCase these records were stamped against is edited afterwards.
+    let tc = root.join("TC-TS-001.md");
+    let text = std::fs::read_to_string(&tc).unwrap().replace("Then y", "Then y and z");
+    std::fs::write(&tc, text).unwrap();
+    let v = by_run(&root, "R1");
+    let stale = cell(&v, "CONF-TS-A")["measured"]["evidence"]["stale"].to_string();
+    assert!(stale.contains("TC-TS-001") && stale.contains("changed"), "{stale}");
+    let (text, _, _) = run(&root, &["trade-study", "--run", "R1"]);
+    assert!(text.contains("STALE") && text.contains("TC-TS-001"), "{text}");
+    // It is information, not a knock-out: the ranking is unchanged.
+    assert_eq!(rollup(&v, "CONF-TS-A")["winner"], true);
+}
+
+#[test]
+fn a_run_flag_without_a_value_is_a_usage_error() {
+    let root = two_runs();
+    let (_, e, c) = run(&root, &["trade-study", "--run"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("--run"), "{e}");
+}
+
+#[test]
+fn run_and_results_are_refused_when_the_model_has_tradestudy_elements() {
+    // TradeStudy elements take precedence over the MoE study, and neither flag applies to them.
+    let root = two_runs();
+    write(&root, "Studies/TRD-TS-001.md", "---\ntype: TradeStudy\nid: TRD-TS-001\nname: A study\nstatus: draft\n---\n\nStudy.\n");
+    for flag in [["--run", "R1"], ["--results", "x"]] {
+        let (_, e, c) = run(&root, &["trade-study", flag[0], flag[1]]);
+        assert_eq!(c, 1, "{flag:?}: {e}");
+        assert!(e.contains("not to TradeStudy elements"), "{flag:?}: {e}");
+    }
+}
+
+#[test]
+fn a_run_whose_records_the_cap_dropped_is_refused_saying_so_while_a_kept_run_still_ranks() {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    // Keep the records of one run only.
+    write(&root, ".syscribe.toml", "[profiles.magicgrid]\nmagicgrid = true\n\n[results]\nkeep_run_records = 1\n");
+    ingest_run(&root, "CONF-TS-A", "R1", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R1", &rec("TC-TS-001", "fail", "2300 ms"));
+    ingest_run(&root, "CONF-TS-A", "R2", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R2", &rec("TC-TS-001", "pass", "1500 ms"));
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R1"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("dropped to bound the history") && e.contains("keep_run_records") && e.contains("--results"), "{e}");
+    // R2 kept its records; `results runs` shows both states.
+    assert_eq!(rollup(&by_run(&root, "R2"), "CONF-TS-B")["winner"], true);
+    let (out, _, _) = run(&root, &["results", "runs"]);
+    assert!(out.lines().any(|l| l.starts_with("R1") && l.contains("records dropped")) && out.lines().any(|l| l.starts_with("R2") && l.contains("record(s)")), "{out}");
+}
+
+#[test]
+fn a_run_file_deleted_by_hand_is_reported_missing_not_read_as_no_evidence() {
+    let root = two_runs();
+    std::fs::remove_file(root.join(".syscribe/runs/R1.json")).unwrap();
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R1"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("is missing") && e.contains("R1.json") && e.contains("restore it"), "{e}");
+    // The other run is unaffected.
+    assert_eq!(rollup(&by_run(&root, "R2"), "CONF-TS-B")["winner"], true);
+}

@@ -271,18 +271,31 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
             }
         },
     };
-    // Load the history first so a corrupt one aborts before anything is written.
-    let mut history = None;
+    // Load the history first so a corrupt one aborts before anything is written, then decide everything the history
+    // will write (the run's records file, the index, the files the cap drops) and ask the write layer about every
+    // path, so a protected one refuses before the sidecar is written and the two never fall out of step.
+    let mut history_plan = None;
     if let Some(r) = run {
-        match syscribe_model::results::RunHistory::load(model_root) {
+        match syscribe_model::run_history::RunHistory::load(model_root) {
             Ok(mut h) => {
-                // Refuse before the sidecar is written, so a protected history never leaves the two out of step.
-                if let Err(e) = syscribe_model::fsio::check(syscribe_model::results::RunHistory::path(model_root)) {
-                    eprintln!("Cannot write run history: {e}");
-                    std::process::exit(1);
-                }
                 h.record_for(r, &data, config_key.as_deref());
-                history = Some(h);
+                let settings = syscribe_model::run_history::ResultsSettings::load(model_root);
+                for p in &settings.problems {
+                    eprintln!("warning: {p}");
+                }
+                match h.plan(model_root, settings.keep_run_records) {
+                    Ok(plan) => {
+                        if let Err(e) = plan.check() {
+                            eprintln!("Cannot write run history: {e}");
+                            std::process::exit(1);
+                        }
+                        history_plan = Some((plan, settings.keep_run_records));
+                    }
+                    Err(e) => {
+                        eprintln!("{e}");
+                        std::process::exit(1);
+                    }
+                }
             }
             Err(e) => {
                 eprintln!("{e}");
@@ -296,9 +309,20 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
     };
     match merged {
         Ok((path, _merged)) => {
-            if let (Some(h), Some(r)) = (&history, run) {
-                match h.save(model_root) {
-                    Ok(p) => println!("Recorded run '{r}' in {}", p.display()),
+            if let (Some((plan, keep)), Some(r)) = (history_plan.take(), run) {
+                let dropped = plan.dropped.clone();
+                match plan.commit() {
+                    Ok(p) => {
+                        println!("Recorded run '{r}' in {}", p.display());
+                        if !dropped.is_empty() {
+                            println!(
+                                "Dropped the records of run{} {} ({}; their verdicts are kept): `[results] keep_run_records` in .syscribe.toml.",
+                                if dropped.len() == 1 { "" } else { "s" },
+                                dropped.join(", "),
+                                if keep == 0 { "no run keeps records".to_string() } else { format!("keeping the last {keep}") }
+                            );
+                        }
+                    }
                     Err(e) => {
                         eprintln!("Cannot write run history: {e}");
                         std::process::exit(1);

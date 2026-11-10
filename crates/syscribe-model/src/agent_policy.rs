@@ -55,6 +55,9 @@ pub struct Policy {
     pub sidecar_writers: Vec<String>,
     /// How the audit treats a commit of that sidecar (`sidecar_audit`); default `exempt`.
     pub sidecar_audit: SidecarAudit,
+    /// Where the run records live when `[results] runs_dir` moved them out of `.syscribe/runs` (absolute): part of the
+    /// evidence sidecar, so `sidecar_writers` and `sidecar_audit` cover it too (GH #471).
+    pub runs_dir: Option<std::path::PathBuf>,
     /// Every model-writing command must carry `--by` (or `--as-human`).
     pub require_by: bool,
     /// Globs on a git author that mark a commit as agent-made, for the audit.
@@ -105,6 +108,10 @@ pub fn load(model_root: &Path) -> Option<Policy> {
     let doc: toml::Value = toml::from_str(&text).ok()?;
     let t = doc.get("agents")?.as_table()?;
     let mut p = Policy { audit_limit: DEFAULT_AUDIT_LIMIT, ..Default::default() };
+    let results = crate::run_history::ResultsSettings::load(model_root);
+    if results.runs_dir_custom {
+        p.runs_dir = Some(results.runs_dir);
+    }
     for (k, v) in t {
         match k.as_str() {
             "protected_paths" => p.protected_paths = string_list(v, k, &mut p.problems),
@@ -182,11 +189,17 @@ impl Policy {
     /// A change by an agent may not touch `path`. `candidates` are the same path spelled relative to the
     /// repository and to the model root; any of them matching a protected glob refuses it.
     pub fn check_path(&self, candidates: &[String]) -> Result<(), Refusal> {
+        self.check_path_for(candidates, candidates.iter().any(|c| looks_like_sidecar(c)))
+    }
+
+    /// [`Self::check_path`] when the caller already knows whether the file is part of the evidence sidecar (the write
+    /// guard does, and it alone knows a moved `[results] runs_dir`).
+    pub fn check_path_for(&self, candidates: &[String], is_sidecar: bool) -> Result<(), Refusal> {
         match self.protecting_pattern(candidates) {
             Some(pat) => {
                 let mut message = format!("`{}` is protected (`{pat}`); {HOW_A_PERSON_PROCEEDS}.", candidates.first().map(String::as_str).unwrap_or(""));
                 // An agent that hits this on recorded evidence is told how a person lets an automated ingest through.
-                if candidates.iter().any(|c| looks_like_sidecar(c)) {
+                if is_sidecar {
                     if self.sidecar_writers.is_empty() {
                         message.push_str(" This is the evidence sidecar: to let an automated `ingest-results` write it while it stays protected from every other writer, a person adds `sidecar_writers = [\"ingest-results\"]` under `[agents]` in `.syscribe.toml` (`syscribe help policy`).");
                     } else {
@@ -282,7 +295,11 @@ impl Policy {
             out.push(format!("Tools must not write protected paths: {}.", self.protected_paths.iter().map(|p| format!("`{p}`")).collect::<Vec<_>>().join(", ")));
         }
         if !self.protected_paths.is_empty() && !self.sidecar_writers.is_empty() {
-            out.push(format!("Only {} may write the evidence sidecar (`.syscribe/**`) despite those protected paths; record results with that command, never by editing the sidecar.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
+            let place = match &self.runs_dir {
+                Some(d) => format!("`.syscribe/**` and the run records under `{}`", d.display()),
+                None => "`.syscribe/**`".to_string(),
+            };
+            out.push(format!("Only {} may write the evidence sidecar ({place}) despite those protected paths; record results with that command, never by editing the sidecar.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
             if self.sidecar_audit == SidecarAudit::Command {
                 out.push(format!("When you commit recorded results, commit them with `--commit` on that command (it records the command in the commit): `validate` reports a commit of the sidecar that was not made by {} as `W760`.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(" or ")));
             }
@@ -572,11 +589,17 @@ fn audit_inner(model_root: &Path, policy: &Policy) -> Vec<Finding> {
     let rel = abs.strip_prefix(&root).unwrap_or(Path::new("")).to_string_lossy().replace('\\', "/");
     let limit = policy.audit_limit.to_string();
     let model_prefix = if rel.is_empty() { String::new() } else { format!("{rel}/") };
+    // A moved `[results] runs_dir` inside the repository, as git spells it (a directory outside it is not in the history).
+    let runs_prefix: Option<String> = policy.runs_dir.as_ref().and_then(|d| d.strip_prefix(&root).ok()).map(|r| format!("{}/", r.to_string_lossy().replace('\\', "/")));
     let scope = if rel.is_empty() { ".".to_string() } else { rel };
-    let Some(log) = git(
-        &root,
-        &["log", "--format=\u{1e}%H\u{1f}%an\u{1f}%B\u{1f}", "--name-status", "--no-renames", "-n", &limit, "--", &scope],
-    ) else {
+    // The model, and a moved runs directory when it is outside it: a commit touching only that is not in the model's
+    // history, so it must be named or the audit would never see it.
+    let runs_scope = runs_prefix.as_ref().map(|p| p.trim_end_matches('/').to_string()).filter(|p| scope != "." && !(p.as_str() == scope || p.starts_with(&format!("{scope}/"))));
+    let mut log_args: Vec<&str> = vec!["log", "--format=\u{1e}%H\u{1f}%an\u{1f}%B\u{1f}", "--name-status", "--no-renames", "-n", &limit, "--", &scope];
+    if let Some(r) = &runs_scope {
+        log_args.push(r);
+    }
+    let Some(log) = git(&root, &log_args) else {
         return out;
     };
     // A file's content is only worth reading when the commit's own diff adds a `status:` line carrying a
@@ -607,7 +630,8 @@ fn audit_inner(model_root: &Path, policy: &Policy) -> Vec<Finding> {
             // The evidence sidecar, when `sidecar_writers` names the commands that write it. `exempt` (default): never
             // reported, because git cannot tell such a write from a hand edit. `command`: reported unless this
             // commit's `Syscribe-Command` (what `--commit` writes) is a listed writer.
-            let is_sidecar = !policy.sidecar_writers.is_empty() && path.strip_prefix(&model_prefix).is_some_and(is_sidecar_path);
+            let in_runs_dir = runs_prefix.as_ref().is_some_and(|p| path.starts_with(p.as_str()));
+            let is_sidecar = !policy.sidecar_writers.is_empty() && (path.strip_prefix(&model_prefix).is_some_and(is_sidecar_path) || in_runs_dir);
             let by_writer = || command.as_deref().is_some_and(|c| policy.sidecar_writers.iter().any(|w| w == c));
             let exempt = is_sidecar && (policy.sidecar_audit == SidecarAudit::Exempt || by_writer());
             if let Some(pat) = policy.protecting_pattern(&spellings).filter(|_| !exempt) {

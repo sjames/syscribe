@@ -1021,8 +1021,9 @@ fn score_moe(moe: &Moe, value: f64) -> (f64, bool) {
 /// each Configuration (`ingest-results --format records --config <CONF>`) from it.
 ///
 /// `results_specs` are the `--results` arguments: records read from files outside the model instead, for the
-/// Configurations they cover (see [`crate::moe_measured::load_external`]).
-pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String], results: Option<&syscribe_model::results::ResultsData>, results_specs: &[String]) {
+/// Configurations they cover (see [`crate::moe_measured::load_external`]). `run` is a retained run (`--run <id>`,
+/// GH #471): its records, per Configuration, replace the sidecar's for every compared Configuration.
+pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String], results: Option<&syscribe_model::results::ResultsData>, results_specs: &[String], run: Option<&syscribe_model::run_history::LoadedRun>) {
     for c in config_filter {
         let known = elems.iter().any(|e| {
             is_type(e, ElementType::Configuration) && (e.frontmatter.id.as_deref() == Some(c.as_str()) || e.qualified_name == *c)
@@ -1088,6 +1089,25 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         });
     }
 
+    // A directory covers every compared Configuration, as a run does: they are alternatives, not layers. One named
+    // file (`CONF=file`) overrides the run for that Configuration.
+    if run.is_some() && results_specs.iter().any(|s| !s.contains('=')) {
+        crate::cliargs::usage_exit("trade-study: --run and a --results directory both cover every compared Configuration; use one, or name a single Configuration with --results <Configuration>=<file> to override the run for it");
+    }
+    if let Some(r) = run {
+        let held = cfgs.iter().filter(|c| c.id.as_deref().and_then(|id| r.records.by_config.get(id)).is_some_and(|v| !v.is_empty())).count();
+        if held == 0 {
+            let id = &r.index.run;
+            let why = if r.file_missing {
+                format!("Its index entry lists {} record(s) but their file {} is missing: restore it (from version control or an archive), or re-ingest the run", r.index.record_count, r.file.display())
+            } else if r.index.records_dropped {
+                "Its records were dropped to bound the history (`[results] keep_run_records` in .syscribe.toml); its verdicts remain. Raise the setting and re-ingest it, or read an archived copy of its files with `--results`".to_string()
+            } else {
+                format!("A run keeps records only for a records-like ingest (`--format records`, `robot`, `cucumber`, a results plugin) made with `--config <Configuration>`: re-ingest it with `ingest-results --run {id} --config <Configuration> ...`")
+            };
+            crate::cliargs::usage_exit(&format!("trade-study: run '{id}' holds no records for any compared Configuration. {why}"));
+        }
+    }
     // Records from files outside the model replace the sidecar for the Configurations they cover.
     let cfg_keys: Vec<(Option<String>, String)> = cfgs.iter().map(|c| (c.id.clone(), c.qname.clone())).collect();
     let external = match crate::moe_measured::load_external(elems, results_specs, &cfg_keys) {
@@ -1102,6 +1122,12 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             let sidecar = c.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id)));
             match external.get(&key_of(c)) {
                 Some(x) => json!({"configuration": c.label, "origin": "external", "path": x.path, "hash": x.hash, "count": x.total, "unmatched": x.unmatched}),
+                None if run.is_some() => {
+                    let r = run.expect("checked");
+                    let recs = c.id.as_deref().and_then(|id| r.records.by_config.get(id)).map(|v| v.as_slice()).unwrap_or(&[]);
+                    // The records keep the hashes of their ingest, so a model edit since then shows here.
+                    json!({"configuration": c.label, "origin": "run", "run": r.index.run, "count": recs.len(), "ingestedAtUnix": r.index.ingested_at_unix, "sources": r.index.sources, "stale": crate::moe_measured::stale_reasons(elems, recs)})
+                }
                 None => json!({"configuration": c.label, "origin": "sidecar", "count": sidecar.map(|s| s.records.len()), "format": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.format.clone()), "source": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.source.clone()), "ingestedAtUnix": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.ingested_at_unix)}),
             }
         })
@@ -1119,6 +1145,8 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             if let Some(name) = &moe.measurement {
                 let recs = match external.get(&key_of(cfg)) {
                     Some(x) => x.records.as_slice(),
+                    // A run covers every compared Configuration: one it holds nothing for has no evidence.
+                    None if run.is_some() => cfg.id.as_deref().and_then(|id| run.and_then(|r| r.records.by_config.get(id))).map(|v| v.as_slice()).unwrap_or(&[]),
                     None => cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]),
                 };
                 match crate::moe_measured::measured(recs, name, moe.aggregate, moe.unit.as_deref()) {
@@ -1307,14 +1335,19 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         }
         println!("  {:<width$} {:.3}{}", c.label, totals[i], tags, width = col_w);
     }
-    if !external.is_empty() {
+    if !external.is_empty() || run.is_some() {
         println!();
-        println!("Recorded evidence (--results):");
+        println!("Recorded evidence ({}):", if run.is_some() { "--run / --results" } else { "--results" });
         for (c, e) in cfgs.iter().zip(&evidence) {
-            match e["path"].as_str() {
-                Some(p) => println!("  {} <- {} ({}, {} record(s){})", c.label, p, e["hash"].as_str().unwrap_or(""), e["count"], match e["unmatched"].as_u64() { Some(n) if n > 0 => format!(", {n} naming no TestCase ignored"), _ => String::new() }),
-                None if e["origin"] == "external" => println!("  {} — no file in the directory: no evidence", c.label),
-                None => println!("  {} — from the model's sidecar", c.label),
+            match (e["origin"].as_str(), e["path"].as_str()) {
+                (_, Some(p)) => println!("  {} <- {} ({}, {} record(s){})", c.label, p, e["hash"].as_str().unwrap_or(""), e["count"], match e["unmatched"].as_u64() { Some(n) if n > 0 => format!(", {n} naming no TestCase ignored"), _ => String::new() }),
+                (Some("external"), None) => println!("  {} — no file in the directory: no evidence", c.label),
+                (Some("run"), None) if e["count"] == 0 => println!("  {} — run {} holds no records for it: no evidence", c.label, e["run"].as_str().unwrap_or("")),
+                (Some("run"), None) => {
+                    let stale: Vec<&str> = e["stale"].as_array().into_iter().flatten().filter_map(|s| s.as_str()).collect();
+                    println!("  {} <- run {} ({} record(s){})", c.label, e["run"].as_str().unwrap_or(""), e["count"], if stale.is_empty() { String::new() } else { format!("; STALE, the model changed since: {}", stale.join("; ")) });
+                }
+                _ => println!("  {} — from the model's sidecar", c.label),
             }
         }
     }

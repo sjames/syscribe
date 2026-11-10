@@ -162,3 +162,209 @@ fn a_protected_history_is_refused_before_the_sidecar_is_written() {
     assert!(d.join("model/.syscribe/results-history.json").exists());
     assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--by", "agent-1", &a]).1, 0, "no --run, no history write");
 }
+
+// ── records retained under a run, one file per run (GH #471) ────────────────────────────────────────────────────
+
+fn history(d: &Path) -> serde_json::Value {
+    serde_json::from_str(&std::fs::read_to_string(d.join("model/.syscribe/results-history.json")).unwrap()).unwrap()
+}
+
+fn run_file(d: &Path, name: &str) -> PathBuf {
+    d.join("model/.syscribe/runs").join(format!("{name}.json"))
+}
+
+fn run_records(d: &Path, name: &str) -> serde_json::Value {
+    serde_json::from_str(&std::fs::read_to_string(run_file(d, name)).unwrap()).unwrap()
+}
+
+fn run_with_a_test_case() -> PathBuf {
+    let d = dir();
+    std::fs::write(d.join("model/REQ-RH-001.md"), "---\nid: REQ-RH-001\ntype: Requirement\nname: R\nstatus: approved\nreqDomain: system\n---\n\nBody.\n").unwrap();
+    std::fs::write(d.join("model/TC-RH-001.md"), "---\nid: TC-RH-001\ntype: TestCase\ntestLevel: L5\nstatus: active\nname: T\nverifies: [REQ-RH-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: One\n    Given x\n    Then y\n```\n").unwrap();
+    d
+}
+
+/// A records file with everything a record can carry, so what the history drops is visible.
+fn records(d: &Path, name: &str, value: &str) -> String {
+    let p = d.join(name);
+    std::fs::write(
+        &p,
+        format!(
+            "[{{\"testCase\": \"TC-RH-001\", \"scenario\": \"One\", \"verdict\": \"pass\", \"steps\": [{{\"text\": \"a step\"}}],\
+             \"measurements\": [{{\"name\": \"closeTime\", \"value\": \"{value}\"}}],\
+             \"provenance\": {{\"operator\": \"alice\", \"tool\": \"rig 1\", \"build\": {{\"commit\": \"abc\"}}, \"startedAt\": \"2026-11-01T10:00:00Z\", \"finishedAt\": \"2026-11-01T10:05:00Z\", \
+             \"artefacts\": [{{\"uri\": \"file:///x\", \"hash\": \"sha256:{}\"}}]}}}}]",
+            "0".repeat(64)
+        ),
+    )
+    .unwrap();
+    p.to_string_lossy().into_owned()
+}
+
+fn ingest_run(d: &Path, run: &str, value: &str) -> (String, i32) {
+    let f = records(d, &format!("{}-{value}.json", run.replace(['/', ' '], "_")), value);
+    run_cli(d, &["ingest-results", "--format", "records", "--run", run, &f])
+}
+
+fn run_cli(d: &Path, args: &[&str]) -> (String, i32) {
+    run(d, args)
+}
+
+#[test]
+fn a_records_run_keeps_slim_records_in_its_own_file_and_the_index_counts_them() {
+    let d = run_with_a_test_case();
+    let (out, code) = ingest_run(&d, "R1", "1650 ms");
+    assert_eq!(code, 0, "{out}");
+    // The index holds counts and verdicts, never the records.
+    let h = history(&d);
+    assert_eq!(h["runs"][0]["record_count"], 1, "{h}");
+    assert!(h["runs"][0].get("records").is_none(), "no records in the index: {h}");
+    // The run's file holds the slim record: the measurements, hashes and finish time, not the steps, artefacts or operator.
+    let f = run_records(&d, "R1");
+    let r = &f["records"][0];
+    assert_eq!((f["run"].clone(), r["measurements"][0]["value"].clone(), r["provenance"]["finishedAt"].clone()), ("R1".into(), "1650 ms".into(), "2026-11-01T10:05:00Z".into()), "{f}");
+    assert!(r["tcHash"].is_string() && r["reqHashes"]["REQ-RH-001"].is_string(), "the hashes the record was stamped with are kept: {r}");
+    for gone in ["steps"] {
+        assert!(r.get(gone).is_none(), "{gone} is not kept: {r}");
+    }
+    for gone in ["operator", "tool", "build", "artefacts"] {
+        assert!(r["provenance"].get(gone).is_none(), "provenance.{gone} is not kept: {r}");
+    }
+    // The sidecar keeps the full record.
+    let sidecar: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(d.join("model/.syscribe/results.json")).unwrap()).unwrap();
+    assert!(sidecar["records"][0]["steps"].as_array().is_some_and(|s| !s.is_empty()), "{sidecar}");
+}
+
+#[test]
+fn a_later_ingest_of_the_same_run_supersedes_its_keys_and_other_runs_have_their_own_files() {
+    let d = run_with_a_test_case();
+    assert_eq!(ingest_run(&d, "R1", "1650 ms").1, 0);
+    let r1_before = std::fs::read_to_string(run_file(&d, "R1")).unwrap();
+    assert_eq!(ingest_run(&d, "R2", "1800 ms").1, 0);
+    assert_eq!(std::fs::read_to_string(run_file(&d, "R1")).unwrap(), r1_before, "another run's ingest does not touch R1's file");
+    // The same run and key again replaces the record: one record, the new value; the index agrees.
+    assert_eq!(ingest_run(&d, "R1", "1700 ms").1, 0);
+    let f = run_records(&d, "R1");
+    assert_eq!((f["records"].as_array().unwrap().len(), f["records"][0]["measurements"][0]["value"].clone()), (1, "1700 ms".into()), "{f}");
+    assert_eq!(history(&d)["runs"][0]["record_count"], 1);
+}
+
+#[test]
+fn function_level_runs_write_no_run_file_and_keep_the_indexs_shape() {
+    let d = dir();
+    let a = junit(&d, "a.xml", &[("t_pass", "pass")]);
+    assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--run", "R1", &a]).1, 0);
+    assert!(history(&d)["runs"][0].get("record_count").is_none(), "no count for a verdict-only run");
+    assert!(!d.join("model/.syscribe/runs").exists(), "no run file, so no directory");
+    let (out, code) = run(&d, &["results", "runs"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("R1") && !out.contains("record(s)"), "{out}");
+}
+
+fn with_keep(d: &Path, n: &str) {
+    std::fs::write(d.join("model/.syscribe.toml"), format!("[results]\nkeep_run_records = {n}\n")).unwrap();
+}
+
+#[test]
+fn the_cap_drops_the_oldest_runs_records_and_keeps_their_verdicts_and_says_so() {
+    let d = run_with_a_test_case();
+    with_keep(&d, "2");
+    assert_eq!(ingest_run(&d, "R1", "1600 ms").1, 0);
+    assert_eq!(ingest_run(&d, "R2", "1700 ms").1, 0);
+    let (out, code) = ingest_run(&d, "R3", "1800 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("Dropped the records of run R1") && out.contains("keeping the last 2") && out.contains("their verdicts are kept"), "{out}");
+    assert!(!run_file(&d, "R1").exists() && run_file(&d, "R2").exists() && run_file(&d, "R3").exists(), "the oldest run's file is deleted");
+    let h = history(&d);
+    assert_eq!((h["runs"][0]["record_count"].clone(), h["runs"][0]["records_dropped"].clone()), (serde_json::Value::Null, true.into()), "{h}");
+    // The verdicts stay, so the runs still compare.
+    let (out, code) = run(&d, &["results", "diff", "R1", "R2"]);
+    assert_eq!(code, 0, "{out}");
+    // `results runs` shows what each run holds.
+    let (out, _) = run(&d, &["results", "runs"]);
+    let line = |id: &str| out.lines().find(|l| l.starts_with(id)).unwrap().to_string();
+    assert!(line("R1").contains("records dropped") && line("R2").contains("1 record(s)") && line("R3").contains("1 record(s)"), "{out}");
+    let (j, _) = run(&d, &["results", "runs", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&j).unwrap();
+    assert_eq!((v["runs"][0]["recordsDropped"].clone(), v["runs"][2]["records"].clone()), (true.into(), 1.into()), "{v}");
+}
+
+#[test]
+fn a_run_re_ingested_after_a_newer_one_counts_as_newest_even_within_the_same_second() {
+    let d = run_with_a_test_case();
+    with_keep(&d, "2");
+    for (r, v) in [("R1", "1"), ("R2", "2"), ("R3", "3")] {
+        assert_eq!(ingest_run(&d, r, &format!("{v}00 ms")).1, 0);
+    }
+    // R1's records were dropped. Re-ingesting it now keeps them; the oldest of the others (R2) goes.
+    let (out, code) = ingest_run(&d, "R1", "999 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(run_file(&d, "R1").exists() && run_file(&d, "R3").exists() && !run_file(&d, "R2").exists(), "R1 is newest: {out}");
+    assert!(out.contains("Dropped the records of run R2"), "{out}");
+}
+
+#[test]
+fn keeping_none_and_a_malformed_setting() {
+    let d = run_with_a_test_case();
+    with_keep(&d, "0");
+    let (out, code) = ingest_run(&d, "R1", "1600 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("no run keeps records") && !run_file(&d, "R1").exists(), "{out}");
+    assert_eq!(history(&d)["runs"][0]["records_dropped"], true);
+    // A malformed value is a warning and the default applies: nothing is dropped.
+    let d = run_with_a_test_case();
+    with_keep(&d, "\"many\"");
+    let (out, code) = ingest_run(&d, "R1", "1600 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("keep_run_records must be a whole number") && run_file(&d, "R1").exists(), "{out}");
+}
+
+#[test]
+fn an_unreadable_run_file_is_never_overwritten() {
+    let d = run_with_a_test_case();
+    assert_eq!(ingest_run(&d, "R1", "1600 ms").1, 0);
+    std::fs::write(run_file(&d, "R1"), "{ not json").unwrap();
+    let (out, code) = ingest_run(&d, "R1", "1700 ms");
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("is not valid") && out.contains("fix or remove"), "{out}");
+    assert_eq!(std::fs::read_to_string(run_file(&d, "R1")).unwrap(), "{ not json", "left for a person to fix");
+}
+
+#[test]
+fn a_run_id_becomes_a_safe_unique_file_name() {
+    let d = run_with_a_test_case();
+    assert_eq!(ingest_run(&d, "rc/1 2", "1600 ms").1, 0);
+    assert!(run_file(&d, "rc%2F1%202").exists(), "{:?}", std::fs::read_dir(d.join("model/.syscribe/runs")).unwrap().map(|e| e.unwrap().file_name()).collect::<Vec<_>>());
+    assert_eq!(history(&d)["runs"][0]["run"], "rc/1 2", "the index keeps the id as given");
+}
+
+#[test]
+fn a_protected_run_file_is_refused_before_anything_is_written() {
+    let d = run_with_a_test_case();
+    std::fs::write(d.join("model/.syscribe.toml"), "[agents]\nprotected_paths = [\".syscribe/runs/**\"]\n").unwrap();
+    let f = records(&d, "a.json", "1600 ms");
+    let (out, code) = run(&d, &["ingest-results", "--format", "records", "--run", "R1", "--by", "agent-1", &f]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("protected_paths") && out.contains("runs"), "{out}");
+    assert!(!d.join("model/.syscribe/results.json").exists() && !d.join("model/.syscribe/results-history.json").exists(), "nothing was written: {out}");
+}
+
+#[test]
+fn a_moved_runs_dir_holds_the_run_files_and_the_index_stays_in_syscribe() {
+    let d = run_with_a_test_case();
+    // `../evidence/runs` is relative to the model root: <dir>/evidence/runs, outside the model.
+    std::fs::write(d.join("model/.syscribe.toml"), "[results]\nruns_dir = \"../evidence/runs\"\n").unwrap();
+    let (out, code) = ingest_run(&d, "R1", "1600 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(d.join("evidence/runs/R1.json").is_file(), "the run file is where runs_dir says: {out}");
+    assert!(!d.join("model/.syscribe/runs").exists(), "and not in the default place");
+    assert_eq!(history(&d)["runs"][0]["record_count"], 1, "the index is still in .syscribe");
+    let (list, code) = run(&d, &["results", "runs"]);
+    assert_eq!(code, 0, "{list}");
+    assert!(list.contains("R1") && list.contains("1 record(s)"), "{list}");
+    // A cap drop deletes the file from the moved directory.
+    std::fs::write(d.join("model/.syscribe.toml"), "[results]\nruns_dir = \"../evidence/runs\"\nkeep_run_records = 1\n").unwrap();
+    let (out, code) = ingest_run(&d, "R2", "1700 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(!d.join("evidence/runs/R1.json").exists() && d.join("evidence/runs/R2.json").is_file(), "{out}");
+}

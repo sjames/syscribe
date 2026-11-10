@@ -89,16 +89,19 @@ pub fn init(model_root: &Path, command: &str, args: &[String]) -> Result<(), Str
         let _ = ROOTS.set((model_root.to_path_buf(), git_root));
         let model_abs = std::fs::canonicalize(model_root).unwrap_or_else(|_| model_root.to_path_buf());
         let sidecar_writer = Some(command.to_string());
+        // A `[results] runs_dir` moved out of `.syscribe/` is part of the evidence sidecar too.
+        let runs_dir = p.runs_dir.as_ref().map(|d| crate::impactfiles::lenient_path(d));
         syscribe_model::fsio::set_guard(move |path| {
             if needs_actor && is_model_file(&model_abs, path) {
                 return Err(Policy::actor_required().to_string());
             }
             if agent {
                 // The evidence sidecar stays protected from every writer but the commands the policy names.
-                if sidecar_writer.as_deref().is_some_and(|c| p.sidecar_writers.iter().any(|w| w == c)) && is_sidecar_file(&model_abs, path) {
+                let sidecar = is_sidecar_file(&model_abs, runs_dir.as_deref(), path);
+                if sidecar_writer.as_deref().is_some_and(|c| p.sidecar_writers.iter().any(|w| w == c)) && sidecar {
                     return Ok(());
                 }
-                p.check_path(&candidates(path)).map_err(|r| r.to_string())?;
+                p.check_path_for(&candidates(path), sidecar).map_err(|r| r.to_string())?;
             }
             Ok(())
         });
@@ -107,10 +110,12 @@ pub fn init(model_root: &Path, command: &str, args: &[String]) -> Result<(), Str
 }
 
 /// A file under `<model>/.syscribe/` — the verdict/evidence sidecars — but not the `scripts/` tooling, which no
-/// sidecar writer touches and which is executable code.
-fn is_sidecar_file(model_abs: &Path, path: &Path) -> bool {
+/// sidecar writer touches and which is executable code; or under a moved `[results] runs_dir`.
+fn is_sidecar_file(model_abs: &Path, runs_dir: Option<&Path>, path: &Path) -> bool {
     let abs = crate::impactfiles::lenient_path(path);
     abs.strip_prefix(model_abs.join(".syscribe")).is_ok_and(|rel| rel.components().next().is_some_and(|c| c.as_os_str() != "scripts"))
+        // The directory itself too: creating it is a write the policy guard sees.
+        || runs_dir.is_some_and(|d| abs.starts_with(d))
 }
 
 /// A write inside the model directory, other than the tool's own regenerable cache.

@@ -425,3 +425,21 @@ fn grid_tie_inverter_requirement_coverage() {
     let v: Value = serde_json::from_str(&out).unwrap();
     assert!(elem(&v, "System::Software::Supervisor")["scenarios"].as_u64().unwrap() > 0, "{v}");
 }
+
+#[test]
+fn a_corrupt_mutation_sidecar_is_never_overwritten_and_the_coverage_commands_say_so() {
+    // GH #472: it used to be read as empty, and the next `mutate --record` replaced it.
+    let root = write(&base());
+    assert_eq!(cli(&root, &["mutate", "Exec::CtlM", "--record"]).0, 0);
+    let sidecar = root.join(".syscribe/mutation.json");
+    std::fs::write(&sidecar, "{ not json").unwrap();
+    let (code, out) = cli(&root, &["mutate", "Exec::CtlM", "--record"]);
+    assert_eq!(code, 1, "a refused record is not the --min-score gate (2): {out}");
+    assert!(out.contains("cannot be read, so nothing was recorded"), "{out}");
+    assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), "{ not json", "left for a person to fix");
+    // The coverage commands report it instead of silently using no scores.
+    let (_, out) = cli(&root, &["requirement-coverage", "--json"]);
+    let v: Value = serde_json::from_str(&out).unwrap();
+    assert!(v["errors"].to_string().contains("recorded mutation scores cannot be read"), "{v}");
+    let _ = std::fs::remove_dir_all(&root);
+}

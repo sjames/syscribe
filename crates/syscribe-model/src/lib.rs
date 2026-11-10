@@ -80,6 +80,7 @@ pub mod resolver;
 pub mod result_cucumber;
 pub mod result_join;
 pub mod result_records;
+pub mod run_history;
 pub mod result_robot;
 pub mod results;
 pub mod asil;

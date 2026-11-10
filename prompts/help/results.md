@@ -17,6 +17,28 @@ Re-ingesting the same run id replaces that run's section of the same kind (the
 function-level and the session-log sections are independent); other runs are kept.
 Without `--run` nothing is retained.
 
+**Where a run's records live (GH #471).** `results-history.json` is the index: per run its verdict maps, sources,
+time and how many records the run holds. A records-like ingest (`--format records`, `robot`, `cucumber`, a results
+plugin) also keeps its records, with their measurements, in `.syscribe/runs/<run>.json` (the run id with anything
+but letters, digits, `_`, `-` and `.` written `%XX`), globally or per Configuration (`--config`), so `trade-study
+--run <id>` can rank an earlier run (see `help trade-study`). A run file keeps the slim record: the key, verdict,
+measurements, the hashes it was stamped with and when it finished, not the steps, artefact references, operator
+or tool (the sidecar keeps the full record). An ingest rewrites only its own run's file; function-level and
+session-log runs write none.
+
+**The history is bounded.** Only the most recently ingested runs keep their records: `[results] keep_run_records`
+in `.syscribe.toml` (default 20; `0` keeps none). When an ingest pushes a run past it, that run's file is deleted
+and ingest says so; the run stays in the index with its verdicts, so `results runs` shows `records dropped` and
+`results diff` still compares it. A run the ingest touched always counts as newest. `results runs` lists each
+run's record count; to restore a dropped run, raise the setting and re-ingest it. The index is the source of
+truth: a file in `runs/` it does not list is ignored, and one it lists that is gone is reported missing.
+
+**Moving the run files.** `[results] runs_dir` in `.syscribe.toml` (relative to the model root, or absolute) puts the
+run files elsewhere than `.syscribe/runs`; the index stays in `.syscribe/`. It may not be the model root or
+`.syscribe` itself. The agent policy treats a moved directory as part of the evidence sidecar (see `help policy`,
+"Moving the run records"); protecting it is a `protected_paths` entry of its own. Moving it later means moving the
+existing files.
+
 `results failures` lists the failing, skipped and flaky functions of the latest
 ingest with the retained JUnit `message` and `time` (passing cases keep no detail). With
 per-configuration evidence (`ingest-results --config`) it lists every configuration's

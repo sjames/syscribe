@@ -624,3 +624,99 @@ fn policy_tells_an_agent_to_commit_with_dash_dash_commit_in_command_mode() {
     let (out, _, _) = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\n").run(&["policy"]);
     assert!(!out.contains("commit them with"), "the default says nothing more: {out}");
 }
+
+// ── a moved [results] runs_dir is part of the evidence sidecar (GH #471) ───────────────────────────────────────
+
+/// A repository whose model is `model/`, with a TestCase and a records report that `ingest-results --run` can ingest.
+fn runs_repo(policy: &str, results: &str) -> Repo {
+    let r = Repo::new(&format!("{policy}\n{results}"));
+    r.write("model/Verification/TC-AP-001.md", "---\nid: TC-AP-001\ntype: TestCase\nname: one\nstatus: active\ntestLevel: L5\nverifies: [REQ-AP-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: One\n    Given x\n    Then y\n```\n");
+    r.write("records.json", "[{\"testCase\": \"TC-AP-001\", \"scenario\": \"One\", \"verdict\": \"pass\", \"measurements\": [{\"name\": \"t\", \"value\": \"1 ms\"}]}]");
+    r.commit("tc and report");
+    r
+}
+
+const AGENT_INGEST: [&str; 8] = ["ingest-results", "--format", "records", "--run", "R1", "--by", "agent-1", "records.json"];
+
+#[test]
+fn a_runs_dir_in_the_repo_but_outside_the_model_is_covered_by_the_policy() {
+    let policy = "[agents]\nprotected_paths = [\".syscribe/**\", \"evidence/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n";
+    let r = runs_repo(policy, "[results]\nruns_dir = \"../evidence/runs\"\n");
+    let (_o, err, code) = r.run(&AGENT_INGEST);
+    assert_eq!(code, 0, "a listed writer may write the moved directory as it writes .syscribe/: {err}");
+    assert!(r.root.join("evidence/runs/R1.json").is_file(), "the run file is where runs_dir says");
+    assert!(!r.model().join(".syscribe/runs").exists(), "and not in the default place");
+    assert!(r.model().join(".syscribe/results-history.json").is_file(), "the index stays in .syscribe");
+    // The policy says so in words, naming the directory.
+    let (out, _, _) = r.run(&["policy"]);
+    assert!(out.contains("run records under") && out.contains("evidence/runs"), "{out}");
+}
+
+#[test]
+fn without_a_listed_writer_a_protected_moved_runs_dir_refuses_and_says_how_to_configure_it() {
+    let r = runs_repo("[agents]\nprotected_paths = [\"evidence/**\"]\n", "[results]\nruns_dir = \"../evidence/runs\"\n");
+    let (_o, err, code) = r.run(&AGENT_INGEST);
+    assert_eq!(code, 1, "{err}");
+    assert!(err.contains("protected_paths") && err.contains("evidence/runs/R1.json"), "{err}");
+    assert!(err.contains("sidecar_writers = [\"ingest-results\"]"), "the moved directory is the evidence sidecar, so the hint applies: {err}");
+    assert!(!r.root.join("evidence").exists() && !r.model().join(".syscribe/results.json").exists(), "nothing was written: {err}");
+}
+
+#[test]
+fn the_audit_treats_a_moved_runs_dir_as_the_sidecar_in_both_modes() {
+    // `exempt` (default): a commit of the moved directory is not reported.
+    let exempt = runs_repo("[agents]\nprotected_paths = [\"evidence/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n", "[results]\nruns_dir = \"../evidence/runs\"\n");
+    exempt.write("evidence/runs/R1.json", "{}");
+    commit_as(&exempt, "agent-1", "commit the runs");
+    assert!(findings(&exempt, "W760").is_empty(), "{:?}", findings(&exempt, "W760"));
+    // `command`: a plain git commit of it is reported, with the sidecar hint; a tool commit is not.
+    let command = runs_repo("[agents]\nprotected_paths = [\"evidence/**\"]\nsidecar_writers = [\"ingest-results\"]\nsidecar_audit = \"command\"\nactors = [\"agent-*\"]\n", "[results]\nruns_dir = \"../evidence/runs\"\n");
+    command.write("evidence/runs/R1.json", "{}");
+    commit_as(&command, "agent-1", "commit the runs");
+    let w = findings(&command, "W760");
+    assert_eq!(w.len(), 1, "{w:?}");
+    assert!(w[0].contains("evidence/runs/R1.json") && w[0].contains("sidecar_audit") && w[0].contains("--commit"), "{}", w[0]);
+    command.write("evidence/runs/R2.json", "{}");
+    commit_as(&command, "agent-1", "tool\n\nSyscribe-Command: ingest-results records.json\nSyscribe-Actor: agent-1");
+    assert_eq!(findings(&command, "W760").len(), 1, "the tool's commit adds no finding: {:?}", findings(&command, "W760"));
+    // Without sidecar_writers nothing is exempt: the same commit is reported.
+    let none = runs_repo("[agents]\nprotected_paths = [\"evidence/**\"]\nactors = [\"agent-*\"]\n", "[results]\nruns_dir = \"../evidence/runs\"\n");
+    none.write("evidence/runs/R1.json", "{}");
+    commit_as(&none, "agent-1", "commit the runs");
+    assert_eq!(findings(&none, "W760").len(), 1);
+}
+
+#[test]
+fn a_runs_dir_inside_the_model_and_outside_syscribe_is_covered_too() {
+    let policy = "[agents]\nprotected_paths = [\"evidence/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n";
+    let r = runs_repo(policy, "[results]\nruns_dir = \"evidence/runs\"\n");
+    let (_o, err, code) = r.run(&AGENT_INGEST);
+    assert_eq!(code, 0, "{err}");
+    assert!(r.model().join("evidence/runs/R1.json").is_file());
+    // Another command that is not a listed writer cannot write there.
+    let other = runs_repo("[agents]\nprotected_paths = [\"evidence/**\"]\nsidecar_writers = [\"set\"]\n", "[results]\nruns_dir = \"evidence/runs\"\n");
+    let (_o, err, code) = other.run(&AGENT_INGEST);
+    assert_eq!(code, 1);
+    assert!(err.contains("only `set` may write it"), "{err}");
+}
+
+#[test]
+fn an_absolute_runs_dir_outside_the_repo_is_written_by_a_listed_writer_and_is_not_in_git() {
+    let elsewhere = std::env::temp_dir().join(format!("syscribe-runs-elsewhere-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&elsewhere);
+    let r = runs_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n", &format!("[results]\nruns_dir = {:?}\n", elsewhere.display().to_string()));
+    let (_o, err, code) = r.run(&AGENT_INGEST);
+    assert_eq!(code, 0, "{err}");
+    assert!(elsewhere.join("R1.json").is_file(), "the run file is outside the repository");
+    assert!(findings(&r, "W760").is_empty(), "git cannot see it, so the audit has nothing to report");
+    let _ = std::fs::remove_dir_all(&elsewhere);
+}
+
+#[test]
+fn a_runs_dir_that_would_clobber_the_sidecar_is_a_warning_and_the_default_applies() {
+    let r = runs_repo("[agents]\nsidecar_writers = [\"ingest-results\"]\n", "[results]\nruns_dir = \".syscribe\"\n");
+    let (out, err, code) = r.run(&AGENT_INGEST);
+    assert_eq!(code, 0, "{err}");
+    assert!(format!("{out}{err}").contains("runs_dir") && format!("{out}{err}").contains("where a run named `results` would replace the sidecar"), "{out}{err}");
+    assert!(r.model().join(".syscribe/runs/R1.json").is_file(), "the default location is used");
+}

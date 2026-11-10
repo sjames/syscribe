@@ -269,7 +269,7 @@ pub fn record(model_root: &Path, rec: CampaignRecord) -> Result<PathBuf, String>
     if let Some(dir) = path.parent() {
         crate::fsio::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    crate::fsio::write(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
+    crate::fsio::write_atomic(&path, serde_json::to_string_pretty(&all).expect("serialises") + "\n").map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path)
 }
 

@@ -1956,9 +1956,10 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 let results_specs: Vec<String> = rest.windows(2).filter(|w| w[0] == "--results").map(|w| w[1].clone()).collect();
+                let run_id: Option<&str> = rest.windows(2).find(|w| w[0] == "--run").map(|w| w[1].as_str());
                 if tradestudy::has_trade_studies(&elems) {
-                    if !results_specs.is_empty() {
-                        cliargs::usage_exit("trade-study: --results applies to the MagicGrid MoE trade study, not to TradeStudy elements");
+                    if !results_specs.is_empty() || run_id.is_some() {
+                        cliargs::usage_exit("trade-study: --results and --run apply to the MagicGrid MoE trade study, not to TradeStudy elements");
                     }
                     // §15 (GH #63): general-purpose TradeStudy elements take precedence.
                     let filter = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
@@ -1972,7 +1973,19 @@ fn main() {
                         .collect();
                     // A MoE that names a recorded measurement reads the verdict sidecar (GH #467).
                     let results = syscribe_model::results::ResultsData::load_sidecar(model_root);
-                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref(), &results_specs);
+                    // `--run <id>`: a retained run's records (GH #471). An unknown id is a usage error, like `results diff`.
+                    let run = run_id.map(|id| match syscribe_model::run_history::RunHistory::load(model_root).and_then(|h| h.load_run(model_root, id).map(|r| (h, r))) {
+                        Ok((_, Some(run))) => run,
+                        Ok((h, None)) => {
+                            let known: Vec<&str> = h.runs.iter().map(|r| r.run.as_str()).collect();
+                            cliargs::usage_exit(&format!("trade-study: no run '{id}' is retained{}", if known.is_empty() { " (none is: ingest one with `ingest-results --run <id> ...`)".to_string() } else { format!(" (retained: {})", known.join(", ")) }))
+                        }
+                        Err(e) => {
+                            eprintln!("{e}");
+                            std::process::exit(1);
+                        }
+                    });
+                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref(), &results_specs, run.as_ref());
                 }
             }
             "co-analysis" => {

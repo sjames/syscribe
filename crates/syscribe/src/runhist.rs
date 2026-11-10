@@ -218,6 +218,8 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
                             "functions": r.by_leaf.len(),
                             "scenarios": r.by_scenario.len(),
                             "configurations": r.by_config.iter().map(|(c, sec)| (c.clone(), json!({"functions": sec.by_leaf.len(), "scenarios": sec.by_scenario.len()}))).collect::<serde_json::Map<_, _>>(),
+                            "records": r.record_count,
+                            "recordsDropped": r.records_dropped,
                             "sources": r.sources,
                         })
                     })
@@ -235,7 +237,9 @@ pub fn cmd_results(model_root: &Path, args: &[String]) -> i32 {
                             r.by_config.iter().map(|(c, s)| format!("{c}: {} function(s), {} scenario(s)", s.by_leaf.len(), s.by_scenario.len())).collect::<Vec<_>>().join("; ")
                         )
                     };
-                    println!("{}  at {}  {} function(s), {} scenario(s){cfgs}", r.run, r.ingested_at_unix, r.by_leaf.len(), r.by_scenario.len());
+                    // What the run's records file holds: a count, or that the cap dropped it (`[results] keep_run_records`).
+                    let records = if r.record_count > 0 { format!("; {} record(s)", r.record_count) } else if r.records_dropped { "; records dropped".to_string() } else { String::new() };
+                    println!("{}  at {}  {} function(s), {} scenario(s){cfgs}{records}", r.run, r.ingested_at_unix, r.by_leaf.len(), r.by_scenario.len());
                 }
             }
             0

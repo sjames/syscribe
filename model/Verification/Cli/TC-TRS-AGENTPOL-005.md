@@ -30,6 +30,9 @@ Feature: protecting recorded evidence without blocking ingest
   Scenario: an agent is told how to configure it
     Then a refused sidecar write names sidecar_writers (or the commands that may write it), a non-sidecar protected path gets no such advice, and policy states the audit mode
 
+  Scenario: a moved runs_dir
+    Then a listed writer may write a runs_dir inside the model, in the repo outside the model and outside the repo, an unlisted one is refused with the hint, the audit reports a plain commit of it under sidecar_audit command and not a tool commit, and a runs_dir that is .syscribe is a warning with the default applied
+
   Scenario: malformed sidecar_writers
     Then it grants nothing
 ```

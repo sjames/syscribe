@@ -81,6 +81,24 @@ git cannot tell an `ingest-results` write from a hand edit.
   person can fake it: this is a guard rail, not proof.
 - Any other value is `W762` and `"exempt"` applies.
 
+**Moving the run records (`[results] runs_dir`).** `[results] runs_dir` (relative to the model root, or absolute; default
+`.syscribe/runs`) puts the run records somewhere else, for instance a directory a team keeps out of the model
+repository or in a submodule. The policy follows it: a moved directory is part of the evidence sidecar, so
+`sidecar_writers` lets a listed command write it and `sidecar_audit` governs commits of it. What it does **not** do
+is protect it: add it to `protected_paths` yourself, spelled relative to the repository or to the model root:
+
+    [agents]
+    protected_paths = [".syscribe/**", "evidence/**"]      # evidence/ is where runs_dir points
+    sidecar_writers = ["ingest-results"]
+
+    [results]
+    runs_dir = "../evidence/runs"                          # relative to the model root: <repo>/evidence/runs
+
+Two limits: the audit reads git history, so a `runs_dir` outside the repository is guarded when written but not
+audited; and `runs_dir` may not be the model root or `.syscribe` itself (a run named `results` would replace the
+sidecar), which is a warning with the default applied. The index `results-history.json` always stays in `.syscribe/`;
+if you move `runs_dir` later, move the existing run files too, or `trade-study --run` reports them missing.
+
 What you will see, and what to do (as an agent, you do not edit `.syscribe.toml` yourself):
 
 | Message | Meaning | Who does what |
@@ -89,6 +107,7 @@ What you will see, and what to do (as an agent, you do not edit `.syscribe.toml`
 | the same, ending "only x may write it" | writers are named but not this command | use the named command, or a person adds yours |
 | `W760 ... sidecar_audit = "command"` on `.syscribe/results.json` | a commit of the sidecar was not made by a listed writer | commit the ingest with `--commit`, or a person sets `sidecar_audit = "exempt"` |
 | `W762 ... sidecar_audit must be "exempt" or "command"` | a typo in the value | a person fixes it |
+| `warning: [results] runs_dir ... would replace the sidecar` | `runs_dir` is the model root or `.syscribe` | a person picks a subdirectory; the default applies meanwhile |
 
 **What is audited.** `validate` reads the last `audit_limit` commits that touched the model and reports
 violations that reached the files by another route: `W760` an agent-made commit changed a protected path

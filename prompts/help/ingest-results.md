@@ -19,6 +19,12 @@ If the project protects `.syscribe/**` (`[agents] protected_paths`), an agent's 
 (`syscribe help policy`, section "Protecting recorded evidence"). To keep `validate` reporting a hand-edited sidecar,
 commit the ingest with `--commit` and set `sidecar_audit = "command"`.
 
+`--run <id>` with a records-like format (`records`, `robot`, `cucumber`, a plugin) and `--config <CONF>` also retains
+the slim records, measurements included, in `.syscribe/runs/<run>.json`, so `trade-study --run <id>` can rank that
+run later. Only the newest `[results] keep_run_records` runs (default 20, `0` keeps none) keep their records; when an
+ingest pushes an older run past it, the run's file is deleted, the ingest says so, and the run keeps its verdicts
+(`help results`).
+
 `--config <CONF-id>` must resolve to a `Configuration` (else exit 1 and nothing is written).
 The results are kept under that configuration only — the global verdicts are untouched — so
 a test that fails only on one variant is no longer one global `fail`. A configuration is judged
