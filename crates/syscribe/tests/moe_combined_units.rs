@@ -187,3 +187,40 @@ fn measurement_source_with_variables_needs_no_mg_moe_measurement() {
         assert!(o.contains("MG033") && o.contains("names no recorded measurement"), "{o}");
     }
 }
+
+#[test]
+fn nested_moe_maps_raise_no_w041_but_other_nested_values_still_do() {
+    // GH #482
+    let ok = "  mg_moe_variables:\n    closeT: {measurement: closeTime, unit: ms}\n  mg_moe_inputs:\n    r: Moe::Other\n  mg_moe_unit: ms\n  mg_moe_direction: minimize\n  mg_moe_threshold: 400\n  mg_moe_objective: 100\n  mg_moe_weight: 1\n";
+    let root = model(&[("Other", ok), ("Resp", ok)], false);
+    let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+    assert!(!o.contains("W041"), "{o}");
+    let root = model(&[("Resp", "  mg_moe_note: {a: 1}\n  mg_moe_unit: ms\n")], false);
+    let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+    assert!(o.contains("W041") && o.contains("mg_moe_note"), "{o}");
+}
+
+#[test]
+fn language_functions_and_keywords_are_not_unbound_names_and_evaluate() {
+    // GH #483: `min` and `if/then/else` are valid MoE expressions, not unbound variables, and trade-study scores them.
+    for (expr, a_val, b_val) in [("moe = min(openT, closeT)", 100.0, 100.0), ("moe = if openT < closeT then openT else closeT", 100.0, 100.0), ("moe = max(openT, closeT) / 2", 150.0, 100.0)] {
+        let vars = "  mg_moe_source: measurement\n  mg_moe_variables:\n    openT: {measurement: openTime, unit: ms}\n    closeT: {measurement: closeTime, unit: ms}\n  mg_moe_unit: ms\n  mg_moe_direction: minimize\n  mg_moe_threshold: 400\n  mg_moe_objective: 50\n  mg_moe_weight: 1\n";
+        let root = model(&[("Resp", vars)], true);
+        let p = std::fs::read_to_string(root.join("Moe/Resp.md")).unwrap().replace("moe = x", expr);
+        std::fs::write(root.join("Moe/Resp.md"), p).unwrap();
+        let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+        assert!(!o.contains("MG034"), "{expr}: {o}");
+        let (o, e, c) = run(&root, &["trade-study", "--json"]);
+        assert_eq!(c, 0, "{e}");
+        let v: Value = serde_json::from_str(&o).unwrap();
+        // A: open 100 close 300; B: open 200 close 100.
+        assert_eq!(cell(&v, "Resp", "CONF-TS-A")["value"].as_f64(), Some(a_val), "{expr}: {v}");
+        assert_eq!(cell(&v, "Resp", "CONF-TS-B")["value"].as_f64(), Some(b_val), "{expr}: {v}");
+    }
+    // A genuinely unbound name is still reported.
+    let root = model(&[("Resp", "  mg_moe_unit: ms\n  mg_moe_direction: minimize\n  mg_moe_threshold: 400\n  mg_moe_objective: 50\n  mg_moe_weight: 1\n  mg_moe_variables:\n    a: {measurement: openTime}\n")], false);
+    let p = std::fs::read_to_string(root.join("Moe/Resp.md")).unwrap().replace("moe = x", "moe = min(a, typo)");
+    std::fs::write(root.join("Moe/Resp.md"), p).unwrap();
+    let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+    assert!(o.contains("expression uses 'typo'") && !o.contains("expression uses 'min'"), "{o}");
+}
