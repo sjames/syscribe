@@ -41,8 +41,9 @@ under `--dry-run`, so a dry run reports what a real run would be refused:
   still records what it needs decided with `question.add`; `questions --json` shows `answerBy` per question.
 
 **What is audited.** `validate` reads the last `audit_limit` commits that touched the model and reports
-violations that reached the files by another route: `W760` an agent-made commit changed a protected path;
-`W761` one set a human-only status. A commit is agent-made when it carries a `Syscribe-Actor` trailer (and no
+violations that reached the files by another route: `W760` an agent-made commit changed a protected path
+(except the evidence sidecar when `sidecar_writers` is set: git cannot tell a listed command's write from a hand
+edit, so that exemption also hides a hand-edited sidecar committed by an agent); `W761` one set a human-only status. A commit is agent-made when it carries a `Syscribe-Actor` trailer (and no
 `Syscribe-As: human`) or its author matches `actors`. `W762` reports a malformed `[agents]` entry. All are
 warnings: gate them with `validate --deny W760,W761`. `W323` (a PlanningItem finding) reports a reserved question
 whose answer an agent wrote: `answeredBy` matches `actors`, or the commit that last changed the answer is

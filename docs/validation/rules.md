@@ -488,7 +488,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 
 | Code | Meaning |
 |---|---|
-| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. |
+| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. With `[agents] sidecar_writers` set, files under `.syscribe/` other than `scripts/` are exempt, because git cannot tell a listed command's write from a hand edit (so a hand-edited sidecar committed by an agent is not reported). |
 | W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
 | W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`); ignored, the rest of the policy still applies. |
 

@@ -516,6 +516,16 @@ fn warning(code: &'static str, file: &str, message: String) -> Finding {
 /// agent-made when it carries a `Syscribe-Actor` trailer (and no `Syscribe-As: human`), or its author matches
 /// `actors`. These are the violations that reached the files by a route the writers' own checks did not see.
 pub fn audit(model_root: &Path, policy: &Policy) -> Vec<Finding> {
+    audit_inner(model_root, policy)
+}
+
+/// Is `rel` (relative to the model root) a file the evidence-sidecar writers produce: under `.syscribe/`, other than
+/// the `scripts/` tooling? The same set `sidecar_writers` lets a listed command write.
+pub fn is_sidecar_path(rel: &str) -> bool {
+    rel.strip_prefix(".syscribe/").is_some_and(|r| !r.is_empty() && r.split('/').next() != Some("scripts"))
+}
+
+fn audit_inner(model_root: &Path, policy: &Policy) -> Vec<Finding> {
     let mut out: Vec<Finding> = policy.problems.iter().map(|m| warning("W762", ".syscribe.toml", m.clone())).collect();
     if policy.protected_paths.is_empty() && policy.human_only_status.is_empty() {
         return out;
@@ -555,7 +565,10 @@ pub fn audit(model_root: &Path, policy: &Policy) -> Vec<Finding> {
             let (Some(status), Some(path)) = (parts.next(), parts.next()) else { continue };
             // The policy may spell a protected path relative to the repository or to the model root.
             let spellings = [path.to_string(), path.strip_prefix(&model_prefix).unwrap_or(path).to_string()];
-            if let Some(pat) = policy.protecting_pattern(&spellings) {
+            // With `sidecar_writers` set the sidecar is written by a listed command, and git cannot tell that from
+            // a hand edit, so its files are not reported (a hand-edited sidecar is then not caught by this audit).
+            let sidecar = !policy.sidecar_writers.is_empty() && path.strip_prefix(&model_prefix).is_some_and(is_sidecar_path);
+            if let Some(pat) = policy.protecting_pattern(&spellings).filter(|_| !sidecar) {
                 out.push(warning(
                     "W760",
                     path,

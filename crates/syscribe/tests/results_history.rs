@@ -132,3 +132,33 @@ fn a_vanished_failure_trips_the_gate_and_only_shared_sections_are_compared() {
     let v: serde_json::Value = serde_json::from_str(&o).unwrap();
     assert!(v["regressions"].as_array().unwrap().is_empty(), "{o}");
 }
+
+// ── the history goes through the write layer (GH #469) ──────────────────────────────────────────────────────────
+
+#[test]
+fn a_dry_run_writes_no_run_history() {
+    let d = dir();
+    let a = junit(&d, "a.xml", &[("t_pass", "pass")]);
+    let (out, code) = run(&d, &["--dry-run", "ingest-results", "--format", "junit", "--run", "R1", &a]);
+    assert_eq!(code, 0, "{out}");
+    assert!(!d.join("model/.syscribe/results-history.json").exists(), "a dry run must not write the history: {out}");
+    assert!(!d.join("model/.syscribe/results.json").exists(), "nor the sidecar: {out}");
+    assert!(out.contains("would write") && out.contains("results-history.json"), "the history is reported as declined: {out}");
+}
+
+#[test]
+fn a_protected_history_is_refused_before_the_sidecar_is_written() {
+    let d = dir();
+    // Only the history is protected, not the sidecar: the case the sidecar's own refusal could not catch.
+    std::fs::write(d.join("model/.syscribe.toml"), "[agents]\nprotected_paths = [\".syscribe/results-history.json\"]\n").unwrap();
+    let a = junit(&d, "a.xml", &[("t_pass", "pass")]);
+    let (out, code) = run(&d, &["ingest-results", "--format", "junit", "--run", "R1", "--by", "agent-1", &a]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("protected_paths") && out.contains("results-history.json"), "the rule and the file are named: {out}");
+    assert!(!d.join("model/.syscribe/results.json").exists(), "nothing was written, so the sidecar and history stay in step: {out}");
+    assert!(!d.join("model/.syscribe/results-history.json").exists(), "{out}");
+    // A person, or a run without --run, is unaffected.
+    assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--run", "R1", "--by", "alice", "--as-human", &a]).1, 0);
+    assert!(d.join("model/.syscribe/results-history.json").exists());
+    assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--by", "agent-1", &a]).1, 0, "no --run, no history write");
+}

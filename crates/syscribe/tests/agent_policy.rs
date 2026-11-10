@@ -505,3 +505,43 @@ fn sidecar_writers_lets_only_the_named_command_write_the_protected_sidecar() {
     let bad = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = \"ingest-results\"\n");
     assert_eq!(bad.run(&["ingest-results", "report.xml", "--by", "agent-1"]).2, 1, "a string is not a list");
 }
+
+// ── the audit and the evidence sidecar (TC-TRS-AGENTPOL-005, GH #469) ────────────────────────────────────────
+
+/// An agent's commit of the sidecar an ingest wrote, as `ingest-results --commit` makes it.
+fn agent_commit_of_a_sidecar(policy: &str) -> Repo {
+    let r = sidecar_repo(policy);
+    let (_o, err, code) = r.run(&["ingest-results", "report.xml", "--by", "agent-1", "--reason", "ci", "--commit"]);
+    assert_eq!(code, 0, "{err}");
+    assert!(r.git(&["show", "--stat", "--format=%an", "HEAD"]).contains(".syscribe/results.json"), "the ingest was committed");
+    r
+}
+
+#[test]
+fn the_audit_does_not_flag_a_sidecar_a_listed_command_wrote() {
+    let r = agent_commit_of_a_sidecar("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n");
+    assert!(findings(&r, "W760").is_empty(), "{:?}", findings(&r, "W760"));
+}
+
+#[test]
+fn without_sidecar_writers_the_same_commit_is_still_flagged_and_other_protected_paths_always_are() {
+    // No writer is named, so the ingest cannot even run for an agent; the sidecar arrives by a person's hand and
+    // an agent commits it: that is what the audit exists to report.
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\", \"Safety/**\"]\nactors = [\"agent-*\"]\n");
+    r.write("model/.syscribe/results.json", "{}");
+    commit_as(&r, "agent-1", "commit the sidecar");
+    let w = findings(&r, "W760");
+    assert!(w.iter().any(|l| l.contains(".syscribe/results.json")), "{w:?}");
+    // With a writer named, a protected path that is not the sidecar is still reported, in the same commit.
+    let s = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\", \"Safety/**\"]\nsidecar_writers = [\"ingest-results\"]\nactors = [\"agent-*\"]\n");
+    s.write("model/.syscribe/results.json", "{}");
+    s.write("model/Safety/REQ-AP-002.md", &req("REQ-AP-002", "review"));
+    commit_as(&s, "agent-1", "sidecar and a safety file");
+    let w = findings(&s, "W760");
+    assert!(w.iter().any(|l| l.contains("Safety/REQ-AP-002.md")), "{w:?}");
+    assert!(!w.iter().any(|l| l.contains(".syscribe/results.json")), "the sidecar is exempt, the safety file is not: {w:?}");
+    // The scripts directory is tooling, not evidence: never exempt.
+    s.write("model/.syscribe/scripts/x.rhai", "1");
+    commit_as(&s, "agent-1", "a script");
+    assert!(findings(&s, "W760").iter().any(|l| l.contains(".syscribe/scripts/x.rhai")));
+}

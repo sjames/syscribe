@@ -118,6 +118,34 @@ pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Res
     Ok(())
 }
 
+/// Would a write to `path` be refused? The same check [`write`] makes, so a command that writes several files
+/// can refuse before it has written any of them.
+pub fn check(path: impl AsRef<Path>) -> std::io::Result<()> {
+    guarded(path.as_ref())
+}
+
+/// [`write`], but never leaves a truncated file: the contents go to a file beside `path` and are renamed over it. The
+/// guard and `--dry-run` apply to `path` itself, and it is `path` that is recorded as written.
+pub fn write_atomic(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    let path = path.as_ref();
+    guarded(path)?;
+    content_guarded(path, contents.as_ref())?;
+    if is_dry_run() {
+        declined(path, "write");
+        return Ok(());
+    }
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    std::fs::write(&tmp, contents)?;
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    push(&WRITTEN, path);
+    Ok(())
+}
+
 /// `std::fs::create_dir_all`, or a no-op under `--dry-run`.
 pub fn create_dir_all(path: impl AsRef<Path>) -> std::io::Result<()> {
     guarded(path.as_ref())?;
