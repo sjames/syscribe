@@ -936,7 +936,8 @@ fn record_scenarios(
     config: Option<&str>,
     outline_rows: &std::collections::BTreeMap<(String, String), usize>,
 ) -> Result<(), String> {
-    use syscribe_model::results::{ResultsData, RunHistory};
+    use syscribe_model::results::ResultsData;
+    use syscribe_model::run_history::RunHistory;
     use syscribe_model::sm_scen::Status;
     let config_key: Option<String> = match config {
         None => None,
@@ -995,18 +996,21 @@ fn record_scenarios(
                 only.by_scenario.insert(format!("{tc}::{outline}"), if rows.contains(&V::Fail) { V::Fail } else { V::Pass });
             }
         }
-        // Refuse before the sidecar is written, so a protected history never leaves the two out of step.
-        syscribe_model::fsio::check(RunHistory::path(model_root)).map_err(|e| format!("cannot write run history: {e}"))?;
         h.record_for(r, &only, config_key.as_deref());
-        history = Some(h);
+        // Decide what the history writes and refuse before the sidecar is written, so a protected path never leaves the
+        // two out of step.
+        let keep = syscribe_model::run_history::ResultsSettings::load(model_root).keep_run_records;
+        let plan = h.plan(model_root, keep)?;
+        plan.check().map_err(|e| format!("cannot write run history: {e}"))?;
+        history = Some(plan);
     }
     match &config_key {
         Some(c) => data.merge_config_into_sidecar(model_root, c),
         None => data.merge_into_sidecar(model_root),
     }
     .map_err(|e| format!("cannot write the results sidecar: {e}"))?;
-    if let Some(h) = history {
-        h.save(model_root).map_err(|e| format!("cannot write run history: {e}"))?;
+    if let Some(plan) = history {
+        plan.commit().map_err(|e| format!("cannot write run history: {e}"))?;
     }
     let dir = model_root.join(".syscribe").join("traces");
     syscribe_model::fsio::create_dir_all(&dir).map_err(|e| e.to_string())?;

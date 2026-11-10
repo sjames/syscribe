@@ -368,3 +368,32 @@ fn run_and_results_are_refused_when_the_model_has_tradestudy_elements() {
         assert!(e.contains("not to TradeStudy elements"), "{flag:?}: {e}");
     }
 }
+
+#[test]
+fn a_run_whose_records_the_cap_dropped_is_refused_saying_so_while_a_kept_run_still_ranks() {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    // Keep the records of one run only.
+    write(&root, ".syscribe.toml", "[profiles.magicgrid]\nmagicgrid = true\n\n[results]\nkeep_run_records = 1\n");
+    ingest_run(&root, "CONF-TS-A", "R1", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R1", &rec("TC-TS-001", "fail", "2300 ms"));
+    ingest_run(&root, "CONF-TS-A", "R2", &rec("TC-TS-001", "pass", "1650 ms"));
+    ingest_run(&root, "CONF-TS-B", "R2", &rec("TC-TS-001", "pass", "1500 ms"));
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R1"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("dropped to bound the history") && e.contains("keep_run_records") && e.contains("--results"), "{e}");
+    // R2 kept its records; `results runs` shows both states.
+    assert_eq!(rollup(&by_run(&root, "R2"), "CONF-TS-B")["winner"], true);
+    let (out, _, _) = run(&root, &["results", "runs"]);
+    assert!(out.lines().any(|l| l.starts_with("R1") && l.contains("records dropped")) && out.lines().any(|l| l.starts_with("R2") && l.contains("record(s)")), "{out}");
+}
+
+#[test]
+fn a_run_file_deleted_by_hand_is_reported_missing_not_read_as_no_evidence() {
+    let root = two_runs();
+    std::fs::remove_file(root.join(".syscribe/runs/R1.json")).unwrap();
+    let (_, e, c) = run(&root, &["trade-study", "--run", "R1"]);
+    assert_eq!(c, 1);
+    assert!(e.contains("is missing") && e.contains("R1.json") && e.contains("restore it"), "{e}");
+    // The other run is unaffected.
+    assert_eq!(rollup(&by_run(&root, "R2"), "CONF-TS-B")["winner"], true);
+}

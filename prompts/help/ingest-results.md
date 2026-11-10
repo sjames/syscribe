@@ -20,8 +20,10 @@ If the project protects `.syscribe/**` (`[agents] protected_paths`), an agent's 
 commit the ingest with `--commit` and set `sidecar_audit = "command"`.
 
 `--run <id>` with a records-like format (`records`, `robot`, `cucumber`, a plugin) and `--config <CONF>` also retains
-the records, measurements included, in `.syscribe/results-history.json`, so `trade-study --run <id>` can rank that
-run later. The history grows with each such run.
+the slim records, measurements included, in `.syscribe/runs/<run>.json`, so `trade-study --run <id>` can rank that
+run later. Only the newest `[results] keep_run_records` runs (default 20, `0` keeps none) keep their records; when an
+ingest pushes an older run past it, the run's file is deleted, the ingest says so, and the run keeps its verdicts
+(`help results`).
 
 `--config <CONF-id>` must resolve to a `Configuration` (else exit 1 and nothing is written).
 The results are kept under that configuration only — the global verdicts are untouched — so

@@ -1974,11 +1974,12 @@ fn main() {
                     // A MoE that names a recorded measurement reads the verdict sidecar (GH #467).
                     let results = syscribe_model::results::ResultsData::load_sidecar(model_root);
                     // `--run <id>`: a retained run's records (GH #471). An unknown id is a usage error, like `results diff`.
-                    let run = run_id.map(|id| match syscribe_model::results::RunHistory::load(model_root) {
-                        Ok(h) => h.get(id).cloned().unwrap_or_else(|| {
+                    let run = run_id.map(|id| match syscribe_model::run_history::RunHistory::load(model_root).and_then(|h| h.load_run(model_root, id).map(|r| (h, r))) {
+                        Ok((_, Some(run))) => run,
+                        Ok((h, None)) => {
                             let known: Vec<&str> = h.runs.iter().map(|r| r.run.as_str()).collect();
                             cliargs::usage_exit(&format!("trade-study: no run '{id}' is retained{}", if known.is_empty() { " (none is: ingest one with `ingest-results --run <id> ...`)".to_string() } else { format!(" (retained: {})", known.join(", ")) }))
-                        }),
+                        }
                         Err(e) => {
                             eprintln!("{e}");
                             std::process::exit(1);
