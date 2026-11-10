@@ -185,7 +185,9 @@ pub fn diff_configs(elements: &[RawElement], a: &str, b: &str) -> Value {
         .map(|e| json!({ "qname": e.qualified_name, "id": e.frontmatter.id }))
         .collect();
     let common = set_a.intersection(&set_b).count();
-    json!({ "onlyInA": only_in_a, "onlyInB": only_in_b, "commonCount": common })
+    // Parameters whose effective value differs (GH #466), as `diff --config` reports them.
+    let parameters = crate::paramdiff::rows(elements, a, b, false).unwrap_or_default();
+    json!({ "onlyInA": only_in_a, "onlyInB": only_in_b, "commonCount": common, "parameters": parameters })
 }
 
 /// Stringify an `appliesWhen` YAML value (a bare string stays as-is).

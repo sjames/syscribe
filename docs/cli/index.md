@@ -1158,7 +1158,10 @@ $ syscribe -m model/ validate --config CONF-MPS2-WDT     # certify THIS variant
 $ syscribe -m model/ validate --all-configs              # gate every stored variant (CI)
 $ syscribe -m model/ validate --all-configs --deny W015  # …and fail on any variant's W015 (per-variant gate)
 $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
+$ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE --all   # every parameter, not only those that differ
 ```
+
+`diff` also lists the **parameters** whose effective value differs (GH #466): the value in each Configuration, where it came from (`own`, `inherited from …`, `default`, `fixed`, `derived`, `bindTo`) and its unit, with `(not set)` for a variant that has none. Variants that select the same features but bind different values differ only there. `--json` adds `parameters:[{key, unit, differs, a, b}]` and the MCP `diff_configs` tool returns the same rows.
 
 `validate --config` re-runs the full validation in the lens (coverage, traceability, safety) **and** flags **escaping references** — an active element pointing at one inactive in the variant: structural → `E226` (error), traceability → `W019` (warning). The complementary `feature-check --deep` rules prove this can't happen in *any* valid configuration (`E227`/`W020`), and report dead elements (`W021`) and family-wide coverage gaps (`W022`).
 
@@ -2181,10 +2184,10 @@ human_only_status   = { Requirement = ["approved"], ADR = ["accepted"] }
 human_only_answers  = true                                      # PlanningItem questions are answered by a person (unless `answerBy: any`)
 require_before_done = ["validate", "evidence"]                  # before an agent sets a PlanningItem done
 require_by          = true                                      # every model-writing command names its actor
+sidecar_writers     = ["ingest-results"]                        # commands that may write a protected `.syscribe/**` (GH #469)
 actors              = ["agent-*"]                               # git authors the audit counts as agents
 audit_limit         = 200                                       # recent commits `validate` inspects
 ```
-sidecar_writers     = ["ingest-results"]                        # commands that may write a protected `.syscribe/**` (GH #469)
 
 ```bash
 syscribe -m model/ policy                                        # the rules in plain words, and how this call is treated

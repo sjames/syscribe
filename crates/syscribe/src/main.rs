@@ -38,6 +38,7 @@ mod ingest;
 mod lint_docs;
 mod bindingtimes;
 mod newcmd;
+mod paramdiff;
 mod params;
 mod preview;
 mod propagate;
@@ -1328,16 +1329,17 @@ fn main() {
             "diff" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let all = rest.iter().any(|a| a == "--all");
                 let cfgs: Vec<&str> = rest
                     .windows(2)
                     .filter(|w| w[0] == "--config")
                     .map(|w| w[1].as_str())
                     .collect();
                 if cfgs.len() != 2 {
-                    eprintln!("Usage: syscribe --model <root> diff --config <A> --config <B> [--json]");
+                    eprintln!("Usage: syscribe --model <root> diff --config <A> --config <B> [--all] [--json]");
                     std::process::exit(1);
                 }
-                query::cmd_diff(&elems, cfgs[0], cfgs[1], json);
+                query::cmd_diff(&elems, cfgs[0], cfgs[1], json, all);
             }
             "audit" => {
                 // Read-only safety-readiness dashboard (GH #15 / REQ-TRS-OUT-013).
