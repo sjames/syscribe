@@ -566,7 +566,7 @@ fn mg_category(code: &str) -> Option<&'static str> {
         "E316" | "W307" => Some("Refines"),
         "MG010" | "MG011" | "MG012" | "MG013" => Some("Context"),
         "MG060" | "MG061" | "MG062" => Some("SoI"),
-        "MG030" | "MG031" | "MG032" | "MG033" => Some("MoE"),
+        "MG030" | "MG031" | "MG032" | "MG033" | "MG034" => Some("MoE"),
         "MG050" | "MG051" | "MG052" => Some("MoP"),
         "MG040" | "MG041" | "MG042" => Some("Layer"),
         "MG070" => Some("Variant"),

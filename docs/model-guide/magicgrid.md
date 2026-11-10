@@ -205,6 +205,7 @@ Under the profile:
 | `MG031` | `mg_moe_measures` absent, or does not resolve to a `Requirement`/`RequirementDef` |
 | `MG032` | `mg_moe_direction` absent or not `maximize`/`minimize` |
 | `MG033` | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]`, or a recorded-measurement field malformed — `mg_moe_source` not `expression`/`measurement` (or `measurement` without `mg_moe_measurement`), `mg_moe_aggregate` not `mean`/`max`/`p95`/`last`, `mg_moe_measurement` empty, `mg_moe_unit` not a unit a measurement can be converted to |
+| `MG034` | warning on a MagicGrid MoE/MoP: an unknown `mg_moe*`/`mg_mop*` key (with a "did you mean" hint); a missing `mg_moe_direction`/`threshold`/`objective`, `mg_moe_weight` (not asked of a MoE that is another's input) or `mg_moe_unit`/`mg_moe_measurement` (not asked of a MoE with `mg_moe_variables`/`mg_moe_inputs`); threshold equal to objective; ranked-MoE weights not summing to 1; an `mg_moe_inputs` entry that names no MoE, or a cycle of inputs; an `expression:` name bound by no `mg_moe_variables`, `mg_moe_inputs` or Configuration `parameterBindings` key |
 
 ---
 
@@ -461,3 +462,9 @@ for the per-code conditions.
 - [Variability & Product Lines](variability.md) — `Configuration`, `parameterBindings`, `matrix`, `diff`
 - [Rule Reference](../validation/rules.md) — the full E/W/MG finding catalogue
 - the worked **`model_mg/`** example model in the repository
+
+### Combined MoEs and Celsius (GH #476–#478)
+
+- `mg_moe_variables: {var: {measurement, aggregate, unit}}` lets a MoE `expression:` read several recorded measurements; `mg_moe_inputs: {var: <MoE>}` builds a MoE from other MoEs' scores (0..1). Inputs are evaluated first and their knock-outs propagate (`input <MoE>: <reason>`); only MoEs that are nobody's input carry weight in the rollup.
+- `degC`/`degF` are absolute readings (`23.4 degC` = `296.55 K`); `delta_degC`/`delta_degF`/`delta_K` are differences. reading − reading = difference; reading ± difference = reading; adding two readings, mixing a reading with a plain `K`, or scaling a reading is an error. `C` is coulomb.
+- `MG034` warns on unknown/missing `mg_moe*` keys, weights not summing to 1, unresolved or cyclic `mg_moe_inputs`, and expression names nothing binds.
