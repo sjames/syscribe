@@ -33,6 +33,12 @@ and ingest says so; the run stays in the index with its verdicts, so `results ru
 run's record count; to restore a dropped run, raise the setting and re-ingest it. The index is the source of
 truth: a file in `runs/` it does not list is ignored, and one it lists that is gone is reported missing.
 
+**Moving the run files.** `[results] runs_dir` in `.syscribe.toml` (relative to the model root, or absolute) puts the
+run files elsewhere than `.syscribe/runs`; the index stays in `.syscribe/`. It may not be the model root or
+`.syscribe` itself. The agent policy treats a moved directory as part of the evidence sidecar (see `help policy`,
+"Moving the run records"); protecting it is a `protected_paths` entry of its own. Moving it later means moving the
+existing files.
+
 `results failures` lists the failing, skipped and flaky functions of the latest
 ingest with the retained JUnit `message` and `time` (passing cases keep no detail). With
 per-configuration evidence (`ingest-results --config`) it lists every configuration's

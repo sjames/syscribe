@@ -348,3 +348,23 @@ fn a_protected_run_file_is_refused_before_anything_is_written() {
     assert!(out.contains("protected_paths") && out.contains("runs"), "{out}");
     assert!(!d.join("model/.syscribe/results.json").exists() && !d.join("model/.syscribe/results-history.json").exists(), "nothing was written: {out}");
 }
+
+#[test]
+fn a_moved_runs_dir_holds_the_run_files_and_the_index_stays_in_syscribe() {
+    let d = run_with_a_test_case();
+    // `../evidence/runs` is relative to the model root: <dir>/evidence/runs, outside the model.
+    std::fs::write(d.join("model/.syscribe.toml"), "[results]\nruns_dir = \"../evidence/runs\"\n").unwrap();
+    let (out, code) = ingest_run(&d, "R1", "1600 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(d.join("evidence/runs/R1.json").is_file(), "the run file is where runs_dir says: {out}");
+    assert!(!d.join("model/.syscribe/runs").exists(), "and not in the default place");
+    assert_eq!(history(&d)["runs"][0]["record_count"], 1, "the index is still in .syscribe");
+    let (list, code) = run(&d, &["results", "runs"]);
+    assert_eq!(code, 0, "{list}");
+    assert!(list.contains("R1") && list.contains("1 record(s)"), "{list}");
+    // A cap drop deletes the file from the moved directory.
+    std::fs::write(d.join("model/.syscribe.toml"), "[results]\nruns_dir = \"../evidence/runs\"\nkeep_run_records = 1\n").unwrap();
+    let (out, code) = ingest_run(&d, "R2", "1700 ms");
+    assert_eq!(code, 0, "{out}");
+    assert!(!d.join("evidence/runs/R1.json").exists() && d.join("evidence/runs/R2.json").is_file(), "{out}");
+}

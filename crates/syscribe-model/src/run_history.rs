@@ -152,26 +152,71 @@ pub fn slim_record(r: &ResultRecord) -> ResultRecord {
 pub const DEFAULT_KEEP_RUN_RECORDS: usize = 20;
 
 /// The `[results]` table of `<model_root>/.syscribe.toml` (GH #471): `keep_run_records`, how many of the most recently
-/// ingested runs keep their records (`0`: none). A malformed entry is ignored, listed in `problems`, and the default
-/// applies.
+/// ingested runs keep their records (`0`: none), and `runs_dir`, where the run files live. A malformed entry is ignored,
+/// listed in `problems`, and the default applies.
 #[derive(Debug, Clone)]
 pub struct ResultsSettings {
     pub keep_run_records: usize,
+    /// Where the run files live: `<model>/.syscribe/runs` unless `runs_dir` says otherwise.
+    pub runs_dir: PathBuf,
+    /// `runs_dir` was set (and valid), so it may be outside `.syscribe/` and the agent policy must know it.
+    pub runs_dir_custom: bool,
     pub problems: Vec<String>,
+}
+
+/// `p` with `.` and `..` resolved by name, without touching the file system (the directory may not exist yet).
+fn normalize(p: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut parts: Vec<std::ffi::OsString> = Vec::new();
+    let mut root = PathBuf::new();
+    for c in p.components() {
+        match c {
+            Component::Prefix(_) | Component::RootDir => root.push(c.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if parts.last().is_some_and(|l| l != "..") {
+                    parts.pop();
+                } else if root.as_os_str().is_empty() {
+                    parts.push("..".into());
+                }
+            }
+            Component::Normal(n) => parts.push(n.to_os_string()),
+        }
+    }
+    parts.into_iter().fold(root, |acc, n| acc.join(n))
 }
 
 impl ResultsSettings {
     pub fn load(model_root: &Path) -> Self {
-        let mut s = ResultsSettings { keep_run_records: DEFAULT_KEEP_RUN_RECORDS, problems: Vec::new() };
+        let mut s = ResultsSettings { keep_run_records: DEFAULT_KEEP_RUN_RECORDS, runs_dir: model_root.join(".syscribe").join("runs"), runs_dir_custom: false, problems: Vec::new() };
         let table = std::fs::read_to_string(model_root.join(".syscribe.toml"))
             .ok()
             .and_then(|t| toml::from_str::<toml::Value>(&t).ok())
             .and_then(|d| d.get("results").and_then(|t| t.as_table().cloned()));
         for (k, v) in table.iter().flatten() {
-            match (k.as_str(), v.as_integer()) {
-                ("keep_run_records", Some(n)) if n >= 0 => s.keep_run_records = n as usize,
-                ("keep_run_records", _) => s.problems.push(format!("[results] keep_run_records must be a whole number, 0 or more (using {DEFAULT_KEEP_RUN_RECORDS})")),
-                (other, _) => s.problems.push(format!("[results] unknown key `{other}` (known: keep_run_records)")),
+            match k.as_str() {
+                "keep_run_records" => match v.as_integer() {
+                    Some(n) if n >= 0 => s.keep_run_records = n as usize,
+                    _ => s.problems.push(format!("[results] keep_run_records must be a whole number, 0 or more (using {DEFAULT_KEEP_RUN_RECORDS})")),
+                },
+                "runs_dir" => match v.as_str().map(str::trim).filter(|d| !d.is_empty()) {
+                    Some(d) => {
+                        // Relative to the model root, like `[scripts] path`; absolute is taken as given. Resolved against the
+                        // canonical model root so the agent policy can compare it with git and file-system paths.
+                        let model = std::fs::canonicalize(model_root).unwrap_or_else(|_| model_root.to_path_buf());
+                        let dir = normalize(&if Path::new(d).is_absolute() { PathBuf::from(d) } else { model.join(d) });
+                        // The run files are `<run>.json`; in the model root or `.syscribe/` itself a run called `results`
+                        // would replace the sidecar.
+                        if dir == normalize(&model) || dir == normalize(&model.join(".syscribe")) {
+                            s.problems.push(format!("[results] runs_dir `{d}` is the model root or .syscribe itself, where a run named `results` would replace the sidecar (using .syscribe/runs)"));
+                        } else {
+                            s.runs_dir = dir;
+                            s.runs_dir_custom = true;
+                        }
+                    }
+                    None => s.problems.push("[results] runs_dir must be a non-empty path (using .syscribe/runs)".to_string()),
+                },
+                other => s.problems.push(format!("[results] unknown key `{other}` (known: keep_run_records, runs_dir)")),
             }
         }
         s
@@ -282,21 +327,28 @@ impl RunHistory {
         }
     }
 
-    /// The directory of the run files.
+    /// The directory of the run files: `[results] runs_dir`, default `<model>/.syscribe/runs`.
     pub fn runs_dir(model_root: &Path) -> PathBuf {
-        model_root.join(".syscribe").join("runs")
+        ResultsSettings::load(model_root).runs_dir
+    }
+
+    fn file_in(dir: &Path, run: &str) -> PathBuf {
+        dir.join(format!("{}.json", run_file_stem(run)))
     }
 
     /// The file holding `run`'s records.
     pub fn run_file(model_root: &Path, run: &str) -> PathBuf {
-        Self::runs_dir(model_root).join(format!("{}.json", run_file_stem(run)))
+        Self::file_in(&Self::runs_dir(model_root), run)
     }
 
     /// `run`'s records file: `None` when there is none, an error when it exists but cannot be read, never mistaken for
     /// "no records" and never overwritten.
     pub fn load_records(model_root: &Path, run: &str) -> Result<Option<RunRecords>, String> {
-        let p = Self::run_file(model_root, run);
-        match std::fs::read_to_string(&p) {
+        Self::read_records(&Self::run_file(model_root, run))
+    }
+
+    fn read_records(p: &Path) -> Result<Option<RunRecords>, String> {
+        match std::fs::read_to_string(p) {
             Ok(t) => serde_json::from_str(&t).map(Some).map_err(|e| format!("{} is not valid: {e} (fix or remove it)", p.display())),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(format!("cannot read {}: {e}", p.display())),
@@ -316,10 +368,11 @@ impl RunHistory {
     /// maps stay). Newest: the runs this ingest touched, then by ingest time, a tie going to the later position. Nothing is written until
     /// [`SavePlan::commit`]; an unreadable run file is an error, never overwritten.
     pub fn plan(&mut self, model_root: &Path, keep: usize) -> Result<SavePlan, String> {
+        let dir = Self::runs_dir(model_root);
         let mut files: BTreeMap<String, RunRecords> = BTreeMap::new();
         for p in std::mem::take(&mut self.pending) {
             if !files.contains_key(&p.run) {
-                let f = Self::load_records(model_root, &p.run)?.unwrap_or_else(|| RunRecords { run: p.run.clone(), ..Default::default() });
+                let f = Self::read_records(&Self::file_in(&dir, &p.run))?.unwrap_or_else(|| RunRecords { run: p.run.clone(), ..Default::default() });
                 files.insert(p.run.clone(), f);
             }
             files.get_mut(&p.run).expect("inserted").apply(&p);
@@ -341,10 +394,10 @@ impl RunHistory {
             r.record_count = 0;
             r.records_dropped = true;
             files.remove(&r.run);
-            removals.push(Self::run_file(model_root, &r.run));
+            removals.push(Self::file_in(&dir, &r.run));
             dropped.push(r.run.clone());
         }
-        let writes = files.iter().map(|(run, f)| (Self::run_file(model_root, run), serde_json::to_string_pretty(f).expect("run records serialise") + "\n")).collect();
+        let writes = files.iter().map(|(run, f)| (Self::file_in(&dir, run), serde_json::to_string_pretty(f).expect("run records serialise") + "\n")).collect();
         Ok(SavePlan { index_path: Self::path(model_root), index: serde_json::to_string_pretty(self).expect("history serialises"), writes, removals, dropped })
     }
 
@@ -598,6 +651,61 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&f).unwrap(), "{ not json");
         // `load_run` reports the same for a reader.
         assert!(RunHistory::default().load_run(&root, "R1").unwrap().is_none(), "an unknown id is None, not an error");
+    }
+
+    fn model_with(toml: &str) -> PathBuf {
+        let root = tmp();
+        std::fs::write(root.join(".syscribe.toml"), toml).unwrap();
+        std::fs::canonicalize(root).unwrap()
+    }
+
+    #[test]
+    fn runs_dir_defaults_to_syscribe_runs_and_a_relative_one_is_resolved_against_the_model_root() {
+        let root = model_with("");
+        let s = ResultsSettings::load(&root);
+        assert_eq!((s.runs_dir.clone(), s.runs_dir_custom, s.keep_run_records, s.problems.len()), (root.join(".syscribe").join("runs"), false, 20, 0));
+        for (toml, want) in [
+            ("[results]\nruns_dir = \"evidence/runs\"\n", "evidence/runs"),
+            ("[results]\nruns_dir = \"../evidence/runs\"\n", "../evidence/runs"),
+            ("[results]\nruns_dir = \"./a/../b\"\n", "b"),
+        ] {
+            let root = model_with(toml);
+            let s = ResultsSettings::load(&root);
+            assert!(s.runs_dir_custom && s.problems.is_empty(), "{toml}: {:?}", s.problems);
+            assert_eq!(s.runs_dir, normalize(&root.join(want)), "{toml}");
+        }
+        // The run files follow it.
+        let root = model_with("[results]\nruns_dir = \"evidence/runs\"\n");
+        assert_eq!(RunHistory::run_file(&root, "R1"), root.join("evidence/runs/R1.json"));
+    }
+
+    #[test]
+    fn an_absolute_runs_dir_is_taken_as_given() {
+        let other = tmp();
+        let root = model_with(&format!("[results]\nruns_dir = {:?}\n", other.display().to_string()));
+        let s = ResultsSettings::load(&root);
+        assert!(s.runs_dir_custom && s.runs_dir == other, "{:?} vs {:?}", s.runs_dir, other);
+    }
+
+    #[test]
+    fn a_runs_dir_that_would_let_a_run_replace_the_sidecar_is_refused_and_the_default_applies() {
+        for toml in ["[results]\nruns_dir = \".syscribe\"\n", "[results]\nruns_dir = \".\"\n", "[results]\nruns_dir = \"\"\n", "[results]\nruns_dir = 3\n", "[results]\nruns_dir = \"sub/..\"\n"] {
+            let root = model_with(toml);
+            let s = ResultsSettings::load(&root);
+            assert!(!s.runs_dir_custom && s.runs_dir == root.join(".syscribe").join("runs") && s.problems.len() == 1, "{toml}: {:?}", s.problems);
+            assert!(s.problems[0].contains("runs_dir"), "{:?}", s.problems);
+        }
+        // An unknown key names the known ones.
+        let s = ResultsSettings::load(&model_with("[results]\nruns_folder = \"x\"\n"));
+        assert!(s.problems[0].contains("keep_run_records, runs_dir"), "{:?}", s.problems);
+    }
+
+    #[test]
+    fn normalize_resolves_dots_without_the_file_system() {
+        assert_eq!(normalize(Path::new("/a/b/../c/./d")), PathBuf::from("/a/c/d"));
+        assert_eq!(normalize(Path::new("a/../../b")), PathBuf::from("../b"));
+        assert_eq!(normalize(Path::new("../../x")), PathBuf::from("../../x"));
+        assert_eq!(normalize(Path::new("/../x")), PathBuf::from("/x"), "the root has no parent");
     }
 
     #[test]

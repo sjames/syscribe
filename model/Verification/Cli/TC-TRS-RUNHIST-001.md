@@ -33,6 +33,9 @@ Feature: run history
   Scenario: the cap
     Then with keep_run_records set the oldest run's file is deleted and ingest says so, its verdicts stay so results diff still compares it, results runs shows records dropped, a re-ingested run counts as newest, 0 keeps none and a malformed value warns and uses the default
 
+  Scenario: a moved runs_dir
+    Then the run files follow the setting, an absolute or parent-relative value is resolved by name, and a value that would let a run replace the sidecar is refused with the default applied
+
   Scenario: file names and unreadable files
     Then a run id with a slash and a space becomes a safe file name while the index keeps the id, and an unreadable run file is refused and left alone
 
