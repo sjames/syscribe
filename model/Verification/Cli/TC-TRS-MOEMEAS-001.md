@@ -27,6 +27,9 @@ Feature: ranking Configurations on recorded evidence
   Scenario: aggregates, units and limits
     Then mean, max, p95 and last combine values given in different units, a wrong dimension is an error, and a fail verdict or broken limit is a violation
 
+  Scenario: records from a file outside the model
+    Then a directory or a named file ranks without ingesting, replaces the sidecar for the Configurations it covers, treats a missing file as no evidence, names the file and its hash, ignores and counts unmatched records, and refuses a malformed argument or file
+
   Scenario: the new fields are validated
     Then a bad source, aggregate, missing measurement name or unknown unit is MG033
 ```

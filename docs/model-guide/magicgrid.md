@@ -364,7 +364,7 @@ syscribe -m model_mg/ trade-study --json
   (`[meas …]`/`[pred …]`). A `fail` verdict on a record carrying the measurement, or a measurement
   that breaks its own `limit`, is a knock-out whichever value is scored, and the reasons are listed
   under the table. A cell with nothing recorded is `n/a`, and a Configuration with no evaluable cell
-  is never the winner. `--json` adds `predicted`, `measured` and `violationReasons` per cell.
+  is never the winner. `--json` adds `predicted`, `measured` and `violationReasons` per cell. To rank a run kept outside the model, pass `--results <dir>` (one `<Configuration id>.json` per Configuration) or `--results <Configuration>=<file>`: they replace the sidecar for the Configurations they cover, nothing is ingested or written, and each cell names the file and its hash.
 
 ```text
 Rollup (weighted total per configuration):

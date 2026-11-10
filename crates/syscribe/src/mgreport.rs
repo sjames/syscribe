@@ -1019,7 +1019,10 @@ fn score_moe(moe: &Moe, value: f64) -> (f64, bool) {
 
 /// `results` is the verdict sidecar: a MoE that names a `mg_moe_measurement` reads the measurements recorded for
 /// each Configuration (`ingest-results --format records --config <CONF>`) from it.
-pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String], results: Option<&syscribe_model::results::ResultsData>) {
+///
+/// `results_specs` are the `--results` arguments: records read from files outside the model instead, for the
+/// Configurations they cover (see [`crate::moe_measured::load_external`]).
+pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String], results: Option<&syscribe_model::results::ResultsData>, results_specs: &[String]) {
     for c in config_filter {
         let known = elems.iter().any(|e| {
             is_type(e, ElementType::Configuration) && (e.frontmatter.id.as_deref() == Some(c.as_str()) || e.qualified_name == *c)
@@ -1085,6 +1088,25 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         });
     }
 
+    // Records from files outside the model replace the sidecar for the Configurations they cover.
+    let cfg_keys: Vec<(Option<String>, String)> = cfgs.iter().map(|c| (c.id.clone(), c.qname.clone())).collect();
+    let external = match crate::moe_measured::load_external(elems, results_specs, &cfg_keys) {
+        Ok(x) => x,
+        Err(e) => crate::cliargs::usage_exit(&format!("trade-study: {e}")),
+    };
+    let key_of = |c: &Cfg| c.id.clone().unwrap_or_else(|| c.qname.clone());
+    // Where each Configuration's evidence came from, for the output.
+    let evidence: Vec<serde_json::Value> = cfgs
+        .iter()
+        .map(|c| {
+            let sidecar = c.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id)));
+            match external.get(&key_of(c)) {
+                Some(x) => json!({"configuration": c.label, "origin": "external", "path": x.path, "hash": x.hash, "count": x.total, "unmatched": x.unmatched}),
+                None => json!({"configuration": c.label, "origin": "sidecar", "count": sidecar.map(|s| s.records.len()), "format": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.format.clone()), "source": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.source.clone()), "ingestedAtUnix": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.ingested_at_unix)}),
+            }
+        })
+        .collect();
+
     // Evaluate every (moe, cfg) cell.
     let mut cells: Vec<Vec<Cell>> = Vec::with_capacity(moes.len());
     for moe in &moes {
@@ -1095,7 +1117,10 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             // Measured evidence is per Configuration: only what was ingested with `--config <CONF>` counts.
             let (mut measured, mut measure_error) = (None, None);
             if let Some(name) = &moe.measurement {
-                let recs = cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]);
+                let recs = match external.get(&key_of(cfg)) {
+                    Some(x) => x.records.as_slice(),
+                    None => cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]),
+                };
                 match crate::moe_measured::measured(recs, name, moe.aggregate, moe.unit.as_deref()) {
                     Ok(m) => measured = m,
                     Err(e) => measure_error = Some(e),
@@ -1195,7 +1220,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
                     "evaluable": cell.value.is_some(),
                     "source": if moe.scores_measured { "measurement" } else { "expression" },
                     "predicted": cell.predicted,
-                    "measured": cell.measured.as_ref().map(|m| measured_json(m, results, cfg.id.as_deref())),
+                    "measured": cell.measured.as_ref().map(|m| measured_json(m, &evidence[ci])),
                     "measureError": cell.measure_error,
                     "violationReasons": cell.reasons,
                 }));
@@ -1216,6 +1241,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         let out = json!({
             "schemaVersion": SCHEMA_VERSION,
             "report": "trade-study",
+            "evidence": evidence,
             "moes": moe_json,
             "configurations": cfg_json,
             "cells": cell_json,
@@ -1281,6 +1307,17 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         }
         println!("  {:<width$} {:.3}{}", c.label, totals[i], tags, width = col_w);
     }
+    if !external.is_empty() {
+        println!();
+        println!("Recorded evidence (--results):");
+        for (c, e) in cfgs.iter().zip(&evidence) {
+            match e["path"].as_str() {
+                Some(p) => println!("  {} <- {} ({}, {} record(s){})", c.label, p, e["hash"].as_str().unwrap_or(""), e["count"], match e["unmatched"].as_u64() { Some(n) if n > 0 => format!(", {n} naming no TestCase ignored"), _ => String::new() }),
+                None if e["origin"] == "external" => println!("  {} — no file in the directory: no evidence", c.label),
+                None => println!("  {} — from the model's sidecar", c.label),
+            }
+        }
+    }
     // Why each knocked-out cell is one, so a FAIL can be traced to the threshold or to recorded evidence.
     let mut printed = false;
     for (ri, moe) in moes.iter().enumerate() {
@@ -1301,8 +1338,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
 }
 
 /// The measured side of a JSON cell: the value, how it was reached, and the recorded evidence behind it.
-fn measured_json(m: &Measured, results: Option<&syscribe_model::results::ResultsData>, cfg_id: Option<&str>) -> serde_json::Value {
-    let ingest = cfg_id.and_then(|id| results.and_then(|r| r.by_config.get(id))).and_then(|c| c.records_meta.as_ref());
+fn measured_json(m: &Measured, evidence: &serde_json::Value) -> serde_json::Value {
     json!({
         "value": m.value,
         "unit": m.unit,
@@ -1315,7 +1351,7 @@ fn measured_json(m: &Measured, results: Option<&syscribe_model::results::Results
             "verdict": c.verdict,
             "value": c.value,
         })).collect::<Vec<_>>(),
-        "ingest": ingest.map(|i| json!({"format": i.format, "source": i.source, "ingestedAtUnix": i.ingested_at_unix, "count": i.count})),
+        "evidence": evidence,
     })
 }
 

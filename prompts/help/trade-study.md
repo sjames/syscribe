@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> trade-study [<TRD-id>] [--json]                  # TradeStudy elements (§15)
-    syscribe -m <root> trade-study [--json] [--config <id|qname> ...]   # MagicGrid MoE fallback
+    syscribe -m <root> trade-study [--json] [--config <id|qname> ...] [--results <dir | CONF=file> ...]   # MagicGrid MoE fallback
 
 ## DESCRIPTION
 
@@ -70,8 +70,21 @@ measurement, or a measurement that breaks its own `limit`, makes the Configurati
 threshold rule. A `Knock-outs:` list under the table says why. A recorded value that cannot be converted to
 the unit (a different dimension) is reported there and the cell is `n/a`. `--json` gives each cell
 `predicted`, `measured` (`value`, `unit`, `aggregate`, `recordCount`, the contributing `records` and the
-`ingest` they came from) and `violationReasons`. Choosing an earlier run's records by id is not supported: the
-run history keeps verdicts, not measurements. `MG033` checks the fields.
+`evidence` they came from) and `violationReasons`. `MG033` checks the fields.
+
+**Records from outside the model (`--results`).** `--results <dir>` reads `<Configuration id>.json` for each
+compared Configuration, and `--results <Configuration>=<file>` one file (repeatable; a named file wins over the
+directory). Each file is the records format of `ingest-results --format records`, parsed, validated and joined to
+the model's TestCases as at ingest; a record naming no TestCase is ignored and counted. The files replace the
+sidecar for the Configurations they cover, never merged with it: one the directory has no file for has **no
+evidence** (`n/a`), and one not covered reads the sidecar. So a run kept as a CI artefact can be ranked, and two
+runs compared by running the command twice, with nothing ingested or written. A text `Recorded evidence
+(--results):` list and each cell's `evidence` (`path`, `hash` = `blake3:` of the file, `count`, `unmatched`) name
+exactly what was used. Two limits: the file is not sealed by the model, and its records are stamped against the
+model as it is now, so a TestCase or requirement changed since the run is **not** flagged (`W091` applies only to
+ingested records). The sidecar's `evidence` describes the Configuration's last records ingest, which understates
+the sources when several ingests contributed; `recordCount` and `records` are always exact. `ingest-results
+--run` keeps verdicts, not measurements, so name the run's files here instead.
 
 ## Rollup
 

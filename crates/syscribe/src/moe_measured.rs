@@ -8,9 +8,12 @@
 //! A `fail` verdict on a record that carries the measurement, or a measurement that breaks its own `limit`, is a
 //! knock-out for the cell, whatever the aggregate says.
 
+use std::collections::BTreeMap;
+use std::path::Path;
+use syscribe_model::element::RawElement;
 use syscribe_model::expr::{parse_value, to_unit, Quantity, Value};
 use syscribe_model::result_records::ResultRecord;
-use syscribe_model::results::Verdict;
+use syscribe_model::results::{ResultsData, Verdict};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aggregate {
@@ -62,6 +65,80 @@ pub struct Measured {
     /// Why the recorded evidence knocks the cell out, whatever the value: one entry per failing record or
     /// broken limit.
     pub violations: Vec<String>,
+}
+
+/// The records of one Configuration read from a file outside the model (`trade-study --results`), and what the
+/// file was, so the ranking can say exactly which evidence it used.
+#[derive(Debug, Clone, Default)]
+pub struct ExternalRun {
+    /// `None` for a Configuration the directory held no file for: no evidence, not the sidecar's.
+    pub path: Option<String>,
+    /// `blake3:<hex>` of the file's contents.
+    pub hash: Option<String>,
+    /// Joined to the model's TestCases, so a record naming nothing is not here.
+    pub records: Vec<ResultRecord>,
+    /// Records the file held, and how many of them named no TestCase of the model.
+    pub total: usize,
+    pub unmatched: usize,
+}
+
+fn load_one(elems: &[RawElement], path: &Path) -> Result<ExternalRun, String> {
+    let shown = path.display().to_string();
+    let text = std::fs::read_to_string(path).map_err(|e| format!("--results '{shown}': {e}"))?;
+    let artefact = syscribe_model::result_records::file_artefact(&shown)?;
+    // The same parse and join as `ingest-results --format records`: strict validation, canonical TestCase ids.
+    let mut data = ResultsData::parse_records(&text, &shown).map_err(|e| format!("--results '{shown}': {e}"))?;
+    let total = data.count;
+    data.join_test_cases(elems).map_err(|e| format!("--results '{shown}': {e}"))?;
+    Ok(ExternalRun { path: Some(shown), hash: Some(artefact.hash), unmatched: data.unmatched.len(), records: data.records, total })
+}
+
+/// Read the `--results` arguments: a directory holding `<Configuration id>.json` for the compared Configurations
+/// (one with no file there has no evidence — it does not fall back to the sidecar), and/or `<Configuration>=<file>`
+/// for one (which wins over the directory). `cfgs` are the compared Configurations as (id, qualified name); the map
+/// is keyed by id, else qualified name. A Configuration not in the map reads the sidecar, as without `--results`.
+pub fn load_external(elems: &[RawElement], specs: &[String], cfgs: &[(Option<String>, String)]) -> Result<BTreeMap<String, ExternalRun>, String> {
+    let key = |id: &Option<String>, q: &str| id.clone().unwrap_or_else(|| q.to_string());
+    let (mut dir, mut files): (Option<&Path>, Vec<(String, &str)>) = (None, Vec::new());
+    for s in specs {
+        if let Some((c, f)) = s.split_once('=') {
+            let k = cfgs.iter().find(|(id, q)| id.as_deref() == Some(c) || q == c).map(|(id, q)| key(id, q));
+            let k = k.ok_or_else(|| format!("--results '{s}': '{c}' does not name a compared Configuration"))?;
+            if files.iter().any(|(x, _)| *x == k) {
+                return Err(format!("--results names Configuration '{c}' twice"));
+            }
+            files.push((k, f));
+        } else if Path::new(s).is_dir() {
+            if dir.replace(Path::new(s)).is_some() {
+                return Err("--results: only one directory may be given".into());
+            }
+        } else {
+            return Err(format!("--results '{s}' is not a directory; to read one file, name its Configuration: --results <Configuration>={s}"));
+        }
+    }
+    let mut out = BTreeMap::new();
+    if let Some(d) = dir {
+        let mut found = false;
+        for (id, q) in cfgs {
+            let f = id.as_ref().map(|i| d.join(format!("{i}.json")));
+            match f.filter(|f| f.is_file()) {
+                Some(f) => {
+                    out.insert(key(id, q), load_one(elems, &f)?);
+                    found = true;
+                }
+                None => {
+                    out.insert(key(id, q), ExternalRun::default());
+                }
+            }
+        }
+        if !found {
+            return Err(format!("--results '{}' holds no <Configuration id>.json for any compared Configuration", d.display()));
+        }
+    }
+    for (k, f) in files {
+        out.insert(k, load_one(elems, Path::new(f))?);
+    }
+    Ok(out)
 }
 
 /// The number and unit of a quantity written as `"4.2 ms"` or `"4.2ms"`; an empty unit is a bare number.

@@ -1955,7 +1955,11 @@ fn main() {
             "trade-study" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let results_specs: Vec<String> = rest.windows(2).filter(|w| w[0] == "--results").map(|w| w[1].clone()).collect();
                 if tradestudy::has_trade_studies(&elems) {
+                    if !results_specs.is_empty() {
+                        cliargs::usage_exit("trade-study: --results applies to the MagicGrid MoE trade study, not to TradeStudy elements");
+                    }
                     // §15 (GH #63): general-purpose TradeStudy elements take precedence.
                     let filter = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
                     tradestudy::cmd_trade_study(&elems, filter, json);
@@ -1968,7 +1972,7 @@ fn main() {
                         .collect();
                     // A MoE that names a recorded measurement reads the verdict sidecar (GH #467).
                     let results = syscribe_model::results::ResultsData::load_sidecar(model_root);
-                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref());
+                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref(), &results_specs);
                 }
             }
             "co-analysis" => {

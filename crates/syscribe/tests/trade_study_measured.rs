@@ -87,7 +87,7 @@ fn a_recorded_failure_knocks_out_the_variant_the_design_values_favour() {
     // The evidence behind the cell: aggregate, record count, records and the ingest they came from.
     assert_eq!((b["measured"]["aggregate"].clone(), b["measured"]["recordCount"].clone(), b["measured"]["unit"].clone()), ("max".into(), 1.into(), "ms".into()));
     assert_eq!(b["measured"]["records"][0]["testCase"], "TC-TS-001");
-    assert_eq!(b["measured"]["ingest"]["format"], "records");
+    assert_eq!((b["measured"]["evidence"]["origin"].clone(), b["measured"]["evidence"]["format"].clone()), ("sidecar".into(), "records".into()));
     assert_eq!(v["moes"][0]["source"], "measurement");
 
     let (text, _, _) = run(&root, &["trade-study"]);
@@ -134,4 +134,106 @@ fn the_new_moe_fields_are_validated_by_mg033() {
     assert!(mg033("  mg_moe_source: sensor\n").contains("mg_moe_source must be 'expression' or 'measurement'"));
     assert!(mg033("  mg_moe_source: measurement\n").contains("names no recorded measurement"));
     assert!(mg033("  mg_moe_measurement: closeTime\n  mg_moe_unit: parsecs-per-fortnight\n").contains("is not a unit a recorded measurement can be converted to"));
+}
+
+// ── records from files outside the model: --results ─────────────────────────────────────────────────────────────
+
+fn rec(tc: &str, verdict: &str, value: &str) -> String {
+    format!("{{\"testCase\": \"{tc}\", \"scenario\": \"Close\", \"verdict\": \"{verdict}\", \"measurements\": [{{\"name\": \"closeTime\", \"value\": \"{value}\", \"limit\": {{\"op\": \"<\", \"value\": \"2 s\"}}}}]}}")
+}
+
+/// A directory of runs outside the model: `<dir>/<CONF id>.json`.
+fn run_dir(root: &Path, name: &str, a: Option<String>, b: Option<String>) -> PathBuf {
+    let d = root.parent().unwrap().join(name);
+    for (id, r) in [("CONF-TS-A", a), ("CONF-TS-B", b)] {
+        if let Some(r) = r {
+            write(&d, &format!("{id}.json"), &format!("[{r}]"));
+        }
+    }
+    d
+}
+
+const SCORED_BY_MEASUREMENT: &str = "  mg_moe_source: measurement\n  mg_moe_measurement: closeTime\n  mg_moe_aggregate: max\n";
+
+#[test]
+fn a_results_directory_is_read_without_ingesting_anything() {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    let d = run_dir(&root, "run1", Some(rec("TC-TS-001", "pass", "1650 ms")), Some(rec("TC-TS-001", "fail", "2300 ms")));
+    let (o, e, c) = run(&root, &["trade-study", "--json", "--results", d.to_str().unwrap()]);
+    assert_eq!(c, 0, "{e}");
+    let v: Value = serde_json::from_str(&o).unwrap();
+    assert_eq!((rollup(&v, "CONF-TS-A")["winner"].clone(), rollup(&v, "CONF-TS-B")["fail"].clone()), (true.into(), true.into()), "{v}");
+    assert!(!root.join(".syscribe/results.json").exists(), "reading a run writes nothing");
+    // The evidence is named exactly: the file and a hash of its contents.
+    let ev = &cell(&v, "CONF-TS-A")["measured"]["evidence"];
+    assert_eq!((ev["origin"].clone(), ev["count"].clone(), ev["unmatched"].clone()), ("external".into(), 1.into(), 0.into()), "{ev}");
+    assert!(ev["path"].as_str().unwrap().ends_with("run1/CONF-TS-A.json") && ev["hash"].as_str().unwrap().starts_with("blake3:"), "{ev}");
+    assert_eq!(v["evidence"].as_array().unwrap().len(), 2);
+    let (text, _, _) = run(&root, &["trade-study", "--results", d.to_str().unwrap()]);
+    assert!(text.contains("Recorded evidence (--results):") && text.contains("CONF-TS-A <- ") && text.contains("blake3:"), "{text}");
+}
+
+#[test]
+fn a_results_run_replaces_the_sidecar_and_a_missing_file_is_no_evidence_not_the_sidecars() {
+    // The sidecar says B fails; the named run says B passes, and has no file for A at all.
+    let root = model(SCORED_BY_MEASUREMENT, true);
+    let d = run_dir(&root, "run2", None, Some(rec("TC-TS-001", "pass", "1500 ms")));
+    let v: Value = serde_json::from_str(&run(&root, &["trade-study", "--json", "--results", d.to_str().unwrap()]).0).unwrap();
+    assert_eq!((rollup(&v, "CONF-TS-B")["winner"].clone(), rollup(&v, "CONF-TS-B")["fail"].clone()), (true.into(), false.into()), "the run replaces the sidecar: {v}");
+    let a = cell(&v, "CONF-TS-A");
+    assert_eq!((a["evaluable"].clone(), a["measured"].clone()), (false.into(), Value::Null), "no file for A means no evidence, not the sidecar's 1650: {a}");
+    let (text, _, _) = run(&root, &["trade-study", "--results", d.to_str().unwrap()]);
+    assert!(text.contains("CONF-TS-A — no file in the directory"), "{text}");
+}
+
+#[test]
+fn one_configuration_can_be_named_and_wins_over_the_directory_and_the_sidecar_still_serves_the_rest() {
+    let root = model(SCORED_BY_MEASUREMENT, true);
+    // Only B is named: B reads the file; A is not covered, so it still reads the sidecar.
+    let f = root.parent().unwrap().join("b.json");
+    write(&root, "../b.json", &format!("[{}]", rec("TC-TS-001", "pass", "1500 ms")));
+    let spec = format!("CONF-TS-B={}", f.display());
+    let v: Value = serde_json::from_str(&run(&root, &["trade-study", "--json", "--results", &spec]).0).unwrap();
+    assert_eq!(cell(&v, "CONF-TS-B")["measured"]["evidence"]["origin"], "external");
+    assert_eq!((cell(&v, "CONF-TS-A")["measured"]["evidence"]["origin"].clone(), cell(&v, "CONF-TS-A")["measured"]["value"].as_f64()), ("sidecar".into(), Some(1650.0)));
+    // Named, it wins over a directory that also holds a file for B.
+    let d = run_dir(&root, "run3", Some(rec("TC-TS-001", "pass", "1650 ms")), Some(rec("TC-TS-001", "fail", "2300 ms")));
+    let v: Value = serde_json::from_str(&run(&root, &["trade-study", "--json", "--results", d.to_str().unwrap(), "--results", &spec]).0).unwrap();
+    assert_eq!(cell(&v, "CONF-TS-B")["measured"]["value"].as_f64(), Some(1500.0), "{v}");
+}
+
+#[test]
+fn a_record_naming_no_test_case_is_ignored_and_counted() {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    let both = format!("{}, {}", rec("TC-TS-001", "pass", "1650 ms"), rec("TC-NOPE-999", "pass", "1 ms"));
+    let d = root.parent().unwrap().join("run4");
+    write(&d, "CONF-TS-A.json", &format!("[{both}]"));
+    let v: Value = serde_json::from_str(&run(&root, &["trade-study", "--json", "--results", d.to_str().unwrap()]).0).unwrap();
+    let ev = &cell(&v, "CONF-TS-A")["measured"]["evidence"];
+    assert_eq!((ev["count"].clone(), ev["unmatched"].clone()), (2.into(), 1.into()), "{ev}");
+    assert_eq!(cell(&v, "CONF-TS-A")["measured"]["recordCount"], 1, "only the record that names a TestCase counts");
+}
+
+#[test]
+fn bad_results_arguments_are_refused_naming_the_problem() {
+    let root = model(SCORED_BY_MEASUREMENT, false);
+    let d = run_dir(&root, "run5", Some(rec("TC-TS-001", "pass", "1650 ms")), None);
+    let f = d.join("CONF-TS-A.json");
+    let fail = |args: &[&str], needle: &str| {
+        let mut a = vec!["trade-study"];
+        a.extend_from_slice(args);
+        let (o, e, c) = run(&root, &a);
+        assert_eq!(c, 1, "{args:?}: {o}{e}");
+        assert!(e.contains(needle), "{args:?}: {e}");
+    };
+    fail(&["--results", f.to_str().unwrap()], "not a directory");
+    fail(&["--results", "CONF-NOPE=x.json"], "does not name a compared Configuration");
+    fail(&["--results", root.to_str().unwrap()], "holds no <Configuration id>.json");
+    let bad = root.parent().unwrap().join("bad");
+    write(&bad, "CONF-TS-A.json", "[{\"testCase\": \"TC-TS-001\", \"verdict\": \"maybe\"}]");
+    fail(&["--results", bad.to_str().unwrap()], "record 0");
+    let spec = format!("CONF-TS-A={}", f.display());
+    fail(&["--results", &spec, "--results", &spec], "twice");
+    // A repeated flag with no value is a usage error like any other option.
+    fail(&["--results"], "--results");
 }
