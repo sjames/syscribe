@@ -365,25 +365,44 @@ pub fn mutation_sidecar(model_root: &Path) -> PathBuf {
     model_root.join(".syscribe").join("mutation.json")
 }
 
+/// How many records the sidecar keeps per machine **and subject** (GH #473). A machine has one record per hash, and
+/// one projected onto many Configurations hashes differently for each, so this is generous: an evicted record is not
+/// lost evidence but a score that reads as stale until `mutate --record` is run again.
+pub const MUTATION_KEEP: usize = 100;
+
 /// The recorded scores, by machine: one per machine hash (a machine projected onto two Configurations hashes
-/// differently, so each keeps its own), the latest first.
-pub fn load_mutation(model_root: &Path) -> BTreeMap<String, Vec<MutationRecord>> {
-    std::fs::read_to_string(mutation_sidecar(model_root)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+/// differently, so each keeps its own), the latest first. A missing file is no records; one that exists but cannot be
+/// read or parsed is an error, never mistaken for "nothing recorded" and never overwritten (GH #472).
+pub fn load_mutation(model_root: &Path) -> Result<BTreeMap<String, Vec<MutationRecord>>, String> {
+    let path = mutation_sidecar(model_root);
+    match std::fs::read_to_string(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(BTreeMap::new()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+        Ok(t) => serde_json::from_str(&t).map_err(|e| format!("{}: {e}", path.display())),
+    }
 }
 
-/// Record scores, replacing the earlier one of the same machine, subject and hash.
+/// Record scores, replacing the earlier one of the same machine, subject and hash, and keeping the newest
+/// [`MUTATION_KEEP`] per machine and subject. Refuses (`InvalidData`) to overwrite a file it cannot read.
 pub fn record_mutation(model_root: &Path, records: Vec<MutationRecord>) -> std::io::Result<PathBuf> {
-    let mut all = load_mutation(model_root);
+    let mut all = load_mutation(model_root).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("the recorded mutation scores cannot be read, so nothing was recorded (fix or remove the file): {e}")))?;
     for r in records {
         let list = all.entry(r.machine.clone()).or_default();
         list.retain(|x| x.machine_hash != r.machine_hash || x.subject != r.subject);
         list.insert(0, r);
+        // The list is newest first: keep the first MUTATION_KEEP of each subject.
+        let mut kept: BTreeMap<String, usize> = BTreeMap::new();
+        list.retain(|x| {
+            let n = kept.entry(x.subject.clone()).or_insert(0);
+            *n += 1;
+            *n <= MUTATION_KEEP
+        });
     }
     let path = mutation_sidecar(model_root);
     if let Some(dir) = path.parent() {
         crate::fsio::create_dir_all(dir)?;
     }
-    crate::fsio::write(&path, serde_json::to_string_pretty(&all).expect("serialises"))?;
+    crate::fsio::write_atomic(&path, serde_json::to_string_pretty(&all).expect("serialises"))?;
     Ok(path)
 }
 
@@ -630,7 +649,11 @@ pub fn compute(elements: &[RawElement], req: &Request) -> Evidence {
             }
         }
     } else {
-        for (machine, recs) in load_mutation(req.model_root) {
+        let recorded = load_mutation(req.model_root).unwrap_or_else(|e| {
+            errors.push(format!("the recorded mutation scores cannot be read, so none is used: {e}"));
+            BTreeMap::new()
+        });
+        for (machine, recs) in recorded {
             // per subject, the record of the machine as it is now; else the latest one, stale (or unchecked: it does
             // not lower)
             let current = crate::ir::lower(elements, &machine).ok().map(|m| m.hash);

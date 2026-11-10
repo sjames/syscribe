@@ -34,8 +34,11 @@ replaced; plant parts get fresh plants for every run. The report has one block p
 part and `--min-score` is checked for every part, naming the one below it.
 
 `--record` keeps each machine's score, with the hash of the machine it was computed on, in
-`<model>/.syscribe/mutation.json` (one entry per machine, replacing its earlier one). `requirement-coverage`
-and `exec-coverage` read it; a score whose machine has since changed is shown as stale. A part none of whose
+`<model>/.syscribe/mutation.json` (a record replaces the earlier one of the same machine, subject and hash; the newest
+100 per machine and subject are kept, so a product line with many Configurations keeps one per Configuration, and an
+older one reads as stale). A `mutation.json` that cannot be read is never overwritten: `--record` exits 1 saying to
+fix or remove it, and `requirement-coverage` and `exec-coverage` report it in their errors. They read the file; a score whose
+machine has since changed is shown as stale. A part none of whose
 mutants was judged is not recorded.
 
 ## OPTIONS
@@ -46,5 +49,6 @@ mutants was judged is not recorded.
     --json               machine-readable report
 
 ## EXIT STATUS
-0 done (and above `--min-score`) · 1 usage, or no scenarios · 2 below `--min-score`, a
+0 done (and above `--min-score`) · 1 usage, no scenarios, or the scores could not be recorded (an unreadable
+`mutation.json` is never overwritten) · 2 below `--min-score`, a
 lowering diagnostic, or a scenario failing on the unmutated machine.

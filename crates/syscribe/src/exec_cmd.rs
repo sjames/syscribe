@@ -1657,7 +1657,8 @@ fn record_scores(model_root: &std::path::Path, records: Vec<syscribe_model::exec
         }
         Err(e) => {
             eprintln!("error: could not record the mutation scores: {e}");
-            Err(2)
+            // Not the `--min-score` gate (2): the scores were not recorded, as `inject --record` says with 1.
+            Err(1)
         }
     }
 }
