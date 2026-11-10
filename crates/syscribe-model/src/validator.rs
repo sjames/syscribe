@@ -1228,7 +1228,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // (string/number/bool/null) or a list of scalars; a nested map, or a list
         // containing a non-scalar, is flagged. Keys are freeform — only shape is
         // checked. Warning severity; gate with `--deny W041`.
+        // GH #482: `mg_moe_variables` / `mg_moe_inputs` are documented nested maps (variable -> measurement spec /
+        // MoE reference), so the scalar rule does not apply to them; every other nested value is still flagged.
         for (key, value) in &fm.custom_fields {
+            if matches!(key.as_str(), "mg_moe_variables" | "mg_moe_inputs") && value.is_mapping() {
+                continue;
+            }
             if !is_custom_field_shape_ok(value) {
                 findings.push(warning(
                     "W041",
