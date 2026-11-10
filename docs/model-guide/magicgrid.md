@@ -191,6 +191,10 @@ custom_fields:
   mg_moe_threshold: 150          # knock-out floor (maximize) / ceiling (minimize)
   mg_moe_objective: 360          # the target
   mg_moe_weight: 0.35            # in [0, 1]; used by trade-study
+  # Optional: rank on measurements recorded for each Configuration (see below)
+  # mg_moe_source: measurement   # expression (default) | measurement
+  # mg_moe_measurement: chargeKw # the recorded measurement name
+  # mg_moe_aggregate: mean       # mean | max | p95 | last (default)
 ```
 
 Under the profile:
@@ -200,7 +204,7 @@ Under the profile:
 | `MG030` | `mg_moe: true` on an element that is not a `CalculationDef` or `AnalysisCase` |
 | `MG031` | `mg_moe_measures` absent, or does not resolve to a `Requirement`/`RequirementDef` |
 | `MG032` | `mg_moe_direction` absent or not `maximize`/`minimize` |
-| `MG033` | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]` |
+| `MG033` | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]`, or a recorded-measurement field malformed — `mg_moe_source` not `expression`/`measurement` (or `measurement` without `mg_moe_measurement`), `mg_moe_aggregate` not `mean`/`max`/`p95`/`last`, `mg_moe_measurement` empty, `mg_moe_unit` not a unit a measurement can be converted to |
 
 ---
 
@@ -352,6 +356,15 @@ syscribe -m model_mg/ trade-study --json
 - A footer reports each configuration's weighted total (`mg_moe_weight × score`).
   The top non-failing configuration is marked **`WINNER`**; any with a threshold
   violation is **`FAIL`**.
+- **Recorded evidence (GH #467).** A MoE that names `mg_moe_measurement` also reads the
+  measurements recorded for each Configuration with `ingest-results --format records
+  --config <CONF>`: `mg_moe_aggregate` (`mean`, `max`, `p95`, `last`) combines several values,
+  after converting each to `mg_moe_unit`. `mg_moe_source: measurement` scores the recorded
+  value; the default keeps scoring the prediction, with the recorded value shown beside it
+  (`[meas …]`/`[pred …]`). A `fail` verdict on a record carrying the measurement, or a measurement
+  that breaks its own `limit`, is a knock-out whichever value is scored, and the reasons are listed
+  under the table. A cell with nothing recorded is `n/a`, and a Configuration with no evaluable cell
+  is never the winner. `--json` adds `predicted`, `measured` and `violationReasons` per cell.
 
 ```text
 Rollup (weighted total per configuration):

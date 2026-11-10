@@ -9404,6 +9404,37 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                 }
             }
+            // MG033 (GH #467): a MoE read from recorded measurements. `mg_moe_source` is `expression` (default) or
+            // `measurement`, which needs `mg_moe_measurement`; `mg_moe_aggregate` is one of mean|max|p95|last; and
+            // `mg_moe_unit`, when a measurement is named, must be a unit the expression language knows.
+            let text = |k: &str| fm.custom_fields.get(k).map(|v| v.as_str().map(str::to_string));
+            let mut bad = |msg: String| findings.push(error("MG033", &elem.file_path, &format!("MoE '{}' {msg}", elem.qualified_name)));
+            if let Some(src) = text("mg_moe_source") {
+                match src.as_deref() {
+                    Some("expression") | Some("measurement") => {}
+                    _ => bad("mg_moe_source must be 'expression' or 'measurement'".into()),
+                }
+                if src.as_deref() == Some("measurement") && !matches!(text("mg_moe_measurement"), Some(Some(n)) if !n.is_empty()) {
+                    bad("mg_moe_source is 'measurement' but mg_moe_measurement names no recorded measurement".into());
+                }
+            }
+            if let Some(m) = text("mg_moe_measurement") {
+                if !matches!(&m, Some(n) if !n.is_empty()) {
+                    bad("mg_moe_measurement must be a non-empty measurement name".into());
+                }
+            }
+            if let Some(a) = text("mg_moe_aggregate") {
+                if !matches!(a.as_deref(), Some("mean") | Some("max") | Some("p95") | Some("last")) {
+                    bad("mg_moe_aggregate must be one of mean, max, p95, last".into());
+                }
+            }
+            if text("mg_moe_measurement").is_some() {
+                if let Some(Some(u)) = text("mg_moe_unit") {
+                    if crate::expr::unit_scale(&u).is_none() && !u.is_empty() && u != "fraction" {
+                        bad(format!("mg_moe_unit '{u}' is not a unit a recorded measurement can be converted to"));
+                    }
+                }
+            }
         }
 
         // MG-008: Measurements of Performance (mg_mop) + mopRefinedBy index.

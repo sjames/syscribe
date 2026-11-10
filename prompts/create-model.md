@@ -1147,7 +1147,7 @@ The `MG###` checks fire only under that profile. The reports (`magicgrid`, `trad
 | `mg_cell: <coord>` | any element | grid coordinate, one of `B1`–`B4`/`W1`–`W4`/`S1`–`S4`; pillar must match the element type (`MG020`/`MG021`) |
 | `mg_external: true` | `Part`/`PartDef` | an actor outside the system boundary (B3) |
 | `mg_soi: true` | `Part`/`PartDef` | the single System of Interest block (B3); at most one (`MG060`–`MG062`) |
-| `mg_moe: true` + `mg_moe_measures`/`mg_moe_direction` (`maximize`/`minimize`)/`mg_moe_threshold`/`mg_moe_objective`/`mg_moe_weight`/`mg_moe_unit` | `CalculationDef`/`AnalysisCase` | a Measure of Effectiveness (B4) (`MG030`–`MG033`) |
+| `mg_moe: true` + `mg_moe_measures`/`mg_moe_direction` (`maximize`/`minimize`)/`mg_moe_threshold`/`mg_moe_objective`/`mg_moe_weight`/`mg_moe_unit`, and `mg_moe_source` (`expression`\|`measurement`)/`mg_moe_measurement`/`mg_moe_aggregate` to rank on recorded measurements | `CalculationDef`/`AnalysisCase` | a Measure of Effectiveness (B4) (`MG030`–`MG033`) |
 | `mg_mop: true` + `mg_mop_refines` (the MoE it refines)/`mg_mop_unit` | `CalculationDef`/`ConstraintDef`/`AnalysisCase` | a Measure of Performance (W4/S4); inverse index `mopRefinedBy` on the MoE (`MG050`–`MG052`) |
 | `mg_layer: logical \| physical` | `Part`/`PartDef` | W3 logical vs S3 physical; bridge them only with an `Allocation` (`MG040`–`MG042`) |
 | `mg_variant: true` | `Configuration` | a parametric variant — relaxes the `featureModel:` requirement (`E201`); differentiated by `parameterBindings:` alone (`MG070`) |

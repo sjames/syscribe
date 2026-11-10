@@ -1415,7 +1415,7 @@ always runs; `W307` (above) is advisory until promoted.
 | MG030 | `custom_fields.mg_moe: true` on an element that is not a `CalculationDef` or `AnalysisCase` |
 | MG031 | `mg_moe_measures` is absent, or does not resolve to a `Requirement`/`RequirementDef` |
 | MG032 | `mg_moe_direction` is absent or not `maximize`/`minimize` |
-| MG033 | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]` |
+| MG033 | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]`, or a recorded-measurement field malformed — `mg_moe_source` not `expression`/`measurement` (or `measurement` without `mg_moe_measurement`), `mg_moe_aggregate` not `mean`/`max`/`p95`/`last`, `mg_moe_measurement` empty, `mg_moe_unit` not a unit a measurement can be converted to |
 | MG040 | `custom_fields.mg_layer` is present on a `Part`/`PartDef` and is not `logical` or `physical` |
 | MG041 | A `Part`/`PartDef` with `mg_layer: logical` has no `Allocation` to a `physical` element |
 | MG042 | A `logical` and a `physical` `Part`/`PartDef` share a direct `supertype:`/`typedBy:` link — relate the layers only through an explicit `Allocation` |

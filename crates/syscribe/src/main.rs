@@ -39,6 +39,7 @@ mod lint_docs;
 mod bindingtimes;
 mod newcmd;
 mod paramdiff;
+mod moe_measured;
 mod params;
 mod preview;
 mod propagate;
@@ -1965,7 +1966,9 @@ fn main() {
                         .filter(|w| w[0] == "--config")
                         .map(|w| w[1].clone())
                         .collect();
-                    mgreport::cmd_trade_study(&elems, json, &config_filter);
+                    // A MoE that names a recorded measurement reads the verdict sidecar (GH #467).
+                    let results = syscribe_model::results::ResultsData::load_sidecar(model_root);
+                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref());
                 }
             }
             "co-analysis" => {
