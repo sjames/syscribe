@@ -8,6 +8,7 @@ custom_fields:
   mg_moe_direction: maximize
   mg_moe_threshold: 10
   mg_moe_objective: 25
+  mg_moe_weight: 1
 ---
 
 A well-formed MoE: maximize range, threshold 10 km (minimum acceptable),
