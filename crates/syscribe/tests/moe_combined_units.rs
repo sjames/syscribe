@@ -172,3 +172,18 @@ fn temperature_arithmetic_separates_readings_from_differences() {
     assert!(conv("20 degC - 10 degC", "degC").unwrap_err().contains("not an absolute reading"));
     assert!(conv("20 degC", "delta_degC").unwrap_err().contains("not a difference"));
 }
+
+#[test]
+fn measurement_source_with_variables_needs_no_mg_moe_measurement() {
+    // GH #480: variables name the measurements, so MG033 must not ask for mg_moe_measurement.
+    let vars = "  mg_moe_source: measurement\n  mg_moe_variables:\n    closeT: {measurement: closeTime, aggregate: max, unit: ms}\n    openT: {measurement: openTime, aggregate: max, unit: ms}\n  mg_moe_unit: ms\n  mg_moe_direction: minimize\n  mg_moe_threshold: 1500\n  mg_moe_objective: 500\n  mg_moe_weight: 1\n";
+    let root = model(&[("Resp", vars)], false);
+    let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+    assert!(!o.contains("MG033"), "{o}");
+    // Neither variables nor a measurement is still an error; so is an empty variables map.
+    for bad in ["  mg_moe_source: measurement\n", "  mg_moe_source: measurement\n  mg_moe_variables: {}\n"] {
+        let root = model(&[("Resp", bad)], false);
+        let (o, _, _) = run(&root, &["validate", "--profile", "magicgrid", "--json"]);
+        assert!(o.contains("MG033") && o.contains("names no recorded measurement"), "{o}");
+    }
+}

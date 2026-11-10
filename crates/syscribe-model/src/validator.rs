@@ -9414,8 +9414,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     Some("expression") | Some("measurement") => {}
                     _ => bad("mg_moe_source must be 'expression' or 'measurement'".into()),
                 }
-                if src.as_deref() == Some("measurement") && !matches!(text("mg_moe_measurement"), Some(Some(n)) if !n.is_empty()) {
-                    bad("mg_moe_source is 'measurement' but mg_moe_measurement names no recorded measurement".into());
+                // GH #480: a non-empty `mg_moe_variables` names the recorded measurements in place of `mg_moe_measurement`.
+                let has_variables = matches!(fm.custom_fields.get("mg_moe_variables"), Some(serde_yaml::Value::Mapping(m)) if !m.is_empty());
+                if src.as_deref() == Some("measurement") && !has_variables && !matches!(text("mg_moe_measurement"), Some(Some(n)) if !n.is_empty()) {
+                    bad("mg_moe_source is 'measurement' but mg_moe_measurement names no recorded measurement (or declare mg_moe_variables)".into());
                 }
             }
             if let Some(m) = text("mg_moe_measurement") {
