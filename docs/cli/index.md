@@ -692,7 +692,7 @@ Lists `ReviewRecord` elements (§19) and their coverage. A `ReviewRecord` is a b
 syscribe -m model/ trade-study [<TRD-id>] [--json]
 ```
 
-When the model contains `TradeStudy` elements (§15), lists them or prints one study's full **normalised, weighted, ranked** scoring table (computed, never written). Without `TradeStudy` elements, the command falls back to the MagicGrid MoE-weighted trade study (`--profile magicgrid`, REQ-TRS-MG-007). `template TradeStudy` prints a skeleton.
+When the model contains `TradeStudy` elements (§15), lists them or prints one study's full **normalised, weighted, ranked** scoring table (computed, never written). Without `TradeStudy` elements, the command falls back to the MagicGrid MoE-weighted trade study (`--profile magicgrid`, REQ-TRS-MG-007). `template TradeStudy` prints a skeleton. The MoE fallback can also rank on **recorded measurements** (GH #467): a MoE naming `mg_moe_measurement` (with `mg_moe_aggregate` `mean`/`max`/`p95`/`last`, `mg_moe_unit`, and `mg_moe_source: measurement` to score it) reads what `ingest-results --format records --config <CONF>` recorded for each Configuration. A recorded `fail` verdict or a measurement breaking its own limit is a `FAIL` knock-out, predicted and measured values are shown side by side, and `--json` carries `predicted`, `measured` and `violationReasons` per cell. `--results <dir | Configuration=file>` ranks records read from files outside the model instead (a CI artefact, or an earlier run), replacing the sidecar for the Configurations they cover. See `syscribe help trade-study`.
 
 ## MagicGrid grid (`magicgrid`)
 
@@ -1158,7 +1158,10 @@ $ syscribe -m model/ validate --config CONF-MPS2-WDT     # certify THIS variant
 $ syscribe -m model/ validate --all-configs              # gate every stored variant (CI)
 $ syscribe -m model/ validate --all-configs --deny W015  # …and fail on any variant's W015 (per-variant gate)
 $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
+$ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE --all   # every parameter, not only those that differ
 ```
+
+`diff` also lists the **parameters** whose effective value differs (GH #466): the value in each Configuration, where it came from (`own`, `inherited from …`, `default`, `fixed`, `derived`, `bindTo`) and its unit, with `(not set)` for a variant that has none. Variants that select the same features but bind different values differ only there. `--json` adds `parameters:[{key, unit, differs, a, b}]` and the MCP `diff_configs` tool returns the same rows.
 
 `validate --config` re-runs the full validation in the lens (coverage, traceability, safety) **and** flags **escaping references** — an active element pointing at one inactive in the variant: structural → `E226` (error), traceability → `W019` (warning). The complementary `feature-check --deep` rules prove this can't happen in *any* valid configuration (`E227`/`W020`), and report dead elements (`W021`) and family-wide coverage gaps (`W022`).
 
@@ -2181,6 +2184,8 @@ human_only_status   = { Requirement = ["approved"], ADR = ["accepted"] }
 human_only_answers  = true                                      # PlanningItem questions are answered by a person (unless `answerBy: any`)
 require_before_done = ["validate", "evidence"]                  # before an agent sets a PlanningItem done
 require_by          = true                                      # every model-writing command names its actor
+sidecar_writers     = ["ingest-results"]                        # commands that may write a protected `.syscribe/**` (GH #469)
+sidecar_audit       = "exempt"                                  # or "command": how `validate` audits commits of that sidecar
 actors              = ["agent-*"]                               # git authors the audit counts as agents
 audit_limit         = 200                                       # recent commits `validate` inspects
 ```
@@ -2197,6 +2202,23 @@ syscribe -m model/ validate --deny W760,W761,W323                # fail on viola
 
 **What is refused** (exit 1, nothing written, the rule named, and how a person proceeds — also under `--dry-run`, so a dry run reports what a real run would be refused): writing a `protected_paths` match (a `move` is checked across every file it rewrites, and each operation of an `apply_changes` batch separately; the write layer guards the rest as a backstop), setting a `human_only_status`, and marking a PlanningItem `done` while `require_before_done` is unmet — `evidence` needs the item to raise no `E719`, `validate` needs the change to introduce no error.
 
-**What `validate` audits.** From the last `audit_limit` commits that touched the model, agent-made ones (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`) that changed a protected path (`W760`) or set a human-only status (`W761`); and `W762` for a malformed `[agents]` entry, which is ignored on its own while the rest still applies (a status the type does not have counts as malformed, so a typo cannot silently protect nothing). They are warnings — gate them with `--deny`. `agent-guide` and the MCP instructions state the policy to the agents it governs. The decision is `ADR-SYS-AGENTPOLICY-001`.
+**What `validate` audits.** From the last `audit_limit` commits that touched the model, agent-made ones (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `actors`) that changed a protected path (`W760`; the evidence sidecar under `.syscribe/` is exempt when `sidecar_writers` is set, since git cannot tell a listed command's write from a hand edit) or set a human-only status (`W761`); and `W762` for a malformed `[agents]` entry, which is ignored on its own while the rest still applies (a status the type does not have counts as malformed, so a typo cannot silently protect nothing). They are warnings — gate them with `--deny`. `agent-guide` and the MCP instructions state the policy to the agents it governs. The decision is `ADR-SYS-AGENTPOLICY-001`.
+
+**Protecting recorded evidence** (GH #469). `protected_paths = [".syscribe/**"]` keeps agents from hand-editing recorded verdicts, but it also stops `ingest-results`. Name the command that may still write the sidecar, and choose how the audit treats its commits:
+
+```toml
+# CI ingests; nobody hand-edits (the common case)
+[agents]
+protected_paths = [".syscribe/**"]
+sidecar_writers = ["ingest-results"]
+
+# ... and also report a hand-edited sidecar that an agent committed: the pipeline must commit through --commit
+[agents]
+protected_paths = [".syscribe/**"]
+sidecar_writers = ["ingest-results"]
+sidecar_audit   = "command"
+```
+
+Only the listed commands may write under `.syscribe/` (never `.syscribe/scripts/`); every other agent write there is refused with exit 1 and the rule named, `--dry-run` writes nothing (the run history included), and a protected history is refused before the sidecar is written. `sidecar_audit` only matters with `sidecar_writers`, because the audit reads git and git cannot tell an ingest from a hand edit: `"exempt"` (default) never reports a commit of the sidecar, so a hand-edited verdict an agent commits goes unnoticed; `"command"` reports it (`W760`) unless the commit's `Syscribe-Command` trailer, which `--commit` writes, names a listed writer, so a pipeline that commits with plain `git commit` is reported too. The trailer is commit-message text, so this is a guard rail, not proof. Any other value is `W762` and `"exempt"` applies. A refused sidecar write names `sidecar_writers` in its message, so an agent that hits it learns what a person must set; `syscribe help policy` has the full recipes and the message-to-fix table.
 
 **Questions reserved to a person** (GH #457, `REQ-TRS-AGENTPOL-004`). A PlanningItem question may say `answerBy: human` (only a person answers it) or `answerBy: any`; `human_only_answers = true` makes `human` the default for every question, and a question's own `answerBy` always wins, so `answerBy: human` works without any `[agents]` table and `answerBy: any` opens one question to agents under the policy. An agent's change that answers a reserved question — sets `answer`/`answeredBy`/`answeredAt`, moves it to `answered`, creates it answered, or lifts the reservation — is refused naming `human_only_answers`, by `set … question.answer` and by every MCP write tool (the check sits in the CLI write layer and the MCP guarded write, and also refuses a dry run). An agent can still `question.add` what it needs decided. `validate` raises `W323` when a reserved question's answer was written by an agent: its `answeredBy` matches `actors`, or the commit that last changed the answer is agent-made by the rule above (an uncommitted or unversioned answer cannot be attributed and raises nothing). `questions --json` adds `answerBy` (`human`/`any`, default applied) to every question and `answerProvenance: {by, agent, at, commit}` to an answered one whose commit git records, so a project script can check who answered; the text table marks reserved questions *(for a person)*.

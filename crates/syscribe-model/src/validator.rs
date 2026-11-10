@@ -7041,6 +7041,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // E759 (a fallback outside its parameter's constraints) and W023 (an unresolvable
     // `consumedBy:`) — the late-bound parameter contract (REQ-TRS-BT-026/027).
     findings.extend(crate::feature_model::parameter_contract_findings(elements));
+    // E221/W025 — a violated cross-parameter `parameterConstraints:` entry (GH #465), so `bind`
+    // refuses it like E205 and `validate --config`/`--all-configs` report it.
+    findings.extend(crate::feature_model::parameter_constraint_findings(elements).into_iter().filter(|f| f.code == "E221" || f.code == "W025"));
     findings.extend(consumed_by_findings(elements, config));
     // W753/W754 — late-bound variability reaching a safety requirement (REQ-TRS-BT-034).
     findings.extend(crate::late_safety::findings(elements));
@@ -9398,6 +9401,37 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 elem.qualified_name
                             ),
                         ));
+                    }
+                }
+            }
+            // MG033 (GH #467): a MoE read from recorded measurements. `mg_moe_source` is `expression` (default) or
+            // `measurement`, which needs `mg_moe_measurement`; `mg_moe_aggregate` is one of mean|max|p95|last; and
+            // `mg_moe_unit`, when a measurement is named, must be a unit the expression language knows.
+            let text = |k: &str| fm.custom_fields.get(k).map(|v| v.as_str().map(str::to_string));
+            let mut bad = |msg: String| findings.push(error("MG033", &elem.file_path, &format!("MoE '{}' {msg}", elem.qualified_name)));
+            if let Some(src) = text("mg_moe_source") {
+                match src.as_deref() {
+                    Some("expression") | Some("measurement") => {}
+                    _ => bad("mg_moe_source must be 'expression' or 'measurement'".into()),
+                }
+                if src.as_deref() == Some("measurement") && !matches!(text("mg_moe_measurement"), Some(Some(n)) if !n.is_empty()) {
+                    bad("mg_moe_source is 'measurement' but mg_moe_measurement names no recorded measurement".into());
+                }
+            }
+            if let Some(m) = text("mg_moe_measurement") {
+                if !matches!(&m, Some(n) if !n.is_empty()) {
+                    bad("mg_moe_measurement must be a non-empty measurement name".into());
+                }
+            }
+            if let Some(a) = text("mg_moe_aggregate") {
+                if !matches!(a.as_deref(), Some("mean") | Some("max") | Some("p95") | Some("last")) {
+                    bad("mg_moe_aggregate must be one of mean, max, p95, last".into());
+                }
+            }
+            if text("mg_moe_measurement").is_some() {
+                if let Some(Some(u)) = text("mg_moe_unit") {
+                    if crate::expr::unit_scale(&u).is_none() && !u.is_empty() && u != "fraction" {
+                        bad(format!("mg_moe_unit '{u}' is not a unit a recorded measurement can be converted to"));
                     }
                 }
             }

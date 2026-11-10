@@ -126,7 +126,8 @@ fn the_models_own_checks_refuse_a_bad_binding_and_nothing_is_written() {
         assert_eq!(v["written"], false);
         assert!(v["refused"].as_str().unwrap().contains("would introduce"), "{v}");
         assert!(codes(&v, "newErrors").contains(&code.to_string()), "{target}={value}: {:?}", codes(&v, "newErrors"));
-        let c = codes(&v, "newErrors");
+        // Once per (code, file): a value an inheriting Configuration also sees is one finding per Configuration.
+        let c: Vec<String> = v["newErrors"].as_array().unwrap().iter().map(|e| format!("{} {}", e["code"], e["file"])).collect();
         assert_eq!(c.len(), c.iter().collect::<std::collections::BTreeSet<_>>().len(), "each finding once: {c:?}");
     }
     assert_eq!(common::dir_hash(&m), before);
@@ -191,7 +192,7 @@ fn the_mcp_tools_and_the_lsp_request() {
     assert_eq!(bad["written"], false, "{bad}");
     assert!(bad.to_string().contains("E205"), "{bad}");
     assert!(bad["reason"].as_str().unwrap().contains("would introduce"), "{bad}");
-    let codes: Vec<String> = bad["validationDelta"]["newErrors"].as_array().unwrap().iter().map(|e| e["code"].as_str().unwrap().to_string()).collect();
+    let codes: Vec<String> = bad["validationDelta"]["newErrors"].as_array().unwrap().iter().map(|e| format!("{} {}", e["code"], e["file"])).collect();
     assert_eq!(codes.len(), codes.iter().collect::<std::collections::BTreeSet<_>>().len(), "each finding once: {codes:?}");
     assert_eq!(common::dir_hash(&m), before);
     // ... and a good one writes.
@@ -210,5 +211,33 @@ fn the_mcp_tools_and_the_lsp_request() {
     let now: Value = serde_json::from_str(&run(&m, &["timeline", "CONF-UAV-DEPLOY-001", "--json"]).0).unwrap();
     assert_eq!(lsp.custom_request("syscribe/timeline", json!({"configuration": "CONF-UAV-DEPLOY-001"})), now);
     lsp.shutdown();
+    let _ = std::fs::remove_dir_all(&m);
+}
+
+/// GH #465: a violated cross-parameter `parameterConstraints:` entry is refused by `bind` like a value
+/// outside `range:`, and `validate` reports it for a Configuration edited by hand.
+#[test]
+fn bind_refuses_a_violated_parameter_constraint() {
+    let m = staged("pc");
+    // Undetermined or satisfied constraints stay allowed: the pristine example validates.
+    assert_eq!(run(&m, &["validate"]).2, 0);
+    let (v, c) = bind(&m, &["CONF-UAV-DEPLOY-001", "Features::Propulsion.motorKV", "1100"]);
+    assert_eq!((c, v["written"].clone()), (0, json!(true)), "1100*0.04 + 45 = 89 <= 100: {v}");
+    // 58 is inside range 0..60, so only the cross-parameter limit (1100*0.04 + 58 = 102 > 100) refuses it.
+    let before = common::dir_hash(&m);
+    let (v, c) = bind(&m, &["CONF-UAV-DEPLOY-001", "Features::Propulsion.maxCurrentA", "58"]);
+    assert_eq!((c, v["written"].clone()), (1, json!(false)), "{v}");
+    // Only E221, once for the Configuration bound and once for the one inheriting its values.
+    assert_eq!(codes(&v, "newErrors"), vec!["E221".to_string(), "E221".to_string()], "{v}");
+    let files: Vec<&str> = v["newErrors"].as_array().unwrap().iter().map(|e| e["file"].as_str().unwrap()).collect();
+    assert_eq!(files, ["Configurations/CONF-UAV-DEPLOY-001.md", "Configurations/CONF-UAV-FLIGHT-001.md"]);
+    assert_eq!(common::dir_hash(&m), before, "a refused bind writes nothing");
+    // The same limit, broken by editing the file, is now a `validate` error, per Configuration too.
+    let path = m.join("Configurations/CONF-UAV-DEPLOY-001.md");
+    let text = std::fs::read_to_string(&path).unwrap().replace("maxCurrentA: 45", "maxCurrentA: 58");
+    std::fs::write(&path, text).unwrap();
+    let (out, _, code) = run(&m, &["validate"]);
+    assert_eq!(code, 1, "{out}");
+    assert!(out.contains("E221") && out.contains("PC-UAV-CURRENT"), "{out}");
     let _ = std::fs::remove_dir_all(&m);
 }

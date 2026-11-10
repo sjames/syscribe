@@ -58,7 +58,7 @@ Then validate with `syscribe -m <root> validate --profile magicgrid`. The `MG###
 | `actors: [Part…]` | **base field** on `UseCaseDef` | external actor parts of a use case |
 | `mg_external: true` | `Part`/`PartDef` | element is outside the system-of-interest boundary (B3) |
 | `mg_soi: true` | `Part`/`PartDef` | the system of interest (exactly one; not also `mg_external`) |
-| `mg_moe: true` + `mg_moe_measures`/`_unit`/`_direction`(`maximize`\|`minimize`)/`_threshold`/`_objective`/`_weight` | `CalculationDef`/`AnalysisCase` | a Measure of Effectiveness (B4) gauging a stakeholder need |
+| `mg_moe: true` + `mg_moe_measures`/`_unit`/`_direction`(`maximize`\|`minimize`)/`_threshold`/`_objective`/`_weight`, and to rank on recorded evidence `_source` (`expression`\|`measurement`)/`_measurement`/`_aggregate` (`mean`\|`max`\|`p95`\|`last`) | `CalculationDef`/`AnalysisCase` | a Measure of Effectiveness (B4) gauging a stakeholder need |
 | `mg_mop: true` + `mg_mop_refines: <MoE>` + `mg_mop_unit` | `CalculationDef`/`ConstraintDef`/`AnalysisCase` | a Measure of Performance (W4/S4) refining a B4 MoE; `mopRefinedBy` is derived |
 | `mg_layer: logical` \| `physical` | `Part`/`PartDef` | W3 logical subsystem vs S3 physical component |
 | `allocatedTo: <target>` | **base field** on the source element | allocation: function→logical, logical→physical; `allocatedFrom` is derived |

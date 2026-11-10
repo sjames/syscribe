@@ -22,6 +22,21 @@
         "type": "string"
       }
     },
+    "parameters": {
+      "type": "array",
+      "description": "Parameters whose effective value differs between the variants (every parameter with `--all`), sorted by key (GH #466). `a`/`b` are `{value, source: {kind, from?, ...}, stage}`, or null when that variant has no value; `unit` is the declared unit.",
+      "items": {
+        "type": "object",
+        "required": ["key", "differs", "a", "b"],
+        "properties": {
+          "key": {"type": "string"},
+          "unit": {"type": ["string", "null"]},
+          "differs": {"type": "boolean"},
+          "a": {"type": ["object", "null"]},
+          "b": {"type": ["object", "null"]}
+        }
+      }
+    },
     "metadata": {
       "type": "array",
       "items": {

@@ -995,6 +995,8 @@ fn record_scenarios(
                 only.by_scenario.insert(format!("{tc}::{outline}"), if rows.contains(&V::Fail) { V::Fail } else { V::Pass });
             }
         }
+        // Refuse before the sidecar is written, so a protected history never leaves the two out of step.
+        syscribe_model::fsio::check(RunHistory::path(model_root)).map_err(|e| format!("cannot write run history: {e}"))?;
         h.record_for(r, &only, config_key.as_deref());
         history = Some(h);
     }

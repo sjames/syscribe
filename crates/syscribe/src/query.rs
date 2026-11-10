@@ -3836,8 +3836,9 @@ pub fn cmd_validate_all_configs(
     }
 }
 
-/// `diff --config A --config B`: elements active in one variant but not the other.
-pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
+/// `diff --config A --config B`: elements active in one variant but not the other, and the parameters whose
+/// effective value differs (every parameter with `all`, GH #466).
+pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool, all: bool) {
     use std::collections::BTreeSet;
     use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
 
@@ -3913,6 +3914,8 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
         }
     }
 
+    let param_rows = crate::paramdiff::rows(elements, a, b, all).unwrap_or_default();
+
     if json {
         // Where each differing element lives (GH #423), so a front end can jump to it.
         let change = |side: &str, ids: &[&String], view: &[RawElement]| -> Vec<serde_json::Value> {
@@ -3935,6 +3938,7 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
             "onlyInB": only_b,
             "changes": changes,
         });
+        out["parameters"] = serde_json::json!(param_rows);
         if !usage_diff.is_empty() {
             out["usages"] = serde_json::json!(usage_diff
                 .iter()
@@ -3959,6 +3963,9 @@ pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
         println!("Only in {} ({}):", b, only_b.len());
         for x in &only_b {
             println!("  - {}", x);
+        }
+        if !param_rows.is_empty() {
+            crate::paramdiff::print_text(&param_rows, a, b, all);
         }
         if !usage_diff.is_empty() {
             println!();

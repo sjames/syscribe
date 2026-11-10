@@ -276,6 +276,11 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
     if let Some(r) = run {
         match syscribe_model::results::RunHistory::load(model_root) {
             Ok(mut h) => {
+                // Refuse before the sidecar is written, so a protected history never leaves the two out of step.
+                if let Err(e) = syscribe_model::fsio::check(syscribe_model::results::RunHistory::path(model_root)) {
+                    eprintln!("Cannot write run history: {e}");
+                    std::process::exit(1);
+                }
                 h.record_for(r, &data, config_key.as_deref());
                 history = Some(h);
             }

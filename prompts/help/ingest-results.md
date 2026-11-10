@@ -14,6 +14,11 @@ Parses an external test report and writes the verdict sidecar at
 emits W010 for an `active` TestCase whose `testFunctions:` last failed, were
 skipped, or were missing from the run.
 
+If the project protects `.syscribe/**` (`[agents] protected_paths`), an agent's ingest is refused with exit 1 unless
+`ingest-results` is named in `[agents] sidecar_writers`; the refusal says so. A person sets that, never the agent
+(`syscribe help policy`, section "Protecting recorded evidence"). To keep `validate` reporting a hand-edited sidecar,
+commit the ingest with `--commit` and set `sidecar_audit = "command"`.
+
 `--config <CONF-id>` must resolve to a `Configuration` (else exit 1 and nothing is written).
 The results are kept under that configuration only — the global verdicts are untouched — so
 a test that fails only on one variant is no longer one global `fail`. A configuration is judged

@@ -1278,11 +1278,10 @@ impl RunHistory {
 
     pub fn save(&self, model_root: &Path) -> std::io::Result<PathBuf> {
         let p = Self::path(model_root);
-        std::fs::create_dir_all(p.parent().expect("has parent"))?;
-        // Write beside and rename, so a crash never leaves a truncated (unreadable) history.
-        let tmp = p.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_string_pretty(self).expect("history serialises"))?;
-        std::fs::rename(&tmp, &p)?;
+        // Through the write layer, so `--dry-run` and the agent policy's `protected_paths` apply to the history as
+        // they do to the sidecar. Written beside and renamed, so a crash never leaves a truncated (unreadable) one.
+        crate::fsio::create_dir_all(p.parent().expect("has parent"))?;
+        crate::fsio::write_atomic(&p, serde_json::to_string_pretty(self).expect("history serialises"))?;
         Ok(p)
     }
 

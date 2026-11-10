@@ -38,6 +38,8 @@ mod ingest;
 mod lint_docs;
 mod bindingtimes;
 mod newcmd;
+mod paramdiff;
+mod moe_measured;
 mod params;
 mod preview;
 mod propagate;
@@ -1328,16 +1330,17 @@ fn main() {
             "diff" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let all = rest.iter().any(|a| a == "--all");
                 let cfgs: Vec<&str> = rest
                     .windows(2)
                     .filter(|w| w[0] == "--config")
                     .map(|w| w[1].as_str())
                     .collect();
                 if cfgs.len() != 2 {
-                    eprintln!("Usage: syscribe --model <root> diff --config <A> --config <B> [--json]");
+                    eprintln!("Usage: syscribe --model <root> diff --config <A> --config <B> [--all] [--json]");
                     std::process::exit(1);
                 }
-                query::cmd_diff(&elems, cfgs[0], cfgs[1], json);
+                query::cmd_diff(&elems, cfgs[0], cfgs[1], json, all);
             }
             "audit" => {
                 // Read-only safety-readiness dashboard (GH #15 / REQ-TRS-OUT-013).
@@ -1952,7 +1955,11 @@ fn main() {
             "trade-study" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let results_specs: Vec<String> = rest.windows(2).filter(|w| w[0] == "--results").map(|w| w[1].clone()).collect();
                 if tradestudy::has_trade_studies(&elems) {
+                    if !results_specs.is_empty() {
+                        cliargs::usage_exit("trade-study: --results applies to the MagicGrid MoE trade study, not to TradeStudy elements");
+                    }
                     // §15 (GH #63): general-purpose TradeStudy elements take precedence.
                     let filter = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
                     tradestudy::cmd_trade_study(&elems, filter, json);
@@ -1963,7 +1970,9 @@ fn main() {
                         .filter(|w| w[0] == "--config")
                         .map(|w| w[1].clone())
                         .collect();
-                    mgreport::cmd_trade_study(&elems, json, &config_filter);
+                    // A MoE that names a recorded measurement reads the verdict sidecar (GH #467).
+                    let results = syscribe_model::results::ResultsData::load_sidecar(model_root);
+                    mgreport::cmd_trade_study(&elems, json, &config_filter, results.as_ref(), &results_specs);
                 }
             }
             "co-analysis" => {

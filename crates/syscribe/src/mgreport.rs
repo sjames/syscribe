@@ -19,6 +19,7 @@ use syscribe_model::{
     validator::{allocation_edges, Finding, Severity, ValidationResult},
 };
 
+use crate::moe_measured::{Aggregate, Measured};
 use crate::svgkit::metrics::{load_metrics, TextMetrics};
 use crate::svgkit::theme::theme_for;
 use crate::export::SCHEMA_VERSION;
@@ -948,6 +949,13 @@ struct Moe {
     threshold: f64,
     objective: f64,
     weight: f64,
+    /// Recorded measurement this MoE reads (`mg_moe_measurement`, GH #467), how several values combine, and the
+    /// unit its bounds are in (`mg_moe_unit`).
+    measurement: Option<String>,
+    aggregate: Aggregate,
+    unit: Option<String>,
+    /// `mg_moe_source: measurement` scores the recorded value; the default scores the predicted one.
+    scores_measured: bool,
 }
 
 struct Cfg {
@@ -959,9 +967,16 @@ struct Cfg {
 
 /// One evaluated cell.
 struct Cell {
+    /// The value that is scored: measured for a `mg_moe_source: measurement` MoE, else predicted.
     value: Option<f64>,
     score: f64,
     violation: bool,
+    predicted: Option<f64>,
+    measured: Option<Measured>,
+    /// Why the cell is a knock-out: the threshold, a recorded fail verdict, a recorded limit.
+    reasons: Vec<String>,
+    /// The recorded values could not be put in one unit.
+    measure_error: Option<String>,
 }
 
 /// Resolve a variable token against a configuration's bindings: an exact key
@@ -1002,7 +1017,12 @@ fn score_moe(moe: &Moe, value: f64) -> (f64, bool) {
     }
 }
 
-pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String]) {
+/// `results` is the verdict sidecar: a MoE that names a `mg_moe_measurement` reads the measurements recorded for
+/// each Configuration (`ingest-results --format records --config <CONF>`) from it.
+///
+/// `results_specs` are the `--results` arguments: records read from files outside the model instead, for the
+/// Configurations they cover (see [`crate::moe_measured::load_external`]).
+pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String], results: Option<&syscribe_model::results::ResultsData>, results_specs: &[String]) {
     for c in config_filter {
         let known = elems.iter().any(|e| {
             is_type(e, ElementType::Configuration) && (e.frontmatter.id.as_deref() == Some(c.as_str()) || e.qualified_name == *c)
@@ -1025,6 +1045,10 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             threshold: e.frontmatter.mg_f64("mg_moe_threshold").unwrap_or(0.0),
             objective: e.frontmatter.mg_f64("mg_moe_objective").unwrap_or(1.0),
             weight: e.frontmatter.mg_f64("mg_moe_weight").unwrap_or(1.0),
+            measurement: e.frontmatter.mg_str("mg_moe_measurement").filter(|s| !s.is_empty()),
+            aggregate: e.frontmatter.mg_str("mg_moe_aggregate").and_then(|a| Aggregate::parse(&a)).unwrap_or(Aggregate::Last),
+            unit: e.frontmatter.mg_str("mg_moe_unit").filter(|s| !s.is_empty()),
+            scores_measured: e.frontmatter.mg_str("mg_moe_source").as_deref() == Some("measurement"),
         })
         .collect();
 
@@ -1064,20 +1088,58 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         });
     }
 
+    // Records from files outside the model replace the sidecar for the Configurations they cover.
+    let cfg_keys: Vec<(Option<String>, String)> = cfgs.iter().map(|c| (c.id.clone(), c.qname.clone())).collect();
+    let external = match crate::moe_measured::load_external(elems, results_specs, &cfg_keys) {
+        Ok(x) => x,
+        Err(e) => crate::cliargs::usage_exit(&format!("trade-study: {e}")),
+    };
+    let key_of = |c: &Cfg| c.id.clone().unwrap_or_else(|| c.qname.clone());
+    // Where each Configuration's evidence came from, for the output.
+    let evidence: Vec<serde_json::Value> = cfgs
+        .iter()
+        .map(|c| {
+            let sidecar = c.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id)));
+            match external.get(&key_of(c)) {
+                Some(x) => json!({"configuration": c.label, "origin": "external", "path": x.path, "hash": x.hash, "count": x.total, "unmatched": x.unmatched}),
+                None => json!({"configuration": c.label, "origin": "sidecar", "count": sidecar.map(|s| s.records.len()), "format": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.format.clone()), "source": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.source.clone()), "ingestedAtUnix": sidecar.and_then(|s| s.records_meta.as_ref()).map(|m| m.ingested_at_unix)}),
+            }
+        })
+        .collect();
+
     // Evaluate every (moe, cfg) cell.
     let mut cells: Vec<Vec<Cell>> = Vec::with_capacity(moes.len());
     for moe in &moes {
         let mut row = Vec::with_capacity(cfgs.len());
         for cfg in &cfgs {
             let resolve = |tok: &str| resolve_binding(&cfg.bindings, tok);
-            let value = feature_model::eval_expr_rhs(&moe.expression, &resolve);
-            match value {
-                Some(v) => {
-                    let (score, violation) = score_moe(moe, v);
-                    row.push(Cell { value: Some(v), score, violation });
+            let predicted = if moe.expression.trim().is_empty() { None } else { feature_model::eval_expr_rhs(&moe.expression, &resolve) };
+            // Measured evidence is per Configuration: only what was ingested with `--config <CONF>` counts.
+            let (mut measured, mut measure_error) = (None, None);
+            if let Some(name) = &moe.measurement {
+                let recs = match external.get(&key_of(cfg)) {
+                    Some(x) => x.records.as_slice(),
+                    None => cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]),
+                };
+                match crate::moe_measured::measured(recs, name, moe.aggregate, moe.unit.as_deref()) {
+                    Ok(m) => measured = m,
+                    Err(e) => measure_error = Some(e),
                 }
-                None => row.push(Cell { value: None, score: 0.0, violation: false }),
             }
+            let value = if moe.scores_measured { measured.as_ref().map(|m| m.value) } else { predicted };
+            let (score, mut violation) = value.map(|v| score_moe(moe, v)).unwrap_or((0.0, false));
+            let mut reasons = Vec::new();
+            if violation {
+                reasons.push(format!("{} {} is worse than the threshold {}", if moe.scores_measured { "measured" } else { "predicted" }, fmt_num(value.unwrap_or(0.0)), fmt_num(moe.threshold)));
+            }
+            // Recorded evidence knocks a cell out whichever value scores it.
+            if let Some(m) = &measured {
+                if !m.violations.is_empty() {
+                    violation = true;
+                    reasons.extend(m.violations.iter().cloned());
+                }
+            }
+            row.push(Cell { value, score, violation, predicted, measured, reasons, measure_error });
         }
         cells.push(row);
     }
@@ -1108,11 +1170,12 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         }
     }
 
-    // Winner: highest-scoring non-failing configuration.
+    // Winner: highest-scoring non-failing configuration that has at least one evaluable cell — a variant with
+    // no value at all (no binding, no recorded measurement) is not a winner on no evidence (GH #467).
     let winner: Option<usize> = cfgs
         .iter()
         .enumerate()
-        .filter(|(i, _)| !failing[*i])
+        .filter(|(i, _)| !failing[*i] && moes.iter().enumerate().any(|(ri, _)| cells[ri][*i].value.is_some()))
         .max_by(|(ia, _), (ib, _)| {
             totals[*ia].partial_cmp(&totals[*ib]).unwrap_or(std::cmp::Ordering::Equal)
         })
@@ -1128,6 +1191,10 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
                     "threshold": m.threshold,
                     "objective": m.objective,
                     "weight": m.weight,
+                    "source": if m.scores_measured { "measurement" } else { "expression" },
+                    "measurement": m.measurement,
+                    "aggregate": m.measurement.as_ref().map(|_| m.aggregate.name()),
+                    "unit": m.unit,
                 })
             })
             .collect();
@@ -1151,6 +1218,11 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
                     },
                     "thresholdViolation": cell.violation,
                     "evaluable": cell.value.is_some(),
+                    "source": if moe.scores_measured { "measurement" } else { "expression" },
+                    "predicted": cell.predicted,
+                    "measured": cell.measured.as_ref().map(|m| measured_json(m, &evidence[ci])),
+                    "measureError": cell.measure_error,
+                    "violationReasons": cell.reasons,
                 }));
             }
         }
@@ -1169,6 +1241,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         let out = json!({
             "schemaVersion": SCHEMA_VERSION,
             "report": "trade-study",
+            "evidence": evidence,
             "moes": moe_json,
             "configurations": cfg_json,
             "cells": cell_json,
@@ -1203,6 +1276,20 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
                     s
                 }
             };
+            // The other basis alongside, so predicted and measured can be read together.
+            let text = if moe.measurement.is_some() {
+                let other = if moe.scores_measured {
+                    cell.predicted.map(|p| format!("pred {}", fmt_num(p)))
+                } else {
+                    Some(cell.measured.as_ref().map(|m| format!("meas {}", fmt_num(m.value))).unwrap_or_else(|| "meas n/a".into()))
+                };
+                match other {
+                    Some(o) => format!("{text} [{o}]"),
+                    None => text,
+                }
+            } else {
+                text
+            };
             print!("| {:^cw$} ", text, cw = col_w);
         }
         println!();
@@ -1220,6 +1307,52 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         }
         println!("  {:<width$} {:.3}{}", c.label, totals[i], tags, width = col_w);
     }
+    if !external.is_empty() {
+        println!();
+        println!("Recorded evidence (--results):");
+        for (c, e) in cfgs.iter().zip(&evidence) {
+            match e["path"].as_str() {
+                Some(p) => println!("  {} <- {} ({}, {} record(s){})", c.label, p, e["hash"].as_str().unwrap_or(""), e["count"], match e["unmatched"].as_u64() { Some(n) if n > 0 => format!(", {n} naming no TestCase ignored"), _ => String::new() }),
+                None if e["origin"] == "external" => println!("  {} — no file in the directory: no evidence", c.label),
+                None => println!("  {} — from the model's sidecar", c.label),
+            }
+        }
+    }
+    // Why each knocked-out cell is one, so a FAIL can be traced to the threshold or to recorded evidence.
+    let mut printed = false;
+    for (ri, moe) in moes.iter().enumerate() {
+        for (ci, c) in cfgs.iter().enumerate() {
+            for why in &cells[ri][ci].reasons {
+                if !printed {
+                    println!();
+                    println!("Knock-outs:");
+                    printed = true;
+                }
+                println!("  {} / {}: {}", c.label, moe.name, why);
+            }
+            if let Some(e) = &cells[ri][ci].measure_error {
+                println!("  {} / {}: measurement not usable — {}", c.label, moe.name, e);
+            }
+        }
+    }
+}
+
+/// The measured side of a JSON cell: the value, how it was reached, and the recorded evidence behind it.
+fn measured_json(m: &Measured, evidence: &serde_json::Value) -> serde_json::Value {
+    json!({
+        "value": m.value,
+        "unit": m.unit,
+        "aggregate": m.aggregate.name(),
+        "recordCount": m.contributions.len(),
+        "records": m.contributions.iter().map(|c| json!({
+            "testCase": c.test_case,
+            "scenario": c.scenario,
+            "environment": c.environment,
+            "verdict": c.verdict,
+            "value": c.value,
+        })).collect::<Vec<_>>(),
+        "evidence": evidence,
+    })
 }
 
 /// Format a numeric value without a trailing `.0` for integers.

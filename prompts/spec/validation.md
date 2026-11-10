@@ -445,9 +445,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front |
+| `W760` | An agent-made commit (a `Syscribe-Actor` trailer without `Syscribe-As: human`, or an author matching `[agents] actors`) changed a path matched by `[agents] protected_paths`. Reported by `validate` from the last `audit_limit` commits; the writers' own checks refuse the same change up front. With `[agents] sidecar_writers` set, a file under `.syscribe/` other than `scripts/` is treated as `sidecar_audit` says: `exempt` (default) never reports it, because git cannot tell a listed command's write from a hand edit; `command` reports it unless the commit's `Syscribe-Command` names a listed writer (`--commit` writes that trailer) |
 | `W761` | An agent-made commit set an element to a status listed for its type in `[agents] human_only_status` |
-| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule. The entry is ignored; the rest of the policy still applies |
+| `W762` | A malformed `[agents]` entry in `.syscribe.toml` — an unknown key, a wrong type (e.g. a `require_by` or `human_only_answers` that is not `true`/`false`), an unknown element type or status, an unknown `require_before_done` rule, a `sidecar_audit` that is not `exempt` or `command`. The entry is ignored (`sidecar_audit` falls back to `exempt`); the rest of the policy still applies |
 
 ## Native PlanningItem (E706–E717, E719–E728, W308–W311, W317–W323, §23, ADR-SYS-PLANITEM-001)
 
@@ -714,7 +714,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E213` | Cross-feature `parameterConstraints` references unresolved parameter path (`<FeatureDef>.<param>`) |
 | `E219` | `FeatureDef.requires:` constraint violated by selected features |
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
-| `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `feature-check`; default severity) |
+| `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `validate` and `feature-check`, so `bind` refuses it; default severity) |
 | `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter); the message names the accepted form and the path or parameter it most likely meant |
 | `E229` | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
 | `E230` | A `FeatureDef`'s or parameter's `bindingTime:`/`latestBindingTime:` is not a stage of the effective binding-time vocabulary — `compile`/`load`/`runtime` plus any declared in `[bindingTimes]` (§9.7) |
@@ -758,7 +758,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W239` | (`feature-check`) an abstract feature with no children: it groups nothing |
 | `W240` | (`feature-check`) the model has more features than the deep-analysis limit (5000), so abstract features' derived values are not computed and an `appliesWhen:` on one reads false |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
-| `W025` | (`feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |
+| `W025` | (`validate`, `feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |
 | `W026` | (`validate`) a `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |
 | `W245` | As `E243`, for a draft or review element |
 | `W246` | A placeholder references a `bindingTime: runtime` parameter (no value at projection time) |

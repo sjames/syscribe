@@ -7,6 +7,7 @@ testLevel: L2
 sourceFile: repo:crates/syscribe/tests/results_history.rs
 verifies:
   - REQ-TRS-RUNHIST-001
+  - REQ-TRS-AGENTPOL-005
 tags:
   - cli
 ---
@@ -22,4 +23,7 @@ Feature: run history
 
   Scenario: replace and errors
     Then re-ingesting a run id replaces it, an unknown id exits 1 and --fail-on-regression gates
+
+  Scenario: the history goes through the write layer
+    Then a dry run writes neither the history nor the sidecar, and a protected history is refused with the rule and file named before the sidecar is written
 ```

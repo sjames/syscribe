@@ -179,7 +179,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
 | E229 | A dependent's `bindingTime:` window closes **before** the window of a value it depends on opens — a parameter against the sibling in its `derivedFrom:` expression or its `bindTo:` target, a feature against a feature it `requires:` (§9.7). Checked only when both ends declare a window. Emitted by `validate` and `feature-check` (once per command). |
 | E213 | A `parameterConstraints` expression references an unresolved parameter path, **or** uses the legacy `::`-member form (`Features::F::param`) instead of the canonical dotted `Features::F.param` — the constraint is flagged, never silently dropped |
-| E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
+| E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity). Reported by `validate` as well as `feature-check`, so `bind` refuses a value that introduces it; still-open parameters are not a violation |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` (not `mandatory: true`) is selected in every `Configuration` (consider `mandatory: true`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
@@ -187,7 +187,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W239 | (`feature-check`) an **abstract** feature with no children: it groups nothing. Drop `isAbstract:` or add the features it groups |
 | W240 | (`feature-check`) the model has more features than the deep-analysis limit (5000), so the **abstract** features' derived values are not computed and an `appliesWhen:` on one reads false |
 | W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |
-| W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Gate with `feature-check --deny W025` |
+| W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Reported by `validate` and `feature-check`; gate with `--deny W025` |
 
 ### Deep analysis (`feature-check --deep`)
 
@@ -488,9 +488,9 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 
 | Code | Meaning |
 |---|---|
-| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. |
+| W760 | An agent-made commit changed a protected path (`[agents] protected_paths`). Found by `validate` from recent git history; the writers refuse the same change up front. With `[agents] sidecar_writers` set, a file under `.syscribe/` other than `scripts/` is treated as `sidecar_audit` says: `exempt` (default) never reports it, because git cannot tell a listed command's write from a hand edit; `command` reports it unless the commit's `Syscribe-Command` names a listed writer (`--commit` writes that trailer). |
 | W761 | An agent-made commit set a status listed in `[agents] human_only_status` for its type. |
-| W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`); ignored, the rest of the policy still applies. |
+| W762 | A malformed `[agents]` entry in `.syscribe.toml` (unknown key, wrong type — e.g. a non-boolean `human_only_answers`, or a `sidecar_audit` that is not `exempt`/`command`); ignored (`sidecar_audit` falls back to `exempt`), the rest of the policy still applies. |
 
 ## Native PlanningItem (E706–E717, E719–E728, W308–W311, W315, W317–W323, §23, ADR-SYS-PLANITEM-001)
 
@@ -1415,7 +1415,7 @@ always runs; `W307` (above) is advisory until promoted.
 | MG030 | `custom_fields.mg_moe: true` on an element that is not a `CalculationDef` or `AnalysisCase` |
 | MG031 | `mg_moe_measures` is absent, or does not resolve to a `Requirement`/`RequirementDef` |
 | MG032 | `mg_moe_direction` is absent or not `maximize`/`minimize` |
-| MG033 | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]` |
+| MG033 | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]`, or a recorded-measurement field malformed — `mg_moe_source` not `expression`/`measurement` (or `measurement` without `mg_moe_measurement`), `mg_moe_aggregate` not `mean`/`max`/`p95`/`last`, `mg_moe_measurement` empty, `mg_moe_unit` not a unit a measurement can be converted to |
 | MG040 | `custom_fields.mg_layer` is present on a `Part`/`PartDef` and is not `logical` or `physical` |
 | MG041 | A `Part`/`PartDef` with `mg_layer: logical` has no `Allocation` to a `physical` element |
 | MG042 | A `logical` and a `physical` `Part`/`PartDef` share a direct `supertype:`/`typedBy:` link — relate the layers only through an explicit `Allocation` |

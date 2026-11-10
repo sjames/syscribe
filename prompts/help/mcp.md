@@ -279,7 +279,7 @@ a failed commit leaves the write in place and returns `commitError`. `apply_chan
 When the project declares an `[agents]` policy (`syscribe policy`), every write tool is held to it: a
 `protected_paths` match, a `human_only_status`, an answer to a question reserved to a person (`human_only_answers`,
 or a question's own `answerBy: human` — this one applies even without `[agents]`), or a PlanningItem set `done` before `require_before_done`
-holds is refused with the rule named, in each operation of an `apply_changes` batch too. There is no
+holds is refused with the rule named (protecting `.syscribe/**` also refuses recorded-results writes unless `[agents] sidecar_writers` names the writer; `help policy`), in each operation of an `apply_changes` batch too. There is no
 `--as-human` over MCP — a person uses the CLI or edits the file.
 
 All write tools default to `dry_run: true`: they report the validation delta of

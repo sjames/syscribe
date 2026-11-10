@@ -15,6 +15,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Claim / release shared work      syscribe -m model/ claim <PI-id> --by <agent>  /  release <PI-id>
     Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
     Reserve a decision to a person   answerBy: human on the question (or [agents] human_only_answers = true); see `help policy`
+    Protect results, let CI ingest   [agents] protected_paths = [".syscribe/**"] + sidecar_writers = ["ingest-results"]; see `help policy`
+    Catch hand-edited results too    add sidecar_audit = "command" and commit ingests with `ingest-results --commit`; see `help policy`
     Who may answer / who answered    syscribe -m model/ questions --json     (answerBy, answerProvenance)
     Anchor a requirement item        write `1. {#grant-keys} ...` in the REQ body (syscribe help Requirement)
     Cite a requirement item          write REQ-X#grant-keys in prose; check: check-ref REQ-X#grant-keys
