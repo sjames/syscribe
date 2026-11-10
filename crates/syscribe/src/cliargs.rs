@@ -81,7 +81,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
         "metrics" => &[("--json", Switch), LENS, ("--sensitivity", Switch)],
         "cyber-risk" => &[("--json", Switch), LENS, ("--format", Value)],
         "co-analysis" | "why-active" => &[("--json", Switch), LENS],
-        "trade-study" => &[("--json", Switch), LENS, ("--results", Value)],
+        "trade-study" => &[("--json", Switch), LENS, ("--results", Value), ("--run", Value)],
         "diff" => &[("--json", Switch), ("--all", Switch), LENS],
         "safety-case" => &[("--json", Switch), ("--no-implicit", Switch), LENS, ("--format", Value)],
         "zones" => &[("--json", Switch), ("--coverage", Switch), ("--format", Value)],

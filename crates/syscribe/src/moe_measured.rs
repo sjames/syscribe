@@ -141,6 +141,28 @@ pub fn load_external(elems: &[RawElement], specs: &[String], cfgs: &[(Option<Str
     Ok(out)
 }
 
+/// Why retained records are older than the model: the TestCase they were recorded for, or a requirement it verifies,
+/// changed or vanished since they were ingested (the check `W091` makes for the sidecar). Empty when nothing changed.
+/// Records read from a retained run keep the hashes of their ingest, so this is how a later model edit shows.
+pub fn stale_reasons(elems: &[RawElement], records: &[ResultRecord]) -> Vec<String> {
+    let lookup = syscribe_model::result_join::testcase_lookup(elems);
+    let resolver = syscribe_model::resolver::Resolver::new(elems);
+    let mut by_test: BTreeMap<&str, Vec<&ResultRecord>> = BTreeMap::new();
+    for r in records {
+        by_test.entry(r.test_case.as_str()).or_default().push(r);
+    }
+    let mut out = std::collections::BTreeSet::new();
+    for (tc, rs) in by_test {
+        match lookup(tc) {
+            Some(el) => out.extend(syscribe_model::result_join::stale_reasons(el, rs.iter().copied(), elems, &resolver)),
+            None => {
+                out.insert(format!("the TestCase {tc} no longer exists"));
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
 /// The number and unit of a quantity written as `"4.2 ms"` or `"4.2ms"`; an empty unit is a bare number.
 fn split_unit(text: &str) -> (&str, &str) {
     let t = text.trim();

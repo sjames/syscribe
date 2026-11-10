@@ -162,3 +162,51 @@ fn a_protected_history_is_refused_before_the_sidecar_is_written() {
     assert!(d.join("model/.syscribe/results-history.json").exists());
     assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--by", "agent-1", &a]).1, 0, "no --run, no history write");
 }
+
+// ── records retained under a run (GH #471) ──────────────────────────────────────────────────────────────────────
+
+fn history(d: &Path) -> serde_json::Value {
+    serde_json::from_str(&std::fs::read_to_string(d.join("model/.syscribe/results-history.json")).unwrap()).unwrap()
+}
+
+fn run_with_a_test_case() -> PathBuf {
+    let d = dir();
+    std::fs::write(d.join("model/REQ-RH-001.md"), "---\nid: REQ-RH-001\ntype: Requirement\nname: R\nstatus: approved\nreqDomain: system\n---\n\nBody.\n").unwrap();
+    std::fs::write(d.join("model/TC-RH-001.md"), "---\nid: TC-RH-001\ntype: TestCase\ntestLevel: L5\nstatus: active\nname: T\nverifies: [REQ-RH-001]\n---\n\n```gherkin\nFeature: f\n  Scenario: One\n    Given x\n    Then y\n```\n").unwrap();
+    d
+}
+
+fn records(d: &Path, name: &str, value: &str) -> String {
+    let p = d.join(name);
+    std::fs::write(&p, format!("[{{\"testCase\": \"TC-RH-001\", \"scenario\": \"One\", \"verdict\": \"pass\", \"measurements\": [{{\"name\": \"closeTime\", \"value\": \"{value}\"}}]}}]")).unwrap();
+    p.to_string_lossy().into_owned()
+}
+
+#[test]
+fn a_records_run_retains_its_measurements_and_a_later_ingest_of_the_same_run_supersedes_them() {
+    let d = run_with_a_test_case();
+    let a = records(&d, "a.json", "1650 ms");
+    assert_eq!(run(&d, &["ingest-results", "--format", "records", "--run", "R1", &a]).1, 0);
+    let h = history(&d);
+    let r = &h["runs"][0]["records"];
+    assert_eq!((r.as_array().unwrap().len(), r[0]["testCase"].clone(), r[0]["measurements"][0]["value"].clone()), (1, "TC-RH-001".into(), "1650 ms".into()), "{h}");
+    assert!(r[0]["tcHash"].is_string(), "the retained record keeps the hash it was stamped with: {r}");
+    // A later ingest of the same run and key replaces the record; the sidecar and the history agree.
+    let b = records(&d, "b.json", "1700 ms");
+    assert_eq!(run(&d, &["ingest-results", "--format", "records", "--run", "R1", &b]).1, 0);
+    let r = history(&d)["runs"][0]["records"].clone();
+    assert_eq!((r.as_array().unwrap().len(), r[0]["measurements"][0]["value"].clone()), (1, "1700 ms".into()), "{r}");
+}
+
+#[test]
+fn function_level_runs_retain_no_records_and_a_history_without_them_keeps_its_shape() {
+    let d = dir();
+    let a = junit(&d, "a.xml", &[("t_pass", "pass")]);
+    assert_eq!(run(&d, &["ingest-results", "--format", "junit", "--run", "R1", &a]).1, 0);
+    let h = history(&d);
+    assert!(h["runs"][0].get("records").is_none(), "no records key for a verdict-only run: {h}");
+    // A history file written before records were retained still loads and is listed.
+    let (out, code) = run(&d, &["results", "runs"]);
+    assert_eq!(code, 0, "{out}");
+    assert!(out.contains("R1"), "{out}");
+}

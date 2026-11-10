@@ -17,6 +17,11 @@ Re-ingesting the same run id replaces that run's section of the same kind (the
 function-level and the session-log sections are independent); other runs are kept.
 Without `--run` nothing is retained.
 
+A records-like ingest (`--format records`, `robot`, `cucumber`, a results plugin) made with `--config` also retains
+its records, with their measurements, under the run, so `trade-study --run <id>` can rank an earlier run (see
+`help trade-study`). This makes the history file grow with every such run; function-level and session-log runs
+add only their verdict maps.
+
 `results failures` lists the failing, skipped and flaky functions of the latest
 ingest with the retained JUnit `message` and `time` (passing cases keep no detail). With
 per-configuration evidence (`ingest-results --config`) it lists every configuration's

@@ -24,6 +24,9 @@ Feature: run history
   Scenario: replace and errors
     Then re-ingesting a run id replaces it, an unknown id exits 1 and --fail-on-regression gates
 
+  Scenario: records retained under a run
+    Then a records ingest keeps its records with their measurements and hashes, a later ingest of the same run supersedes the same keys, and a function-level run adds none and keeps the file's shape
+
   Scenario: the history goes through the write layer
     Then a dry run writes neither the history nor the sidecar, and a protected history is refused with the rule and file named before the sidecar is written
 ```

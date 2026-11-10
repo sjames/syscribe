@@ -1010,6 +1010,18 @@ pub fn derive_by_record(records: &[crate::result_records::ResultRecord]) -> Hash
 }
 
 /// Add `from` to `into`, keeping the worse verdict where a key is in both.
+/// Retain an ingest's records the way the sidecar does: an ingest supersedes the records with its own keys
+/// (test case, scenario, environment) and keeps the others, or replaces them all under `--replace`.
+fn supersede_records(into: &mut Vec<crate::result_records::ResultRecord>, data: &ResultsData) {
+    if data.replace_records {
+        into.clear();
+    } else {
+        let keys: std::collections::HashSet<_> = data.records.iter().map(|r| r.key()).collect();
+        into.retain(|r| !keys.contains(&r.key()));
+    }
+    into.extend(data.records.iter().cloned());
+}
+
 fn merge_worst(into: &mut std::collections::BTreeMap<String, Verdict>, from: &HashMap<String, Verdict>) {
     for (k, v) in from {
         into.entry(k.clone()).and_modify(|old| *old = crate::result_records::worst(*old, *v)).or_insert(*v);
@@ -1213,6 +1225,12 @@ pub struct RunRecord {
     /// The per-Configuration sections of this run (`ingest-results --run … --config …`).
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub by_config: std::collections::BTreeMap<String, ConfigSections>,
+    /// The normalised records of a records-like ingest (`records`, `robot`, `cucumber`, a results plugin) made without
+    /// `--config`, with their measurements, so `trade-study --run` can read an earlier run (GH #471). Kept as
+    /// ingested: joined to the model's TestCases and stamped with the hashes of that moment. This is what makes the
+    /// history grow with every retained run of such a format; function-level and session-log runs add none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub records: Vec<crate::result_records::ResultRecord>,
 }
 
 /// One Configuration's sections of a retained run.
@@ -1222,6 +1240,9 @@ pub struct ConfigSections {
     pub by_leaf: std::collections::BTreeMap<String, Verdict>,
     #[serde(default)]
     pub by_scenario: std::collections::BTreeMap<String, Verdict>,
+    /// This Configuration's retained records in the run (see [`RunRecord::records`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub records: Vec<crate::result_records::ResultRecord>,
 }
 
 /// `.syscribe/results-history.json`: retained runs, oldest first.
@@ -1308,8 +1329,15 @@ impl RunHistory {
             (None, Section::Leaf) => rec.by_leaf = leaves(),
             (None, Section::Scenario) => rec.by_scenario = scenarios(),
             // records: the derived verdicts join the run's scenario map, worst of the two when a key is shared
-            (None, Section::Records) => merge_worst(&mut rec.by_scenario, &data.by_record),
-            (Some(c), Section::Records) => merge_worst(&mut rec.by_config.entry(c.to_string()).or_default().by_scenario, &data.by_record),
+            (None, Section::Records) => {
+                merge_worst(&mut rec.by_scenario, &data.by_record);
+                supersede_records(&mut rec.records, data);
+            }
+            (Some(c), Section::Records) => {
+                let sec = rec.by_config.entry(c.to_string()).or_default();
+                merge_worst(&mut sec.by_scenario, &data.by_record);
+                supersede_records(&mut sec.records, data);
+            }
             (Some(c), Section::Leaf) => rec.by_config.entry(c.to_string()).or_default().by_leaf = leaves(),
             (Some(c), Section::Scenario) => rec.by_config.entry(c.to_string()).or_default().by_scenario = scenarios(),
         }

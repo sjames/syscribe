@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> trade-study [<TRD-id>] [--json]                  # TradeStudy elements (§15)
-    syscribe -m <root> trade-study [--json] [--config <id|qname> ...] [--results <dir | CONF=file> ...]   # MagicGrid MoE fallback
+    syscribe -m <root> trade-study [--json] [--config <id|qname> ...] [--results <dir | CONF=file> ...] [--run <id>]   # MagicGrid MoE fallback
 
 ## DESCRIPTION
 
@@ -83,8 +83,25 @@ runs compared by running the command twice, with nothing ingested or written. A 
 exactly what was used. Two limits: the file is not sealed by the model, and its records are stamped against the
 model as it is now, so a TestCase or requirement changed since the run is **not** flagged (`W091` applies only to
 ingested records). The sidecar's `evidence` describes the Configuration's last records ingest, which understates
-the sources when several ingests contributed; `recordCount` and `records` are always exact. `ingest-results
---run` keeps verdicts, not measurements, so name the run's files here instead.
+the sources when several ingests contributed; `recordCount` and `records` are always exact.
+
+**A retained run, by id (`--run <id>`, GH #471).** `ingest-results --run <id> --format records --config <CONF> <file>`
+(also `robot`, `cucumber` and a results plugin) keeps that ingest's records, with their measurements, in the run
+history, so an earlier run stays rankable after later ingests have overwritten the sidecar. `trade-study --run <id>`
+then reads each compared Configuration's records from that run, in place of the sidecar:
+- A Configuration the run holds nothing for has **no evidence** (`n/a`); it does not fall back to the sidecar.
+- Only records ingested with `--config` count, as for the sidecar. A run with no records for any compared
+  Configuration is refused, saying how to re-ingest it; so is a run kept before records were retained, and a
+  function-level or session-log run, which keep verdicts only. An unknown id is refused listing the retained runs.
+- `--run` and a `--results` directory both cover every compared Configuration, so together they are refused.
+  `--results <Configuration>=<file>` overrides the run for that one Configuration.
+- Re-ingesting a run id supersedes the records with the same key (test case, scenario, environment) and keeps the
+  others; `--replace` drops them all.
+- Each cell's `evidence` is `{origin: "run", run, count, ingestedAtUnix, sources, stale}`, and the text shows
+  `<- run R1 (N record(s))`. The records keep the hashes of their ingest, so a TestCase or requirement edited since
+  shows as `stale` (and `STALE` in the text), the check `W091` makes for the sidecar; it is information, not a
+  knock-out. History size: each retained records-like run stores its records in `.syscribe/results-history.json`,
+  so it grows with every such run (nothing prunes it yet).
 
 ## Rollup
 
