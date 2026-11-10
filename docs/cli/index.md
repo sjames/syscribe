@@ -2184,6 +2184,7 @@ require_by          = true                                      # every model-wr
 actors              = ["agent-*"]                               # git authors the audit counts as agents
 audit_limit         = 200                                       # recent commits `validate` inspects
 ```
+sidecar_writers     = ["ingest-results"]                        # commands that may write a protected `.syscribe/**` (GH #469)
 
 ```bash
 syscribe -m model/ policy                                        # the rules in plain words, and how this call is treated

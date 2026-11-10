@@ -467,3 +467,41 @@ fn the_policy_states_human_only_answers() {
     assert_eq!(json(&r.run(&["policy", "--json"]).0)["humanOnlyAnswers"], true);
     assert!(r.run(&["agent-guide"]).0.contains("Only a person answers a PlanningItem question"));
 }
+
+// ── the evidence sidecar (TC-TRS-AGENTPOL-005, GH #469) ──────────────────────
+
+fn sidecar_repo(policy: &str) -> Repo {
+    let r = Repo::new(policy);
+    r.write("model/Verification/TC-AP-001.md", "---\nid: TC-AP-001\ntype: TestCase\nname: one\nstatus: active\ntestLevel: L1\nverifies: [REQ-AP-001]\ntestFunctions:\n  - function: t_one\n---\n\nScenario.\n");
+    r.write("report.xml", "<testsuite name=\"s\"><testcase classname=\"c\" name=\"t_one\"/></testsuite>");
+    r.commit("tc");
+    r
+}
+
+#[test]
+fn a_protected_sidecar_refuses_ingest_with_exit_1_and_the_rule_named() {
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\n");
+    let (_o, err, code) = r.run(&["ingest-results", "report.xml", "--by", "agent-1"]);
+    assert_eq!(code, 1, "{err}");
+    assert!(err.contains("protected_paths") && err.contains(".syscribe/results.json"), "{err}");
+    assert!(!r.model().join(".syscribe/results.json").exists(), "nothing was written");
+}
+
+#[test]
+fn sidecar_writers_lets_only_the_named_command_write_the_protected_sidecar() {
+    let r = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"ingest-results\"]\n");
+    let (_o, err, code) = r.run(&["ingest-results", "report.xml", "--by", "agent-1"]);
+    assert_eq!(code, 0, "{err}");
+    assert!(r.model().join(".syscribe/results.json").exists());
+    // The policy says so in words, so an agent knows to ingest rather than edit.
+    let (out, _, _) = r.run(&["policy"]);
+    assert!(out.contains("`ingest-results` may write the evidence sidecar"), "{out}");
+    // Another command is not named, so the same path stays protected for it.
+    let other = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = [\"set\"]\n");
+    let (_o, err, code) = other.run(&["ingest-results", "report.xml", "--by", "agent-1"]);
+    assert_eq!(code, 1, "{err}");
+    assert!(err.contains("protected_paths"), "{err}");
+    // A malformed entry is W762, never a silent grant.
+    let bad = sidecar_repo("[agents]\nprotected_paths = [\".syscribe/**\"]\nsidecar_writers = \"ingest-results\"\n");
+    assert_eq!(bad.run(&["ingest-results", "report.xml", "--by", "agent-1"]).2, 1, "a string is not a list");
+}

@@ -15,6 +15,7 @@ is opt-in.
     human_only_answers  = true                      # PlanningItem questions are answered by a person (unless `answerBy: any`)
     require_before_done = ["validate", "evidence"]  # before an agent sets a PlanningItem done
     require_by          = true                      # every model-writing command names its actor
+    sidecar_writers     = ["ingest-results"]        # commands that may write `.syscribe/**` although it is protected
     actors              = ["agent-*"]               # git authors the audit counts as agents
     audit_limit         = 200                       # recent commits `validate` inspects
 
@@ -26,6 +27,9 @@ when committed). `--as-human` is a declaration, not a proof: this is a guard rai
 **What is enforced.** A refused change exits 1 with the rule named and how a person can proceed — also
 under `--dry-run`, so a dry run reports what a real run would be refused:
 - `protected_paths`: no command writes a matching path (a `move` is checked across every file it rewrites);
+  protecting `.syscribe/**` (the recorded evidence) also stops `ingest-results`, so when ingest is automated
+  name it in `sidecar_writers = ["ingest-results"]`: that command alone may then write the sidecar (not
+  `.syscribe/scripts/`), while every other agent edit of recorded verdicts stays refused with exit 1;
 - `human_only_status`: `set <id> status=<value>` and the MCP write tools refuse a listed status;
 - `require_before_done`: setting a PlanningItem `done` needs resolving `evidence` (no `E719`) and/or that the
   change introduce no validation error;

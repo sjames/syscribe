@@ -7,6 +7,7 @@
 //! human_only_status = { Requirement = ["approved"], ADR = ["accepted"] }
 //! human_only_answers = true                                   # PlanningItem questions are answered by a person
 //! require_before_done = ["validate", "evidence"]             # before an agent sets a PlanningItem done
+//! sidecar_writers = ["ingest-results"]                        # commands that may still write `.syscribe/**` when it is protected
 //! require_by = true                                           # every model-writing command names its actor
 //! actors = ["agent-*", "*[bot]"]                              # git authors that count as agents in the audit
 //! audit_limit = 200                                           # how many recent commits `validate` inspects
@@ -23,7 +24,7 @@ use crate::validator::{Finding, Severity};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "human_only_answers", "require_before_done", "require_by", "actors", "audit_limit"];
+const KNOWN_KEYS: &[&str] = &["protected_paths", "human_only_status", "human_only_answers", "require_before_done", "require_by", "actors", "audit_limit", "sidecar_writers"];
 const BEFORE_DONE: &[&str] = &["validate", "evidence"];
 const DEFAULT_AUDIT_LIMIT: usize = 200;
 
@@ -37,6 +38,9 @@ pub struct Policy {
     pub human_only_answers: bool,
     /// `validate` and/or `evidence`: required before an agent sets a PlanningItem `done`.
     pub require_before_done: Vec<String>,
+    /// Commands that may write the evidence sidecar (`<model>/.syscribe/**`) although a `protected_paths` glob
+    /// covers it, so recorded evidence is not hand-editable by an agent yet an automated ingest still works (GH #469).
+    pub sidecar_writers: Vec<String>,
     /// Every model-writing command must carry `--by` (or `--as-human`).
     pub require_by: bool,
     /// Globs on a git author that mark a commit as agent-made, for the audit.
@@ -91,6 +95,7 @@ pub fn load(model_root: &Path) -> Option<Policy> {
         match k.as_str() {
             "protected_paths" => p.protected_paths = string_list(v, k, &mut p.problems),
             "actors" => p.actors = string_list(v, k, &mut p.problems),
+            "sidecar_writers" => p.sidecar_writers = string_list(v, k, &mut p.problems),
             "require_before_done" => {
                 for r in string_list(v, k, &mut p.problems) {
                     if BEFORE_DONE.contains(&r.as_str()) {
@@ -248,6 +253,9 @@ impl Policy {
         }
         if !self.protected_paths.is_empty() {
             out.push(format!("Tools must not write protected paths: {}.", self.protected_paths.iter().map(|p| format!("`{p}`")).collect::<Vec<_>>().join(", ")));
+        }
+        if !self.protected_paths.is_empty() && !self.sidecar_writers.is_empty() {
+            out.push(format!("Only {} may write the evidence sidecar (`.syscribe/**`) despite those protected paths; record results with that command, never by editing the sidecar.", self.sidecar_writers.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ")));
         }
         for (ty, statuses) in &self.human_only_status {
             out.push(format!("Only a person sets a {ty} to {}.", statuses.iter().map(|s| format!("`{s}`")).collect::<Vec<_>>().join(" or ")));
