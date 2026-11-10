@@ -956,6 +956,16 @@ struct Moe {
     unit: Option<String>,
     /// `mg_moe_source: measurement` scores the recorded value; the default scores the predicted one.
     scores_measured: bool,
+    /// GH #477: `mg_moe_variables` — `expression` variables read from recorded measurements
+    /// (`name: {measurement, aggregate?, unit?}`).
+    variables: Vec<(String, String, Aggregate, Option<String>)>,
+    /// GH #477: `mg_moe_inputs` — `expression` variables bound to the score (0..1) of another MoE
+    /// (`name: <qualified name or id>`); such a MoE is a level above its inputs.
+    inputs: Vec<(String, String)>,
+    qname: String,
+    id: Option<String>,
+    /// Set when another MoE takes this one as an input: it is then scored inside that MoE, not summed again.
+    is_input: bool,
 }
 
 struct Cfg {
@@ -1017,6 +1027,31 @@ fn score_moe(moe: &Moe, value: f64) -> (f64, bool) {
     }
 }
 
+/// `mg_moe_variables: {var: {measurement, aggregate?, unit?}}` (GH #477).
+fn moe_variables(e: &RawElement) -> Vec<(String, String, Aggregate, Option<String>)> {
+    let Some(serde_yaml::Value::Mapping(m)) = e.frontmatter.custom_fields.get("mg_moe_variables") else { return Vec::new() };
+    m.iter()
+        .filter_map(|(k, v)| {
+            let var = k.as_str()?.to_string();
+            let (name, agg, unit) = match v {
+                serde_yaml::Value::String(n) => (n.clone(), Aggregate::Last, None),
+                serde_yaml::Value::Mapping(f) => {
+                    let g = |key: &str| f.get(key).and_then(|x| x.as_str()).map(str::to_string);
+                    (g("measurement")?, g("aggregate").and_then(|a| Aggregate::parse(&a)).unwrap_or(Aggregate::Last), g("unit").filter(|u| !u.is_empty()))
+                }
+                _ => return None,
+            };
+            Some((var, name, agg, unit))
+        })
+        .collect()
+}
+
+/// `mg_moe_inputs: {var: <MoE qualified name or id>}` (GH #477).
+fn moe_inputs(e: &RawElement) -> Vec<(String, String)> {
+    let Some(serde_yaml::Value::Mapping(m)) = e.frontmatter.custom_fields.get("mg_moe_inputs") else { return Vec::new() };
+    m.iter().filter_map(|(k, v)| Some((k.as_str()?.to_string(), v.as_str()?.to_string()))).collect()
+}
+
 /// `results` is the verdict sidecar: a MoE that names a `mg_moe_measurement` reads the measurements recorded for
 /// each Configuration (`ingest-results --format records --config <CONF>`) from it.
 ///
@@ -1050,8 +1085,47 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             aggregate: e.frontmatter.mg_str("mg_moe_aggregate").and_then(|a| Aggregate::parse(&a)).unwrap_or(Aggregate::Last),
             unit: e.frontmatter.mg_str("mg_moe_unit").filter(|s| !s.is_empty()),
             scores_measured: e.frontmatter.mg_str("mg_moe_source").as_deref() == Some("measurement"),
+            variables: moe_variables(e),
+            inputs: moe_inputs(e),
+            qname: e.qualified_name.clone(),
+            id: e.frontmatter.id.clone(),
+            is_input: false,
         })
         .collect();
+    let mut moes = moes;
+    // Resolve each input to the index of the MoE it names; an unresolved or cyclic input is reported, not guessed.
+    let mut input_idx: Vec<Vec<(String, Option<usize>)>> = Vec::new();
+    for m in &moes {
+        input_idx.push(
+            m.inputs
+                .iter()
+                .map(|(var, r)| (var.clone(), moes.iter().position(|o| o.qname == *r || o.id.as_deref() == Some(r.as_str()))))
+                .collect(),
+        );
+    }
+    for row in &input_idx {
+        for (_, i) in row {
+            if let Some(i) = i {
+                moes[*i].is_input = true;
+            }
+        }
+    }
+    // Evaluation order: inputs before the MoEs that use them. A cycle leaves its members unordered.
+    let mut order: Vec<usize> = Vec::new();
+    let mut done = vec![false; moes.len()];
+    loop {
+        let before = order.len();
+        for i in 0..moes.len() {
+            if !done[i] && input_idx[i].iter().all(|(_, j)| j.map(|j| done[j]).unwrap_or(true)) {
+                done[i] = true;
+                order.push(i);
+            }
+        }
+        if order.len() == before {
+            break;
+        }
+    }
+    let cyclic: Vec<usize> = (0..moes.len()).filter(|i| !done[*i]).collect();
 
     // Columns: Configuration elements, optionally restricted by --config.
     let mut cfgs: Vec<Cfg> = Vec::new();
@@ -1133,32 +1207,80 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         })
         .collect();
 
-    // Evaluate every (moe, cfg) cell.
-    let mut cells: Vec<Vec<Cell>> = Vec::with_capacity(moes.len());
-    for moe in &moes {
+    // Evaluate every (moe, cfg) cell, inputs first.
+    let mut cells_opt: Vec<Option<Vec<Cell>>> = (0..moes.len()).map(|_| None).collect();
+    for &ri in order.iter().chain(cyclic.iter()) {
+        let moe = &moes[ri];
         let mut row = Vec::with_capacity(cfgs.len());
-        for cfg in &cfgs {
+        for (ci, cfg) in cfgs.iter().enumerate() {
             let resolve = |tok: &str| resolve_binding(&cfg.bindings, tok);
-            let predicted = if moe.expression.trim().is_empty() { None } else { feature_model::eval_expr_rhs(&moe.expression, &resolve) };
             // Measured evidence is per Configuration: only what was ingested with `--config <CONF>` counts.
-            let (mut measured, mut measure_error) = (None, None);
-            if let Some(name) = &moe.measurement {
-                let recs = match external.get(&key_of(cfg)) {
-                    Some(x) => x.records.as_slice(),
-                    // A run covers every compared Configuration: one it holds nothing for has no evidence.
-                    None if run.is_some() => cfg.id.as_deref().and_then(|id| run.and_then(|r| r.records.by_config.get(id))).map(|v| v.as_slice()).unwrap_or(&[]),
-                    None => cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]),
-                };
-                match crate::moe_measured::measured(recs, name, moe.aggregate, moe.unit.as_deref()) {
-                    Ok(m) => measured = m,
-                    Err(e) => measure_error = Some(e),
-                }
-            }
-            let value = if moe.scores_measured { measured.as_ref().map(|m| m.value) } else { predicted };
-            let (score, mut violation) = value.map(|v| score_moe(moe, v)).unwrap_or((0.0, false));
+            let recs: &[syscribe_model::result_records::ResultRecord] = match external.get(&key_of(cfg)) {
+                Some(x) => x.records.as_slice(),
+                // A run covers every compared Configuration: one it holds nothing for has no evidence.
+                None if run.is_some() => cfg.id.as_deref().and_then(|id| run.and_then(|r| r.records.by_config.get(id))).map(|v| v.as_slice()).unwrap_or(&[]),
+                None => cfg.id.as_deref().and_then(|id| results.and_then(|r| r.by_config.get(id))).map(|c| c.records.as_slice()).unwrap_or(&[]),
+            };
+            let combined = !moe.variables.is_empty() || !moe.inputs.is_empty();
             let mut reasons = Vec::new();
-            if violation {
-                reasons.push(format!("{} {} is worse than the threshold {}", if moe.scores_measured { "measured" } else { "predicted" }, fmt_num(value.unwrap_or(0.0)), fmt_num(moe.threshold)));
+            let (mut measured, mut measure_error) = (None, None);
+            let mut violation = false;
+            let mut predicted = None;
+            let value;
+            if combined {
+                // GH #477: the expression is read over named measurements and the scores of other MoEs.
+                let mut vars: BTreeMap<String, f64> = BTreeMap::new();
+                let mut missing: Vec<String> = Vec::new();
+                for (var, name, agg, unit) in &moe.variables {
+                    match crate::moe_measured::measured(recs, name, *agg, unit.as_deref()) {
+                        Ok(Some(m)) => {
+                            if !m.violations.is_empty() {
+                                violation = true;
+                                reasons.extend(m.violations.iter().map(|v| format!("{var}: {v}")));
+                            }
+                            vars.insert(var.clone(), m.value);
+                        }
+                        Ok(None) => missing.push(format!("no recorded measurement '{name}' for {var}")),
+                        Err(e) => measure_error = Some(e),
+                    }
+                }
+                for (var, target) in &input_idx[ri] {
+                    let in_cells = target.and_then(|j| cells_opt[j].as_ref());
+                    match in_cells.map(|c| &c[ci]) {
+                        Some(c) if c.value.is_some() => {
+                            vars.insert(var.clone(), c.score);
+                            if c.violation {
+                                violation = true;
+                                let who = moes[target.expect("resolved")].name.clone();
+                                reasons.extend(c.reasons.iter().map(|r| format!("input {who}: {r}")));
+                            }
+                        }
+                        Some(_) => missing.push(format!("input '{var}' has no value")),
+                        None => missing.push(format!("input '{var}' does not resolve to an evaluable MoE (unknown or cyclic)")),
+                    }
+                }
+                if !missing.is_empty() && measure_error.is_none() {
+                    measure_error = Some(missing.join("; "));
+                }
+                value = if missing.is_empty() && measure_error.is_none() {
+                    feature_model::eval_expr_rhs(&moe.expression, &|t: &str| vars.get(t).copied().or_else(|| resolve(t)))
+                } else {
+                    None
+                };
+            } else {
+                predicted = if moe.expression.trim().is_empty() { None } else { feature_model::eval_expr_rhs(&moe.expression, &resolve) };
+                if let Some(name) = &moe.measurement {
+                    match crate::moe_measured::measured(recs, name, moe.aggregate, moe.unit.as_deref()) {
+                        Ok(m) => measured = m,
+                        Err(e) => measure_error = Some(e),
+                    }
+                }
+                value = if moe.scores_measured { measured.as_ref().map(|m| m.value) } else { predicted };
+            }
+            let (score, v2) = value.map(|v| score_moe(moe, v)).unwrap_or((0.0, false));
+            if v2 {
+                violation = true;
+                reasons.insert(0, format!("{} {} is worse than the threshold {}", if moe.scores_measured || combined { "measured" } else { "predicted" }, fmt_num(value.unwrap_or(0.0)), fmt_num(moe.threshold)));
             }
             // Recorded evidence knocks a cell out whichever value scores it.
             if let Some(m) = &measured {
@@ -1169,8 +1291,9 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             }
             row.push(Cell { value, score, violation, predicted, measured, reasons, measure_error });
         }
-        cells.push(row);
+        cells_opt[ri] = Some(row);
     }
+    let cells: Vec<Vec<Cell>> = cells_opt.into_iter().map(|c| c.expect("every MoE evaluated")).collect();
 
     // Per-config weighted total over evaluable rows (weights renormalised to 1).
     let mut totals: Vec<f64> = vec![0.0; cfgs.len()];
@@ -1179,7 +1302,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
         let mut wsum = 0.0;
         for (ri, moe) in moes.iter().enumerate() {
             let cell = &cells[ri][ci];
-            if cell.value.is_some() {
+            if cell.value.is_some() && !moe.is_input {
                 wsum += moe.weight;
             }
             if cell.violation {
@@ -1190,7 +1313,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             let mut total = 0.0;
             for (ri, moe) in moes.iter().enumerate() {
                 let cell = &cells[ri][ci];
-                if cell.value.is_some() {
+                if cell.value.is_some() && !moe.is_input {
                     total += (moe.weight / wsum) * cell.score;
                 }
             }
