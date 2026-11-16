@@ -164,3 +164,36 @@ mod tests {
         assert!(!remove_connection(&mut entries, "a", "b"));
     }
 }
+
+/// Endpoints of every named connection in the model, keyed by the qualified name of the
+/// `Connection`/`Interface` element they belong to (GH #486, `REQ-TRS-CONNEXP-001`).
+///
+/// A connection's endpoints live in one of two places: the owner's `connections:` entry that
+/// carries the connection's `name:` (what SysMLv2 ingestion writes), or the element's own
+/// `ends:`. The join is by name only — never by position or by type, which are not unique.
+pub fn endpoint_index(
+    elements: &[crate::element::RawElement],
+) -> std::collections::HashMap<String, Vec<ConnectionEndpoint>> {
+    use crate::element::ElementType;
+    let mut out = std::collections::HashMap::new();
+    for e in elements {
+        let fm = &e.frontmatter;
+        if let Some(ends) = fm.ends.as_ref().filter(|v| !v.is_empty()) {
+            let mut m = Mapping::new();
+            m.insert(Value::from("ends"), Value::Sequence(ends.clone()));
+            if let Some(p) = parse_entry(&Value::Mapping(m)) {
+                out.insert(e.qualified_name.clone(), p.endpoints);
+                continue;
+            }
+        }
+        if !matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) {
+            continue;
+        }
+        for entry in fm.connections.iter().flatten() {
+            let Value::Mapping(m) = entry else { continue };
+            let (Some(name), Some(parsed)) = (str_key(m, "name"), parse_entry(entry)) else { continue };
+            out.insert(format!("{}::{name}", e.qualified_name), parsed.endpoints);
+        }
+    }
+    out
+}

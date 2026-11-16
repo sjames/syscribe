@@ -37,6 +37,7 @@ fn element_json(
     elem: &RawElement,
     result: &validator::ValidationResult,
     config: &ValidateConfig,
+    endpoints: &std::collections::HashMap<String, Vec<syscribe_model::connections::ConnectionEndpoint>>,
 ) -> serde_json::Value {
     let fm = &elem.frontmatter;
 
@@ -93,6 +94,20 @@ fn element_json(
     if let Some(name) = &fm.name {
         obj.insert("name".into(), serde_json::json!(name));
     }
+    // GH #486: a connection's endpoints beside its kind (`typedBy` is in the frontmatter).
+    // `source`/`target` are the first two ends; `ends` lists every end (n-ary included).
+    if let Some(eps) = endpoints.get(&elem.qualified_name).filter(|e| e.len() >= 2) {
+        obj.insert("source".into(), serde_json::json!(eps[0].chain));
+        obj.insert("target".into(), serde_json::json!(eps[1].chain));
+        let ends: Vec<_> = eps
+            .iter()
+            .map(|e| match &e.role {
+                Some(r) => serde_json::json!({"end": r, "binds": e.chain}),
+                None => serde_json::json!({"binds": e.chain}),
+            })
+            .collect();
+        obj.insert("ends".into(), serde_json::Value::Array(ends));
+    }
     obj.insert("frontmatter".into(), frontmatter);
     if !computed.is_empty() {
         obj.insert("computed".into(), serde_json::Value::Object(computed));
@@ -104,6 +119,7 @@ fn element_json(
 /// newline-delimited JSON (one header line, then one element per line).
 pub fn cmd_export(elements: &[RawElement], config: &ValidateConfig, ndjson: bool) {
     let result = validator::validate_with_config(elements, config);
+    let endpoints = syscribe_model::connections::endpoint_index(elements);
 
     if ndjson {
         let header = serde_json::json!({
@@ -113,13 +129,13 @@ pub fn cmd_export(elements: &[RawElement], config: &ValidateConfig, ndjson: bool
         });
         println!("{}", serde_json::to_string(&header).unwrap());
         for elem in elements {
-            println!("{}", serde_json::to_string(&element_json(elem, &result, config)).unwrap());
+            println!("{}", serde_json::to_string(&element_json(elem, &result, config, &endpoints)).unwrap());
         }
         return;
     }
 
     let items: Vec<serde_json::Value> =
-        elements.iter().map(|e| element_json(e, &result, config)).collect();
+        elements.iter().map(|e| element_json(e, &result, config, &endpoints)).collect();
     let doc = serde_json::json!({
         "schemaVersion": SCHEMA_VERSION,
         "elementCount": elements.len(),

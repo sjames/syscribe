@@ -2771,7 +2771,13 @@ fn connection_usage_entry<'a>(
         .filter_map(|n| connection_end_display(&n.value.expression.value))
         .collect();
     let typed_by = typing_first(c.typing.as_ref()).and_then(nonempty);
-    build_connection_value(owning_qname, from, to, extras, typed_by, find_sibling, truncations)
+    let mut entry = build_connection_value(owning_qname, from, to, extras, typed_by, find_sibling, truncations)?;
+    // GH #486: carry the connection's own name so the entry is joinable to its child
+    // `Connection` element (export pairs them by name, never by position or type).
+    if let (Some(n), serde_yaml::Value::Mapping(m)) = (odn(c.name).filter(|n| !n.is_empty()), &mut entry) {
+        m.insert(serde_yaml::Value::from("name"), serde_yaml::Value::from(n));
+    }
+    Some(entry)
 }
 
 /// The `connections:` entry for a resolved `from`/`to`(/extras) endpoint list -- shared by the
