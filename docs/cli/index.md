@@ -417,7 +417,7 @@ syscribe -m model/ export --ndjson    # newline-delimited: one element per line
 syscribe -m model/ export --config CONF-X   # projected onto a configuration variant
 ```
 
-`--ndjson` streams one element per line; the `--config` lens projects the export onto a single variant.
+`--ndjson` streams one element per line; the `--config` lens projects the export onto a single variant. A `Connection`/`Interface` record also carries `source`, `target` and `ends` (every end, with its `end` role when named) beside its `typedBy`, so a tool can read a connection's kind and endpoints from one record.
 
 ### Static HTML site (`export-html`)
 
