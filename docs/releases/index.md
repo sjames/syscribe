@@ -2,6 +2,27 @@
 
 `RELEASES`
 
+## 0.61.0 — 2026-11-17
+
+**Variants and build variables**
+
+- **New:** derived parameters (#490, REQ-TRS-DERIVED-001). A `derivedFrom: "<expression>"` parameter is computed, in the language of `syscribe eval`, from the Configuration's effective values. `show` and `configure` print it with source `derived`, `build-config` exports it through its `buildVar`, `parameterConstraints` and `{{Feature.param}}` placeholders read it, and `range:` checks it. `E248` is an expression that does not parse or fails with every input valued, and `E249` a value outside `range:` or fractional for an `Integer` parameter.
+- **New:** `buildVar:`, `unit:` and `integral:` on a `CalculationDef` (#492, REQ-TRS-CALCBUILD-001) export its result through `build-config` in every format. `E251` is a calculation that cannot be evaluated; two exports of one variable with different values are `E050`.
+- **Fixed:** an expression with a function call in `parameterConstraints` (`max`, `min`, `ceil`, `if … then … else`) was reported undetermined and passed silently even when false (#489, REQ-TRS-PCFUNC-001). It is now evaluated, and an expression with no truth value although every parameter has one is `E250`.
+
+**Calculations**
+
+- **New:** calculations compose (#491, REQ-TRS-CALCCOMP-001). A `CalculationDef` qualified name in a body, a `bindingConnections` `right:` or a `parameterConstraints` expression evaluates that calculation; `Calc::Name(param = value)` calls one with arguments; a cycle is an error naming the chain. A calculation read this way, or exported with `buildVar`, no longer raises `W007`.
+
+**Planning**
+
+- **Fixed:** under `--config`, a PlanningItem `parent:`, `achieves:` or `blockedBy:` reference to an element that exists but is gated out of the Configuration is no longer `E710`/`E714`/`E720` (#493, REQ-TRS-PIGATE-001). A reference that exists nowhere still is.
+
+**Changed (behaviour)**
+
+- `build-config` now stops on any error finding (`E050`, `E248`, `E251`), not only `E050`.
+- New findings you may meet in an existing model without opting in: `E250` (a constraint with no truth value), `E248`/`E249` (a derived parameter) and `E251` (a calculation with `buildVar:`).
+
 ## 0.60.0 — 2026-11-16
 
 **Variants and trade studies**
