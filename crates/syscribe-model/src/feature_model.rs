@@ -138,18 +138,35 @@ fn extract_param_paths(expr: &str) -> Vec<String> {
 /// Returns `Some(true/false)` when fully evaluable, `None` when a referenced
 /// parameter is unresolved or the expression cannot be parsed.
 fn eval_constraint(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<bool> {
-    let (pos, op) = split_comparison(expr)?;
-    let lhs = eval_arith(&expr[..pos], resolve)?;
-    let rhs = eval_arith(&expr[pos + op.len()..], resolve)?;
-    Some(match op {
-        ">=" => lhs >= rhs,
-        "<=" => lhs <= rhs,
-        ">" => lhs > rhs,
-        "<" => lhs < rhs,
-        "==" => (lhs - rhs).abs() < f64::EPSILON,
-        "!=" => (lhs - rhs).abs() >= f64::EPSILON,
-        _ => return None,
-    })
+    let arith = (|| {
+        let (pos, op) = split_comparison(expr)?;
+        let lhs = eval_arith(&expr[..pos], resolve)?;
+        let rhs = eval_arith(&expr[pos + op.len()..], resolve)?;
+        Some(match op {
+            ">=" => lhs >= rhs,
+            "<=" => lhs <= rhs,
+            ">" => lhs > rhs,
+            "<" => lhs < rhs,
+            "==" => (lhs - rhs).abs() < f64::EPSILON,
+            "!=" => (lhs - rhs).abs() >= f64::EPSILON,
+            _ => return None,
+        })
+    })();
+    // Plain arithmetic keeps its exact behaviour; a function call (`max`, `ceil`, …), `if … then … else`
+    // or a calculation is evaluated by the expression language over the same scalar values (GH #489).
+    arith.or_else(|| eval_constraint_language(expr, resolve).ok())
+}
+
+/// A `parameterConstraints` expression evaluated by the expression language of `syscribe eval`; the error
+/// says why it has no truth value (an unresolved reference, a domain or type error).
+fn eval_constraint_language(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Result<bool, String> {
+    use crate::expr::{Quantity, Value};
+    let parsed = crate::expr::parse(expr).map_err(|e| e.to_string())?;
+    let lookup = |n: &str| resolve(n).map(|v| Value::Num(Quantity::scalar(v)));
+    match parsed.eval(&lookup).map_err(|e| e.to_string())? {
+        Value::Bool(b) => Ok(b),
+        other => Err(format!("the expression is {}, not a comparison", other.kind())),
+    }
 }
 
 /// The comparison operator of a `parameterConstraints` expression and its byte offset,
@@ -576,15 +593,17 @@ fn constraint_state(
     expr: &str,
     partial: bool,
     facts: &ParamFacts,
+    derived: &HashMap<String, f64>,
     stage: Option<crate::binding_time::BindingTime>,
     narrow: &dyn Fn(&str) -> Option<(f64, f64)>,
 ) -> (Tri, Vec<String>) {
     if !partial {
-        let mut open: Vec<String> =
-            extract_param_paths(expr).into_iter().filter(|r| bound_value(cfg, r, &facts.fallback).is_none()).collect();
+        // A derived parameter (GH #490) reads as a bound value.
+        let value = |r: &str| bound_value(cfg, r, &facts.fallback).or_else(|| derived.get(r).copied());
+        let mut open: Vec<String> = extract_param_paths(expr).into_iter().filter(|r| value(r).is_none()).collect();
         open.sort();
         open.dedup();
-        let state = match eval_constraint(expr, &|r| bound_value(cfg, r, &facts.fallback)) {
+        let state = match eval_constraint(expr, &value) {
             Some(true) => Tri::Satisfied,
             Some(false) => Tri::Violated,
             None => Tri::Undetermined,
@@ -593,7 +612,7 @@ fn constraint_state(
     }
     let binding = |r: &str| bound_value(cfg, r, &HashMap::new());
     let point = |r: &str| -> Option<f64> {
-        binding(r).or_else(|| facts.fixed.get(r).copied()).or_else(|| {
+        binding(r).or_else(|| facts.fixed.get(r).copied()).or_else(|| derived.get(r).copied()).or_else(|| {
             let default_is_final = match (facts.window.get(r), stage) {
                 (None, _) => true,
                 (Some(w), Some(st)) => w.latest < st,
@@ -614,7 +633,25 @@ fn constraint_state(
             }
         })
     };
-    (eval_constraint_tri(expr, &resolve).unwrap_or(Tri::Undetermined), open)
+    let mut state = eval_constraint_tri(expr, &resolve).unwrap_or(Tri::Undetermined);
+    // The interval evaluator reads plain arithmetic only. Once every reference is a point the
+    // expression language can judge a function call or `if` exactly (GH #489).
+    if state == Tri::Undetermined && open.is_empty() {
+        state = match eval_constraint(expr, &point) {
+            Some(true) => Tri::Satisfied,
+            Some(false) => Tri::Violated,
+            None => Tri::Undetermined,
+        };
+    }
+    (state, open)
+}
+
+/// The derived parameters (GH #490) that have a numeric value in `cfg`; empty when the model has none.
+fn derived_for(elements: &[RawElement], cfg: &RawElement) -> HashMap<String, f64> {
+    if crate::derived::declared(elements).is_empty() {
+        return HashMap::new();
+    }
+    crate::derived::numeric_values(elements, &crate::resolver::Resolver::new(elements), cfg)
 }
 
 /// One `parameterConstraints:` entry as it stands for a Configuration.
@@ -644,6 +681,7 @@ pub fn constraint_states(elements: &[RawElement], cfg_idx: usize) -> Vec<Constra
         .collect();
     let ctx = crate::staging::StageContext::new(elements);
     let (stage, narrow) = (ctx.stage(cfg_idx), narrow_fn(&ctx, cfg_idx));
+    let derived = derived_for(elements, cfg);
     let mut out = Vec::new();
     for pkg in elements.iter().filter(|e| {
         matches!(
@@ -667,7 +705,7 @@ pub fn constraint_states(elements: &[RawElement], cfg_idx: usize) -> Vec<Constra
             if !holds {
                 continue;
             }
-            let (state, open) = constraint_state(cfg, expr, true, &facts, stage, &narrow);
+            let (state, open) = constraint_state(cfg, expr, true, &facts, &derived, stage, &narrow);
             out.push(ConstraintState {
                 id: get("id").and_then(|v| v.as_str()).unwrap_or("(unnamed)").to_string(),
                 expression: expr.to_string(),
@@ -830,6 +868,7 @@ pub fn parameter_constraint_findings(elements: &[RawElement]) -> Vec<Finding> {
     let mut param_paths: HashSet<String> = HashSet::new();
     let facts = param_facts(&fdefs);
     let stage_ctx = crate::staging::StageContext::new(elements);
+    let derived_of: Vec<HashMap<String, f64>> = configs.iter().map(|c| derived_for(elements, c)).collect();
     for fd in &fdefs {
         for p in parse_params(fd) {
             param_paths.insert(format!("{}.{}", fd.qualified_name, p.name));
@@ -920,7 +959,7 @@ pub fn parameter_constraint_findings(elements: &[RawElement]) -> Vec<Finding> {
                 .get(serde_yaml::Value::String("severity".into()))
                 .and_then(|v| v.as_str())
                 == Some("warning");
-            for cfg in &configs {
+            for (cfg_no, cfg) in configs.iter().enumerate() {
                 let sel = sel_of(cfg);
                 let holds = match &aw_expr {
                     None => true,
@@ -935,9 +974,18 @@ pub fn parameter_constraint_findings(elements: &[RawElement]) -> Vec<Finding> {
                 let cfg_idx = elements.iter().position(|e| std::ptr::eq(e, *cfg));
                 let narrow = cfg_idx.map(|i| narrow_fn(&stage_ctx, i));
                 let (state, open) = constraint_state(
-                    cfg, expr, stage.is_some(), &facts, stage,
+                    cfg, expr, stage.is_some(), &facts, &derived_of[cfg_no], stage,
                     &|r: &str| narrow.as_ref().and_then(|n| n(r)),
                 );
+                // GH #489: with every parameter valued, an expression with no truth value is a defect, never
+                // a silent pass.
+                if state == Tri::Undetermined && open.is_empty() {
+                    let value = |r: &str| bound_value(cfg, r, &facts.fallback).or_else(|| derived_of[cfg_no].get(r).copied());
+                    let why = eval_constraint_language(expr, &value).err().unwrap_or_else(|| "it is not a comparison the checker can evaluate".into());
+                    f.push(err("E250", &cfg.file_path, format!(
+                        "configuration '{}': parameterConstraints '{}' cannot be evaluated although every parameter has a value: {} — {}",
+                        cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone()), cid, expr, why)));
+                }
                 if state == Tri::Violated {
                     let cfg_id = cfg
                         .frontmatter
@@ -1153,6 +1201,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     // E213/W014/E221/W025 live in `parameter_constraint_findings`, shared with `validate`
     // (which keeps only E221/W025 so `bind` and `validate --config` refuse a violated limit).
     f.extend(parameter_constraint_findings(elements));
+    f.extend(crate::derived::findings(elements));
 
     // ── W024: orphan FeatureDef ──────────────────────────────────────────────
     // A FeatureDef is an orphan when it is referenced by NO element's

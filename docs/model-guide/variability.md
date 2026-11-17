@@ -221,6 +221,8 @@ parameters:
   - { name: motorKV, type: ScalarValues::Real, range: "900..=1200", bindingTime: load }
 ```
 
+A `parameterConstraints` expression is evaluated by the same language, so `max(…)`, `ceil(…)` and `if … then … else …` work; an expression that has no truth value although every parameter has one is `E250`, never a silent pass.
+
 Rules: an unrecognised value is `E230` (`validate`); a parameter that binds **earlier** than a `derivedFrom`/`bindTo` source it depends on is `E229` (`feature-check`, checked only when both ends declare a `bindingTime:`); binding a `runtime` parameter in a `Configuration` warns `W027` (`validate`), and `W017` is suppressed for an unbound `runtime` parameter.
 
 **Cross-feature constraints.** A package `_index.md` may declare `parameterConstraints:` — numeric couplings evaluated by `feature-check` against every applicable `Configuration`:
@@ -234,6 +236,18 @@ parameterConstraints:
 ```
 
 A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`), reported by `validate` as well as `feature-check` so `bind` refuses a value that causes it (a constraint still undetermined because parameters are open is allowed); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
+
+### Derived parameters — `derivedFrom: <expression>`
+
+A parameter declared `derivedFrom: "<expression>"` is computed, never bound. The expression is written in the language of `syscribe eval` (`+ - * /`, `ceil`, `floor`, `max`, `min`, `if … then … else …`, and calculations — see `docs/cli/index.md`, *Constraint checking*) and reads other parameters by their dotted reference, so a partition table is stated once:
+
+```yaml
+parameters:
+  - { name: slotMiB,  type: ScalarValues::Integer, default: 1000, buildVar: SLOT_MIB }
+  - { name: superMiB, type: ScalarValues::Integer, derivedFrom: "Features::Disk.slotMiB * 2", range: "0..4096", buildVar: SUPER_MIB }
+```
+
+The value is computed from the Configuration's effective values (its binding, else the fixed `value:`, else a derived value, else the `default:`) and then used wherever a bound value is: `show` and `configure` print it with source `derived`, `build-config` exports it through its `buildVar` (a derived value that cannot be computed is an error, not an omission), `parameterConstraints` and `{{Features::Disk.superMiB}}` placeholders read it, and `range:` checks it. Binding a derived parameter in a Configuration is `E204`. `E207` is a cycle among the parameters of one feature, `E248` an expression that does not parse or fails for a Configuration whose inputs all have values (a circular reference across features, a dimension or domain error), and `E249` a derived value outside `range:` or not a whole number for an `Integer` parameter. A parameter whose inputs are still open is simply not derivable yet and raises nothing.
 
 ### Configuration inheritance — `derivedFrom:`
 
@@ -358,6 +372,8 @@ parameterNarrowing: { Features::Propulsion.motorKV: "950..1100" }   # shrink wha
 - **The file the system reads.** `params export --config CONF-X` generates a deterministic YAML values file (and, with `--schema`, a JSON Schema) for the late-bound parameters; `params check` validates one. See `examples/staged-configuration`.
 
 ## 4. Projection — the `--config` lens
+
+A `PlanningItem` describes the project, not one product: under `--config` its `parent:`, `achieves:` and `blockedBy:` references to an element that exists but is gated out of the Configuration are not `E710`/`E714`/`E720` (a reference that exists nowhere still is). One planning item can therefore span requirements gated on different features.
 
 The repository is the 150% superset; `--config` projects it onto one variant and runs the command over only the **active** elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set (`'Features::A,Features::B'`).
 

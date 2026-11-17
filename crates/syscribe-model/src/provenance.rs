@@ -172,6 +172,7 @@ pub fn provenance(elements: &[RawElement], cfg_idx: usize) -> ConfigProvenance {
 
     // Parameters bound by a Configuration in the chain (local or reaching a lower tier).
     let params = local_params(elements);
+    let resolver = crate::resolver::Resolver::new(elements);
     let tiers: Vec<String> = cfg.frontmatter.sub_configurations.clone().unwrap_or_default();
     let mut bound: HashMap<String, Value> = HashMap::new();
     for &i in chain.iter().rev() {
@@ -199,7 +200,16 @@ pub fn provenance(elements: &[RawElement], cfg_idx: usize) -> ConfigProvenance {
         let (value, source) = if let Some(v) = &def.fixed {
             (v.clone(), Source::Fixed)
         } else if let Some(e) = &def.derived {
-            (Value::String(e.clone()), Source::Derived { expr: e.clone() })
+            // GH #490: the computed value; the expression itself when it cannot be computed yet.
+            let (feat_q, pname) = key.rsplit_once('.').unwrap_or((key.as_str(), ""));
+            let shown = crate::derived::text(elements, &resolver, Some(cfg), feat_q, pname, e).ok();
+            let value = shown
+                .map(|t| crate::expr::parse_value(&t).map_or(Value::String(t.clone()), |v| match v {
+                    crate::expr::Value::Num(q) => serde_yaml::to_value(if q.v.fract() == 0.0 && q.v.abs() < 9.0e15 { serde_yaml::Number::from(q.v as i64) } else { serde_yaml::Number::from(q.v) }).unwrap_or(Value::String(t)),
+                    _ => Value::String(t),
+                }))
+                .unwrap_or_else(|| Value::String(e.clone()));
+            (value, Source::Derived { expr: e.clone() })
         } else if let Some(v) = def.bind_to.as_ref().and_then(|t| bound.get(t)) {
             (v.clone(), Source::BindTo { from: def.bind_to.clone().unwrap_or_default() })
         } else if let Some(v) = &def.default {

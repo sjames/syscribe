@@ -5467,6 +5467,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
             if let Some(ref p) = fm.parent {
                 match resolver.resolve_ref(elements, p) {
+                    None if fm.gated_refs.contains(p) => {} // gated out of this projection (GH #493)
                     None => findings.push(error(
                         "E710",
                         &elem.file_path,
@@ -5503,6 +5504,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref ach) = fm.achieves {
                 for a in ach {
                     match resolver.resolve_ref(elements, a) {
+                        None if fm.gated_refs.contains(a) => {} // gated out of this projection (GH #493)
                         None => findings.push(error(
                             "E714",
                             &elem.file_path,
@@ -5533,7 +5535,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
             if let Some(ref bs) = fm.blocked_by {
                 for b in bs {
-                    if resolver.resolve_ref(elements, b).is_none() {
+                    if resolver.resolve_ref(elements, b).is_none() && !fm.gated_refs.contains(b) {
                         findings.push(error(
                             "E720",
                             &elem.file_path,
@@ -6847,6 +6849,36 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 collect_typed_by_refs(list, elements, &resolver, &elem.qualified_name, &mut referenced_defs);
             }
         }
+        // GH #491/#492: a calculation another expression reads (by name or call), or one exported as a
+        // build variable, is used.
+        {
+            let mut texts: Vec<&str> = Vec::new();
+            for elem in elements {
+                let fm = &elem.frontmatter;
+                texts.extend(fm.body.as_deref());
+                texts.extend(fm.expression.as_deref());
+                for c in fm.binding_connections.iter().flatten() {
+                    texts.extend(["left", "right"].iter().filter_map(|k| c.get(*k).and_then(|v| v.as_str())));
+                }
+                for c in fm.parameter_constraints.iter().flatten() {
+                    texts.extend(c.get("expression").and_then(|v| v.as_str()));
+                }
+                for p in fm.parameters.iter().flatten() {
+                    texts.extend(p.get("derivedFrom").and_then(|v| v.as_str()));
+                }
+            }
+            for t in texts {
+                let Ok(parsed) = crate::expr::parse(t) else { continue };
+                for n in parsed.names().into_iter().chain(parsed.call_names()) {
+                    if let Some(def) = resolver.resolve_ref(elements, &n).filter(|d| d.frontmatter.element_type == Some(ElementType::CalculationDef)) {
+                        referenced_defs.insert(def.qualified_name.clone());
+                    }
+                }
+            }
+            for elem in elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::CalculationDef) && e.frontmatter.build_var.is_some()) {
+                referenced_defs.insert(elem.qualified_name.clone());
+            }
+        }
         for elem in elements {
             if is_type_def(elem)
                 && !referenced_defs.contains(&elem.qualified_name)
@@ -7048,7 +7080,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     findings.extend(crate::feature_model::parameter_contract_findings(elements));
     // E221/W025 — a violated cross-parameter `parameterConstraints:` entry (GH #465), so `bind`
     // refuses it like E205 and `validate --config`/`--all-configs` report it.
-    findings.extend(crate::feature_model::parameter_constraint_findings(elements).into_iter().filter(|f| f.code == "E221" || f.code == "W025"));
+    findings.extend(crate::feature_model::parameter_constraint_findings(elements).into_iter().filter(|f| f.code == "E221" || f.code == "W025" || f.code == "E250"));
+    // E248/E249 — a derived parameter that cannot be evaluated or is out of range (GH #490).
+    findings.extend(crate::derived::findings(elements));
     findings.extend(consumed_by_findings(elements, config));
     // W753/W754 — late-bound variability reaching a safety requirement (REQ-TRS-BT-034).
     findings.extend(crate::late_safety::findings(elements));

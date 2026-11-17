@@ -65,6 +65,24 @@ parameters:
 When the `Configuration` has a `parameterBindings:` entry for this parameter, the
 bound value is used; otherwise the parameter `default:` is the fallback.
 
+A **derived** parameter (`derivedFrom: "<expression>"`, see `docs/model-guide/variability.md`) exports its computed value the same way; if it cannot be computed `build-config` reports `E248` instead of omitting the variable.
+
+### Calculation results — `buildVar:` on a `CalculationDef`
+
+A `CalculationDef` with `buildVar:` is evaluated against the Configuration's effective parameters and exported in every format (`env`, `makefile`, `cmake`, `c-header`, `kconfig`, `json`):
+
+```yaml
+type: CalculationDef
+name: PersistOffsetMiB
+body: "Calc::SuperOffsetMiB + Calc::SuperMiB"   # other calculations by qualified name
+unit: MiB             # optional: print the result in this unit
+integral: true        # optional: a fractional result is an error
+buildVar: PERSIST_OFFSET_MIB
+```
+
+The calculation may take `in` parameters only if each has a default. A calculation that cannot be evaluated is `E251` (never a silent omission); two exports of one name with different values are `E050`, as for features. A calculation exported this way, or read by another expression, is used and does not raise `W007`.
+
+
 ## 3. Configuration `buildOverrides`
 
 Use `buildOverrides:` on a `Configuration` to set a variable unconditionally.

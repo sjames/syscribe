@@ -147,19 +147,104 @@ enum NoValue {
     Error(String),
 }
 
+thread_local! {
+    /// Calculations being evaluated, outermost first: a calculation reached again is a cycle (GH #491).
+    static CALC_STACK: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The `CalculationDef` a name or call refers to, if it is one.
+fn calc_def<'a>(elements: &'a [RawElement], resolver: &Resolver, name: &str) -> Option<&'a RawElement> {
+    resolver.resolve_ref(elements, name).filter(|d| d.frontmatter.element_type == Some(ElementType::CalculationDef))
+}
+
+/// Evaluate `def` (a `CalculationDef`) with its `in` parameters taken from `args` (`Some(name)` for a
+/// named argument, positional otherwise) or their defaults, over `global` (GH #491). A calculation
+/// reached again while it is being evaluated is a cycle and an error.
+pub fn eval_calculation(elements: &[RawElement], def: &RawElement, args: &[(Option<String>, Value)], global: &Env) -> Result<Value, String> {
+    if !matches!(def.frontmatter.body_language.as_deref(), None | Some("budget") | Some("syscribe")) {
+        return Err(format!(
+            "the body of {} is written in {}, which syscribe does not evaluate",
+            def.qualified_name,
+            def.frontmatter.body_language.as_deref().unwrap_or("")
+        ));
+    }
+    let Some(body) = def.frontmatter.body.as_deref() else { return Err(format!("{} has no body", def.qualified_name)) };
+    let cycle = CALC_STACK.with(|s| {
+        let mut s = s.borrow_mut();
+        if let Some(at) = s.iter().position(|q| *q == def.qualified_name) {
+            let mut chain: Vec<String> = s[at..].to_vec();
+            chain.push(def.qualified_name.clone());
+            return Some(chain.join(" -> "));
+        }
+        s.push(def.qualified_name.clone());
+        None
+    });
+    if let Some(chain) = cycle {
+        return Err(format!("circular calculation {chain}"));
+    }
+    let result = (|| {
+        let params = calc_params(def);
+        let mut local = Env::new();
+        let mut positional = args.iter().filter(|(n, _)| n.is_none()).map(|(_, v)| v);
+        for (given, _) in args.iter().filter_map(|(n, v)| n.as_ref().map(|n| (n, v))) {
+            if !params.iter().any(|p| &p.0 == given) {
+                let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+                return Err(format!("{} has no parameter '{given}' (it has: {})", def.qualified_name, names.join(", ")));
+            }
+        }
+        for (name, ty, unit, default) in &params {
+            let v = args
+                .iter()
+                .find(|(n, _)| n.as_deref() == Some(name.as_str()))
+                .map(|(_, v)| v.clone())
+                .or_else(|| positional.next().cloned())
+                .or_else(|| default.as_deref().and_then(|d| evaluate_value(elements, d, &Env::new()).ok()));
+            let Some(v) = v else { return Err(format!("{} needs a value for '{name}'", def.qualified_name)) };
+            local.insert(name.clone(), coerce_param(v, ty.as_deref(), unit.as_deref()));
+        }
+        value_of(elements, body, &local, global).map_err(|e| match e {
+            NoValue::Unresolved(u) => format!("no value for {}", u.join(", ")),
+            NoValue::Error(m) => m,
+        })
+    })();
+    CALC_STACK.with(|s| s.borrow_mut().pop());
+    result
+}
+
 /// Evaluate `src` with `local` over `global` to a value. Names with no value anywhere are reported
 /// as unresolved (an unbound `A::b` is only an enumeration literal when a model enumeration has it).
+/// A name or call that is a `CalculationDef` evaluates that calculation in the same environment (GH #491).
 fn value_of(elements: &[RawElement], src: &str, local: &Env, global: &Env) -> Result<Value, NoValue> {
     let e = expr::parse(src).map_err(|err| NoValue::Error(err.to_string()))?;
-    let known = |n: &str| local.contains_key(n) || global.contains_key(n) || is_enum_literal(elements, n);
+    let mut overlay = Env::new();
+    let mut resolver: Option<Resolver> = None;
+    let plain = |n: &str| local.contains_key(n) || global.contains_key(n) || is_enum_literal(elements, n);
+    for n in e.names().into_iter().filter(|n| !plain(n)) {
+        let r = resolver.get_or_insert_with(|| Resolver::new(elements));
+        if let Some(def) = calc_def(elements, r, &n) {
+            let v = eval_calculation(elements, def, &[], global).map_err(|m| NoValue::Error(format!("calculation {}: {m}", def.qualified_name)))?;
+            overlay.insert(n, v);
+        }
+    }
+    let known = |n: &str| plain(n) || overlay.contains_key(n);
     let unresolved: Vec<String> = e.names().into_iter().filter(|n| !known(n)).collect();
     if !unresolved.is_empty() {
         return Err(NoValue::Unresolved(unresolved));
     }
-    e.eval(&|n: &str| {
-        local.get(n).or_else(|| global.get(n)).cloned().or_else(|| is_enum_literal(elements, n).then(|| Value::Str(n.to_string())))
-    })
-    .map_err(|err| NoValue::Error(err.to_string()))
+    let lookup = |n: &str| {
+        local
+            .get(n)
+            .or_else(|| global.get(n))
+            .or_else(|| overlay.get(n))
+            .cloned()
+            .or_else(|| is_enum_literal(elements, n).then(|| Value::Str(n.to_string())))
+    };
+    let calls = |f: &str, args: &[(Option<String>, Value)]| -> Option<Result<Value, expr::ExprError>> {
+        let r = Resolver::new(elements);
+        let def = calc_def(elements, &r, f)?;
+        Some(eval_calculation(elements, def, args, global).map_err(expr::ExprError::Calc))
+    };
+    e.eval_with(&lookup, &calls).map_err(|err| NoValue::Error(err.to_string()))
 }
 
 /// Evaluate a boolean `src`: status, message, unresolved names and, when it evaluated, the truth value.

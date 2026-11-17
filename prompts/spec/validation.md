@@ -25,6 +25,7 @@
 | `E021` | `coverageTarget:` is not `statement`/`branch`/`MCDC` |
 | `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware`/`process`/`regulatory`/`deliverable` |
 | `E050` | Two selected features export the same `buildExports` variable name, unresolved by `buildOverrides:` (opt-in; §9.9) |
+| `E251` | A `CalculationDef` with `buildVar:` cannot be evaluated for the Configuration `build-config` was asked for (unresolved input, cycle, domain error, a fractional result for an `integral: true` calculation, a missing parameter value) |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type, id-identified or name-identified). The `title` field is removed — rename it to `name`. |
@@ -457,16 +458,16 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E707` | `PlanningItem` missing `id`, `name`, or `status` |
 | `E708` | `PlanningItem.status` not in `todo · in_progress · blocked · done` |
 | `E709` | `PlanningItem.itemType` (if present) not in `bug · task · feature` |
-| `E710` | `parent:` reference does not resolve |
+| `E710` | `parent:` reference does not resolve (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E711` | `parent:` resolves to something that is not a `PlanningItem` |
 | `E712` | A `parent:` chain forms a cycle |
 | `E713` | A top-level item (no `parent:`) has no `achieves:` entry |
-| `E714` | An `achieves:` entry does not resolve |
+| `E714` | An `achieves:` entry does not resolve (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E715` | An `achieves:` entry does not resolve to a native Requirement, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` |
 | `E716` | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect |
-| `E720` | A `blockedBy:` entry does not resolve to any model element |
+| `E720` | A `blockedBy:` entry does not resolve to any model element (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E721` | A `blockedBy:` chain forms a cycle (directly or through other PlanningItems) |
 | `W308` | A non-empty `blockedBy:` while `status` is not `blocked` — likely stale. The converse (`status: blocked` with empty `blockedBy:`) raises nothing — being blocked needs no proof, unlike claiming done. |
 | `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (checked only when non-empty) |
@@ -696,7 +697,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E247)
+## Product Line Engineering errors (E200–E250)
 
 | Code | Condition |
 |---|---|
@@ -732,6 +733,9 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
+| `E248` | A `derivedFrom: <expression>` parameter whose expression does not parse, or fails (a circular reference across features, a dimension or domain error, a derived `buildVar` that cannot be computed) for a `Configuration` that selects its feature and gives every input a value (§9.7; `validate`, `feature-check`, `build-config`) |
+| `E249` | A derived parameter value outside its `range:`, or not a whole number for an `Integer` parameter, in a `Configuration` that selects its feature (§9.7; `validate`, `feature-check`) |
+| `E250` | A `parameterConstraints` expression has no truth value although every parameter it reads has one (an unsupported construct, a type or domain error) — a gate that cannot pass or fail is an error, never silent (`validate`, `feature-check`) |
 | `E234` | (§9.8) a `Configuration`'s `derivedFrom:` base does not resolve to any element of the model — the base must be local (consolidate a peer product line with `subConfigurations:`); the configuration inherits nothing |
 | `E235` | (§9.8) a `Configuration`'s `derivedFrom:` base resolves to an element that is not a `Configuration`; the configuration inherits nothing |
 | `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |

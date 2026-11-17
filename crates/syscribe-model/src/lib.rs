@@ -29,6 +29,7 @@ pub mod config;
 pub mod config_inherit;
 pub mod connections;
 pub mod derive;
+pub mod derived;
 pub mod element;
 pub mod feature_edit;
 pub mod feature_model;

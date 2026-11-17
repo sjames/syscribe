@@ -21,6 +21,7 @@ const INTERNAL: &[&str] = &[
     "unknownFmeaKeys",
     "view", // the parsed mapping form of `include:`
     "variantRetained", // set on a clone by a staged projection (REQ-TRS-BT-031)
+    "gatedRefs", // set on a projected PlanningItem: references to gated-out elements (GH #493)
 ];
 
 fn root() -> &'static Path {

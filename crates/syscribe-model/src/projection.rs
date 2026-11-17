@@ -233,6 +233,25 @@ pub fn project_raw(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> 
             e.frontmatter.variant_retained = true;
         }
     }
+    // GH #493: a PlanningItem describes the project, not one product, so a `parent:`/`achieves:`/`blockedBy:`
+    // reference to an element that exists but is gated out of this projection is not dangling. Note it, so
+    // validation can tell it from a reference that resolves to nothing in the base model either.
+    if out.len() < elements.len() && out.iter().any(|e| e.frontmatter.element_type == Some(ElementType::PlanningItem)) {
+        let kept: HashSet<String> = out.iter().map(|e| e.qualified_name.clone()).collect();
+        for e in out.iter_mut().filter(|e| e.frontmatter.element_type == Some(ElementType::PlanningItem)) {
+            let fm = &e.frontmatter;
+            let refs: Vec<String> = fm
+                .parent
+                .iter()
+                .chain(fm.achieves.iter().flatten())
+                .chain(fm.blocked_by.iter().flatten())
+                .cloned()
+                .collect();
+            let gated: Vec<String> =
+                refs.into_iter().filter(|r| resolver.resolve_ref(elements, r).is_some_and(|t| !kept.contains(&t.qualified_name))).collect();
+            e.frontmatter.gated_refs = gated;
+        }
+    }
     // A stereotype application with its own `appliesWhen:` is part of this product only where it holds
     // (REQ-TRS-META-025); the element stays either way.
     for e in out.iter_mut().filter(|e| e.frontmatter.metadata.is_some()) {

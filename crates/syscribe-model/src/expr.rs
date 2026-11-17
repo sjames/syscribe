@@ -77,6 +77,8 @@ pub enum ExprError {
     Dimension(String),
     Type(String),
     Domain(String),
+    /// A calculation referenced by name failed (GH #491); the message is already complete.
+    Calc(String),
 }
 
 impl fmt::Display for ExprError {
@@ -87,6 +89,7 @@ impl fmt::Display for ExprError {
             ExprError::Dimension(m) => write!(f, "dimension error: {m}"),
             ExprError::Type(m) => write!(f, "type error: {m}"),
             ExprError::Domain(m) => write!(f, "domain error: {m}"),
+            ExprError::Calc(m) => write!(f, "{m}"),
         }
     }
 }
@@ -413,6 +416,7 @@ fn lex(src: &str) -> Result<Vec<Tok>, ExprError> {
                     '(' => (Tok::LP, 1),
                     ')' => (Tok::RP, 1),
                     ',' => (Tok::Comma, 1),
+                    '=' => (Tok::Op("="), 1),
                     other => return Err(ExprError::Parse(format!("unexpected character '{other}'"))),
                 },
             };
@@ -424,6 +428,9 @@ fn lex(src: &str) -> Result<Vec<Tok>, ExprError> {
 }
 
 // ── Parser ───────────────────────────────────────────────────────────────────
+
+/// Answers a call to a qualified name: the name and its evaluated arguments (see [`Expr::eval_with`]).
+pub type CallHook<'a> = dyn Fn(&str, &[(Option<String>, Value)]) -> Option<Result<Value, ExprError>> + 'a;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -591,6 +598,17 @@ impl Parser {
                         let mut args = Vec::new();
                         if self.peek() != Some(&Tok::RP) {
                             loop {
+                                // `Calc::Name(param = value)`: a named argument of a calculation call (GH #491).
+                                if let (Some(Tok::Id(p)), Some(Tok::Op("="))) = (self.peek().cloned(), self.toks.get(self.at + 1)) {
+                                    self.at += 2;
+                                    let v = self.expr()?;
+                                    args.push(Expr::Bin("=", Box::new(Expr::Name(p)), Box::new(v)));
+                                    if self.peek() == Some(&Tok::Comma) {
+                                        self.at += 1;
+                                        continue;
+                                    }
+                                    break;
+                                }
                                 args.push(self.expr()?);
                                 if self.peek() == Some(&Tok::Comma) {
                                     self.at += 1;
@@ -626,6 +644,10 @@ fn tok_text(t: &Tok) -> String {
 }
 
 fn check_arity(f: &str, n: usize) -> Result<(), ExprError> {
+    // A qualified name is a calculation call (GH #491), resolved at evaluation.
+    if f.contains("::") {
+        return Ok(());
+    }
     let ok = match f {
         "abs" | "sqrt" | "floor" | "ceil" | "round" | "exp" | "ln" | "sin" | "cos" | "tanh" => n == 1,
         "pow" => n == 2,
@@ -949,6 +971,13 @@ fn call(f: &str, args: &[Value]) -> Result<Value, ExprError> {
 impl Expr {
     /// Evaluate with `lookup` resolving names. Deterministic and side-effect free.
     pub fn eval(&self, lookup: &dyn Fn(&str) -> Option<Value>) -> Result<Value, ExprError> {
+        self.eval_with(lookup, &|_, _| None)
+    }
+
+    /// Like [`Expr::eval`], with `calls` answering a call to a qualified name (a calculation,
+    /// GH #491): given the name and the evaluated arguments (`Some(param)` for `param = value`),
+    /// `None` when the name is not a calculation.
+    pub fn eval_with(&self, lookup: &dyn Fn(&str) -> Option<Value>, calls: &CallHook) -> Result<Value, ExprError> {
         match self {
             Expr::Lit(v) => Ok(v.clone()),
             Expr::Name(n) => match lookup(n) {
@@ -957,7 +986,7 @@ impl Expr {
                 None => Err(ExprError::Unbound(n.clone())),
             },
             Expr::Unary(op, e) => {
-                let v = e.eval(lookup)?;
+                let v = e.eval_with(lookup, calls)?;
                 match *op {
                     "not" => Ok(Value::Bool(!want_bool(&v, "not")?)),
                     _ => {
@@ -971,29 +1000,42 @@ impl Expr {
             }
             Expr::Bin(op, l, r) => match *op {
                 "and" => {
-                    if !want_bool(&l.eval(lookup)?, "and")? {
+                    if !want_bool(&l.eval_with(lookup, calls)?, "and")? {
                         return Ok(Value::Bool(false));
                     }
-                    Ok(Value::Bool(want_bool(&r.eval(lookup)?, "and")?))
+                    Ok(Value::Bool(want_bool(&r.eval_with(lookup, calls)?, "and")?))
                 }
                 "or" => {
-                    if want_bool(&l.eval(lookup)?, "or")? {
+                    if want_bool(&l.eval_with(lookup, calls)?, "or")? {
                         return Ok(Value::Bool(true));
                     }
-                    Ok(Value::Bool(want_bool(&r.eval(lookup)?, "or")?))
+                    Ok(Value::Bool(want_bool(&r.eval_with(lookup, calls)?, "or")?))
                 }
-                "==" | "!=" | "<" | "<=" | ">" | ">=" => Ok(Value::Bool(compare(op, &l.eval(lookup)?, &r.eval(lookup)?)?)),
-                _ => arith(op, &l.eval(lookup)?, &r.eval(lookup)?),
+                "==" | "!=" | "<" | "<=" | ">" | ">=" => Ok(Value::Bool(compare(op, &l.eval_with(lookup, calls)?, &r.eval_with(lookup, calls)?)?)),
+                _ => arith(op, &l.eval_with(lookup, calls)?, &r.eval_with(lookup, calls)?),
             },
             Expr::If(c, a, b) => {
-                if want_bool(&c.eval(lookup)?, "if")? {
-                    a.eval(lookup)
+                if want_bool(&c.eval_with(lookup, calls)?, "if")? {
+                    a.eval_with(lookup, calls)
                 } else {
-                    b.eval(lookup)
+                    b.eval_with(lookup, calls)
                 }
             }
+            Expr::Call(f, args) if f.contains("::") => {
+                let mut vals: Vec<(Option<String>, Value)> = Vec::new();
+                for a in args {
+                    match a {
+                        Expr::Bin("=", n, v) => {
+                            let Expr::Name(n) = &**n else { continue };
+                            vals.push((Some(n.clone()), v.eval_with(lookup, calls)?));
+                        }
+                        other => vals.push((None, other.eval_with(lookup, calls)?)),
+                    }
+                }
+                calls(f, &vals).unwrap_or_else(|| Err(ExprError::Unbound(f.clone())))
+            }
             Expr::Call(f, args) => {
-                let vals: Vec<Value> = args.iter().map(|a| a.eval(lookup)).collect::<Result<_, _>>()?;
+                let vals: Vec<Value> = args.iter().map(|a| a.eval_with(lookup, calls)).collect::<Result<_, _>>()?;
                 call(f, &vals)
             }
         }
@@ -1031,6 +1073,34 @@ impl Expr {
         }
     }
 
+    /// Every qualified name called like a function (a calculation call, GH #491), without duplicates.
+    pub fn call_names(&self) -> Vec<String> {
+        fn walk(e: &Expr, out: &mut Vec<String>) {
+            match e {
+                Expr::Lit(_) | Expr::Name(_) => {}
+                Expr::Unary(_, a) => walk(a, out),
+                Expr::Bin(_, a, b) => {
+                    walk(a, out);
+                    walk(b, out);
+                }
+                Expr::If(c, a, b) => {
+                    walk(c, out);
+                    walk(a, out);
+                    walk(b, out);
+                }
+                Expr::Call(f, args) => {
+                    if f.contains("::") && !out.contains(f) {
+                        out.push(f.clone());
+                    }
+                    args.iter().for_each(|a| walk(a, out));
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(self, &mut out);
+        out
+    }
+
     /// Every identifier the expression uses, in first-use order, without duplicates.
     pub fn names(&self) -> Vec<String> {
         fn walk(e: &Expr, out: &mut Vec<String>) {
@@ -1042,6 +1112,7 @@ impl Expr {
                     }
                 }
                 Expr::Unary(_, a) => walk(a, out),
+                Expr::Bin("=", _, b) => walk(b, out),
                 Expr::Bin(_, a, b) => {
                     walk(a, out);
                     walk(b, out);

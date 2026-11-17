@@ -942,6 +942,12 @@ pub struct RawFrontmatter {
     /// Never (de)serialized: it describes one projection, not the authored element.
     #[serde(skip)]
     pub variant_retained: bool,
+    /// On a projected `PlanningItem`: the `parent:`/`achieves:`/`blockedBy:` references that name an
+    /// element which exists in the base model but is gated out of this projection (GH #493). A plan
+    /// describes the project, not one product, so such a reference is not dangling. Never
+    /// (de)serialized: it describes one projection.
+    #[serde(skip)]
+    pub gated_refs: Vec<String>,
     /// `applies_when` was copied from the owning TARA/FMEA sheet, not authored on this
     /// row (GH #229). The sheet already carries the authored declaration, so per-element
     /// validity and nesting checks skip the copy rather than repeat the finding.
@@ -1040,6 +1046,12 @@ pub struct ColdFrontmatter {
     pub body_language: Option<String>,
     /// `CalculationDef` (§22.2): qualified name of a `ConstraintDef` bounding the budget result.
     pub evaluate: Option<String>,
+    /// `CalculationDef` (GH #492): the build variable `build-config` exports the calculation's result as.
+    #[serde(rename = "buildVar", default, skip_serializing_if = "Option::is_none")]
+    pub build_var: Option<String>,
+    /// `CalculationDef` (GH #492): the result must be a whole number (`build-config` rejects a fractional one).
+    #[serde(rename = "integral", default, skip_serializing_if = "Option::is_none")]
+    pub integral: Option<bool>,
     // Native ReviewRecord fields (§19, GH #71). `recordedAt` is the thin pointer to the
     // external review (e.g. a GitHub PR/review URL); the model keeps the baselined anchor.
     pub review_type: Option<String>,
@@ -1880,6 +1892,12 @@ struct ColdWire {
     pub body_language: Option<String>,
     /// `CalculationDef` (§22.2): qualified name of a `ConstraintDef` bounding the budget result.
     pub evaluate: Option<String>,
+    /// `CalculationDef` (GH #492): the build variable `build-config` exports the calculation's result as.
+    #[serde(rename = "buildVar", default, skip_serializing_if = "Option::is_none")]
+    pub build_var: Option<String>,
+    /// `CalculationDef` (GH #492): the result must be a whole number (`build-config` rejects a fractional one).
+    #[serde(rename = "integral", default, skip_serializing_if = "Option::is_none")]
+    pub integral: Option<bool>,
     // Native ReviewRecord fields (§19, GH #71). `recordedAt` is the thin pointer to the
     // external review (e.g. a GitHub PR/review URL); the model keeps the baselined anchor.
     pub review_type: Option<String>,
@@ -2507,6 +2525,8 @@ impl ColdWire {
             body: w.body,
             body_language: w.body_language,
             evaluate: w.evaluate,
+            build_var: w.build_var,
+            integral: w.integral,
             review_type: w.review_type,
             reviews: w.reviews,
             items: w.items,

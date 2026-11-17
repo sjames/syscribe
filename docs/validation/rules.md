@@ -143,6 +143,9 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E242 | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | E243 | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | E247 | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
+| E248 | A `derivedFrom: <expression>` parameter whose expression does not parse, or fails (a circular reference across features, a dimension or domain error, a derived `buildVar` that cannot be computed) for a `Configuration` that selects its feature and gives every input a value (§9.7; `validate`, `feature-check`, `build-config`) |
+| E249 | A derived parameter value outside its `range:`, or not a whole number for an `Integer` parameter, in a `Configuration` that selects its feature (§9.7; `validate`, `feature-check`) |
+| E250 | A `parameterConstraints` expression has no truth value although every parameter it reads has one (an unsupported construct, a type or domain error) — a gate that cannot pass or fail is an error, never silent (`validate`, `feature-check`) |
 | E234 | (Configuration inheritance, §9.8) A `Configuration`'s `derivedFrom:` base does not resolve to any element of the model (the base must be local) |
 | E235 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` base is not a `Configuration` |
 | E236 | (Configuration inheritance) A `Configuration` is on a `derivedFrom:` cycle — reported on each member; none inherits |
@@ -502,16 +505,16 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | E707 | Missing `id`, `name`, or `status`. |
 | E708 | `status` not in `todo \| in_progress \| blocked \| done`. |
 | E709 | `itemType` (if present) not in `bug \| task \| feature`. |
-| E710 | `parent:` reference does not resolve. |
+| E710 | `parent:` reference does not resolve. (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | E711 | `parent:` resolves to something that is not a `PlanningItem`. |
 | E712 | A `parent:` chain forms a cycle. |
 | E713 | A top-level item (no `parent:`) has no `achieves:` entry. |
-| E714 | An `achieves:` entry does not resolve. |
+| E714 | An `achieves:` entry does not resolve. (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | E715 | An `achieves:` entry does not resolve to a native `Requirement`, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline`. |
 | E716 | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`). |
 | E717 | An `evidence[].path` does not exist on disk (and is not waived). |
 | E719 | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect. |
-| E720 | A `blockedBy:` entry does not resolve to any model element. |
+| E720 | A `blockedBy:` entry does not resolve to any model element. (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | E721 | A `blockedBy:` chain forms a cycle (directly or through other `PlanningItem`s). |
 | W308 | A non-empty `blockedBy:` while `status` is not `blocked` — likely stale (the blocker was resolved and `status:` was never updated). |
 | E722 | `assignedTo:` names a username not present in the declared `[users]` roster (checked only when that roster is non-empty). |
@@ -781,6 +784,7 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | Code | Condition |
 |---|---|
 | E050 | Two selected features export the same `buildExports` variable name and the conflict is not resolved by `buildOverrides:` |
+| E251 | A `CalculationDef` with `buildVar:` cannot be evaluated for the Configuration `build-config` was asked for (unresolved input, cycle, domain error, a fractional result for an `integral: true` calculation, a missing parameter value) |
 | W050 | A selected feature contributes no build variable (no `buildExports:` and no parameter with `buildVar:`). Catalogued but **not currently emitted**: the resolver computes it, but no command surfaces it, so `--deny W050` cannot gate it |
 
 ## Allocation errors (E500–E503)
