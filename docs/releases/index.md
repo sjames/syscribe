@@ -2,6 +2,30 @@
 
 `RELEASES`
 
+## 0.60.0 — 2026-11-16
+
+**Variants and trade studies**
+
+- **New:** `validate` and `bind` enforce `parameterConstraints` (#465). `diff --config` compares effective parameter values (#466).
+- **New:** `trade-study` ranks Configurations by recorded measurements (#467), from records kept outside the model with `--results` (#467) or from a retained run chosen with `--run <id>` (#471).
+- **New:** run history keeps one file per run, bounded in size, and `[results] runs_dir` moves the run files with the agent policy following (#471). Run history goes through the write layer (#469).
+- **New:** `sidecar_writers` lets `ingest-results` write a protected sidecar, and `sidecar_audit` chooses how the audit treats the evidence sidecar (#469).
+- **Fixed:** mutation and campaign sidecars are bounded, safe to read and written atomically (#472, #473, #474).
+
+**MagicGrid measures of effectiveness**
+
+- **New:** a MoE over several measurements and a MoE built from other MoEs (#477). The expression language reads `degC`/`degF` and has `delta_*` differences (#478). `MG034` checks MoE/MoP settings (#476).
+- **Fixed:** `MG033` accepts an `mg_moe_source` measurement with `mg_moe_variables` (#480). `W041` spares `mg_moe_variables` and `mg_moe_inputs`, which are nested maps (#482). A MoE expression may use the language's functions and keywords (#483).
+
+**SysMLv2 connections**
+
+- **Fixed:** `export-sysml` gave connections of one type each other's endpoints when their names sorted differently from source order (#486). Ingestion now records each connection's name on the lifted `connections:` entry and export pairs by name; re-ingest a model to pick this up.
+- **New:** `export` and `export --ndjson` add `source`, `target` and `ends` to a `Connection` record, beside its `typedBy` (#486, REQ-TRS-CONNEXP-001).
+
+**Changed (behaviour)**
+
+- A model with a violated `parameterConstraints` entry now fails `validate`/`bind` where it was silently accepted, and a model may raise `MG034`.
+
 ## 0.59.0 — 2026-11-08
 
 **Planning and decisions**
