@@ -373,6 +373,8 @@ parameterNarrowing: { Features::Propulsion.motorKV: "950..1100" }   # shrink wha
 
 ## 4. Projection — the `--config` lens
 
+A `PlanningItem` describes the project, not one product: under `--config` its `parent:`, `achieves:` and `blockedBy:` references to an element that exists but is gated out of the Configuration are not `E710`/`E714`/`E720` (a reference that exists nowhere still is). One planning item can therefore span requirements gated on different features.
+
 The repository is the 150% superset; `--config` projects it onto one variant and runs the command over only the **active** elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set (`'Features::A,Features::B'`).
 
 ```bash

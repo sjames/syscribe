@@ -5467,6 +5467,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
             if let Some(ref p) = fm.parent {
                 match resolver.resolve_ref(elements, p) {
+                    None if fm.gated_refs.contains(p) => {} // gated out of this projection (GH #493)
                     None => findings.push(error(
                         "E710",
                         &elem.file_path,
@@ -5503,6 +5504,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref ach) = fm.achieves {
                 for a in ach {
                     match resolver.resolve_ref(elements, a) {
+                        None if fm.gated_refs.contains(a) => {} // gated out of this projection (GH #493)
                         None => findings.push(error(
                             "E714",
                             &elem.file_path,
@@ -5533,7 +5535,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
             if let Some(ref bs) = fm.blocked_by {
                 for b in bs {
-                    if resolver.resolve_ref(elements, b).is_none() {
+                    if resolver.resolve_ref(elements, b).is_none() && !fm.gated_refs.contains(b) {
                         findings.push(error(
                             "E720",
                             &elem.file_path,

@@ -458,16 +458,16 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E707` | `PlanningItem` missing `id`, `name`, or `status` |
 | `E708` | `PlanningItem.status` not in `todo · in_progress · blocked · done` |
 | `E709` | `PlanningItem.itemType` (if present) not in `bug · task · feature` |
-| `E710` | `parent:` reference does not resolve |
+| `E710` | `parent:` reference does not resolve (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E711` | `parent:` resolves to something that is not a `PlanningItem` |
 | `E712` | A `parent:` chain forms a cycle |
 | `E713` | A top-level item (no `parent:`) has no `achieves:` entry |
-| `E714` | An `achieves:` entry does not resolve |
+| `E714` | An `achieves:` entry does not resolve (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E715` | An `achieves:` entry does not resolve to a native Requirement, `SafetyGoal`, `CybersecurityGoal`, `ADR`, `Argument`, `TestPlan` or `Baseline` |
 | `E716` | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect |
-| `E720` | A `blockedBy:` entry does not resolve to any model element |
+| `E720` | A `blockedBy:` entry does not resolve to any model element (under `--config` a target that exists but is gated out of the Configuration is not dangling) |
 | `E721` | A `blockedBy:` chain forms a cycle (directly or through other PlanningItems) |
 | `W308` | A non-empty `blockedBy:` while `status` is not `blocked` — likely stale. The converse (`status: blocked` with empty `blockedBy:`) raises nothing — being blocked needs no proof, unlike claiming done. |
 | `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (checked only when non-empty) |

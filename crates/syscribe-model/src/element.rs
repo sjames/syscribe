@@ -942,6 +942,12 @@ pub struct RawFrontmatter {
     /// Never (de)serialized: it describes one projection, not the authored element.
     #[serde(skip)]
     pub variant_retained: bool,
+    /// On a projected `PlanningItem`: the `parent:`/`achieves:`/`blockedBy:` references that name an
+    /// element which exists in the base model but is gated out of this projection (GH #493). A plan
+    /// describes the project, not one product, so such a reference is not dangling. Never
+    /// (de)serialized: it describes one projection.
+    #[serde(skip)]
+    pub gated_refs: Vec<String>,
     /// `applies_when` was copied from the owning TARA/FMEA sheet, not authored on this
     /// row (GH #229). The sheet already carries the authored declaration, so per-element
     /// validity and nesting checks skip the copy rather than repeat the finding.
