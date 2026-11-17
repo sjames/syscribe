@@ -66,3 +66,9 @@ last varying fastest. Each point binds its values last. The table (`--json`: poi
 summary, show}]) gives per point the pass/fail/unresolved/error counts and, with `--show`, the
 value of an expression at that point. A malformed range, or more than 5000 points, is a usage
 error (1); otherwise a sweep exits 0: it reports, it does not gate.
+
+A calculation composes (GH #491): a `CalculationDef` qualified name in a `body:`, a
+`bindingConnections` `right:` or a `parameterConstraints` expression evaluates that calculation in the same
+environment, and `Calc::Name(param = value, …)` calls one that has `in` parameters. A calculation reached again
+while it is being evaluated is a cycle and an error. A calculation another expression reads, or one with a
+`buildVar:` (exported by `build-config`), is used and raises no `W007`.

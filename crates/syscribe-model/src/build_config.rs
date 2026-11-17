@@ -106,6 +106,31 @@ fn binding_value(
     get_val(m, &key).cloned()
 }
 
+/// The `derivedFrom:` expression of parameter `param` of `fd`.
+fn derived_expression(fd: &RawElement, param: &str) -> Option<String> {
+    fd.frontmatter.parameters.iter().flatten().find_map(|p| match p {
+        serde_yaml::Value::Mapping(m) if get_str(m, "name") == Some(param) => crate::derived::expression(m).map(str::to_string),
+        _ => None,
+    })
+}
+
+/// A computed value as the YAML scalar a build variable carries: a whole number as an integer.
+fn value_to_yaml(v: &crate::expr::Value, as_number: Option<f64>) -> serde_yaml::Value {
+    use crate::expr::Value;
+    match v {
+        Value::Num(q) => {
+            let n = as_number.unwrap_or(q.v);
+            if n.fract() == 0.0 && n.abs() < 9.0e15 {
+                serde_yaml::Value::Number(serde_yaml::Number::from(n as i64))
+            } else {
+                serde_yaml::Value::Number(serde_yaml::Number::from(n))
+            }
+        }
+        Value::Bool(b) => serde_yaml::Value::Bool(*b),
+        Value::Str(s) => serde_yaml::Value::String(s.clone()),
+    }
+}
+
 fn err(code: &'static str, file: &str, msg: String) -> Finding {
     Finding { code, file: file.to_string(), message: msg, severity: Severity::Error }
 }
@@ -152,6 +177,9 @@ pub fn resolve(elements: &[RawElement], conf_id: &str) -> Result<BuildConfigResu
 
     let mut vars: BuildVars = BTreeMap::new();
     let mut findings: Vec<Finding> = Vec::new();
+    let resolver = crate::resolver::Resolver::new(elements);
+    // Parameter and calculation contributions to a build variable (GH #490/#492), checked for E050.
+    let mut later_exports: BTreeMap<String, Vec<(serde_yaml::Value, String)>> = BTreeMap::new();
 
     // E050 tracking: var_name → Vec<(value, feature_qname)> from selected features
     let mut conflict_tracker: BTreeMap<String, Vec<(serde_yaml::Value, String)>> = BTreeMap::new();
@@ -237,13 +265,81 @@ pub fn resolve(elements: &[RawElement], conf_id: &str) -> Result<BuildConfigResu
         }
         for (encoded, default_val) in pbvars {
             let (build_var, param_name) = encoded.split_once('\0').unwrap();
-            let val = param_bindings
+            let mut val = param_bindings
                 .and_then(|pb| binding_value(pb, qname, param_name))
                 .or(default_val);
+            // GH #490: a derived parameter exports its computed value; one that cannot be computed is an
+            // error, never an omission.
+            if val.is_none() {
+                if let Some(src) = derived_expression(fd, param_name) {
+                    match crate::derived::evaluate(elements, &resolver, Some(cfg), qname, param_name, &src) {
+                        Ok(v) => val = Some(value_to_yaml(&v, None)),
+                        Err(m) => findings.push(err(
+                            "E248",
+                            &cfg_file,
+                            format!("build variable '{build_var}': derivedFrom of '{qname}.{param_name}' ({src}) cannot be evaluated: {m}"),
+                        )),
+                    }
+                }
+            }
             if let Some(v) = val {
+                later_exports.entry(build_var.to_string()).or_default().push((v.clone(), format!("{qname}.{param_name}")));
                 vars.insert(build_var.to_string(), v);
             }
         }
+    }
+
+    // ── Step 2b: buildVar on a CalculationDef (GH #492) ──────────────────────
+    let calcs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| e.frontmatter.element_type == Some(ElementType::CalculationDef) && e.frontmatter.build_var.is_some())
+        .collect();
+    if !calcs.is_empty() {
+        let mut env = crate::constraints::attribute_env(elements);
+        env.extend(crate::constraints::config_env(elements, &resolver, cfg));
+        for def in calcs {
+            let build_var = def.frontmatter.build_var.clone().unwrap_or_default();
+            let unit = def.frontmatter.unit.as_deref().map(|u| u.strip_prefix("SI::").unwrap_or(u));
+            let outcome = crate::constraints::eval_calculation(elements, def, &[], &env).and_then(|v| match &v {
+                crate::expr::Value::Num(q) => {
+                    let n = match unit {
+                        Some(u) => crate::expr::to_unit(q, u).map_err(|e| e.to_string())?,
+                        None => q.v,
+                    };
+                    if def.frontmatter.integral == Some(true) && (n.fract() != 0.0 || !n.is_finite()) {
+                        return Err(format!("the result {} is not a whole number but the calculation is declared integral", crate::expr::format_number(n)));
+                    }
+                    Ok(value_to_yaml(&v, Some(n)))
+                }
+                other => Ok(value_to_yaml(other, None)),
+            });
+            match outcome {
+                Ok(v) => {
+                    later_exports.entry(build_var.clone()).or_default().push((v.clone(), def.qualified_name.clone()));
+                    vars.insert(build_var, v);
+                }
+                Err(m) => findings.push(err(
+                    "E251",
+                    &def.file_path,
+                    format!("build variable '{build_var}': calculation {} cannot be evaluated for '{conf_id}': {m}", def.qualified_name),
+                )),
+            }
+        }
+    }
+
+    // ── E050 across parameters, calculations and the feature exports ─────────
+    for (var_name, contributors) in &later_exports {
+        let mut all: Vec<(serde_yaml::Value, String)> = conflict_tracker.get(var_name).cloned().unwrap_or_default();
+        all.extend(contributors.iter().cloned());
+        if all.len() < 2 || all.iter().all(|(v, _)| *v == all[0].0) || override_keys.contains(var_name) {
+            continue;
+        }
+        let who: Vec<&str> = all.iter().map(|(_, q)| q.as_str()).collect();
+        findings.push(err(
+            "E050",
+            &cfg_file,
+            format!("build variable '{var_name}' has conflicting values from [{}]; add a buildOverrides: entry to resolve", who.join(", ")),
+        ));
     }
 
     // ── Step 3: buildOverrides win unconditionally ────────────────────────────

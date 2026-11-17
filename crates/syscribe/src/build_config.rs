@@ -273,16 +273,18 @@ pub fn cmd_build_config(
         }
     };
 
-    // Step 3: abort on E050 findings. W050 is not printed here and is not
-    // surfaced by `validate` either (catalogued, currently not emitted).
-    let mut has_e050 = false;
+    // Step 3: abort on any error finding — E050 (conflicting variables), E248 (a derived parameter that
+    // cannot be computed) or E251 (a calculation that cannot be evaluated): a build variable is never
+    // silently omitted. W050 is not printed here and is not surfaced by `validate` either
+    // (catalogued, currently not emitted).
+    let mut has_error = false;
     for f in &result.findings {
-        if f.code == "E050" {
+        if f.severity == Severity::Error {
             eprintln!("[ERROR] {} {}: {}", f.code, f.file, f.message);
-            has_e050 = true;
+            has_error = true;
         }
     }
-    if has_e050 {
+    if has_error {
         std::process::exit(1);
     }
 
@@ -361,7 +363,7 @@ pub fn cmd_build_config_all(
                 // printed here and is not emitted by `validate` either.
                 let mut error_msgs: Vec<String> = Vec::new();
                 for f in &result.findings {
-                    if f.code == "E050" {
+                    if f.severity == Severity::Error {
                         error_msgs.push(format!("{}: {}", f.code, f.message));
                     }
                 }

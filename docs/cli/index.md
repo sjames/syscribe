@@ -886,7 +886,7 @@ syscribe -m <root> constraints calc <CalculationDef> [--config <C>] [--set name=
 syscribe -m <root> constraints sweep --param name=<lo>..<hi>:<step> [--param …] [--config <C>] [--set …] [--show '<expr>'] [--json]
 ```
 
-`calc` evaluates a `CalculationDef` body with its parameters from `--set` or their defaults and prints the result in SI base units. `sweep` evaluates the whole check set over a grid of parameter ranges (`3..7:1`, `1000kg..2000kg:250kg` or a list `1,2,5`; Cartesian product for several `--param`s; at most 5000 points) and tabulates the pass/fail/unresolved/error counts per point, with an optional `--show` expression: a trade-off sweep across values; it reports, it does not gate. See `syscribe help constraints`.
+`calc` evaluates a `CalculationDef` body with its parameters from `--set` or their defaults and prints the result in SI base units. `sweep` evaluates the whole check set over a grid of parameter ranges (`3..7:1`, `1000kg..2000kg:250kg` or a list `1,2,5`; Cartesian product for several `--param`s; at most 5000 points) and tabulates the pass/fail/unresolved/error counts per point, with an optional `--show` expression: a trade-off sweep across values; it reports, it does not gate. A calculation composes: a `CalculationDef` qualified name in a `body:`, a `bindingConnections` `right:` or a `parameterConstraints` expression evaluates that calculation in the same environment, and `Calc::Name(param = value, …)` calls one with arguments; a cycle is an error naming the chain. See `syscribe help constraints`.
 
 ## State-machine IR (`compile`)
 

@@ -25,6 +25,7 @@
 | `E021` | `coverageTarget:` is not `statement`/`branch`/`MCDC` |
 | `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware`/`process`/`regulatory`/`deliverable` |
 | `E050` | Two selected features export the same `buildExports` variable name, unresolved by `buildOverrides:` (opt-in; §9.9) |
+| `E251` | A `CalculationDef` with `buildVar:` cannot be evaluated for the Configuration `build-config` was asked for (unresolved input, cycle, domain error, a fractional result for an `integral: true` calculation, a missing parameter value) |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type, id-identified or name-identified). The `title` field is removed — rename it to `name`. |
@@ -696,7 +697,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E247)
+## Product Line Engineering errors (E200–E250)
 
 | Code | Condition |
 |---|---|
@@ -732,6 +733,9 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
+| `E248` | A `derivedFrom: <expression>` parameter whose expression does not parse, or fails (a circular reference across features, a dimension or domain error, a derived `buildVar` that cannot be computed) for a `Configuration` that selects its feature and gives every input a value (§9.7; `validate`, `feature-check`, `build-config`) |
+| `E249` | A derived parameter value outside its `range:`, or not a whole number for an `Integer` parameter, in a `Configuration` that selects its feature (§9.7; `validate`, `feature-check`) |
+| `E250` | A `parameterConstraints` expression has no truth value although every parameter it reads has one (an unsupported construct, a type or domain error) — a gate that cannot pass or fail is an error, never silent (`validate`, `feature-check`) |
 | `E234` | (§9.8) a `Configuration`'s `derivedFrom:` base does not resolve to any element of the model — the base must be local (consolidate a peer product line with `subConfigurations:`); the configuration inherits nothing |
 | `E235` | (§9.8) a `Configuration`'s `derivedFrom:` base resolves to an element that is not a `Configuration`; the configuration inherits nothing |
 | `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |

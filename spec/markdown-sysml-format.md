@@ -6121,6 +6121,10 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E242` | A placeholder's element is active in a `Configuration` that does not select the parameter's feature (gate it with `appliesWhen`) |
 | `E243` | A placeholder has no binding, fixed value or default in a configuration where the element is active, and the element is approved/implemented/verified |
 | `E247` | A placeholder in a typed field (`failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `silLevel`, `asilLevel`, `calLevel`) resolves, in a configuration where the element is active, to a value the field does not accept |
+| `E248` | A `derivedFrom: <expression>` parameter whose expression does not parse, or fails for a `Configuration` that selects its feature and gives every input a value (§9.7) |
+| `E249` | A derived parameter value outside its `range:`, or not a whole number for an `Integer` parameter (§9.7) |
+| `E250` | A `parameterConstraints` expression has no truth value although every parameter it reads has one (§9.7) |
+| `E251` | A `CalculationDef` with `buildVar:` that `build-config` cannot evaluate for the requested Configuration (§9.9) |
 | `E222` | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter). Emitted by `validate` and `feature-check`. |
 | `E223` | (`feature-check --deep`) The feature model is **void** — no valid configuration exists (reported once, with a conflict-set explanation). |
 | `E224` | (`feature-check --deep`) A **dead feature** — selectable in no valid configuration. |
@@ -6725,7 +6729,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | Codes | Family | Specified in |
 |---|---|---|
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
-| `E200`–`E247`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `E200`–`E251`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
 | `E331`, `W095`, `W096` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`) | §5.8 |
@@ -9286,6 +9290,8 @@ IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `evaluate` | string | absent | Qualified name of a `ConstraintDef` whose `expression:` bounds the result. When present, the tool evaluates the `body:` expression and compares against the constraint. |
+| `buildVar` | string | absent | Build variable `build-config` exports the calculation's result as, evaluated against the Configuration's effective parameters (GH #492). A calculation that cannot be evaluated is `E251`; a calculation read by another expression or exported this way raises no `W007`. |
+| `integral` | boolean | `false` | With `buildVar`, the result must be a whole number; a fractional result is `E251`. `unit:` on the same element names the unit the exported value is printed in. |
 
 **New validation rules:**
 
@@ -9702,7 +9708,7 @@ A malformed entry — `[planning]` not a table, an unknown key, or a value that 
 | Common / cross-cutting | `appliesWhen`, `domain`, `custom_fields`, `displayOrder`, `traceBaselines`, `refines`, `rationale`, `locale`, `about`, `text`, `steps`, `valueKind`, `value`, `portionKind` | 3.8–3.19, 8.2–8.11, 12.10 |
 | Native `Requirement` | `reqClass`, `requirementKind`, `reqDomain`, `breakdownAdr`, `decompositionKind`, `dalLevel`, `decomposedFrom` | 8.11.6, 12.2, 12.5, 22.3 |
 | Native `TestCase` / `TestPlan` | `coverageTarget`, `securityTestMethod`, `scope`, `configurations`, `demonstrates`, `testCases`, `selection` | 8.12.5, 8.12.6 |
-| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
+| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `buildVar`, `integral`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
 | Diagram | `diagramKind`, `svgMode`, `svgFile`, `pumlMode`, `pumlFile`, `shapes`, `edges`, `layout`, `groupBy`, `flowKind` (also on a `PortDef`, a port feature and a `connections:` entry) | 8.16, 8.16.8.2, 8.16.9 |
 | HARA | `severity`, `exposure`, `controllability`, `consequence`, `freqExposure`, `avoidance`, `demandRate`, `operationalSituation`, `hazardousEvents`, `safeState`, `ftti` | 8.18.1 |
 | TARA | `assets`, `damageSeverity`, `impactCategories`, `damageScenarios`, `attackFeasibility`, `attackVector`, `securityProperty`, `calLevel`, `threatScenarios`, `controlType`, `implementsGoals`, `cveId`, `cvssScore`, `cvssVector`, `cvssSeverity`, `fixedIn`, `mitigatedBy`, `affectedElements`, `assetTable`, `damageTable`, `threatTable`, `goalTable`, `controlTable`, the per-category impact ratings `safetyImpact`, `financialImpact`, `operationalImpact`, `privacyImpact`, and the attack-potential factors `elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment` | 8.18.2 |

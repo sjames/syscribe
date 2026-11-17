@@ -488,6 +488,8 @@ Fields defined in the full specification (`spec/markdown-sysml-format.md`) that 
 | `displayOrder` | spec §3.16, §8.11.6 | Primary sort key among peers. Ascending: lower sorts first. Unset sorts **after** every element that declares a value. Ties (equal or both-unset) fall back to stable-identifier order. / Reading/presentation order among peer requirements in the report and coverage matrix; ascending, unset last, id tie-break. Generic field — see §3.16. |
 | `equations` | PlantDef | `der(state) = expression` for each state and `output := expression` for each output |
 | `evaluate` | spec §22.2 | Qualified name of a `ConstraintDef` whose `expression:` bounds the result. When present, the tool evaluates the `body:` expression and compares against the constraint. |
+| `buildVar` | spec §22.2 | `CalculationDef`: the build variable `build-config` exports the calculation's result as (GH #492); `E251` when it cannot be evaluated. |
+| `integral` | spec §22.2 | `CalculationDef` with `buildVar`: the result must be a whole number (`E251` otherwise). |
 | `excludes` | FeatureDef | qualified names of `FeatureDef` elements that must NOT be selected when this feature is (mutual exclusion) |
 | `expires` | ResidualRisk | date by which the decision must be reviewed again; a proposed or accepted risk past it is `W943` |
 | `faultSet` | spec §12.14 | the FMEA rows (`FMEAEntry`) and fault-tree events (`FaultTreeEvent`) whose joint failure the decision is about, by id or qualified name. It names a set exactly as `inject` reports it: `[A, B]` explains the set `A + B`, not `A` alone |

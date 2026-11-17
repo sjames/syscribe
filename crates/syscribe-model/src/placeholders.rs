@@ -470,6 +470,8 @@ fn value_for(elements: &[RawElement], resolver: &Resolver, cfg: Option<&RawEleme
     let v = cfg
         .and_then(|c| binding(elements, resolver, c, &d.feature_qname, &ph.param))
         .or_else(|| d.entry.get("value").and_then(scalar))
+        // GH #490: a `derivedFrom:` expression is computed from the effective values it reads.
+        .or_else(|| crate::derived::expression(d.entry).and_then(|e| crate::derived::text(elements, resolver, cfg, &d.feature_qname, &ph.param, e).ok()))
         .or_else(|| d.entry.get("default").and_then(scalar))?;
     Some(match (ph.unit, unit_of(&d)) {
         (true, Some(u)) => format!("{v} {u}"),
@@ -808,6 +810,12 @@ pub fn consumers(elements: &[RawElement], resolver: &Resolver, feature_qname: &s
         v.sort();
     }
     out
+}
+
+/// The effective text of `feature.param` in `cfg` (binding, fixed value, derived value, default), with no unit.
+pub(crate) fn param_text(elements: &[RawElement], resolver: &Resolver, cfg: Option<&RawElement>, feature: &str, param: &str) -> Option<String> {
+    let ph = Placeholder { raw: String::new(), feature: feature.to_string(), param: param.to_string(), unit: false };
+    value_for(elements, resolver, cfg, &ph)
 }
 
 /// The value parameter `param` of `feature_qname` takes in configuration `cfg` (its binding,
