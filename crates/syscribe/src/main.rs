@@ -84,6 +84,7 @@ mod policy_gate;
 mod provenance;
 mod questions;
 mod steps;
+mod workflow_cmd;
 mod agentguide;
 mod stats;
 mod summarize;
@@ -2549,6 +2550,18 @@ fn main() {
             }
             "questions" => {
                 let code = questions::cmd_questions(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "next" => {
+                let code = workflow_cmd::cmd_next(model_root, &elems, subcommand_args.get(1..).unwrap_or(&[]));
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "done" => {
+                let code = workflow_cmd::cmd_done(model_root, &elems, &vcfg, subcommand_args.get(1..).unwrap_or(&[]));
                 if code != 0 {
                     std::process::exit(code);
                 }

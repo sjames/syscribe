@@ -31,7 +31,7 @@ pub(crate) fn type_commands(ty: &str) -> &'static [&'static str] {
         "TestCase" => &["next-id", "set", "scaffold-gherkin", "ingest-results", "who-verifies"],
         "TestPlan" => &["next-id", "set", "testplan"],
         "ADR" => &["next-id", "set"],
-        "PlanningItem" => &["next-id", "set", "claim", "release", "steps", "questions"],
+        "PlanningItem" => &["next-id", "set", "claim", "release", "steps", "questions", "next", "done"],
         "ReviewRecord" => &["reviews", "set"],
         "ResidualRisk" => &["residual", "set"],
         _ => &[],
@@ -352,6 +352,7 @@ pub fn mcp_instructions(g: &Guide, read_only: bool) -> String {
     if !read_only {
         o.push_str("Add an element: `next_id` → `template` → `create_element` (dry_run, read the delta, then dry_run:false) → `validate_element`. Change one: `update_element` (dry_run first). ");
     }
+    o.push_str("Pick work with `next_item`. Before calling it done run `done_check` for the item (it covers steps, questions, blockers, evidence, validate, gates and trace-code); `ready` must be true.\n");
     o.push_str("Before calling work done run `validate` and `gates`; neither may report an error or a tripped gate.\n");
     o.push_str("Rules: never invent an id (`next_id`); never set `claimedBy`/`claimedAt` through a tool — ownership is the CLI `syscribe claim`/`release`; ");
     if read_only {

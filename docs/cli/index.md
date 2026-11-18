@@ -2122,6 +2122,19 @@ syscribe -m model/ list PlanningItem --open-questions
 
 **Steps** are child items, not a new field: `steps <PI>` renders the children recursively with status, `assignedTo`, `claimedBy`, blockers, open questions and — for a done leaf — whether it has evidence, under a roll-up (`3 of 7 leaves done · 1 blocked · 3 todo`). `--open` hides finished subtrees, `--depth N` limits depth. The parent's status is not derived from its children; a disagreement (all leaves done but the item not, or the item done with unfinished leaves) appears under *Notes (not findings)* and `validate` stays silent. Over MCP: read tools `questions` and `steps`, and the guarded `question` write tool.
 
+## `next` and `done` — what to work on, and whether to stop
+
+```bash
+syscribe -m model/ next [--limit N] [--json]    # exit 2 when nothing is offered
+syscribe -m model/ done <PI-id> [--json]        # exit 2 when something is missing
+```
+
+The two calls any agent harness (Claude Code, Codex, an editor agent) needs around its own loop, so none of them re-derives the answers from the model (GH #485). Both only read.
+
+`next` offers the `todo` or `in_progress`, unclaimed, leaf `PlanningItem`s whose `blockedBy:` is all met and that have no open question reserved to a person. Work that was started and left (`in_progress`, unclaimed) comes first, then items by id. Each candidate lists its hazards (an open question an agent may answer, overlap with active work by a shared `achieves:`, as `W311`), and every item not offered is listed with its reason: claimed by whom, blocked by what, waiting on a person, composite (work its steps), or a status such as `blocked`. To take the item run `claim <PI> --by <agent>`; for its briefing `context <PI>`. `in_progress` items that nobody is working on may be stale; check their last change before resuming one.
+
+`done <PI>` judges the model as it would be with the item `done` and prints each check: `steps` (a composite's children are done), `questions` (none open), `blockers` (all met), `evidence` (`E719`, and `W310` for the requirements it achieves), `validate` (no errors), `gates` (no `[gates]` stereotype condition or coverage threshold tripped), `trace-code` (clean, when a `[traceCode]` table exists) and `status` (whether this invocation may set `done`: when `[agents] human_only_status` reserves it for a person and the invocation is an agent's, the result is a *handoff*: everything holds, but a person sets the status). The `--json` form is `{ready, needsPerson, missing, checks: [{check, result, detail}]}`. The MCP tools `next_item` and `done_check` return the same data, and the `close-planning-item` prompt starts from `done_check`.
+
 ## The planning gates: `[planning]`
 
 An opt-in `[planning]` table in `<model_root>/.syscribe.toml` tightens how PlanningItems and delivered work are tied together. Every key defaults to `false` (no table, no finding); keys are snake_case or camelCase; a malformed entry (not a table, unknown key, non-boolean value) is `W322` and ignored.

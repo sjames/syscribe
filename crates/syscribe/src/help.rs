@@ -182,6 +182,8 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("schema", include_str!("../../../prompts/help/schema.md")),
             ("steps", include_str!("../../../prompts/help/steps.md")),
             ("questions", include_str!("../../../prompts/help/questions.md")),
+            ("next", include_str!("../../../prompts/help/next.md")),
+            ("done", include_str!("../../../prompts/help/done.md")),
             ("claim", include_str!("../../../prompts/help/claim.md")),
             ("release", include_str!("../../../prompts/help/release.md")),
         ],
