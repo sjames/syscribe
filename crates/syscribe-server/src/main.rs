@@ -33,6 +33,12 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let model_root = cli.model;
 
+    // GH #496: refuse a model that needs a newer syscribe than this one.
+    if let Err(m) = syscribe_model::min_version::check(&model_root, env!("CARGO_PKG_VERSION")) {
+        eprintln!("Error: {m}");
+        std::process::exit(1);
+    }
+
     info!("Loading model from {:?}", model_root);
     syscribe_model::vis::derive::context::set_model_root(&model_root);
     let elements = walk_model(&model_root)?;

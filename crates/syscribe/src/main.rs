@@ -726,7 +726,8 @@ fn main() {
     if let Some(c @ ("schema" | "capabilities")) = first_command_token(&args) {
         let at = args.iter().position(|a| a == c).unwrap_or(1);
         let rest = &args[at + 1..];
-        let code = if c == "schema" { contract::cmd_schema(rest) } else { contract::cmd_capabilities(rest) };
+        let model = agent_instructions_model_root(&args);
+        let code = if c == "schema" { contract::cmd_schema(rest) } else { contract::cmd_capabilities(rest, model.as_deref().map(std::path::Path::new)) };
         std::process::exit(code);
     }
 
@@ -931,6 +932,13 @@ fn main() {
     }
     if !model_root.is_dir() {
         eprintln!("Error: model path is not a directory: {}", model_root_str);
+        std::process::exit(1);
+    }
+
+    // GH #496: a model that declares `[syscribe] minVersion` is refused by an older syscribe, for every
+    // command (including `mcp` and `lsp`), before anything reads it.
+    if let Err(m) = syscribe_model::min_version::check(model_root, env!("CARGO_PKG_VERSION")) {
+        eprintln!("Error: {m}");
         std::process::exit(1);
     }
 

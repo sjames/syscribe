@@ -7081,6 +7081,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // E221/W025 — a violated cross-parameter `parameterConstraints:` entry (GH #465), so `bind`
     // refuses it like E205 and `validate --config`/`--all-configs` report it.
     findings.extend(crate::feature_model::parameter_constraint_findings(elements).into_iter().filter(|f| f.code == "E221" || f.code == "W025" || f.code == "E250"));
+    // W329 — a feature newer than the model's declared `[syscribe] minVersion` (GH #496).
+    if let Some(root) = config.model_root.as_deref() {
+        findings.extend(crate::min_version::findings(elements, root));
+    }
     // E248/E249 — a derived parameter that cannot be evaluated or is out of range (GH #490).
     findings.extend(crate::derived::findings(elements));
     findings.extend(consumed_by_findings(elements, config));

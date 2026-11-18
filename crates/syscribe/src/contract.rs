@@ -143,8 +143,13 @@ pub fn cmd_schema(args: &[String]) -> i32 {
 }
 
 /// `syscribe capabilities [--json]`. Returns the exit code.
-pub fn cmd_capabilities(args: &[String]) -> i32 {
-    let doc = capabilities(&crate::mcp::tool_names());
+pub fn cmd_capabilities(args: &[String], model_root: Option<&std::path::Path>) -> i32 {
+    let mut doc = capabilities(&crate::mcp::tool_names());
+    // GH #496: with `-m <root>`, the minimum syscribe version that model declares (null when none).
+    let min = model_root.and_then(|r| syscribe_model::min_version::load(r).ok().flatten());
+    if model_root.is_some() {
+        doc["modelMinVersion"] = serde_json::json!(min.as_ref().map(|m| m.declared.clone()));
+    }
     if args.iter().any(|a| a == "--json") {
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
         return 0;
@@ -157,6 +162,9 @@ pub fn cmd_capabilities(args: &[String]) -> i32 {
     println!("\n## JSON contracts\n");
     for (k, v) in doc["jsonSchemas"].as_object().unwrap() {
         println!("- {k} {} — `syscribe {}`", v["version"].as_str().unwrap_or(""), v["command"].as_str().unwrap_or(""));
+    }
+    if let Some(m) = &min {
+        println!("\nThe model declares minVersion {} (this is syscribe {}).", m.declared, doc["version"].as_str().unwrap_or(""));
     }
     println!("\n{} commands, {} MCP tools, {} LSP custom requests. Use `--json` for the full document.", doc["commands"].as_array().unwrap().len(), doc["mcpTools"].as_array().unwrap().len(), doc["lspRequests"].as_array().unwrap().len());
     0

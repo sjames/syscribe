@@ -194,11 +194,16 @@ pub fn audit_findings(model_root: &Path, elements: &[RawElement]) -> Vec<syscrib
 /// `policy [--json]` — the effective policy and how this invocation is treated.
 pub fn cmd_policy(model_root: &Path, args: &[String]) -> i32 {
     let json = args.iter().any(|a| a == "--json");
+    // GH #496: the minimum syscribe version the model declares, beside the agent policy.
+    let min = syscribe_model::min_version::load(model_root).ok().flatten().map(|m| m.declared);
     let Some(p) = agent_policy::load(model_root) else {
         if json {
-            println!("{}", serde_json::json!({ "schemaVersion": "1.0", "configured": false }));
+            println!("{}", serde_json::json!({ "schemaVersion": "1.0", "configured": false, "minVersion": min }));
         } else {
             println!("No [agents] policy is configured in {}/.syscribe.toml.", model_root.display());
+            if let Some(m) = &min {
+                println!("Minimum syscribe version: {m}.");
+            }
         }
         return 0;
     };
@@ -216,6 +221,7 @@ pub fn cmd_policy(model_root: &Path, args: &[String]) -> i32 {
             serde_json::to_string_pretty(&serde_json::json!({
                 "schemaVersion": "1.0",
                 "configured": true,
+                "minVersion": min,
                 "protectedPaths": p.protected_paths,
                 "humanOnlyStatus": p.human_only_status,
                 "humanOnlyAnswers": p.human_only_answers,
@@ -243,6 +249,9 @@ pub fn cmd_policy(model_root: &Path, args: &[String]) -> i32 {
     }
     for m in &p.problems {
         println!("\nignored: {m}");
+    }
+    if let Some(m) = &min {
+        println!("\nMinimum syscribe version: {m}.");
     }
     println!("\nThis invocation is treated {treated}.");
     0

@@ -37,6 +37,7 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Is everything traced and tested  syscribe -m model/ audit
     Code no design/test names        syscribe -m model/ trace-code          (untraced code: no implementedBy/sourceFile; needs [traceCode])
     Baseline the untraced backlog    syscribe -m <root> trace-code --write-baseline   (then replace each TODO with a reason; the list only shrinks)
+    Require a syscribe version       .syscribe.toml: [syscribe] minVersion = ">=0.61.0"  ->  an older syscribe refuses the model; validate warns (W329) when a newer feature is used
     Fail CI on new untraced code     [traceCode] validate = true  ->  validate raises W326 (new) / W327 (stale); gate with --deny W326 --deny W327
 
 ## Understand a change
