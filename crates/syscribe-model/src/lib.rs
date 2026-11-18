@@ -46,6 +46,7 @@ pub mod fault;
 pub mod fault_campaign;
 pub mod fta;
 pub mod metrics;
+pub mod min_version;
 pub mod models;
 pub mod exec_evidence;
 pub mod port_types;

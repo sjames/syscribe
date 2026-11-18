@@ -28,6 +28,16 @@ syscribe validate
 
 ---
 
+## Requiring a syscribe version (`[syscribe] minVersion`)
+
+```toml
+# <model>/.syscribe.toml
+[syscribe]
+minVersion = ">=0.61.0"    # or "0.61.0"
+```
+
+A model that uses newer features loads without complaint in an older syscribe, which ignores the fields it does not know: `validate` passes and `build-config` silently exports fewer variables. `minVersion` closes that. Every command that reads the model, `syscribe-server`, `syscribe mcp` and `syscribe lsp` refuse it when the running version is older, exit `1` and name both versions; a value that is neither a version nor `>=<version>` is also an error. Commands that need no model (`--version`, `help`, `spec`, `capabilities`) still run. `syscribe policy` reports the declared minimum (`minVersion` in `--json`), `capabilities -m <root>` reports it as `modelMinVersion`, and `validate` warns `W329` when the model uses a feature newer than the declared minimum (a parameter's `derivedFrom:`, `buildVar:` on a `CalculationDef`, `amendments:`), so the minimum is raised when a feature starts being used; gate with `--deny W329`. Versions older than the one that introduced the key cannot know it, so the refusal protects every raise from then on.
+
 ## Getting help
 
 Every command has a detailed man page (synopsis, options, examples, exit codes, see-also), reachable two ways — neither needs a model directory:

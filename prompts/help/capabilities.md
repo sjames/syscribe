@@ -11,6 +11,10 @@ present (`stagedConfiguration`, `paramsExport`, `variantDiff`, `coverageMatrix`,
 the MCP tool names and the custom LSP requests. The same document is returned in the `experimental.syscribe`
 field of the LSP `initialize` result.
 
+With `-m <root>` the document also carries `modelMinVersion`: the `[syscribe] minVersion` that model declares
+(`null` when none). A model that needs a newer syscribe than this one is refused by every command, so a front
+end reads it from the model, not from the version it finds installed.
+
 A capability is `true` when every command it needs exists, so a front end tests the capability it wants rather
 than comparing version numbers.
 
