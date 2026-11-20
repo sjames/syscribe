@@ -309,6 +309,18 @@ struct StepsArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct NextItemArgs {
+    /// How many candidates to list (default 5).
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DoneCheckArgs {
+    /// The PlanningItem (id or qualified name).
+    item: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct QuestionArgs {
     /// The PlanningItem (id or qualified name).
     item: String,
@@ -2300,6 +2312,38 @@ impl SyscribeMcp {
                 let shown = if args.open.unwrap_or(false) { crate::steps::prune_done(&full, true).unwrap_or_else(|| full.clone()) } else { full };
                 ok(json!({ "schemaVersion": "1.0", "rollup": roll, "hints": notes, "tree": shown }))
             }
+            Err(m) => tool_error(m),
+        }
+    }
+
+    #[tool(
+        description = "The PlanningItem to take next: unclaimed, unblocked, leaf items that are todo or in_progress, resumable work first, \
+        each with its hazards (an open question an agent may answer, overlap with active work, W311), and every item not offered with \
+        the reason (claimed, blocked, waiting on a person, composite). Take it with the CLI `claim` (ownership is never set through a tool). \
+        Same data as `syscribe next --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn next_item(&self, Parameters(args): Parameters<NextItemArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(crate::workflow_cmd::next_json(&store.model_root, &store.elements, args.limit.unwrap_or(5).max(1) as usize))
+    }
+
+    #[tool(
+        description = "Whether a PlanningItem may be called done, and exactly what is missing: steps, open questions, blockers, evidence (E719/W310), \
+        validate, the stereotype gates and trace-code, each pass, fail, skip or handoff (the policy reserves `done` for a person). Read-only; \
+        it never sets the status. Same data as `syscribe done --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn done_check(&self, Parameters(args): Parameters<DoneCheckArgs>) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        // An MCP client is an agent: it is told when the policy reserves `done` for a person.
+        let policy = syscribe_model::agent_policy::load(&store.model_root);
+        let handoff = |item: &RawElement| {
+            let ty = item.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+            policy.as_ref().and_then(|p| p.check_status(&ty, "done").err()).map(|r| r.to_string())
+        };
+        match crate::workflow_cmd::done_checks(&store.model_root, &store.elements, &store.config, &args.item, &handoff) {
+            Ok((id, checks)) => ok(crate::workflow_cmd::done_json(&id, &checks)),
             Err(m) => tool_error(m),
         }
     }
@@ -4538,6 +4582,7 @@ impl ServerHandler for SyscribeMcp {
                 let item = req_arg("item")?;
                 format!(
                     "Close PlanningItem '{item}'. Follow this sequence:\n\
+                     0. `done_check` item={item}: each `fail` is something still missing (steps, open questions, blockers, evidence, validate, gates, trace-code); a `handoff` means a person sets the status. Repeat it after every change; stop only when `ready` is true.\n\
                      1. `get_element` ref={item} detail:true: its status, `achieves`, `evidence`, `blockedBy` and children.\n\
                      2. `evidence` on each requirement it achieves. A leaf item claiming done needs at least one non-waived, resolving `evidence` entry (E719), and the achieved requirement must meet the verification bar (W310).\n\
                      3. `update_element` ref={item} with fields {{evidence: [...]}} and dry_run:true. The field is replaced, so send every existing entry plus the new one.\n\

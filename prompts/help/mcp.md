@@ -147,6 +147,12 @@ stable id, a qualified name, or a display name. List/grid tools accept
   as `syscribe propagate --json`.
 - `steps {item, open?}` — a PlanningItem's child items as a tree with status, owner, claim, blockers,
   open questions and a roll-up of leaves done; parent/leaf disagreements are `hints`, not findings.
+- `next_item {limit?}` — the PlanningItem to take next (unclaimed, unblocked, leaf; unclaimed `in_progress`
+  first), each candidate's hazards, and every item not offered with the reason. Ownership is the CLI
+  `claim`, never a tool. Same data as `syscribe next --json`.
+- `done_check {item}` — whether a PlanningItem may be called done and exactly what is missing (steps,
+  questions, blockers, evidence, validate, gates, trace-code; `handoff` when the policy reserves `done`
+  for a person); read-only. Same data as `syscribe done --json`.
 - `impact {ref | files | since, direction?, depth?}` — from one element, or from changed `files` / a git
   `since` revision: each file is mapped to the elements that own, implement, test or cite it and
   the result is reported with `changed` flags, `unmapped` files and the `unreviewed` requirements/tests

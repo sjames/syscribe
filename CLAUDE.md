@@ -348,7 +348,7 @@ Discover with `syscribe help <Type>`, `syscribe help --search <keyword>`, `syscr
 - **TestCase** — status: draft · review · approved · active · retired; required: `id`, `name`, `status`, `testLevel`; commands: `next-id`, `set`, `scaffold-gherkin`, `ingest-results`, `who-verifies`
 - **TestPlan** — status: draft · review · approved · active · retired; required: `type`, `id`, `name`; commands: `next-id`, `set`, `testplan`
 - **ADR** — status: proposed · accepted · deprecated · superseded; required: `id`, `name`, `status`; commands: `next-id`, `set`
-- **PlanningItem** — status: todo · in_progress · blocked · done; required: `id`, `name`, `status`; commands: `next-id`, `set`, `claim`, `release`, `steps`, `questions`
+- **PlanningItem** — status: todo · in_progress · blocked · done; required: `id`, `name`, `status`; commands: `next-id`, `set`, `claim`, `release`, `steps`, `questions`, `next`, `done`
 
 ### Before declaring work done
 

@@ -181,6 +181,14 @@ pub fn check_status(model_root: &Path, elements: &[RawElement], elem: &RawElemen
     }
 }
 
+/// Why this invocation could not set `item` to `done` itself — the policy reserves that status for a person and
+/// the invocation is an agent's — or `None` when it may (GH #485: `syscribe done` reports it as a handoff).
+pub fn done_refusal(item: &RawElement) -> Option<String> {
+    let (Some(p), true) = (policy(), agent_active()) else { return None };
+    let ty = item.frontmatter.element_type.as_ref().map(syscribe_model::baseline::element_type_name).unwrap_or_default();
+    p.check_status(&ty, "done").err().map(|r| r.to_string())
+}
+
 /// The findings `validate` adds for the policy: malformed `[agents]` entries and, from git history, agent
 /// commits that changed a protected path or set a human-only status, and (`W323`) reserved questions whose
 /// answer an agent wrote — the last also without a policy, for a question that says `answerBy: human`.

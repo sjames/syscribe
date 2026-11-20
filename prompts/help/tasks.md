@@ -12,6 +12,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Record the delivering commit     syscribe -m model/ set <PI-id> evidence.add commit=<sha>
     Commits that delivered an item   syscribe -m model/ log --item <PI-id>
     Rename or move, fixing refs      syscribe -m model/ move <src> <dest> [--dry-run]
+    What to work on next             syscribe -m model/ next                 (unclaimed, unblocked items, with the reason for each skip)
+    May I call this item done        syscribe -m model/ done <PI-id>         (steps, questions, blockers, evidence, validate, gates, trace-code; exit 2 = something missing)
     Claim / release shared work      syscribe -m model/ claim <PI-id> --by <agent>  /  release <PI-id>
     Record a decision you need       syscribe -m model/ set <PI-id> question.add text="Which UART?" [recommended=UART2]
     Reserve a decision to a person   answerBy: human on the question (or [agents] human_only_answers = true); see `help policy`
