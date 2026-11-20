@@ -794,7 +794,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W891` | A test or plan `requiresCapabilities` that none of its `runsOn` environments offers |
 | `W892` | A non-draft test or plan runs on a `retired` environment or one with `calibrationStatus: expired` |
 
-## TestPlan (E600–E606, W610–W616)
+## TestPlan (E600–E608, W610–W616)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -805,6 +805,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E604` | error | `status` is not one of `draft · review · approved · active · retired` |
 | `E605` | error | a `selection.domains` value is not one of `system`/`hardware`/`software` |
 | `E606` | error | a `configurations:` entry does not resolve to a `Configuration` |
+| `E607` | error | a required-coverage declaration is malformed: `conditions:` is not a map of axis → non-empty list of uniquely named points, `minUnits:` is below 1 or not an integer, `mode:` is not `each`/`product`, `points:` is not a list of maps, `points:` is given with `mode:`, or `mode:`/`points:` has no axis to apply to (ADR-SYS-COVERAGE-001, REQ-TRS-PLANCOV-001) |
+| `E608` | error | a `points:` entry names an axis or a point that `conditions:` does not declare (REQ-TRS-PLANCOV-001) |
 | `W610` | warning | `scope` is not in the recommended vocabulary (`unit·smoke·integration·hil·certification·security·regression`) |
 | `W611` | warning | a member `TestCase` is active in **none** of the plan's bound configurations (escaping member) |
 | `W612` | warning | the effective TestCase set is empty (no resolvable `testCases:` and no `selection:` match) |

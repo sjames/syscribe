@@ -3132,6 +3132,10 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 | `demonstrates` | list of id-or-qualname | optional | `Requirement` / `SafetyGoal` / `CybersecurityGoal` / `Argument` elements the plan is offered as evidence for (a safety-case leg). Not mandatory. Each must resolve (`E603`). |
 | `testCases` | list of `TC-*` refs | optional | Explicit members. Each must resolve to a `TestCase` (`E601`). |
 | `selection` | object | optional | Additive membership query (see below). |
+| `conditions` | map of axis → list of points | optional | Required coverage (ADR-SYS-COVERAGE-001): named axes (basic names), each a non-empty list of uniquely named points — `{name, value?}` or a bare name. Malformed is `E607`. |
+| `minUnits` | integer ≥ 1 | optional | Distinct units that must pass at each required point. Below 1 or not an integer is `E607`. |
+| `mode` | `each` \| `product` | optional | How the axes combine: `each` (default) requires every point of every axis on its own, `product` every combination of one point per axis. Needs `conditions:`; exclusive with `points:` (`E607`). |
+| `points` | list of maps axis → point | optional | An explicit list of required coordinate sets; replaces `mode:`. A name `conditions:` does not declare is `E608`. |
 | `tags` | list of strings | optional | Free labels (also matched by `selection.tags`). |
 
 **`selection` sub-fields** (all optional; an absent sub-field is no constraint; a `selection` with no sub-fields matches **nothing**):
@@ -3169,7 +3173,7 @@ Integration plan executed before each delivery/survey release.
 
 **Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). The validation rules `E600`–`E606` / `W610`–`W616` are summarised below; see `syscribe help testplan` for the CLI.
 
-**Validation summary:** `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
+**Validation summary:** `E607` (malformed required-coverage declaration), `E608` (`points:` names an undeclared axis or point), `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
 
 #### 8.12.8 Invariant properties: `Where`, `Except under`, `within`, `always`, `never`
 
@@ -6748,7 +6752,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W540`–`W544` | Native SysML v2 submodel ingestion (`sysmlSubmodel:`) | `ADR-SYS-SYSMLV2-001`; catalogue |
 | `E550`–`E553`, `W550`–`W553` | Foreign-format stdio plugins (`foreignFormat:`) and results plugins | `ADR-SYS-PLUGIN-002`; `REQ-TRS-RESPLUG-001`; catalogue |
 | `E560`–`E561`, `W560`–`W563` | Annotated-source ingestion (`annotationFormat:`) | `ADR-SYS-ANNOTATE-001`; catalogue |
-| `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
+| `E600`–`E608`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
 | `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.10 |
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`, `W931`, `W932` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
 | `E980`–`E984`, `W980`–`W984`, `W987` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
