@@ -239,6 +239,7 @@ fn new_record(test_case: String, scenario: Option<String>) -> ResultRecord {
         provenance: Some(Provenance::default()),
         tc_hash: None,
         req_hashes: Default::default(),
+        condition: Default::default(),
     }
 }
 

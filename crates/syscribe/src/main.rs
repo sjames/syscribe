@@ -1559,7 +1559,7 @@ fn main() {
                 let mut file: Option<&str> = None;
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--format" || rest[i] == "--run" || rest[i] == "--config" || rest[i] == "--environment" || rest[i] == "--build-commit" || rest[i] == "--operator" || rest[i] == "--artefact" || rest[i] == "--utc-offset" { i += 2; continue; }
+                    if rest[i] == "--format" || rest[i] == "--run" || rest[i] == "--config" || rest[i] == "--environment" || rest[i] == "--build-commit" || rest[i] == "--operator" || rest[i] == "--artefact" || rest[i] == "--utc-offset" || rest[i] == "--unit" || rest[i] == "--unit-of" || rest[i] == "--lot" || rest[i] == "--condition" { i += 2; continue; }
                     if rest[i].starts_with("--") { i += 1; continue; }
                     file = Some(rest[i].as_str());
                     break;
@@ -1581,11 +1581,15 @@ fn main() {
                             operator: val("--operator"),
                             utc_offset: val("--utc-offset"),
                             artefacts: rest.windows(2).filter(|w| w[0] == "--artefact").map(|w| w[1].as_str()).collect(),
+                            unit: val("--unit"),
+                            unit_of: val("--unit-of"),
+                            lot: val("--lot"),
+                            conditions: rest.windows(2).filter(|w| w[0] == "--condition").map(|w| w[1].as_str()).collect(),
                         };
                         ingest::cmd_ingest_results(model_root, format, f, val("--run"), val("--config"), &opts, &elems)
                     }
                     None => {
-                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log|records] [--run <run-id>] [--config <CONF-id>] [--replace] [--strict] [--environment <TE-id>] [--build-commit <sha>] [--operator <name>] [--artefact <file>]... [--utc-offset <Z|+HH:MM>] <file>");
+                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit|session-log|records] [--run <run-id>] [--config <CONF-id>] [--replace] [--strict] [--environment <TE-id>] [--build-commit <sha>] [--operator <name>] [--artefact <file>]... [--unit <id> [--unit-of <PartDef>] [--lot <lot>]] [--condition <axis>=<point>]... [--utc-offset <Z|+HH:MM>] <file>");
                         std::process::exit(1);
                     }
                 }

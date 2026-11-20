@@ -28,6 +28,11 @@ pub struct ResultRecord {
     pub measurements: Vec<Measurement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Provenance>,
+    /// The condition point(s) this run exercised: axis → point name (`{"ambient": "hot"}`), the coordinates a
+    /// `TestPlan`'s `conditions:` declare (ADR-SYS-COVERAGE-001). Part of the record's key, so results at
+    /// different conditions never replace each other. Absent means unconditioned.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub condition: std::collections::BTreeMap<String, String>,
     /// Set by the tool when the record is joined to its TestCase (REQ-TRS-RESJOIN-001): the hash of that TestCase
     /// as it was. Whatever a report says here is discarded; a producer cannot vouch for freshness.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -65,6 +70,9 @@ pub struct Provenance {
     pub environment: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operator: Option<String>,
+    /// The unit under test (GH #501): which serial or sample this run was on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<Unit>,
     /// The program that produced the report, as it names itself (`Robot 7.4.2`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool: Option<String>,
@@ -75,6 +83,19 @@ pub struct Provenance {
     /// Referenced by URI and hash, never copied.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artefacts: Vec<Artefact>,
+}
+
+/// The unit (serial, sample) a record was measured on. Units are not model elements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Unit {
+    /// Free text: a serial number or sample id.
+    pub id: String,
+    /// The part definition the unit is an instance of; resolved at ingest and stored by qualified name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub of: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lot: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -94,10 +115,20 @@ pub struct Artefact {
     pub hash: String,
 }
 
+/// What identifies a record: test, scenario, environment, condition, unit.
+pub type RecordKey = (String, Option<String>, Option<String>, Vec<(String, String)>, Option<String>);
+
 impl ResultRecord {
-    /// The key a later ingest supersedes: test, scenario, environment.
-    pub fn key(&self) -> (String, Option<String>, Option<String>) {
-        (self.test_case.clone(), self.scenario.clone(), self.provenance.as_ref().and_then(|p| p.environment.clone()))
+    /// The key a later ingest supersedes: test, scenario, environment, condition and unit (ADR-SYS-COVERAGE-001),
+    /// so a result at another condition, or on another unit, is a different result rather than a repeat.
+    pub fn key(&self) -> RecordKey {
+        (
+            self.test_case.clone(),
+            self.scenario.clone(),
+            self.provenance.as_ref().and_then(|p| p.environment.clone()),
+            self.condition.iter().map(|(a, p)| (a.clone(), p.clone())).collect(),
+            self.provenance.as_ref().and_then(|p| p.unit.as_ref().map(|u| u.id.clone())),
+        )
     }
 }
 
@@ -159,7 +190,7 @@ pub fn file_artefact(path: &str) -> Result<Artefact, String> {
 /// Keep the last record of each (test case, scenario, environment) key, in the order of those last occurrences: one
 /// file is one run, and a repeated key there is a retry or a correction, never two results.
 pub fn keep_last_per_key(records: Vec<ResultRecord>) -> Vec<ResultRecord> {
-    let mut last: std::collections::HashMap<(String, Option<String>, Option<String>), usize> = std::collections::HashMap::new();
+    let mut last: std::collections::HashMap<RecordKey, usize> = std::collections::HashMap::new();
     for (i, r) in records.iter().enumerate() {
         last.insert(r.key(), i);
     }
@@ -205,6 +236,19 @@ fn validate(r: &mut ResultRecord) -> Result<(), String> {
     if let Some(p) = &mut r.provenance {
         check_provenance(p)?;
     }
+    let mut cleaned = std::collections::BTreeMap::new();
+    for (axis, point) in std::mem::take(&mut r.condition) {
+        let (axis, point) = (one_line(&axis), one_line(&point));
+        let basic = axis.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && axis.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !basic {
+            return Err(format!("condition axis '{axis}' is not a basic name (letters, digits, `_`)"));
+        }
+        if point.is_empty() {
+            return Err(format!("condition '{axis}' has an empty point"));
+        }
+        cleaned.insert(axis, point);
+    }
+    r.condition = cleaned;
     Ok(())
 }
 
@@ -258,6 +302,18 @@ fn check_provenance(p: &mut Provenance) -> Result<(), String> {
     }
     if let Some(t) = &mut p.tool {
         *t = one_line(t);
+    }
+    if let Some(u) = &mut p.unit {
+        u.id = one_line(&u.id);
+        if u.id.is_empty() {
+            return Err("unit has no id".to_string());
+        }
+        for v in [&mut u.of, &mut u.lot].into_iter().flatten() {
+            *v = one_line(v);
+            if v.is_empty() {
+                return Err("unit.of / unit.lot is empty".to_string());
+            }
+        }
     }
     if let Some(e) = &mut p.environment {
         *e = one_line(e);
@@ -369,5 +425,58 @@ mod tests {
     fn unknown_fields_are_rejected_so_typos_do_not_pass() {
         let e = parse(r#"[{"testCase":"TC-1","verdict":"pass","verdit":"fail"}]"#).unwrap_err();
         assert!(e.contains("verdit"), "{e}");
+    }
+
+    fn one(j: &str) -> Result<Vec<ResultRecord>, String> {
+        let mut v = parse(j)?;
+        validate_all(&mut v)?;
+        Ok(v)
+    }
+
+    #[test]
+    fn condition_and_unit_are_read_and_key_the_record() {
+        let v = one(r#"[{"testCase":"T","verdict":"pass","condition":{"ambient":"hot"},"provenance":{"unit":{"id":"SN-1","of":"P::Heater","lot":"L7"}}}]"#).unwrap();
+        assert_eq!(v[0].condition["ambient"], "hot");
+        assert_eq!(v[0].provenance.as_ref().unwrap().unit.as_ref().unwrap().id, "SN-1");
+        assert_eq!(v[0].key().3, vec![("ambient".to_string(), "hot".to_string())]);
+        assert_eq!(v[0].key().4.as_deref(), Some("SN-1"));
+    }
+
+    #[test]
+    fn another_condition_or_unit_is_another_result_not_a_repeat() {
+        let recs = one(
+            r#"[{"testCase":"T","verdict":"pass","condition":{"ambient":"cold"}},
+                {"testCase":"T","verdict":"fail","condition":{"ambient":"hot"}},
+                {"testCase":"T","verdict":"pass","provenance":{"unit":{"id":"SN-1"}}},
+                {"testCase":"T","verdict":"pass","provenance":{"unit":{"id":"SN-2"}}},
+                {"testCase":"T","verdict":"pass"},
+                {"testCase":"T","verdict":"fail"}]"#,
+        )
+        .unwrap();
+        let kept = keep_last_per_key(recs);
+        assert_eq!(kept.len(), 5, "only the two unconditioned, unit-less records are one key");
+        assert_eq!(kept.iter().filter(|r| r.condition.is_empty() && r.provenance.is_none()).next().unwrap().verdict, Verdict::Fail, "the later one wins");
+    }
+
+    #[test]
+    fn malformed_condition_or_unit_is_rejected() {
+        for bad in [
+            r#"[{"testCase":"T","verdict":"pass","condition":{"my axis":"hot"}}]"#,
+            r#"[{"testCase":"T","verdict":"pass","condition":{"ambient":""}}]"#,
+            r#"[{"testCase":"T","verdict":"pass","condition":{"ambient":1}}]"#,
+            r#"[{"testCase":"T","verdict":"pass","provenance":{"unit":{"id":""}}}]"#,
+            r#"[{"testCase":"T","verdict":"pass","provenance":{"unit":{"of":"P"}}}]"#,
+            r#"[{"testCase":"T","verdict":"pass","provenance":{"unit":{"id":"S","colour":"red"}}}]"#,
+        ] {
+            assert!(one(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn records_without_the_new_fields_still_read_and_round_trip_unchanged() {
+        let v = one(r#"[{"testCase":"T","verdict":"pass"}]"#).unwrap();
+        assert!(v[0].condition.is_empty());
+        let j = serde_json::to_string(&v[0]).unwrap();
+        assert!(!j.contains("condition") && !j.contains("unit"), "{j}");
     }
 }

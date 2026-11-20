@@ -223,7 +223,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--where", ValueOrEq),
         ],
         "coverage" => &[("--json", Switch), LENS, ("--plan", Value)],
-        "ingest-results" => &[("--format", Value), ("--run", Value), ("--replace", Switch), ("--strict", Switch), ("--environment", Value), ("--build-commit", Value), ("--operator", Value), ("--artefact", Value), ("--utc-offset", Value), LENS],
+        "ingest-results" => &[("--format", Value), ("--run", Value), ("--replace", Switch), ("--strict", Switch), ("--environment", Value), ("--build-commit", Value), ("--operator", Value), ("--artefact", Value), ("--utc-offset", Value), ("--unit", Value), ("--unit-of", Value), ("--lot", Value), ("--condition", Value), LENS],
         "import-reqif" => &[("--into", Value), ("--id-prefix", Value), ("--class", Value), ("--domain", Value), ("--update", Switch), ("--dry-run", Switch)],
         "simulate" => &[("--json", Switch), ("--strict", Switch), ("--do", Value), ("--crosscheck", Value), ("--scenario", Value), ("--trace", Switch), ("--record", Switch), ("--run", Value), ("--config", Value), ("--all", Switch), ("--coverage", Switch), ("--min-states", Value), ("--min-transitions", Value), ("--min-guards", Value), ("--min-nodes", Value), ("--min-edges", Value)],
         "inject" => &[("--json", Switch), ("--report-only", Switch), ("--ft", Value), ("--max-order", Value), ("--fmea", Value), ("--config", Value), ("--record", Switch), ("--run", Value), ("--report", Value), ("--consistency", Switch), ("--consistency-order", Value), ("--max-runs", Value)],
