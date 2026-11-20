@@ -221,6 +221,46 @@ pub fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
         .collect()
 }
 
+/// The number of example rows of each Scenario Outline of a TestCase body, by outline title (an outline with no rows
+/// is absent). Rows are numbered `1..=N` across its `Examples:` tables, as `<title> [row N]`.
+fn outline_row_counts(doc: &str) -> HashMap<String, usize> {
+    let mut out: HashMap<String, usize> = HashMap::new();
+    if !doc.contains("Scenario Outline:") {
+        return out;
+    }
+    for sc in crate::sm_scen::extract_scenarios(doc) {
+        if let (Some(outline), true) = (&sc.outline, sc.title.contains(" [row ")) {
+            *out.entry(outline.trim().to_string()).or_insert(0) += 1;
+        }
+    }
+    out
+}
+
+/// What a Scenario Outline's recorded rows say about the outline (GH #500): the outline's own verdict is the worst of
+/// its rows, as it already is for a Cucumber report and for `simulate --record`, so a row recorded through `records`
+/// as `<title> [row N]` reaches `trace`, `matrix`, `testplan` and `audit`. A failing row fails the outline whatever
+/// else was recorded; the outline passes only when every one of its `rows` rows has a pass, so a run that left a
+/// condition out is not a pass (it reads as unknown). An outline with no row recorded keeps its own verdict.
+fn outline_verdict(results: &ResultsData, tc_id: &str, title: &str, rows: usize, own: FnVerdict) -> FnVerdict {
+    let verdicts: Vec<FnVerdict> = (1..=rows).map(|n| results.scenario_verdict(tc_id, &format!("{title} [row {n}]"))).collect();
+    if verdicts.iter().all(|v| *v == FnVerdict::Missing) {
+        return own;
+    }
+    if own == FnVerdict::Fail || verdicts.contains(&FnVerdict::Fail) {
+        return FnVerdict::Fail;
+    }
+    if verdicts.iter().any(|v| matches!(v, FnVerdict::Ignored | FnVerdict::Missing)) {
+        return FnVerdict::Ignored;
+    }
+    if verdicts.contains(&FnVerdict::Flaky) || own == FnVerdict::Flaky {
+        return FnVerdict::Flaky;
+    }
+    if verdicts.contains(&FnVerdict::Waived) {
+        return FnVerdict::Waived;
+    }
+    FnVerdict::Pass
+}
+
 /// Pass only when everything passed; `waived` when everything passed or was waived and something was waived (a
 /// waiver is never shown as a pass); otherwise unknown.
 fn rolled_up(all_pass_or_waived: bool, waived: bool) -> crate::safety_case::Verdict {
@@ -267,8 +307,14 @@ pub fn testcase_verdict(tc: &crate::element::RawElement, results: Option<&Result
     }
     let mut all_pass = true;
     let mut waived = false;
+    let outlines = outline_row_counts(&tc.doc);
     for s in &scenarios {
-        match results.scenario_verdict(tc_id, s) {
+        let own = results.scenario_verdict(tc_id, s);
+        let verdict = match outlines.get(s.as_str()) {
+            Some(&rows) => outline_verdict(results, tc_id, s, rows, own),
+            None => own,
+        };
+        match verdict {
             FnVerdict::Fail => return V::Fail,
             FnVerdict::Pass => {}
             FnVerdict::Waived => waived = true,

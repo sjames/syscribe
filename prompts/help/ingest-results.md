@@ -178,6 +178,11 @@ A `testCase` that is ambiguous, or names an element that is not a TestCase, reje
 nothing. One that names nothing is reported with a count and the first few keys, kept under `unmatched`, listed
 by `results failures`, and counts as evidence for nothing; `--strict` rejects such a file instead.
 
+A Scenario Outline run at several conditions is recorded one row per record, `scenario: "<title> [row N]"`
+(rows numbered across its `Examples:` tables). Each row keeps its own result, and the outline's verdict is built
+from them as it is for a Cucumber report: a failing row fails it, and it passes only when every row has passed;
+a row left out makes it `unknown`, a row the table does not have counts for nothing.
+
 The rig a result was made on is `provenance.environment`, or `--environment` for records that name none.
 Results are kept per rig, and a TestPlan with `runsOn:` judges only the rigs it lists (see `testplan`): all
 must pass, and a rig with no passing result leaves the plan `incomplete`. A plan without `runsOn:` takes the
