@@ -136,3 +136,64 @@ fn the_plan_list_shows_the_same_verdict() {
     let (out, _) = run(&m, &["testplan"]);
     assert!(out.contains("incomplete"), "{out}");
 }
+
+fn add_plan(root: &Path, id: &str, status: &str, extra: &str) {
+    std::fs::write(root.join(format!("{id}.md")), format!("---\ntype: TestPlan\nid: {id}\nname: \"Plan {id}\"\nstatus: {status}\ntestCases: [TC-HTR-001]\n{extra}---\n\nPlan.\n")).unwrap();
+}
+
+fn trace(root: &Path) -> String {
+    run(root, &["trace", "REQ-HTR-001"]).0
+}
+
+#[test]
+fn trace_shows_the_requirements_required_coverage_and_its_gaps() {
+    let m = model(AMB, "draft");
+    ingest(&m, &[rec("pass", "cold", "", "")]);
+    let out = trace(&m);
+    assert!(out.contains("Required coverage: **incomplete** (worst over 1 plan)"), "{out}");
+    assert!(out.contains("TP-HTR-001 incomplete:") && out.contains("[ambient=hot] (missing)"), "{out}");
+    ingest(&m, &[rec("pass", "nominal", "", ""), rec("pass", "hot", "", "")]);
+    let out = trace(&m);
+    assert!(out.contains("Required coverage: **pass**"), "{out}");
+    assert!(!out.contains("TP-HTR-001 incomplete"), "{out}");
+}
+
+#[test]
+fn the_requirement_takes_the_worst_standing_over_its_plans() {
+    let m = model(AMB, "draft");
+    add_plan(&m, "TP-HTR-002", "draft", "conditions:\n  ambient: [cold]\n");
+    ingest(&m, &[rec("pass", "cold", "", "")]);
+    // TP-HTR-002 needs only cold (complete); TP-HTR-001 needs hot too (incomplete)
+    let out = trace(&m);
+    assert!(out.contains("Required coverage: **incomplete** (worst over 2 plans)"), "{out}");
+    assert!(out.contains("TP-HTR-001 incomplete") && !out.contains("TP-HTR-002 incomplete"), "{out}");
+    // a failure in either plan makes it fail
+    ingest(&m, &[rec("fail", "hot", "", "")]);
+    assert!(trace(&m).contains("Required coverage: **fail**"));
+}
+
+#[test]
+fn a_retired_plan_and_a_plan_without_a_declaration_do_not_count() {
+    let m = model("", "draft"); // TP-HTR-001 declares nothing
+    add_plan(&m, "TP-HTR-002", "retired", AMB);
+    ingest(&m, &[rec("pass", "cold", "", "")]);
+    assert!(!trace(&m).contains("Required coverage"), "{}", trace(&m));
+}
+
+#[test]
+fn only_the_gaps_of_the_requirements_own_verifiers_count() {
+    let m = model(AMB, "draft");
+    // a second TestCase in the plan that verifies something else
+    std::fs::write(m.join("REQ-HTR-002.md"), "---\nid: REQ-HTR-002\ntype: Requirement\nname: \"Other\"\nstatus: approved\nreqDomain: system\nreqClass: system\n---\n\nOther.\n").unwrap();
+    std::fs::write(m.join("TC-HTR-002.md"), "---\nid: TC-HTR-002\ntype: TestCase\ntestLevel: L4\nstatus: active\nname: \"Other\"\nverifies: [REQ-HTR-002]\n---\n\n```gherkin\nFeature: F\n  Scenario: S\n    Given x\n```\n").unwrap();
+    std::fs::write(m.join("TP-HTR-001.md"), format!("---\ntype: TestPlan\nid: TP-HTR-001\nname: P\nstatus: draft\ntestCases: [TC-HTR-001, TC-HTR-002]\n{AMB}---\n\nPlan.\n")).unwrap();
+    ingest(&m, &[rec("pass", "cold", "", ""), rec("pass", "nominal", "", ""), rec("pass", "hot", "", "")]);
+    let out = trace(&m);
+    assert!(out.contains("Required coverage: **pass**"), "TC-HTR-002's gaps are not REQ-HTR-001's:\n{out}");
+}
+
+#[test]
+fn without_results_trace_adds_nothing() {
+    let m = model(AMB, "draft");
+    assert!(!trace(&m).contains("Required coverage"));
+}

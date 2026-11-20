@@ -307,6 +307,61 @@ pub(crate) fn plan_gaps(
     syscribe_model::plan_coverage::gaps(&cov, &members, &envs, &unhealthy, results)
 }
 
+/// One plan's required-coverage standing for a set of verifying TestCases.
+pub(crate) struct PlanStanding {
+    pub plan: String,
+    /// `pass | incomplete | fail`
+    pub verdict: &'static str,
+    pub gaps: Vec<syscribe_model::plan_coverage::Gap>,
+}
+
+/// The standing of a requirement under required coverage: every non-retired plan that declares coverage and has
+/// one of `verifiers` as a member, judged on those members only. The requirement's own standing is the worst of
+/// them (`fail` > `incomplete` > `pass`); `None` when no plan declares coverage over its verifiers, so a model
+/// that does not use plan coverage reads as before (ADR-SYS-COVERAGE-001).
+pub(crate) fn requirement_plan_standing(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+    verifiers: &[String],
+) -> Option<(&'static str, Vec<PlanStanding>)> {
+    let mut rows: Vec<PlanStanding> = Vec::new();
+    for plan in elements.iter().filter(|e| Resolver::is_test_plan(e)) {
+        if plan.frontmatter.status.as_deref() == Some("retired") {
+            continue;
+        }
+        if !matches!(syscribe_model::plan_coverage::parse(&plan.frontmatter.extra), Ok(Some(_))) {
+            continue;
+        }
+        let members: BTreeSet<String> = lib::effective_testcases(plan, elements, resolver).iter().map(|t| syscribe_model::result_join::canonical(t)).collect();
+        let mine: BTreeSet<&String> = verifiers.iter().filter(|v| members.contains(*v)).collect();
+        if mine.is_empty() {
+            continue;
+        }
+        let gaps: Vec<_> = plan_gaps(plan, elements, resolver, results).into_iter().filter(|g| mine.contains(&g.test)).collect();
+        let verdict = if gaps.iter().any(|g| g.reason == syscribe_model::plan_coverage::GapReason::Failed) {
+            "fail"
+        } else if gaps.is_empty() {
+            "pass"
+        } else {
+            "incomplete"
+        };
+        rows.push(PlanStanding { plan: disp_id(plan), verdict, gaps });
+    }
+    if rows.is_empty() {
+        return None;
+    }
+    rows.sort_by(|a, b| a.plan.cmp(&b.plan));
+    let worst = if rows.iter().any(|r| r.verdict == "fail") {
+        "fail"
+    } else if rows.iter().any(|r| r.verdict == "incomplete") {
+        "incomplete"
+    } else {
+        "pass"
+    };
+    Some((worst, rows))
+}
+
 fn plan_verdict_base(
     plan: &RawElement,
     elements: &[RawElement],

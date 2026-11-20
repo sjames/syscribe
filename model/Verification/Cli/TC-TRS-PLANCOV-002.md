@@ -16,6 +16,11 @@ testFunctions:
   - testplan_detail_lists_the_gaps_and_json_carries_them
   - an_approved_plan_with_gaps_raises_w617_and_a_complete_one_does_not
   - the_plan_list_shows_the_same_verdict
+  - trace_shows_the_requirements_required_coverage_and_its_gaps
+  - the_requirement_takes_the_worst_standing_over_its_plans
+  - a_retired_plan_and_a_plan_without_a_declaration_do_not_count
+  - only_the_gaps_of_the_requirements_own_verifiers_count
+  - without_results_trace_adds_nothing
 ---
 
 ```gherkin

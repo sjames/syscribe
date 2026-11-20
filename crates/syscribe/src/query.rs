@@ -2276,6 +2276,24 @@ pub fn cmd_trace(
             }
         }
         println!();
+        // Required coverage declared by the plans that include a verifier (ADR-SYS-COVERAGE-001): the worst
+        // standing over those plans, with the cells that have no pass.
+        if evidence.is_some() {
+            let ids: Vec<String> = sorted_v.iter().filter_map(|t| resolve(elements, resolver, t)).map(syscribe_model::result_join::canonical).collect();
+            if let Some((worst, rows)) = crate::testplan::requirement_plan_standing(elements, resolver, evidence, &ids) {
+                println!("Required coverage: **{worst}** (worst over {} plan{})", rows.len(), if rows.len() == 1 { "" } else { "s" });
+                println!();
+                for r in rows.iter().filter(|r| r.verdict != "pass") {
+                    const SHOWN: usize = 5;
+                    let list = r.gaps.iter().take(SHOWN).map(|g| g.describe()).collect::<Vec<_>>().join("; ");
+                    let more = if r.gaps.len() > SHOWN { format!("; and {} more", r.gaps.len() - SHOWN) } else { String::new() };
+                    println!("- {} {}: {list}{more}", r.plan, r.verdict);
+                }
+                if rows.iter().any(|r| r.verdict != "pass") {
+                    println!();
+                }
+            }
+        }
         // Why a verifier failed: the retained JUnit message and time (GH #258).
         let mut failing: Vec<String> = Vec::new();
         for tc_id in &sorted_v {

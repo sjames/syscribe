@@ -18,6 +18,13 @@ A "Custom links" section lists the user-defined links (`links:`, declared in
 a type that `extends` a built-in link (e.g. `satisfies`) also feed the matching
 reverse index shown above unless the type declares `coverage = false`.
 
+## REQUIRED COVERAGE
+When results are loaded and a non-retired TestPlan that declares `conditions:`/`points:`/`minUnits:` includes one
+of the requirement's verifying TestCases, `trace` adds `Required coverage: **pass|incomplete|fail** (worst over N
+plans)` under "Verified by", then one line per plan that is not passing with its first gaps
+(`TP-X incomplete: TC-Y [ambient=hot] (missing)`). Only the plan's gaps for this requirement's own verifiers
+count. A requirement no such plan covers shows nothing more. See `syscribe help testplan`.
+
 ## OPTIONS
     --linked-only   Ignore ingested results; show linked tests without verdicts.
     --config <C>    Configuration lens (REQ-TRS-PROJ-001): trace over only the
