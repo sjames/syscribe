@@ -26,6 +26,12 @@ dimensions (`1 s + 1 V` is an error); `*` and `/` combine them. `if c then a els
 can also be an operand. Equality is tolerant of float noise (relative 1e-9, absolute
 1e-15 in SI base units). Numbers print with up to 15 significant digits.
 
+Temperatures: `degC` and `degF` are absolute readings (`23.4 degC` is `296.55 K`) and `delta_degC`, `delta_degF`,
+`delta_K` are differences. The minus of `-20 degC` belongs to the number, so a reading below freezing is written
+as it reads (`-20 degC` is `253.15 K`, `-40 degC == -40 degF`); a reading below absolute zero (`-300 degC`) is an
+error, as is negating a reading expression (`-(20 degC)`: a reading has no negative). reading - reading is a
+difference, reading +/- difference is a reading; adding two readings or scaling one is an error.
+
 Names are looked up among the `--set` bindings; a dotted name (`gps.fix`) or a
 qualified one (`Features::Display.sizeInch`) is one name. An unbound name is an
 error. An unbound `A::b` without a dot is an enumeration literal.

@@ -132,6 +132,13 @@ fn measurement_values_parse_in_the_usual_notations() {
         (code, err)
     };
     assert_eq!(ok("-3 ms", "<", "0 ms").0, 0, "negative values");
+    // GH #499: a reading below freezing, on either offset scale, as a value or a limit.
+    assert_eq!(ok("-20 degC", ">", "-40 degC").0, 0, "a negative Celsius reading: {:?}", ok("-20 degC", ">", "-40 degC").1);
+    assert_eq!(ok("-20 degC", "<", "253.16 K").0, 0, "…compared with kelvin");
+    assert_eq!(ok("-20 degC", "==", "253.15 K").0, 0, "…equal to its kelvin value");
+    assert_eq!(ok("-40 degF", "==", "-40 degC").0, 0, "…the scales meet at -40");
+    assert_ne!(ok("-20 degC", ">", "-10 degC").0, 0, "a pass cannot violate its own limit below zero too");
+    assert_ne!(ok("-300 degC", ">", "-400 degC").0, 0, "below absolute zero is not a quantity");
     assert_eq!(ok("1.5e-3 s", "<", "5 ms").0, 0, "scientific notation: {:?}", ok("1.5e-3 s", "<", "5 ms").1);
     assert_eq!(ok("12", ">=", "10").0, 0, "dimensionless");
     assert_eq!(ok("5 ms", "==", "5000 us").0, 0, "equality across units");

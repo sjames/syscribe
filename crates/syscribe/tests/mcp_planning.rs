@@ -112,3 +112,23 @@ fn instructions_and_describe_type_mention_questions() {
     let d = mcp.call_tool("describe_type", json!({"type": "PlanningItem"}));
     assert!(d["fields"].as_array().unwrap().iter().any(|f| f["name"] == "questions"), "{d}");
 }
+
+/// GH #485 (`REQ-TRS-NEXT-001`, `REQ-TRS-DONE-001`): `next_item` and `done_check` are read-only tools with the
+/// data of the CLI commands.
+#[test]
+fn next_item_and_done_check_are_read_tools() {
+    let model = setup();
+    let before = read(&model);
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let n = mcp.call_tool("next_item", json!({}));
+    // PI-MQ-001 is composite (its steps are offered), PI-MQ-002 is done.
+    assert_eq!(n["next"]["id"], "PI-MQ-003", "{n}");
+    assert!(n["skipped"].to_string().contains("composite"), "{n}");
+    let d = mcp.call_tool("done_check", json!({"item": "PI-MQ-001"}));
+    assert_eq!(d["ready"], false, "{d}");
+    assert!(d["missing"].to_string().contains("steps: 1 step(s) not done: PI-MQ-003"), "{d}");
+    assert!(d["missing"].to_string().contains("PI-MQ-001#Q1"), "{d}");
+    assert_eq!(mcp.call_tool_raw("done_check", json!({"item": "nope"}))["isError"], true);
+    assert_eq!(read(&model), before, "read tools write nothing");
+}

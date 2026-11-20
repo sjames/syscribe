@@ -553,6 +553,18 @@ impl Parser {
 
     fn unary(&mut self) -> Result<Expr, ExprError> {
         if self.peek() == Some(&Tok::Op("-")) {
+            // GH #499: the minus of `-20 degC` belongs to the number — an absolute temperature below zero on an
+            // offset scale. Negating the reading `20 degC` is refused, so reading the sign as an operator would
+            // make a below-freezing temperature impossible to write. Only an offset-scale unit takes this path;
+            // every other negative literal keeps its tree (`-(5 ms)`, `-5`), so a compiled machine's hash, and
+            // the evidence recorded against it, do not change.
+            if let (Some(Tok::Num(n)), Some(Tok::Id(u))) = (self.toks.get(self.at + 1), self.toks.get(self.at + 2)) {
+                if !KEYWORDS.contains(&u.as_str()) && unit_kind(u) == TempKind::Point {
+                    let (n, u) = (*n, u.clone());
+                    self.at += 3;
+                    return unit_literal(-n, &u);
+                }
+            }
             self.at += 1;
             let e = self.unary()?;
             return Ok(Expr::Unary("-", Box::new(e)));
@@ -566,13 +578,8 @@ impl Parser {
                 // A unit may follow the number: `50 ms`, `3.3V`.
                 if let Some(Tok::Id(u)) = self.peek().cloned() {
                     if !KEYWORDS.contains(&u.as_str()) {
-                        match unit_affine(&u) {
-                            Some((scale, offset, d)) => {
-                                self.at += 1;
-                                return Ok(Expr::Lit(Value::Num(Quantity { v: n * scale + offset, dim: d, temp: unit_kind(&u) })));
-                            }
-                            None => return Err(ExprError::Parse(format!("unknown unit '{u}' after {n}"))),
-                        }
+                        self.at += 1;
+                        return unit_literal(n, &u);
                     }
                 }
                 Ok(Expr::Lit(Value::Num(Quantity::scalar(n))))
@@ -629,6 +636,22 @@ impl Parser {
             None => Err(ExprError::Parse("unexpected end of expression".to_string())),
         }
     }
+}
+
+/// The literal `n <unit>`: scaled to SI base units (and shifted, for an offset scale such as degC), carrying the
+/// kind of temperature the unit is. An absolute temperature below 0 K is no temperature at all (`-300 degC`), so
+/// it is an error rather than a negative kelvin that later arithmetic would carry on with.
+fn unit_literal(n: f64, u: &str) -> Result<Expr, ExprError> {
+    let Some((scale, offset, d)) = unit_affine(u) else {
+        return Err(ExprError::Parse(format!("unknown unit '{u}' after {n}")));
+    };
+    let kind = unit_kind(u);
+    let v = n * scale + offset;
+    // (a hair of tolerance: -273.15 degC and -459.67 degF are 0 K, not a defect of float rounding)
+    if kind == TempKind::Point && v < -1e-9 {
+        return Err(ExprError::Parse(format!("{} {u} is below absolute zero", format_number(n))));
+    }
+    Ok(Expr::Lit(Value::Num(Quantity { v, dim: d, temp: kind })))
 }
 
 fn tok_text(t: &Tok) -> String {

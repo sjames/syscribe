@@ -230,6 +230,14 @@ TestCase is reported and counts for nothing; `--strict` rejects the file. When t
 it verifies, is edited after the result was recorded, `validate` warns `W091` and `trace` shows `[stale]`:
 re-run the test and ingest again.
 
+**Conditions of a Scenario Outline.** A test that must pass at several conditions (ambient temperatures, supply
+voltages) is a Scenario Outline with an `Examples:` table. Record each row as `scenario: "<title> [row N]"`
+(numbered across the outline's `Examples:` tables); each row keeps its own result, so a later pass at one condition
+never replaces an earlier fail at another. The outline's own verdict is built from its rows (GH #500): one failing
+row fails it, and it passes only when every row has passed, so a run that left a condition out reads as `unknown`,
+never as a pass. A row the table does not have counts for nothing. `trace`, `matrix`, `testplan` and `audit` all
+show it. A record of the outline's own title still speaks when no row was recorded.
+
 Use `blocked` when the rig was unavailable and `not-run` when a test was not executed; neither is a pass.
 Use `waived` only with a `rationale`: it shows as `[waived]` and is never counted as passing. Results from
 another rig are kept beside this one unless you pass `--replace`. A worked example is in
