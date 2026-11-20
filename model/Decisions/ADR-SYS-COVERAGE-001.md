@@ -2,7 +2,7 @@
 type: ADR
 id: ADR-SYS-COVERAGE-001
 name: "Required coverage (conditions, units, rigs) is declared on the TestPlan"
-status: proposed
+status: accepted
 ---
 
 ## Context
