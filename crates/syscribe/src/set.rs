@@ -389,11 +389,18 @@ fn cmd_evidence_add(
         }
     }
     if let Some(p) = path {
-        let is_remote = p.starts_with("http://") || p.starts_with("https://");
-        let exists = model_root.join(p).exists();
-        if !is_remote && !exists {
+        // GH #502: resolved exactly as `validate` resolves an evidence `path:` (and `implementedBy:`, `W023`): a
+        // `repo:` path is repository-relative, `model:` and a bare path are model-relative, a URI or a package
+        // reference is external. Without this, code outside a model that is a subfolder of its repository could
+        // only be named with `../`.
+        let config = syscribe_model::config::ValidateConfig::with_model_root(model_root);
+        if !syscribe_model::validator::evidence_path_resolves(&config, p) {
+            let shown = match config.classify_source(p) {
+                syscribe_model::config::SourceLocation::Local(pb) => format!(" (looked for {})", pb.display()),
+                _ => String::new(),
+            };
             eprintln!(
-                "Refusing to add evidence path='{}' on {} — it does not exist on disk (and is not a remote URI).",
+                "Refusing to add evidence path='{}' on {} — it does not exist on disk{shown} (and is not a remote URI). A repository-relative path is written `repo:<path>`.",
                 p, elem.qualified_name
             );
             std::process::exit(1);
@@ -551,6 +558,7 @@ fn cmd_amendment_add(
 
 /// Scalar fields `set <id> <field>=<value>` may edit (GH #242).
 const SCALAR_FIELDS: &[&str] = &[
+    "name",
     "assignedTo",
     "responsibility",
     "breakdownAdr",
@@ -689,6 +697,46 @@ fn cmd_set_generic(
     }
 }
 
+/// `set <id> name=<text>` (GH #502): change the human-readable label of an id-identified element. For a
+/// name-identified element (`PartDef`, `Package`, `FeatureDef`, …) `name` is also the last segment of its qualified
+/// name, so changing it is a rename, which `move` does and rewrites every reference for.
+fn cmd_set_name(model_root: &Path, elements: &[RawElement], elem: &RawElement, value: &str, dry_run: bool) {
+    let ty = elem.frontmatter.element_type.as_ref();
+    if !ty.is_some_and(|t| t.is_id_identified()) {
+        eprintln!(
+            "Refusing to set name on {}: for a {} the name is its identity (the last segment of its qualified name), so changing it is a rename. Use `syscribe move {} <new location>`, which rewrites every reference.",
+            elem.qualified_name,
+            ty.map(syscribe_model::baseline::element_type_name).unwrap_or_else(|| "this element".to_string()),
+            elem.qualified_name
+        );
+        std::process::exit(1);
+    }
+    let value = value.trim();
+    if value.is_empty() || value.chars().any(char::is_control) {
+        eprintln!("Refusing to set name on {}: a name is one non-empty line of text.", elem.qualified_name);
+        std::process::exit(1);
+    }
+    let old = elem.frontmatter.name.clone().unwrap_or_default();
+    if old == value {
+        crate::say!("{} already has name '{value}' — nothing to do.", elem.qualified_name);
+        return;
+    }
+    // Prose that quotes the old name by hand is not rewritten (there is no reference to follow); say where it is.
+    if old.chars().count() >= 6 {
+        let quoting: Vec<String> = elements
+            .iter()
+            .filter(|e| e.qualified_name != elem.qualified_name && e.doc.contains(&old))
+            .map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()))
+            .collect();
+        if !quoting.is_empty() {
+            let shown = quoting.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
+            let more = if quoting.len() > 5 { format!(" and {} more", quoting.len() - 5) } else { String::new() };
+            eprintln!("note: the old name \"{old}\" is quoted in the text of {shown}{more}; `syscribe refs`/`find` will not rewrite prose.");
+        }
+    }
+    cmd_set_generic(model_root, elements, elem, "name", value, false, dry_run);
+}
+
 /// The current string items of a list field (scalar or list), read from the serialised frontmatter.
 fn elem_list_value(elem: &RawElement, field: &str) -> Vec<String> {
     match serde_json::to_value(&elem.frontmatter).ok().and_then(|v| v.get(field).cloned()) {
@@ -759,6 +807,10 @@ pub fn cmd_set(
         return;
     }
     if let Some((field, value)) = op.split_once('=') {
+        if field == "name" {
+            cmd_set_name(model_root, elements, elem, value, dry_run);
+            return;
+        }
         if SCALAR_FIELDS.contains(&field) {
             cmd_set_generic(model_root, elements, elem, field, value, false, dry_run);
             return;

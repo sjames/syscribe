@@ -52,8 +52,10 @@ stderr. Edit the decision text in the same change; with `[traceability] require_
 
 **`evidence.add`** appends one entry to `evidence:` without disturbing existing
 order. `ref=<id>` must resolve to some model element (permissive by kind, like
-`blockedBy:`); `path=<path>` must exist on disk under the model root, or be an
-`http(s)://` URI (accepted as external, same as `sourceFile`/`implementedBy`);
+`blockedBy:`); `path=<path>` must resolve as `validate` resolves it (GH #502): `repo:<path>` is
+relative to the repository, `model:<path>` or a bare path to the model root, an
+absolute path as is, and an `http(s)://` URI or a package reference is external
+(same as `sourceFile`/`implementedBy`, `W023`);
 `commit=<sha>` (GH #455) must be 7–40 hexadecimal characters and, when the model is in
 a git repository, name exactly one commit there (the `E728` bar) — a malformed,
 unknown or ambiguous hash is refused with nothing written.
@@ -67,7 +69,13 @@ order; the target must resolve to a native `Requirement` (mirrors `E714`/`E715`)
 or the edit is refused. Adding an id that is already listed reports it and
 changes nothing.
 
-**Generic fields.** `<scalar>=<value>` sets one of: assignedTo, responsibility,
+**`name=<text>`** (GH #502) changes the label of an id-identified element (Requirement, TestCase,
+PlanningItem, ADR, …) in place, validated like any other field. For a name-identified element
+(`PartDef`, `Package`, `FeatureDef`, …) the name is also the last segment of its qualified name,
+so changing it is a rename and is refused with a pointer to `move`, which rewrites every reference.
+Prose that quotes the old name by hand is not rewritten; the command lists where it is.
+
+**Generic fields.** `<scalar>=<value>` sets one of: name (see above), assignedTo, responsibility,
 breakdownAdr, asilLevel, reqDomain, reqClass, requirementKind,
 verificationMethod, testLevel, itemType (replaced in place, or appended when
 absent). `<list>.add <value>` appends to one of: tags, blockedBy, derivedFrom,
