@@ -238,6 +238,115 @@ impl Coverage {
     }
 }
 
+/// Why a required cell has no pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GapReason {
+    /// No usable record at this coordinate.
+    Missing,
+    /// A record at this coordinate failed (or did not conclude on every scenario).
+    Failed,
+    /// Passed, but on fewer distinct units than `minUnits:` asks for.
+    Units { have: u32, need: u32 },
+}
+
+/// One required cell of the grid (test × rig × coordinate) that has no pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Gap {
+    pub test: String,
+    pub env: Option<String>,
+    pub coordinate: Coordinate,
+    pub reason: GapReason,
+}
+
+impl Gap {
+    /// `TC-X @ TE-1 [ambient=hot] (missing)`.
+    pub fn describe(&self) -> String {
+        let mut s = self.test.clone();
+        if let Some(e) = &self.env {
+            s.push_str(&format!(" @ {e}"));
+        }
+        if !self.coordinate.is_empty() {
+            let c: Vec<String> = self.coordinate.iter().map(|(a, p)| format!("{a}={p}")).collect();
+            s.push_str(&format!(" [{}]", c.join(", ")));
+        }
+        match &self.reason {
+            GapReason::Missing => s.push_str(" (missing)"),
+            GapReason::Failed => s.push_str(" (FAILED)"),
+            GapReason::Units { have, need } => s.push_str(&format!(" ({have} of {need} units)")),
+        }
+        s
+    }
+}
+
+/// The cells of the plan's grid that have no pass: for every member, every rig in `envs` (any rig when empty)
+/// and every required coordinate, a record whose `condition` includes the coordinate must have passed, on at
+/// least `minUnits` distinct named units when that is declared. A record of an `unhealthy` rig counts for
+/// nothing. Empty when the plan declares nothing to judge.
+pub fn gaps(
+    cov: &Coverage,
+    members: &[String],
+    envs: &[String],
+    unhealthy: &HashSet<String>,
+    results: Option<&crate::results::ResultsData>,
+) -> Vec<Gap> {
+    use crate::results::Verdict;
+    let mut coords = cov.required();
+    if coords.is_empty() {
+        if cov.min_units.is_none() {
+            return Vec::new();
+        }
+        coords.push(Vec::new()); // only the unit rule: the unconditioned cell
+    }
+    let rigs: Vec<Option<&String>> = if envs.is_empty() { vec![None] } else { envs.iter().map(Some).collect() };
+    let mut out = Vec::new();
+    for tc in members {
+        let recs: Vec<&crate::result_records::ResultRecord> = results.map(|r| r.records_for(tc).collect()).unwrap_or_default();
+        for rig in &rigs {
+            for coord in &coords {
+                let matching: Vec<&&crate::result_records::ResultRecord> = recs
+                    .iter()
+                    .filter(|r| {
+                        let renv = r.provenance.as_ref().and_then(|p| p.environment.as_ref());
+                        renv.is_none_or(|e| !unhealthy.contains(e))
+                            && rig.is_none_or(|e| renv == Some(e))
+                            && coord.iter().all(|(a, p)| r.condition.get(a) == Some(p))
+                    })
+                    .collect();
+                let reason = if matching.is_empty() {
+                    Some(GapReason::Missing)
+                } else if matching.iter().any(|r| r.verdict == Verdict::Fail) {
+                    Some(GapReason::Failed)
+                } else {
+                    // a unit passes when every record of it passed
+                    let mut by_unit: std::collections::BTreeMap<Option<&str>, bool> = std::collections::BTreeMap::new();
+                    for r in &matching {
+                        let u = r.provenance.as_ref().and_then(|p| p.unit.as_ref()).map(|u| u.id.as_str());
+                        let e = by_unit.entry(u).or_insert(true);
+                        *e = *e && r.verdict == Verdict::Pass;
+                    }
+                    match cov.min_units {
+                        None => (!by_unit.values().any(|ok| *ok)).then_some(GapReason::Missing),
+                        Some(need) => {
+                            let have = by_unit.iter().filter(|(u, ok)| u.is_some() && **ok).count() as u32;
+                            if have >= need {
+                                None
+                            } else if by_unit.values().any(|ok| *ok) {
+                                Some(GapReason::Units { have, need })
+                            } else {
+                                Some(GapReason::Missing)
+                            }
+                        }
+                    }
+                };
+                if let Some(reason) = reason {
+                    out.push(Gap { test: tc.clone(), env: rig.map(|e| (*e).clone()), coordinate: coord.clone(), reason });
+                }
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,5 +430,107 @@ mod tests {
     fn no_axes_means_no_required_coordinates() {
         let c = parse(&x("minUnits: 3")).unwrap().unwrap();
         assert!(c.required().is_empty());
+    }
+
+    // ── gaps ────────────────────────────────────────────────────────────────
+
+    use crate::result_records::{parse as parse_records, validate_all};
+    use crate::results::ResultsData;
+
+    fn data(json: &str) -> ResultsData {
+        let mut v = parse_records(json).unwrap();
+        validate_all(&mut v).unwrap();
+        ResultsData::from_records(v, 0, "t")
+    }
+    fn rec(verdict: &str, cond: &str, env: &str, unit: &str) -> String {
+        let c = if cond.is_empty() { String::new() } else { format!(r#","condition":{{"ambient":"{cond}"}}"#) };
+        let u = if unit.is_empty() { String::new() } else { format!(r#","unit":{{"id":"{unit}"}}"#) };
+        let e = if env.is_empty() { String::new() } else { format!(r#""environment":"{env}""#) };
+        let comma = if !e.is_empty() && !u.is_empty() { "," } else { "" };
+        format!(r#"{{"testCase":"T","verdict":"{verdict}","provenance":{{{e}{comma}{}}}{c}}}"#, u.trim_start_matches(','))
+    }
+    fn cov(yaml: &str) -> Coverage {
+        parse(&x(yaml)).unwrap().unwrap()
+    }
+    fn g(c: &Coverage, envs: &[&str], recs: &[String]) -> Vec<Gap> {
+        let envs: Vec<String> = envs.iter().map(|e| e.to_string()).collect();
+        let d = (!recs.is_empty()).then(|| data(&format!("[{}]", recs.join(","))));
+        gaps(c, &["T".to_string()], &envs, &HashSet::new(), d.as_ref())
+    }
+    const AX: &str = "conditions:\n  ambient: [cold, hot]\n";
+
+    #[test]
+    fn every_required_point_needs_a_pass() {
+        let c = cov(AX);
+        assert_eq!(g(&c, &[], &[rec("pass", "cold", "", ""), rec("pass", "hot", "", "")]), vec![]);
+        let gaps = g(&c, &[], &[rec("pass", "cold", "", "")]);
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0].describe(), "T [ambient=hot] (missing)");
+    }
+    #[test]
+    fn nothing_recorded_misses_every_cell() {
+        let c = cov(AX);
+        assert_eq!(gaps(&c, &["T".into()], &[], &HashSet::new(), None).len(), 2);
+    }
+    #[test]
+    fn a_failure_at_a_point_is_a_failed_cell() {
+        let gaps = g(&cov(AX), &[], &[rec("pass", "cold", "", ""), rec("fail", "hot", "", "")]);
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0].reason, GapReason::Failed);
+    }
+    #[test]
+    fn a_result_that_did_not_conclude_is_not_a_pass() {
+        for v in ["flaky", "blocked", "not-run", "inconclusive", "ignored"] {
+            let gaps = g(&cov(AX), &[], &[rec("pass", "cold", "", ""), rec(v, "hot", "", "")]);
+            assert_eq!(gaps.len(), 1, "{v}");
+        }
+    }
+    #[test]
+    fn an_unconditioned_pass_covers_no_point() {
+        assert_eq!(g(&cov(AX), &[], &[rec("pass", "", "", "")]).len(), 2);
+    }
+    #[test]
+    fn product_cells_need_every_combination() {
+        let c = cov("conditions:\n  ambient: [cold, hot]\n  supply: [low, high]\nmode: product\n");
+        let both = |a: &str, s: &str, v: &str| format!(r#"{{"testCase":"T","verdict":"{v}","condition":{{"ambient":"{a}","supply":"{s}"}}}}"#);
+        let recs = [both("cold", "low", "pass"), both("cold", "high", "pass"), both("hot", "low", "pass")];
+        let gaps = g(&c, &[], &recs);
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0].describe(), "T [ambient=hot, supply=high] (missing)");
+    }
+    #[test]
+    fn each_rig_needs_its_own_pass() {
+        let c = cov(AX);
+        let recs = [rec("pass", "cold", "TE-1", ""), rec("pass", "hot", "TE-1", ""), rec("pass", "cold", "TE-2", "")];
+        let gaps = g(&c, &["TE-1", "TE-2"], &recs);
+        assert_eq!(gaps.len(), 1);
+        assert_eq!(gaps[0].describe(), "T @ TE-2 [ambient=hot] (missing)");
+    }
+    #[test]
+    fn a_retired_rigs_results_count_for_nothing() {
+        let c = cov(AX);
+        let recs = [rec("pass", "cold", "TE-1", ""), rec("pass", "hot", "TE-1", "")];
+        let unhealthy: HashSet<String> = ["TE-1".to_string()].into();
+        let gaps = gaps(&c, &["T".into()], &["TE-1".into()], &unhealthy, Some(&data(&format!("[{}]", recs.join(",")))));
+        assert_eq!(gaps.len(), 2);
+    }
+    #[test]
+    fn min_units_counts_distinct_named_units_that_passed() {
+        let c = cov("conditions:\n  ambient: [hot]\nminUnits: 2\n");
+        let one = g(&c, &[], &[rec("pass", "hot", "", "SN-1")]);
+        assert_eq!(one[0].reason, GapReason::Units { have: 1, need: 2 });
+        assert_eq!(one[0].describe(), "T [ambient=hot] (1 of 2 units)");
+        assert!(g(&c, &[], &[rec("pass", "hot", "", "SN-1"), rec("pass", "hot", "", "SN-2")]).is_empty());
+        // the same unit twice is one unit
+        assert_eq!(g(&c, &[], &[rec("pass", "hot", "", "SN-1"), rec("pass", "hot", "", "SN-1")]).len(), 1);
+        // a failing unit does not count, and an unnamed pass is no unit
+        assert_eq!(g(&c, &[], &[rec("pass", "hot", "", "SN-1"), rec("fail", "hot", "", "SN-2")])[0].reason, GapReason::Failed);
+        assert_eq!(g(&c, &[], &[rec("pass", "hot", "", "")])[0].reason, GapReason::Units { have: 0, need: 2 });
+    }
+    #[test]
+    fn min_units_alone_judges_the_unconditioned_cell() {
+        let c = cov("minUnits: 2");
+        assert_eq!(g(&c, &[], &[]).len(), 1);
+        assert!(g(&c, &[], &[rec("pass", "", "", "SN-1"), rec("pass", "", "", "SN-2")]).is_empty());
     }
 }

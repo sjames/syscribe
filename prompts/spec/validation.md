@@ -794,7 +794,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W891` | A test or plan `requiresCapabilities` that none of its `runsOn` environments offers |
 | `W892` | A non-draft test or plan runs on a `retired` environment or one with `calibrationStatus: expired` |
 
-## TestPlan (E600–E608, W610–W616)
+## TestPlan (E600–E608, W610–W617)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -813,6 +813,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W613` | warning | a `TestCase` named explicitly in `testCases:` has status `draft`/`retired` |
 | `W614` | warning | an `approved`/`active` plan `demonstrates:` a `Requirement` that no member verifies (honours goal-closure — a member verifying a leaf of a demonstrated parent counts) |
 | `W615` | warning | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them (only when a results sidecar is loaded). For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
+| `W617` | warning | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
 | `W616` | warning | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant: one contains the other, or Jaccard overlap ≥ 0.5 (likely redundant) |
 
 A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
