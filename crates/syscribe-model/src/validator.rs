@@ -236,7 +236,7 @@ fn evidence_ref_resolves(elements: &[RawElement], resolver: &Resolver, r: &str) 
 /// True when a PlanningItem evidence: `path:` value resolves, reusing
 /// `implementedBy:`'s exact `classify_source` semantics: a local path must
 /// exist on disk, a remote URI is accepted as external with no local check.
-fn evidence_path_resolves(config: &ValidateConfig, p: &str) -> bool {
+pub fn evidence_path_resolves(config: &ValidateConfig, p: &str) -> bool {
     match config.classify_source(p) {
         crate::config::SourceLocation::Local(pb) => pb.exists(),
         crate::config::SourceLocation::Remote(_) => true,
