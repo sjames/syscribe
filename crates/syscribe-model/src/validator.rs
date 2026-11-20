@@ -2304,6 +2304,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             ),
                         ));
                     }
+                    // W617: required coverage (ADR-SYS-COVERAGE-001) — a cell of the plan's declared grid (member ×
+                    // rig × condition point, on `minUnits` units) with no pass.
+                    if let Ok(Some(cov)) = crate::plan_coverage::parse(&fm.extra) {
+                        let pkg = crate::variability::package_conditions(elements);
+                        let feat_alias = crate::variability::feature_id_to_qname(elements);
+                        let ids: Vec<String> = members
+                            .iter()
+                            .filter(|tc| configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
+                            .map(|tc| crate::result_join::canonical(tc))
+                            .collect();
+                        let envs = crate::result_join::runs_on_ids(elem, elements, &resolver);
+                        let unhealthy = crate::result_join::unhealthy_environments(elements);
+                        let gaps = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(results));
+                        if !gaps.is_empty() {
+                            const SHOWN: usize = 10;
+                            let list = gaps.iter().take(SHOWN).map(|g| g.describe()).collect::<Vec<_>>().join("; ");
+                            let more = if gaps.len() > SHOWN { format!("; and {} more", gaps.len() - SHOWN) } else { String::new() };
+                            findings.push(warning(
+                                "W617",
+                                &file,
+                                &format!("approved TestPlan requires coverage that the ingested results do not show: {} cell(s) have no pass: {}{}", gaps.len(), list, more),
+                            ));
+                        }
+                    }
                 }
             }
         }

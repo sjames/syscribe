@@ -289,7 +289,7 @@ selection:                        # optional additive query (unioned with testCa
 ```
 Effective members = `testCases` ∪ `selection` matches. Run `testplan` (list/detail/`--json`)
 and use the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Validation:
-`E600`–`E608`, `W610`–`W616` (duplicate id is `E101`).
+`E600`–`E608`, `W610`–`W617` (duplicate id is `E101`).
 
 ### native PlanningItem
 
