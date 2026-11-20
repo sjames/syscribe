@@ -10,6 +10,7 @@ pub mod agent_policy;
 pub mod annotations;
 pub mod arch_rules;
 pub mod operations;
+pub mod plan_coverage;
 pub mod data_types;
 pub mod budgets;
 pub mod deployment;

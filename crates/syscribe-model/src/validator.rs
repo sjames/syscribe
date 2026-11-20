@@ -1374,6 +1374,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.checks.is_some() && !matches!(fm.element_type, Some(ElementType::MetadataDef)) {
             unknown_keys.push("checks");
         }
+        // The required-coverage keys are schema fields only on a TestPlan (ADR-SYS-COVERAGE-001): on any other
+        // type they stay unrecognised, so drop them from the exemption below.
+        if matches!(fm.element_type, Some(ElementType::TestPlan)) {
+            unknown_keys.retain(|k| !crate::plan_coverage::KEYS.contains(k));
+        }
         // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
         if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
             unknown_keys.push("amendments");
@@ -1990,6 +1995,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &file,
                         &format!("unknown TestPlan status '{}'", status),
                     ));
+                }
+            }
+
+            // E607/E608: required-coverage declarations (`conditions:`, `minUnits:`, `mode:`, `points:`;
+            // ADR-SYS-COVERAGE-001).
+            if let Err(errs) = crate::plan_coverage::parse(&fm.extra) {
+                for (code, msg) in errs {
+                    findings.push(error(code, &file, &msg));
                 }
             }
 

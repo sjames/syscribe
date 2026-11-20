@@ -51,6 +51,11 @@ A plan with `runsOn:` is judged on each listed TestEnvironment alone, using the 
 `incomplete`, results from other rigs are ignored, and results from a retired or out-of-calibration rig do
 not count. Without `runsOn:` a failure on any rig fails the plan.
 
+## REQUIRED COVERAGE
+A plan may declare what it requires (ADR-SYS-COVERAGE-001): `conditions:` (axes of named points), `minUnits:`
+(distinct units per point), `mode: each|product` or an explicit `points:` list. `validate` checks the declaration
+(`E607` malformed, `E608` a `points:` name `conditions:` does not declare); the plan verdict does not use it yet.
+
 ## SEE ALSO
     matrix, audit, verification-depth, coverage tree (each accepts the `--plan TP-X` lens),
     ingest-results
