@@ -819,3 +819,117 @@ fn timers_of_a_nested_state_are_restarted_by_a_transition_declared_on_its_parent
     r.advance(0.2);
     assert_eq!(r.active(), ["Live", "Live.Done"], "{:?}", r.active());
 }
+
+// ── GH #512 probes: more ways a state's two timers could outlive an external self-transition ──────────────────────────
+
+fn two_timer_machine(extra: &str) -> Machine {
+    machine(&format!(
+        "variables:
+  - {{name: b, value: \"0\"}}
+  - {{name: c, value: \"0\"}}
+subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {{target: B, accept: {{after: \"2 s\"}}, assign: \"b := b + 1\"}}
+      - {{target: C, accept: {{after: \"3 s\"}}, assign: \"c := c + 1\"}}
+      - {{target: A, accept: Pkg::Kick}}
+  - name: B
+  - name: C
+{extra}"
+    ))
+}
+
+#[test]
+fn an_external_event_at_the_exact_instant_a_timer_is_due_leaves_no_timer_behind() {
+    let m = two_timer_machine("");
+    let mut r = Run::new(&m, Options::default());
+    r.advance_to(2.0); // the 2 s timer fires here: A -> B; the kick below finds B
+    r.send("Pkg::Kick", &[]);
+    r.advance(5.0);
+    assert_eq!((num(&r, "b"), num(&r, "c")), ("1".into(), "0".into()), "{:?} {:?}", r.active(), r.trace().iter().map(|s| s.note.clone()).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_kick_just_before_the_due_time_restarts_both_timers() {
+    let m = two_timer_machine("");
+    let mut r = Run::new(&m, Options::default());
+    r.advance_to(1.999);
+    r.send("Pkg::Kick", &[]);
+    r.advance_to(3.0);
+    assert_eq!(r.active(), ["A"], "restarted at 1.999 s: due at 3.999 s and 4.999 s");
+    r.advance_to(4.0);
+    assert_eq!((r.active(), num(&r, "b")), (vec!["B".to_string()], "1".into()));
+    r.advance(5.0);
+    assert_eq!(num(&r, "c"), "0", "the 3 s timer died with A");
+}
+
+#[test]
+fn a_self_transition_in_one_region_restarts_the_timers_of_that_region_only() {
+    let m = machine(
+        "variables:
+  - {name: n, value: \"0\"}
+subStates:
+  - name: P
+    isInitial: true
+    isParallel: true
+    subStates:
+      - name: R1
+        subStates:
+          - name: A
+            isInitial: true
+            transitions:
+              - {target: A1, accept: {after: \"2 s\"}, assign: \"n := n + 1\"}
+              - {target: A2, accept: {after: \"3 s\"}, assign: \"n := n + 10\"}
+              - {target: A, accept: Pkg::Kick}
+          - name: A1
+          - name: A2
+      - name: R2
+        subStates:
+          - name: X
+            isInitial: true
+            transitions: [{target: Y, accept: {after: \"2.5 s\"}, assign: \"n := n + 100\"}]
+          - name: Y
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Kick", &[]);
+    r.advance(1.9); // t = 2.9: A restarted at 1 s (due 3 s, 4 s); R2's own timer fired at 2.5 s
+    assert_eq!(num(&r, "n"), "100", "{:?}", r.active());
+    r.advance(0.2); // t = 3.1: only A's 2 s timer (due 3 s) fires
+    assert_eq!(num(&r, "n"), "101", "{:?}", r.active());
+    r.advance(3.0);
+    assert_eq!(num(&r, "n"), "101", "the 3 s timer of the old A must not fire");
+}
+
+#[test]
+fn a_self_transition_declared_on_the_parent_restarts_the_timers_of_its_children() {
+    let m = machine(
+        "variables:
+  - {name: n, value: \"0\"}
+subStates:
+  - name: Live
+    isInitial: true
+    transitions:
+      - {target: Live, accept: Pkg::Kick}
+    subStates:
+      - name: Run
+        isInitial: true
+        transitions:
+          - {target: Done, accept: {after: \"2 s\"}, assign: \"n := n + 1\"}
+          - {target: Late, accept: {after: \"3 s\"}, assign: \"n := n + 10\"}
+      - name: Done
+      - name: Late
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Kick", &[]);
+    r.advance(1.9);
+    assert_eq!((num(&r, "n"), r.active()), ("0".into(), vec!["Live".to_string(), "Live.Run".to_string()]));
+    r.advance(0.2);
+    assert_eq!(num(&r, "n"), "1");
+    r.advance(5.0);
+    assert_eq!(num(&r, "n"), "1");
+}
