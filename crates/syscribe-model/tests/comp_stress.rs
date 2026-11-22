@@ -530,7 +530,8 @@ fn a_part_whose_behaviour_is_an_activity_talks_to_its_neighbour_through_the_conn
 
 
 #[test]
-fn an_activity_that_only_sends_and_does_not_opt_in_stays_a_recorded_reference() {
+fn an_activity_that_only_sends_is_executable_without_declaring_anything() {
+    // GH #516: a SendAction makes an ActionDef executable; no `variables:` opt-in
     let m = machine(
         "subStates:\n  - name: A\n    isInitial: true\n    transitions: [{internal: true, accept: Pkg::Go, effect: Draw}]\n",
         &[("Draw", "subActions:\n  - {name: s, kind: SendAction, payload: Pkg::X}\n")],
@@ -538,7 +539,21 @@ fn an_activity_that_only_sends_and_does_not_opt_in_stays_a_recorded_reference() 
     let mut r = Run::new(&m, Options::default());
     r.send("Pkg::Go", &[]);
     assert!(r.error().is_none(), "{:?}", r.error());
-    assert!(r.take_outbox().is_empty(), "no `variables:` or `assign:`: descriptive only");
+    let out = r.take_outbox();
+    assert_eq!(out.len(), 1, "{out:?}");
+    assert_eq!(out[0].event, "Pkg::X");
+}
+
+#[test]
+fn an_activity_with_no_send_variables_or_assignment_stays_a_recorded_reference() {
+    let m = machine(
+        "subStates:\n  - name: A\n    isInitial: true\n    transitions: [{internal: true, accept: Pkg::Go, effect: Draw}]\n",
+        &[("Draw", "subActions:\n  - {name: s, kind: Action}\n")],
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    assert!(r.error().is_none(), "{:?}", r.error());
+    assert!(r.take_outbox().is_empty());
     let step = r.trace().iter().rev().find(|s| s.transition.is_some()).unwrap();
     assert!(step.actions.iter().any(|a| a == "behavior Draw"), "{:?}", step.actions);
 }

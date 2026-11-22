@@ -11,12 +11,13 @@ parameters:
   - name: success
     typedBy: ScalarValues::Boolean
     direction: return
+variables:
+  - {name: remaining, value: "0"}
 subActions:
   - name: navigateWaypoints
     kind: LoopAction
-    loopKind: for
-    variable: waypoint
-    sequence: "waypoints"
+    loopKind: while
+    condition: "remaining > 0"
     body:
       - name: awaitArrival
         kind: AcceptAction

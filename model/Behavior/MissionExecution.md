@@ -13,6 +13,8 @@ parameters:
   - name: missionSuccess
     typedBy: ScalarValues::Boolean
     direction: return
+variables:
+  - {name: windSpeedMs, value: "0.0"}
 subActions:
   - name: takeoff
     kind: PerformAction

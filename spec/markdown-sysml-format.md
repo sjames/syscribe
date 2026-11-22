@@ -2018,7 +2018,7 @@ Defines a behavioral step. Actions can have parameters (in/out/inout/return) and
 | `controlNodes` | list of control node maps | absent | Fork, join, decision, merge nodes; see 8.7.4 |
 | `body` | string | absent | Implementation body in a named language (opaque); mutually exclusive with `subActions` |
 | `bodyLanguage` | string | absent | Language name for `body`: `"alf"`, `"ocl"`, `"sysml"`, or user-defined |
-| `variables` | list | absent | Executable actions: `{name, value, typedBy?, unit?}` local data, as on a `StateDef`; with `assign:` on a sub-action they make the action executable (`E883`, `E884`, `E887`, `W935`); a `SendAction` alone does not, so an activity that only sends declares `variables: []`. When a state machine runs an executable `ActionDef` (as `entryAction`, `doAction`, `exitAction`, `initialEffect` or `effect`), its `SendAction`s, also those of performed callees, are emitted as messages of the machine (REQ-TRS-ACTSEND-001) |
+| `variables` | list | absent | Executable actions: `{name, value, typedBy?, unit?}` local data, as on a `StateDef`; with `assign:` on a sub-action they make the action executable (`E883`, `E884`, `E887`, `W935`); a `SendAction` makes it executable too, so an activity that only sends runs without declaring anything. When a state machine runs an executable `ActionDef` (as `entryAction`, `doAction`, `exitAction`, `initialEffect` or `effect`), its `SendAction`s, also those of performed callees, are emitted as messages of the machine (REQ-TRS-ACTSEND-001) |
 
 #### 8.7.2 Parameter Schema
 
