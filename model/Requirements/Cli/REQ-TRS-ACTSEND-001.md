@@ -19,6 +19,7 @@ amendments:
     by: claude
     reason: 'Owner decision (GH #516): a SendAction makes an ActionDef executable; the variables: [] opt-in is dropped and no backward compatibility is kept, correctness over compatibility. Supersedes the clarification recorded earlier today about W937 (W937 is removed).'
     kind: scope-change
+    ref: RR-TRS-001
 ---
 
 When a state machine runs an executable `ActionDef` as an `entryAction`, `doAction`, `exitAction`, `initialEffect` or transition `effect` (REQ-TRS-ACTEXEC-001, "From a state machine"), every `SendAction` that activity executes shall be emitted as a message of the machine, exactly as a `send:` effect written on the machine itself is (REQ-TRS-SMEXEC-001, REQ-TRS-SYSCOMP-001). Today the activity runs and its sends are discarded without any diagnostic, so a part whose behaviour is written as an activity cannot talk to the parts it is connected to.
