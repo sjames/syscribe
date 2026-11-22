@@ -13,6 +13,10 @@ amendments:
     by: claude
     reason: 'GH #514/#517: the never-reached bucket is renamed from equivalent-suspect to not exercised (JSON key notExercised), kept out of the score and summarised in the text report; mutate --strict added'
     kind: clarification
+  - date: 2026-11-22
+    by: claude
+    reason: 'GH #510: mutate also seeds remove-send, the loss of a SendAction inside an ActionDef that a transition or state runs, attributed to whatever runs it'
+    kind: clarification
 ---
 
 `syscribe mutate <StateDef>` shall judge the quality of a machine's scenarios by seeding faults into the machine and re-running them (GH #275, part of #272). It is the objective check on scenarios written by an LLM, which may only restate the model they were derived from.

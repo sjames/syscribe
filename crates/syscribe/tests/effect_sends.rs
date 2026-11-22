@@ -64,3 +64,53 @@ fn w936_still_fires_when_nothing_sends() {
     let (_, t) = run(&model(silent), &["validate"]);
     assert!(t.contains("W936"), "{t}");
 }
+
+#[test]
+fn mutate_seeds_the_loss_of_a_send_inside_an_effect_activity_and_the_scenario_kills_it() {
+    // GH #510
+    let (c, t) = run(&model(BEEP_ONLY), &["mutate", "Sys", "--json"]);
+    assert_eq!(c, 0, "{t}");
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap_or_else(|e| panic!("{e}: {t}"));
+    let lost: Vec<&serde_json::Value> = j["parts"].as_array().unwrap().iter().flat_map(|p| p["mutants"].as_array().unwrap()).filter(|m| m["operator"] == "remove-send").collect();
+    assert_eq!(lost.len(), 1, "one send in one effect activity: {t}");
+    assert_eq!(lost[0]["fate"], "killed", "the receiver never reaches Done without the message: {t}");
+    let d = lost[0]["description"].as_str().unwrap();
+    assert!(d.contains("tx0") && d.contains("Beep") && d.contains("Idle"), "attributed to the transition that runs it: {d}");
+}
+
+#[test]
+fn a_scenario_that_never_checks_the_message_leaves_the_lost_send_alive() {
+    let weak = "```gherkin\nFeature: system\n\n  Scenario: the tick is accepted\n    When tx receives Tick\n    Then tx is in state Idle\n```\n";
+    let root = model(BEEP_ONLY);
+    let tc = std::fs::read_to_string(root.join("TC-SYS-001.md")).unwrap();
+    let head = tc.split("```gherkin").next().unwrap();
+    std::fs::write(root.join("TC-SYS-001.md"), format!("{head}{weak}")).unwrap();
+    let (_, t) = run(&root, &["mutate", "Sys", "--json"]);
+    let j: serde_json::Value = serde_json::from_str(&t).unwrap_or_else(|e| panic!("{e}: {t}"));
+    let fate = j["parts"].as_array().unwrap().iter().flat_map(|p| p["mutants"].as_array().unwrap()).find(|m| m["operator"] == "remove-send").map(|m| m["fate"].as_str().unwrap().to_string());
+    assert_eq!(fate.as_deref(), Some("survived"), "{t}");
+}
+
+#[test]
+fn w938_flags_payload_forms_that_are_ignored_and_names_the_working_one() {
+    // GH #508
+    for bad in ["arguments: [{name: phase, value: \"3\"}]", "values: {phase: 3}", "payload: {type: Cmd, phase: 3}"] {
+        let beep = if bad.starts_with("payload") {
+            format!("---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {{name: tx0, kind: SendAction, {bad}, via: out}}\n---\n")
+        } else {
+            format!("---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {{name: tx0, kind: SendAction, payload: Cmd, {bad}, via: out}}\n---\n")
+        };
+        let (_, t) = run(&model(&beep), &["validate"]);
+        assert!(t.contains("W938") && t.contains("parameters: [{name:"), "{bad}: {t}");
+    }
+    let good = "---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {name: tx0, kind: SendAction, payload: Cmd, via: out, parameters: [{name: phase, value: \"3\"}]}\n---\n";
+    let (_, t) = run(&model(good), &["validate"]);
+    assert!(!t.contains("W938"), "{t}");
+}
+
+#[test]
+fn w938_flags_an_unknown_key_on_any_sub_action_kind() {
+    let beep = "---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {name: a, kind: AssignmentAction, assign: \"n := 1\", colour: red}\n---\n";
+    let (_, t) = run(&model(beep), &["validate"]);
+    assert!(t.contains("W938") && t.contains("`colour:`"), "{t}");
+}
