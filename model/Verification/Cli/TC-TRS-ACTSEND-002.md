@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-TRS-ACTSEND-002
-name: "a composite sees effect-activity sends, and a silent sends-only activity is explained"
+name: "a sends-only effect activity sends, and a composite sees its sends"
 status: active
 testLevel: L3
 sourceFile: repo:crates/syscribe/tests/effect_sends.rs
@@ -15,8 +15,8 @@ tags:
 ```gherkin
 Feature: effect activities that send (GH #509, #516)
 
-  Scenario: an opted-in sends-only activity delivers its message
-    Given a transmitter whose transition effect names an ActionDef of one SendAction with variables: []
+  Scenario: a sends-only activity delivers its message
+    Given a transmitter whose transition effect names an ActionDef of one SendAction and nothing else
     When tx receives Tick and 6 ms elapse
     Then the receiver reaches its final state
 
@@ -29,10 +29,4 @@ Feature: effect activities that send (GH #509, #516)
     Given the same composite whose effect activity only assigns
     When the model is validated
     Then W936 is raised
-
-  Scenario: a sends-only activity that has not opted in is explained
-    Given an effect ActionDef with a SendAction and no variables or assignment
-    When the model is validated
-    Then W937 names the action and the variables: [] opt-in
-    And simulate sends nothing, as REQ-TRS-ACTSEND-001 states
 ```

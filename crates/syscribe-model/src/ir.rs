@@ -355,45 +355,6 @@ impl<'a> Ctx<'a> {
     }
 }
 
-/// Referenced `ActionDef`s that contain a `SendAction` but are not executable, so the machine records the reference and
-/// sends nothing (GH #516, `W937`). Opting in is `variables: []` (REQ-TRS-ACTSEND-001); that rule is unchanged.
-pub fn silent_sending_behaviors(m: &Machine, elements: &[RawElement], resolver: &Resolver) -> Vec<String> {
-    let mut targets: Vec<String> = Vec::new();
-    let mut collect = |acts: &[Action]| {
-        for a in acts {
-            if let Action::Behavior { target, .. } = a {
-                if !targets.contains(target) {
-                    targets.push(target.clone());
-                }
-            }
-        }
-    };
-    collect(&m.initial_actions);
-    for st in &m.states {
-        collect(&st.entry);
-        collect(&st.exit);
-    }
-    for t in &m.transitions {
-        collect(&t.actions);
-    }
-    let mut out = Vec::new();
-    for t in targets {
-        if m.behaviors.contains_key(&t) {
-            continue;
-        }
-        let Some(el) = resolver.resolve_ref(elements, &t) else { continue };
-        if !matches!(el.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) {
-            continue;
-        }
-        let mut all = Vec::new();
-        crate::act_exec::walk(el.frontmatter.sub_actions.as_deref().unwrap_or(&[]), &mut all);
-        if all.iter().any(|m| crate::sm_exec::field(m, "kind").and_then(|k| k.as_str()) == Some("SendAction")) {
-            out.push(t);
-        }
-    }
-    out
-}
-
 /// Lower the `StateDef`/`State` element named `target` (qualified name, id or name). Errors are
 /// diagnostics with the codes of REQ-TRS-SMSCHEMA-001; the machine is only returned when there are none.
 pub fn lower(elements: &[RawElement], target: &str) -> Result<Machine, Vec<Diag>> {

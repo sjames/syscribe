@@ -1143,7 +1143,7 @@ analysis silences `W034` for every pair of its `analyses`.
 | E892 | Error | a `sharedResources` entry is not a mapping, has no `resource`, has a `kind` outside `power`/`clock`/`memory`/`bus`/`software`/`other`, or a `couplingFactor` outside 0..1 |
 | W890 | Warning | an `approved` `DependentFailureAnalysis` has a shared resource with no `mitigation` |
 
-## Behaviour / executable models (E882–E889, E930–E939, E966, W933, W935–W937)
+## Behaviour / executable models (E882–E889, E930–E939, E966, W933, W935, W936)
 
 Executable state machines, actions, composites, in-process plants and fault injection (GH #277–#306, #291; §8.8, §22.1). Several of these need the opt-in `fmi` Cargo feature (plants backed by an FMU).
 
@@ -1171,7 +1171,6 @@ Executable state machines, actions, composites, in-process plants and fault inje
 | W933 | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | W935 | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
 | W936 | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
-| W937 | Warning | a state machine runs an `ActionDef` that contains a `SendAction` but is not executable (no `variables:`, nothing assigned), so it sends nothing; declare `variables: []` to opt in (GH #516, REQ-TRS-ACTSEND-001) |
 
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 

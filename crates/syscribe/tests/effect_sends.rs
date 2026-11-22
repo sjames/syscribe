@@ -1,14 +1,11 @@
-//! GH #516 / #509: an `ActionDef` made only of `SendAction`s that opts in (`variables: []`) sends its messages in
-//! `simulate` as a transition effect, the composite checks (W936) see those sends, and one that has not opted in is
-//! reported by W937 instead of being silent.
+//! GH #516 / #509: an `ActionDef` made only of `SendAction`s (no `variables:`, no assignment) sends its messages in
+//! `simulate` as a transition effect, and the composite checks (W936) see those sends.
 
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const BEEP_ONLY: &str = "---\ntype: ActionDef\nname: Beep\nvariables: []\nsubActions:\n  - {name: tx0, kind: SendAction, payload: Cmd, via: out}\n---\n";
-/// No `variables:` and nothing assigned: not executable, so a machine that runs it records the reference only.
-const BEEP_UNDECLARED: &str = "---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {name: tx0, kind: SendAction, payload: Cmd, via: out}\n---\n";
+const BEEP_ONLY: &str = "---\ntype: ActionDef\nname: Beep\nsubActions:\n  - {name: tx0, kind: SendAction, payload: Cmd, via: out}\n---\n";
 const BEEP_COUNTED: &str = "---\ntype: ActionDef\nname: Beep\nvariables:\n  - {name: n, value: \"0\"}\nsubActions:\n  - {name: inc, kind: AssignmentAction, assign: \"n := n + 1\"}\n  - {name: tx0, kind: SendAction, payload: Cmd, via: out}\n---\n";
 
 fn files(beep: &str) -> Vec<(&'static str, String)> {
@@ -66,21 +63,4 @@ fn w936_still_fires_when_nothing_sends() {
     let silent = "---\ntype: ActionDef\nname: Beep\nvariables:\n  - {name: n, value: \"0\"}\nsubActions:\n  - {name: inc, kind: AssignmentAction, assign: \"n := n + 1\"}\n---\n";
     let (_, t) = run(&model(silent), &["validate"]);
     assert!(t.contains("W936"), "{t}");
-}
-
-#[test]
-fn an_undeclared_sends_only_action_is_explained_by_w937_and_sends_nothing() {
-    let root = model(BEEP_UNDECLARED);
-    let (_, t) = run(&root, &["validate"]);
-    assert!(t.contains("W937") && t.contains("variables: []"), "{t}");
-    let (c, _) = run(&root, &["simulate", "TC-SYS-001"]);
-    assert_ne!(c, 0, "the documented opt-in rule is unchanged: nothing is sent");
-}
-
-#[test]
-fn w937_is_silent_once_the_action_opts_in() {
-    for beep in [BEEP_ONLY, BEEP_COUNTED] {
-        let (_, t) = run(&model(beep), &["validate"]);
-        assert!(!t.contains("W937"), "{t}");
-    }
 }

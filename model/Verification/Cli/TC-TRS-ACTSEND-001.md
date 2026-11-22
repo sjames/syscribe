@@ -16,9 +16,9 @@ tags:
 ```gherkin
 Feature: activities emit messages for the machine that runs them
 
-  Scenario: an activity that does not opt in stays a reference
+  Scenario: an activity with a SendAction and nothing else is executable
     Given an activity with a SendAction but no variables or assign
-    Then the machine records the reference and emits nothing
+    Then the machine runs it and emits the message
 
   Scenario: a send in a transition effect activity
     Given a machine whose transition effect names an activity with one SendAction
