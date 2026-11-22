@@ -188,7 +188,15 @@ impl Out {
             self.actions(m, depth + 1, &st.entry, None, &owner);
             for t in &arming {
                 match &t.trigger {
-                    Trigger::Timer { delay_seconds } => {
+                    Trigger::Timer { delay: Some(d), .. } => {
+                        if t.internal {
+                            self.warnings.push(format!("transition t{}: an internal `after` transition is re-armed after it fires in syscribe, but the SCXML <send> is not repeated", t.id));
+                        }
+                        // the variables of the datamodel hold SI values, so seconds * 1000 is the CSS2 time in milliseconds
+                        let e = ecma(&d.ast, None, &mut self.warnings);
+                        self.line(depth + 1, &format!("<send id=\"timer_t{0}\" event=\"timer.t{0}\" delayexpr=\"{1}\"/>", t.id, esc(&format!("(({e}) * 1000) + 'ms'"))));
+                    }
+                    Trigger::Timer { delay_seconds, .. } => {
                         if (delay_seconds * 1000.0).fract().abs() > 1e-9 {
                             self.warnings.push(format!("transition t{}: the delay {delay_seconds} s is rounded to whole milliseconds", t.id));
                         }

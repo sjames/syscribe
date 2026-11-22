@@ -933,3 +933,130 @@ subStates:
     r.advance(5.0);
     assert_eq!(num(&r, "n"), "1");
 }
+
+// ── GH #511 / ADR-SYS-AFTER-001: a timer's duration is an expression read when the timer is armed ─────────────────────
+
+#[test]
+fn after_can_name_a_variable() {
+    let m = machine(
+        "variables:
+  - {name: deadline, value: \"2 s\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions: [{target: B, accept: {after: deadline}}]
+  - name: B
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.9);
+    assert_eq!(r.active(), ["A"]);
+    r.advance(0.2);
+    assert_eq!(r.active(), ["B"]);
+}
+
+#[test]
+fn after_can_be_an_expression_over_variables() {
+    let m = machine(
+        "variables:
+  - {name: base, value: \"1 s\"}
+  - {name: margin, value: \"500 ms\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions: [{target: B, accept: {after: \"base + 2 * margin\"}}]
+  - name: B
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.9);
+    assert_eq!(r.active(), ["A"]);
+    r.advance(0.2);
+    assert_eq!(r.active(), ["B"], "1 s + 2 * 0.5 s = 2 s");
+}
+
+#[test]
+fn the_value_is_read_when_the_state_is_entered_so_a_deadline_set_by_an_earlier_event_counts() {
+    let m = machine(
+        "variables:
+  - {name: deadline, value: \"1 s\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions: [{target: B, accept: Pkg::Go, assign: \"deadline := 5 s\"}]
+  - name: B
+    transitions: [{target: C, accept: {after: deadline}}]
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    r.advance(4.9);
+    assert_eq!(r.active(), ["B"], "the 5 s assigned before entering B, not the initial 1 s");
+    r.advance(0.2);
+    assert_eq!(r.active(), ["C"]);
+}
+
+#[test]
+fn an_armed_timer_is_not_re_timed_when_its_variable_changes() {
+    let m = machine(
+        "variables:
+  - {name: deadline, value: \"5 s\"}
+subStates:
+  - name: B
+    isInitial: true
+    transitions:
+      - {target: C, accept: {after: deadline}}
+      - {internal: true, accept: Pkg::Shorten, assign: \"deadline := 1 s\"}
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Shorten", &[]);
+    r.advance(3.9);
+    assert_eq!(r.active(), ["B"], "the timer armed at 0 s stays due at 5 s");
+    r.advance(0.2);
+    assert_eq!(r.active(), ["C"]);
+}
+
+#[test]
+fn an_internal_timer_transition_reads_the_variable_again_when_it_re_arms() {
+    let m = machine(
+        "variables:
+  - {name: period, value: \"1 s\"}
+  - {name: n, value: \"0\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions: [{internal: true, accept: {after: period}, assign: \"n := n + 1; period := period * 2\"}]
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.05); // fires at 1 s, re-armed for 2 s more (3 s)
+    assert_eq!(num(&r, "n"), "1");
+    r.advance(1.5); // t = 2.55: not yet
+    assert_eq!(num(&r, "n"), "1");
+    r.advance(0.6); // t = 3.15: the second firing at 3 s
+    assert_eq!(num(&r, "n"), "2");
+}
+
+#[test]
+fn a_negative_duration_stops_the_run_with_the_expression_named() {
+    let m = machine(
+        "variables:
+  - {name: deadline, value: \"1 s\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions: [{target: B, accept: Pkg::Go, assign: \"deadline := 0 s - 1 s\"}]
+  - name: B
+    transitions: [{target: C, accept: {after: deadline}}]
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.send("Pkg::Go", &[]);
+    let e = r.error().expect("a negative timer is a run-time error").to_string();
+    assert!(e.contains("deadline") && e.contains("negative"), "{e}");
+}

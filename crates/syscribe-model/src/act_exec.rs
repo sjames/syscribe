@@ -163,9 +163,14 @@ pub fn check_with(force: bool, params: &[Y], variables: Option<&[Y]>, subs: &[Y]
         if kind == "AcceptAction" {
             if let Some(a) = field(m, "after").and_then(text) {
                 let want = expr::unit_scale("s").map(|x| x.1);
-                match expr::parse(&a).and_then(|e| e.eval(&|_: &str| None)) {
-                    Ok(Value::Num(q)) if Some(q.dim) == want && q.v >= 0.0 => {}
-                    Ok(_) => out.push(("E887", format!("sub-action '{name}': `after: {a}` is not a non-negative duration"))),
+                match expr::parse(&a) {
+                    // an expression over parameters and variables is typed (E935) and read when the accept starts waiting
+                    Ok(ast) if !ast.names().is_empty() => {}
+                    Ok(ast) => match ast.eval(&|_: &str| None) {
+                        Ok(Value::Num(q)) if Some(q.dim) == want && q.v >= 0.0 => {}
+                        Ok(_) => out.push(("E887", format!("sub-action '{name}': `after: {a}` is not a non-negative duration"))),
+                        Err(e) => out.push(("E887", format!("sub-action '{name}': `after: {a}` does not evaluate: {e}"))),
+                    },
                     Err(e) => out.push(("E887", format!("sub-action '{name}': `after: {a}` does not evaluate: {e}"))),
                 }
             }

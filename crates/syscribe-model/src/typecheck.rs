@@ -267,6 +267,15 @@ pub fn machine_diags(m: &Machine) -> Vec<Diag> {
         if let Trigger::Change { cond } = &t.trigger {
             check_bool(m, cond, &ctx, "`when`", &mut out);
         }
+        if let Trigger::Timer { delay: Some(d), .. } = &t.trigger {
+            let time = crate::expr::unit_scale("s").map(|(_, dim)| dim);
+            match infer_ir(m, d) {
+                Ok(Ty::Num(Some(dim))) if Some(dim) != time => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", d.src, Ty::Num(Some(dim)).describe()))),
+                Ok(Ty::Bool | Ty::Str) => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", d.src, infer_ir(m, d).map(|t| t.describe()).unwrap_or_default()))),
+                Err(why) => out.push(("E935", format!("{ctx}: `after:` {why}"))),
+                _ => {}
+            }
+        }
         check_actions(m, &t.actions, &ctx, &mut out);
     }
     out
@@ -307,6 +316,12 @@ fn check_stmt(def: &ActionIr, s: &Stmt, out: &mut Vec<Diag>) {
                 }
             }
         }
+        NodeKind::Accept { after: Some(e), .. } => match ty(e) {
+            Ok(Ty::Num(Some(dim))) if Some(dim) != crate::expr::unit_scale("s").map(|(_, d)| d) => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", e.src, Ty::Num(Some(dim)).describe()))),
+            Ok(t @ (Ty::Bool | Ty::Str)) => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", e.src, t.describe()))),
+            Err(why) => out.push(("E935", format!("{ctx}: `after:` {why}"))),
+            _ => {}
+        },
         NodeKind::If { cond, then, els } => {
             bool_of(cond, "condition", out);
             then.iter().chain(els).for_each(|c| check_stmt(def, c, out));

@@ -13,7 +13,7 @@ trait IntoTimer {
 
 impl IntoTimer for Trigger {
     fn into_timer(self) -> Option<f64> {
-        if let Trigger::Timer { delay_seconds } = self { Some(delay_seconds) } else { None }
+        if let Trigger::Timer { delay_seconds, delay: None } = self { Some(delay_seconds) } else { None }
     }
 }
 use crate::sm_run::{Coverage, Options};
@@ -228,11 +228,20 @@ pub fn generate(m: &Machine) -> Vec<Mutant> {
                 add("assign-self", format!("assign {} to itself instead of `{}` ({d})", m.variables[*var].name, expr.src), origin.clone(), Elem::Transition(t), mm);
             }
         }
-        // timers
-        if let Trigger::Timer { delay_seconds } = tr.trigger.clone().into_timer().filter(|d| *d != 0.0).map(|d| Trigger::Timer { delay_seconds: d }).unwrap_or(Trigger::Eventless) {
+        // a timer whose delay is an expression: scale the value read when it is armed (ADR-SYS-AFTER-001)
+        if let Trigger::Timer { delay: Some(e), .. } = &tr.trigger {
             for (f, label) in [(0.5, "0.5"), (2.0, "2")] {
                 let mut mm = m.clone();
-                mm.transitions[t].trigger = Trigger::Timer { delay_seconds: delay_seconds * f };
+                let ast = Expr::Bin("*", Box::new(e.ast.clone()), Box::new(Expr::Lit(crate::expr::Value::Num(crate::expr::Quantity { v: f, dim: crate::units::Dim([0; 7]), temp: crate::expr::TempKind::Neutral }))));
+                mm.transitions[t].trigger = Trigger::Timer { delay_seconds: 0.0, delay: Some(rebuild(e, ast)) };
+                add("scale-after", format!("scale the delay `{}` of {d} by {label}", e.src), origin.clone(), Elem::Transition(t), mm);
+            }
+        }
+        // timers
+        if let Trigger::Timer { delay_seconds, .. } = tr.trigger.clone().into_timer().filter(|d| *d != 0.0).map(|d| Trigger::Timer { delay_seconds: d, delay: None }).unwrap_or(Trigger::Eventless) {
+            for (f, label) in [(0.5, "0.5"), (2.0, "2")] {
+                let mut mm = m.clone();
+                mm.transitions[t].trigger = Trigger::Timer { delay_seconds: delay_seconds * f, delay: None };
                 add("scale-after", format!("scale the delay of {d} by {label}"), origin.clone(), Elem::Transition(t), mm);
             }
         }

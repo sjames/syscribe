@@ -410,13 +410,24 @@ impl<'p> ActRun<'p> {
         let d = self.d();
         let node = &d.nodes[n];
         let consumed = self.consume(n);
-        if let NodeKind::Accept { after_seconds, .. } = &node.stmt.kind {
+        if let NodeKind::Accept { after_seconds, after, .. } = &node.stmt.kind {
+            let secs = match after {
+                Some(e) => {
+                    let what = format!("accept '{}' `after`", node.stmt.name);
+                    match self.eval(e, &what)? {
+                        Value::Num(q) if Some(q.dim) == crate::expr::unit_scale("s").map(|(_, d)| d) && q.v >= 0.0 => Some(q.v),
+                        Value::Num(q) if Some(q.dim) == crate::expr::unit_scale("s").map(|(_, d)| d) => return Err(format!("{what}: `{}` is a negative duration", e.src)),
+                        other => return Err(format!("{what}: `{}` is a {}, not a duration", e.src, other.kind())),
+                    }
+                }
+                None => *after_seconds,
+            };
             // an accept consumes its tokens and then waits
             let mut st = self.step(&node.stmt.name, "accept");
             st.consumed = consumed;
             st.note = Some("waiting".into());
             self.trace.push(st);
-            self.waiting.push(Waiting { node: n, due: after_seconds.map(|a| self.time + a) });
+            self.waiting.push(Waiting { node: n, due: secs.map(|a| self.time + a) });
             return Ok(());
         }
         let kind = serde_json::to_value(&node.stmt.kind).ok().and_then(|v| v["kind"].as_str().map(String::from)).unwrap_or_default();
