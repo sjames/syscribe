@@ -4212,6 +4212,10 @@ status: draft
 scope: integration   # unit|smoke|integration|hil|certification|security|regression
 # configurations: [CONF-PREFIX-001]   # the product variant(s); omit = config-agnostic
 # runsOn: [TE-PREFIX-001]              # judged on each of these rigs: all must pass (results are kept per rig)
+# conditions:                          # optional required coverage: axes of named points
+#   ambient: [{name: cold, value: -20 degC}, {name: hot, value: 70 degC}]
+# minUnits: 2                          # distinct units that must pass at each point
+# mode: each                           # each (default) | product; or list required `points:` instead
 # demonstrates:                        # optional: goals/requirements this plan evidences
 #   - SG-PREFIX-001
 testCases:                             # explicit members (TC-*)
