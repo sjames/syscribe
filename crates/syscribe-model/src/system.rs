@@ -474,6 +474,28 @@ fn walk_actions<'a>(m: &'a Machine, f: &mut dyn FnMut(&'a Action)) {
     }
 }
 
+/// The name of a part's only in port, when it has exactly one (GH #513): a plain `accept: X` (no `via:`) then receives
+/// `X` from that port, so a machine written to be used alone also works inside a composite.
+pub fn sole_in_port(inst: &Instance) -> Option<&str> {
+    let mut ins = inst.ports.iter().filter(|p| p.dir.receives());
+    match (ins.next(), ins.next()) {
+        (Some(p), None) => Some(p.name.as_str()),
+        _ => None,
+    }
+}
+
+/// Events a machine accepts without naming a port.
+pub fn plain_accepts(m: &Machine) -> BTreeSet<String> {
+    m.transitions.iter().filter_map(|t| if let Trigger::Event { name, .. } = &t.trigger { (!name.contains('/')).then(|| name.clone()) } else { None }).collect()
+}
+
+/// Whether the machine of `inst` takes `event` arriving on `port`: by a `via: port` accept, else by a plain accept when
+/// `port` is the part's only in port.
+pub fn takes_port_event(inst: &Instance, m: &Machine, port: &str, event: &str) -> bool {
+    let explicit = format!("{port}/{event}");
+    m.transitions.iter().any(|t| matches!(&t.trigger, Trigger::Event { name, .. } if *name == explicit)) || (sole_in_port(inst) == Some(port) && plain_accepts(m).contains(event))
+}
+
 /// `(port, event)` pairs a machine sends and accepts.
 fn traffic(m: &Machine) -> (BTreeSet<(Option<String>, String)>, BTreeSet<(String, String)>) {
     let mut sent = BTreeSet::new();
@@ -631,8 +653,9 @@ pub fn check_all(elements: &[RawElement], resolver: &Resolver, elem: &RawElement
         let (si, ri) = (&spec.instances[l.from.0].name, &spec.instances[l.to.0].name);
         for (via, ev) in sent.iter().filter(|(v, _)| v.as_deref() == Some(l.from.1.as_str())) {
             let _ = via;
-            if !accepted.contains(&(l.to.1.clone(), ev.clone())) {
-                out.push(("W936", format!("{q}: {si} sends {ev} via {}, but {ri} accepts no {ev} via {}", l.from.1, l.to.1)));
+            if !accepted.contains(&(l.to.1.clone(), ev.clone())) && !takes_port_event(&spec.instances[l.to.0], mr, &l.to.1, ev) {
+                let hint = if plain_accepts(mr).contains(ev) { " (a plain accept receives port messages only when the part has exactly one in port; name the port with `via:`)" } else { "" };
+                out.push(("W936", format!("{q}: {si} sends {ev} via {}, but {ri} accepts no {ev} via {}{hint}", l.from.1, l.to.1)));
             }
         }
     }

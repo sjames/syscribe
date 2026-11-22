@@ -1170,7 +1170,7 @@ Executable state machines, actions, composites, in-process plants and fault inje
 | E966 | Error | the FMU named by `fmu:` cannot be used (needs the `fmi` feature): the file is missing, remote or not an FMU, does not support Co-Simulation, its `fmiVersion` differs from its modelDescription.xml, or its hash differs from `sha256` (GH #291) |
 | W933 | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | W935 | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
-| W936 | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| W936 | Warning | traffic along a composite connection that the other end does not handle (a plain `accept: X` handles X from a part's only in port; with several in ports it must name one with `via:`): an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
 | W938 | Warning | a sub-action of an `ActionDef` carries a key its kind does not define (it is ignored), or a `SendAction`/`AcceptAction` has a `payload:` that is not a type name; a payload's field values are bound with `parameters: [{name, value}]` (GH #508) |
 
 ## Integrity level propagation errors and warnings (E841–E843, W808)
