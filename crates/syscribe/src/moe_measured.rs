@@ -295,6 +295,7 @@ mod tests {
             provenance: finished.map(|f| Provenance { finished_at: Some(f.into()), ..Default::default() }),
             tc_hash: None,
             req_hashes: Default::default(),
+            condition: Default::default(),
         }
     }
 

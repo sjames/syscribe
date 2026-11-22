@@ -66,7 +66,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | W091 | Stale results | A recorded test result predates a change to its TestCase or to a requirement it verifies |
 | W104 | Untested architecture element | An active, non-abstract `PartDef`/`InterfaceDef`/`ActionDef`/`StateDef` with no direct (`verifiesElement:`) or satisfied-requirement test and no `testExempt:` rationale |
 | W099–W103 | Documentation linting (`lint-docs`) | Dangling ids, qnames, SVG refs and image paths in external docs; enumerated package members |
-| E600–E606, E893–E894, W600–W601, W610–W616, W891–W892 | TestPlan, test environments and documentation | TestEnvironment fields and `runsOn`, TestPlan fields, members, selection, demonstrates, configurations; empty PartDef/ActionDef docs |
+| E600–E608, E893–E894, W600–W601, W610–W617, W891–W892 | TestPlan, test environments and documentation | TestEnvironment fields and `runsOn`, TestPlan fields, members, selection, demonstrates, configurations; empty PartDef/ActionDef docs |
 | I910–I913 | Workflow hints (`validate --hints`) | Opt-in informational findings that name the dedicated command: a hand-edited `claimedBy`, a duplicate `evidence:` entry, a `status` outside the type's vocabulary |
 | W632 | Traceability policy (`[traceability]`) | Malformed `[traceability]` entries in `.syscribe.toml` (`require_breakdown_adr`, `require_amendments`) |
 | E750–E762, W750–W754, I750 | Binding times (§9.7, §9.8) | Inverted binding window; staged Configurations (`bindingStage:`, `parameterNarrowing:`); malformed `[bindingTimes]` entry in `.syscribe.toml`; the late-bound parameter file (`fallback:`, `params check`) |

@@ -705,3 +705,117 @@ subStates:
     r.send("Pkg::Go", &[]);
     assert!(r.error().is_some_and(|e| e.contains("t0") && e.contains("t1")), "{:?}", r.error());
 }
+
+#[test]
+fn two_timers_on_one_state_are_both_restarted_by_an_external_self_transition() {
+    // GH #512: leaving a state cancels all of its timers; re-entry arms each afresh
+    let m = machine(
+        "subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: B, accept: {after: \"2 s\"}}
+      - {target: C, accept: {after: \"3 s\"}}
+      - {target: A, accept: Pkg::Kick}
+  - name: B
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Kick", &[]);
+    r.advance(1.9);
+    assert_eq!(r.active(), ["A"], "both timers restarted at 1 s: due at 3 s and 4 s");
+    r.advance(0.2);
+    assert_eq!(r.active(), ["B"], "only the shorter timer fires, at its own time");
+}
+
+#[test]
+fn equal_timers_do_not_both_fire_after_re_entry() {
+    let m = machine(
+        "subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: B, accept: {after: \"2 s\"}}
+      - {target: C, accept: {after: \"2 s\"}}
+      - {target: A, accept: Pkg::Kick}
+  - name: B
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Kick", &[]);
+    r.advance(1.5);
+    assert_eq!(r.active(), ["A"]);
+}
+
+#[test]
+fn a_timer_driven_self_transition_restarts_the_states_other_timer() {
+    let m = machine(
+        "subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: A, accept: {after: \"1 s\"}}
+      - {target: B, accept: {after: \"2.5 s\"}}
+  - name: B
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(2.4);
+    assert_eq!(r.active(), ["A"]);
+    r.advance(0.2);
+    assert_eq!(r.active(), ["A"], "the 2.5 s timer was cancelled at 1 s and restarted at 2 s, now due at 4.5 s");
+    r.advance(2.0);
+    assert_eq!(r.active(), ["A"], "the 1 s self-loop keeps cancelling the 2.5 s timer");
+}
+
+#[test]
+fn simultaneous_timers_on_one_state_fire_only_the_first_because_leaving_cancels_the_other() {
+    let m = machine(
+        "variables:
+  - {name: n, value: \"0\"}
+subStates:
+  - name: A
+    isInitial: true
+    transitions:
+      - {target: B, accept: {after: \"2 s\"}, assign: \"n := n + 1\"}
+      - {target: C, accept: {after: \"2 s\"}, assign: \"n := n + 10\"}
+  - name: B
+  - name: C
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(2.5);
+    assert_eq!(num(&r, "n"), "1", "only one of the two timers of A may fire");
+    assert_eq!(r.active().len(), 1, "{:?}", r.active());
+}
+
+#[test]
+fn timers_of_a_nested_state_are_restarted_by_a_transition_declared_on_its_parent() {
+    let m = machine(
+        "subStates:
+  - name: Live
+    isInitial: true
+    transitions:
+      - {target: Live.Run, accept: Pkg::Kick}
+    subStates:
+      - name: Run
+        isInitial: true
+        transitions:
+          - {target: Done, accept: {after: \"2 s\"}}
+          - {target: Late, accept: {after: \"3 s\"}}
+      - {name: Done}
+      - {name: Late}
+",
+    );
+    let mut r = Run::new(&m, Options::default());
+    r.advance(1.0);
+    r.send("Pkg::Kick", &[]);
+    r.advance(1.9);
+    assert_eq!(r.active(), ["Live", "Live.Run"], "{:?}", r.active());
+    r.advance(0.2);
+    assert_eq!(r.active(), ["Live", "Live.Done"], "{:?}", r.active());
+}
