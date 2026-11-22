@@ -178,7 +178,7 @@ pub fn analyse(p: &ActionProgram, scenarios: &[Scenario], opts: &ActOptions) -> 
             }
             None if closest.is_none() && !covered(mu.elem) => {
                 equiv += 1;
-                ("equivalentSuspect", None, None)
+                ("notExercised", None, None)
             }
             None => {
                 survived += 1;
@@ -196,7 +196,7 @@ pub fn analyse(p: &ActionProgram, scenarios: &[Scenario], opts: &ActOptions) -> 
         score,
         killed,
         survived,
-        equivalent_suspect: equiv,
+        not_exercised: equiv,
         mutants: results,
         uncovered: Uncovered {
             states: d.nodes.iter().filter(|n| !cov.nodes.contains(&n.id)).map(|n| n.stmt.name.clone()).collect(),

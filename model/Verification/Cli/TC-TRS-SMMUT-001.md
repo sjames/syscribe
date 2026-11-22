@@ -25,4 +25,17 @@ Feature: mutation analysis of scenarios
 
   Scenario: gate and preconditions
     Then --min-score decides the exit code and scenarios must pass on the unmutated machine
+
+  Scenario: mutants no scenario reaches are not exercised, not survivors
+    Given a scenario set that touches only part of a machine
+    When mutate runs
+    Then the unreached mutants are reported as not exercised and the transitions no scenario takes are named
+    And the score is killed over killed plus survived
+
+  Scenario: strict mode kills the removal of an ignore transition
+    Given a machine with an internal transition that deliberately ignores an event
+    When mutate runs without --strict
+    Then removing that transition survives
+    When mutate runs with --strict
+    Then removing it is killed by the unhandled-event failure
 ```
