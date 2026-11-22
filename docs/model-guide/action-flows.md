@@ -32,7 +32,7 @@ Classifies a level against a threshold of 10.
 * A `DecisionNode` takes the first outgoing succession whose `guard:` holds, else the one marked `guard: else`.
 * `IfAction` (`condition`, `then`, `else`) and `LoopAction` (`loopKind: while|until`, `condition`, `body`) run nested blocks; a loop is limited to 1000 iterations.
 * `PerformAction` (or an action with `typedBy:`) runs another `ActionDef` to completion; its `parameters:` bind the callee's inputs (`{name, value: <expression>}`), and `flowConnections: [{from: a.p, to: b.q}]` and `bindingConnections` copy values when the source completes.
-* `SendAction` records the event it sends; `AcceptAction` waits for an event (`payload`, `via`, `as`) or for `after: <duration>` on the virtual clock; `TerminateAction` ends the whole action.
+* `SendAction` records the event it sends (`payload:` names the message type, `via:` the port); the values of the payload's fields are bound with `parameters: [{name: phase, value: "3"}]`, each an expression over the action's parameters and variables evaluated when the send fires. A key a sub-action's kind does not define is ignored and reported as `W938`; `AcceptAction` waits for an event (`payload`, `via`, `as`) or for `after: <duration>` on the virtual clock; `TerminateAction` ends the whole action.
 
 Type and unit errors in an action's expressions (a succession guard that is a number, a loop condition comparing metres with a plain number, an assignment of the wrong dimension) are found without running anything and reported as `E935`; parameters without a default, sub-action pins and accept bindings are never errors (`docs/design/static-typing.md`).
 

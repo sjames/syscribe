@@ -26,6 +26,12 @@ Feature: mutation analysis of scenarios
   Scenario: gate and preconditions
     Then --min-score decides the exit code and scenarios must pass on the unmutated machine
 
+  Scenario: the loss of a send inside an effect activity is seeded
+    Given a composite whose transmitter sends through an effect ActionDef
+    When mutate runs
+    Then a remove-send mutant names the send, the activity and the transition that runs it
+    And a scenario that checks the message kills it while one that never checks it lets it survive
+
   Scenario: mutants no scenario reaches are not exercised, not survivors
     Given a scenario set that touches only part of a machine
     When mutate runs
