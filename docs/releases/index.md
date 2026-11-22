@@ -2,6 +2,37 @@
 
 `RELEASES`
 
+## 0.62.0 — 2026-11-23
+
+**Required coverage on a TestPlan**
+
+- **New:** a `TestPlan` declares the coverage it needs (#500, #501, ADR-SYS-COVERAGE-001): `conditions:` (named axes of named points), `minUnits:`, `mode: each|product` or an explicit `points:` list. `E607` is a malformed declaration, `E608` a point naming an undeclared axis or point.
+- **New:** result records carry the `condition` they were run under and the `unit` under test, and are keyed by both. `ingest-results` takes `--condition axis=point`, `--unit`, `--unit-of` and `--lot` for the records-like formats.
+- **New:** a plan passes only when every required cell (member, rig, point, on `minUnits` distinct units) has a pass. A new plan verdict `incomplete` means nothing failed but a required point has no pass (order: fail, incomplete, pass). `testplan`, `audit` and the plan list report it with the missing coordinates, and `W617` flags an approved plan with uncovered cells.
+- **New:** `trace <REQ>` shows a requirement's standing under required coverage, the worst over its plans, with the first missing coordinates per plan.
+- **Fixed:** a Scenario Outline recorded through records gives the outline its verdict; an unrun row is no longer a pass (#500).
+- **Decision:** `ADR-SYS-COVERAGE-002` (proposed) sketches shared coverage axes across plans.
+
+**Working with agents**
+
+- **New:** `next` and `done` give harness-independent work selection and a done gate (#485, step 1).
+- **New:** `[syscribe] minVersion` makes a model refuse to load in an older syscribe (#496).
+- **Fixed:** negative Celsius literals, and `set name=` and `repo:` evidence paths (#499, #502).
+
+**State machines, actions and co-simulation**
+
+- **New:** a timer's duration can be an expression (#511, ADR-SYS-AFTER-001, REQ-TRS-AFTER-001). `after: deadline` or `after: "base + 2 * margin"` is read each time the timer is armed; a running timer is not re-timed; `E935` for a non-duration, `W933` for an unknown name, a negative value stops the run. `mutate`, coverage and the SCXML export (`delayexpr`) follow, and an `AcceptAction` in an `ActionDef` takes the same form.
+- **New:** `mutate --strict` runs every scenario in strict mode, so removing a deliberate ignore transition is killed (#517). `mutate` also seeds `remove-send`, the loss of a `SendAction` inside an `ActionDef` that a transition or state runs (#510).
+- **New:** in a composite, a plain `accept: X` receives a port message when the part has exactly one in port; with several in ports it must name one with `via:`, and `W936` says so (#513).
+- **New:** `W938` reports a sub-action key its kind does not define, or a `payload:` that is not a type name; a send's payload fields are bound with `parameters: [{name, value}]`, now documented (#508).
+- **Fixed:** `W936` no longer reports a false "no connected sender" for a send inside an effect `ActionDef` (#509). `W070` and `W071` follow transitions declared on ancestors and inside descendants (#515).
+
+**Changed (behaviour)**
+
+- A `SendAction` makes an `ActionDef` executable; the `variables: []` opt-in is gone (#516). A model that had a descriptive action with a send now has it checked as executable, which can raise `E887`, `W935` or `E935` that were silent before.
+- `mutate` renames the never-reached bucket from `equivalent-suspect` to `not exercised`: the JSON key is `notExercised`, and the text report prints one count and the transitions no scenario takes instead of one line per mutant (#514). The score is unchanged: killed over killed plus survived.
+- New findings you may meet in an existing model without opting in: `W938`, and `W936`/`W070`/`W071` now judge the whole machine.
+
 ## 0.61.0 — 2026-11-17
 
 **Variants and build variables**
