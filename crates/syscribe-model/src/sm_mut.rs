@@ -325,7 +325,7 @@ pub struct MutReport {
     pub score: f64,
     pub killed: usize,
     pub survived: usize,
-    pub equivalent_suspect: usize,
+    pub not_exercised: usize,
     pub mutants: Vec<MutantResult>,
     pub uncovered: Uncovered,
 }
@@ -369,7 +369,7 @@ pub fn analyse(m: &Machine, scenarios: &[Scenario], opts: &Options) -> Result<Mu
             }
             None if closest.is_none() && !covered(mu.elem) => {
                 equiv += 1;
-                ("equivalentSuspect", None, None)
+                ("notExercised", None, None)
             }
             None => {
                 survived += 1;
@@ -386,7 +386,7 @@ pub fn analyse(m: &Machine, scenarios: &[Scenario], opts: &Options) -> Result<Mu
         score,
         killed,
         survived,
-        equivalent_suspect: equiv,
+        not_exercised: equiv,
         mutants: results,
         uncovered: Uncovered {
             states: m.states.iter().filter(|s| !cov.states.contains(&s.id)).map(|s| s.path.clone()).collect(),
