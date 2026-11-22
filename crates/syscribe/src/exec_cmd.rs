@@ -1042,7 +1042,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
     let value = |f: &str| args.windows(2).find(|w| w[0] == f).map(|w| w[1].clone());
     let skip: Vec<usize> = args.iter().enumerate().filter(|(_, a)| *a == "--min-score" || *a == "--part").map(|(i, _)| i + 1).collect();
     let Some(name) = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && !skip.contains(i)).map(|(_, a)| a.clone()) else {
-        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--json]");
+        eprintln!("Usage: syscribe --model <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--strict] [--json]");
         return 1;
     };
     let min = match value("--min-score").map(|v| v.parse::<f64>()) {
@@ -1080,7 +1080,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         return 1;
     };
     if resolver.resolve_ref(elems, &machine_q).is_some_and(is_composite) {
-        return mutate_composite(elems, &machine_q, &tcs, min, value("--part").as_deref(), flag("--json"), flag("--record"), model_root);
+        return mutate_composite(elems, &machine_q, &tcs, min, value("--part").as_deref(), flag("--json"), flag("--record"), flag("--strict"), model_root);
     }
     if value("--part").is_some() {
         eprintln!("error: --part applies to a composite subject");
@@ -1098,7 +1098,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
     let subject_is_action = resolver.resolve_ref(elems, &machine_q).is_some_and(|e| matches!(e.frontmatter.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)));
     let analysed = if subject_is_action {
         match syscribe_model::act_ir::lower_action(elems, &machine_q) {
-            Ok(p) => syscribe_model::act_mut::analyse(&p, &scenarios, &syscribe_model::act_run::ActOptions::default()),
+            Ok(p) => syscribe_model::act_mut::analyse(&p, &scenarios, &syscribe_model::act_run::ActOptions { strict: flag("--strict"), ..Default::default() }),
             Err(diags) => {
                 for (c, msg) in &diags {
                     eprintln!("{c}: {msg}");
@@ -1108,7 +1108,7 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         }
     } else {
         match syscribe_model::ir::lower(elems, &machine_q) {
-            Ok(m) => syscribe_model::sm_mut::analyse(&m, &scenarios, &syscribe_model::sm_run::Options::default()),
+            Ok(m) => syscribe_model::sm_mut::analyse(&m, &scenarios, &syscribe_model::sm_run::Options { strict: flag("--strict"), ..Default::default() }),
             Err(diags) => {
                 for (c, msg) in &diags {
                     eprintln!("{c}: {msg}");
@@ -1128,14 +1128,17 @@ pub fn cmd_mutate(elems: &[RawElement], args: &[String], model_root: &std::path:
         println!("{}", serde_json::to_string_pretty(&report).expect("serialises"));
     } else {
         println!(
-            "mutation score {:.1}%  ({} killed, {} survived, {} equivalent-suspect) over {} scenario(s) on {} (hash {})",
-            report.score, report.killed, report.survived, report.equivalent_suspect, report.scenarios, report.machine, &report.machine_hash[..12]
+            "mutation score {:.1}%  ({} killed, {} survived, {} not exercised) over {} scenario(s) on {} (hash {})",
+            report.score, report.killed, report.survived, report.not_exercised, report.scenarios, report.machine, &report.machine_hash[..12]
         );
         for m in report.mutants.iter().filter(|m| m.fate == "survived") {
             println!("  SURVIVED  {}  [{} at {}]{}", m.description, m.operator, m.origin.path, m.closest.as_ref().map(|c| format!("  (closest: {c})")).unwrap_or_default());
         }
-        for m in report.mutants.iter().filter(|m| m.fate == "equivalentSuspect") {
-            println!("  uncovered {}  [{}]", m.description, m.operator);
+        if report.not_exercised > 0 {
+            println!("  {} mutant(s) not exercised: no scenario reaches them, so they are not counted in the score (listed with --json)", report.not_exercised);
+            if !report.uncovered.transitions.is_empty() {
+                println!("  transitions never taken: {}", unreached(&report.uncovered.transitions));
+            }
         }
         if !report.uncovered.states.is_empty() {
             println!("  states never entered: {}", report.uncovered.states.join(", "));
@@ -1668,7 +1671,14 @@ fn record_scores(model_root: &std::path::Path, records: Vec<syscribe_model::exec
 }
 
 #[allow(clippy::too_many_arguments)]
-fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], min: Option<f64>, only_part: Option<&str>, json: bool, record: bool, model_root: &std::path::Path) -> i32 {
+/// `t3, t7, …` for the first transitions no scenario takes.
+fn unreached(ids: &[usize]) -> String {
+    let shown: Vec<String> = ids.iter().take(20).map(|t| format!("t{t}")).collect();
+    format!("{}{}", shown.join(", "), if ids.len() > 20 { format!(", … ({} in all)", ids.len()) } else { String::new() })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], min: Option<f64>, only_part: Option<&str>, json: bool, record: bool, strict: bool, model_root: &std::path::Path) -> i32 {
     use syscribe_model::sm_scen::extract_scenarios;
     let scenarios: Vec<_> = tcs.iter().flat_map(|tc| extract_scenarios(&tc.doc)).collect();
     if scenarios.is_empty() {
@@ -1691,7 +1701,7 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
             return 1;
         }
     }
-    let report = match syscribe_model::system_mut::analyse(&model, &scenarios, &syscribe_model::sm_run::Options::default(), only_part) {
+    let report = match syscribe_model::system_mut::analyse(&model, &scenarios, &syscribe_model::sm_run::Options { strict, ..Default::default() }, only_part) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("error: {e}");
@@ -1702,21 +1712,24 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
         println!("{}", serde_json::to_string_pretty(&report).expect("serialises"));
     } else {
         println!(
-            "mutation score {:.1}%  ({} killed, {} survived, {} equivalent-suspect) over {} scenario(s) on {} (hash {})",
-            report.score, report.killed, report.survived, report.equivalent_suspect, report.scenarios, report.composite, &report.hash[..12]
+            "mutation score {:.1}%  ({} killed, {} survived, {} not exercised) over {} scenario(s) on {} (hash {})",
+            report.score, report.killed, report.survived, report.not_exercised, report.scenarios, report.composite, &report.hash[..12]
         );
         for p in &report.parts {
-            println!("{}: {:.1}%  ({} killed, {} survived, {} equivalent-suspect)", p.machine, p.score, p.killed, p.survived, p.equivalent_suspect);
+            println!("{}: {:.1}%  ({} killed, {} survived, {} not exercised)", p.machine, p.score, p.killed, p.survived, p.not_exercised);
             for m in p.mutants.iter().filter(|m| m.fate == "survived") {
                 println!("  SURVIVED  {}  [{} at {}]{}", m.description, m.operator, m.origin.path, m.closest.as_ref().map(|c| format!("  (closest: {c})")).unwrap_or_default());
             }
-            for m in p.mutants.iter().filter(|m| m.fate == "equivalentSuspect") {
-                println!("  uncovered {}  [{}]", m.description, m.operator);
+            if p.not_exercised > 0 {
+                println!("  {} mutant(s) not exercised: no scenario reaches them, so they are not counted in the score (listed with --json)", p.not_exercised);
+                if !p.uncovered.transitions.is_empty() {
+                    println!("  transitions never taken: {}", unreached(&p.uncovered.transitions));
+                }
             }
             if !p.uncovered.states.is_empty() {
                 println!("  states never entered: {}", p.uncovered.states.join(", "));
             }
-            if p.killed + p.survived == 0 && p.equivalent_suspect > 0 {
+            if p.killed + p.survived == 0 && p.not_exercised > 0 {
                 println!("  note: no mutant of this part was judged; the scenarios never exercise it");
             }
         }
@@ -1740,9 +1753,9 @@ fn mutate_composite(elems: &[RawElement], composite: &str, tcs: &[&RawElement], 
     let mut exit = 0;
     if let Some(min) = min {
         for p in &report.parts {
-            if p.killed + p.survived == 0 && p.equivalent_suspect > 0 {
+            if p.killed + p.survived == 0 && p.not_exercised > 0 {
                 // nothing was judged: the scenarios never exercised the part, which a score of 100% would hide
-                eprintln!("mutation gate: {} had no mutant judged ({} equivalent-suspect: the scenarios never exercise this part)", p.machine, p.equivalent_suspect);
+                eprintln!("mutation gate: {} had no mutant judged ({} not exercised: the scenarios never exercise this part)", p.machine, p.not_exercised);
                 exit = 2;
             } else if p.score + 1e-9 < min {
                 eprintln!("mutation gate: {} score {:.1}% is below the required {min}%", p.machine, p.score);

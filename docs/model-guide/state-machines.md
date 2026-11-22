@@ -74,8 +74,8 @@ the `StateDef` top level (with an explicit `source:`); both yield the same edge 
 
 | Code | Catches |
 |---|---|
-| `W070` | **Dead state** — a substate with no incoming transition that is not `isInitial`. |
-| `W071` | **Trap state** — a substate with no outgoing transition that is not `isFinal`. |
+| `W070` | **Dead state** — a substate that no transition anywhere in the machine enters (also those declared on an ancestor or inside another composite) and that is not `isInitial`. |
+| `W071` | **Trap state** — a substate that neither it, nor any ancestor, nor any descendant has a transition leaving, and that is not `isFinal`. |
 | `W072` | **Non-determinism** — two transitions from one source with the same `accept` payload and no guards to disambiguate. |
 | `W073` | **Missing initial** — a region with substates but no `isInitial` substate. |
 | `W074` | **Multiple initial** — more than one `isInitial` substate in a region. |

@@ -145,6 +145,7 @@ pub fn slim_record(r: &ResultRecord) -> ResultRecord {
         provenance,
         tc_hash: r.tc_hash.clone(),
         req_hashes: r.req_hashes.clone(),
+        condition: r.condition.clone(),
     }
 }
 

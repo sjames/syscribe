@@ -20,7 +20,7 @@ pub struct PartMutReport {
     pub score: f64,
     pub killed: usize,
     pub survived: usize,
-    pub equivalent_suspect: usize,
+    pub not_exercised: usize,
     pub mutants: Vec<MutantResult>,
     pub uncovered: Uncovered,
 }
@@ -34,7 +34,7 @@ pub struct SysMutReport {
     pub score: f64,
     pub killed: usize,
     pub survived: usize,
-    pub equivalent_suspect: usize,
+    pub not_exercised: usize,
     pub parts: Vec<PartMutReport>,
 }
 
@@ -100,7 +100,7 @@ pub fn analyse(model: &SystemModel, scenarios: &[Scenario], opts: &Options, only
                 }
                 None if closest.is_none() && !covered(mu.elem) => {
                     equiv += 1;
-                    ("equivalentSuspect", None, None)
+                    ("notExercised", None, None)
                 }
                 None => {
                     survived += 1;
@@ -119,10 +119,10 @@ pub fn analyse(model: &SystemModel, scenarios: &[Scenario], opts: &Options, only
             score: percent(killed, survived),
             killed,
             survived,
-            equivalent_suspect: equiv,
+            not_exercised: equiv,
             mutants: results,
             uncovered: Uncovered { states: m.states.iter().filter(|s| !cov.states.contains(&s.id)).map(|s| s.path.clone()).collect(), transitions: m.transitions.iter().filter(|t| !cov.transitions.contains(&t.id)).map(|t| t.id).collect() },
         });
     }
-    Ok(SysMutReport { composite: model.spec.composite.clone(), hash: model.hash.clone(), scenarios: scenarios.len(), score: percent(killed_all, survived_all), killed: killed_all, survived: survived_all, equivalent_suspect: equiv_all, parts })
+    Ok(SysMutReport { composite: model.spec.composite.clone(), hash: model.hash.clone(), scenarios: scenarios.len(), score: percent(killed_all, survived_all), killed: killed_all, survived: survived_all, not_exercised: equiv_all, parts })
 }

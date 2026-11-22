@@ -32,7 +32,8 @@ pub fn is_executable(variables: Option<&[Y]>, subs: &[Y]) -> bool {
     }
     let mut all = Vec::new();
     walk(subs, &mut all);
-    all.iter().any(|m| field(m, "assign").is_some())
+    // a sub-action that assigns or sends does something when run, so an action of sends alone is executable (GH #516)
+    all.iter().any(|m| field(m, "assign").is_some() || kind_of(m) == "SendAction")
 }
 
 fn chain_root(s: &str) -> &str {
