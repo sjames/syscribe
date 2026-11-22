@@ -982,7 +982,13 @@ impl<'m> System<'m> {
         }
         if let Some(r) = self.runs[to].as_mut() {
             let before = r.trace().len();
-            r.send(&format!("{port}/{}", m.event), &payload);
+            // a plain `accept: X` takes X from the part's only in port (GH #513); otherwise the accept names the port
+            let inst = &self.model.spec.instances[to];
+            let plain = self.model.machines[to].as_ref().is_some_and(|mc| {
+                let explicit = format!("{port}/{}", m.event);
+                !mc.transitions.iter().any(|t| matches!(&t.trigger, crate::ir::Trigger::Event { name, .. } if *name == explicit)) && crate::system::takes_port_event(inst, mc, &port, &m.event)
+            });
+            r.send(&if plain { m.event.clone() } else { format!("{port}/{}", m.event) }, &payload);
             // the step the message caused in the receiver names where it came from
             let from_port = m.from_port.as_ref().map(|p| format!(".{p}")).unwrap_or_default();
             r.annotate_step(before, &format!("received {} from {}{from_port} (sent at {} s)", m.event, self.model.spec.instances[m.from].name, crate::expr::format_number(m.sent)));
