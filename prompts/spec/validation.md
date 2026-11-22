@@ -354,8 +354,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W070` | Dead state — a substate has no incoming transition and is not `isInitial: true` |
-| `W071` | Trap state — a substate has no outgoing transition and is not `isFinal: true` |
+| `W070` | Dead state — no transition anywhere in the machine (ancestor or nested declarations included) enters a substate and it is not `isInitial: true` |
+| `W071` | Trap state — neither a substate, its ancestors nor its descendants have an outgoing transition and it is not `isFinal: true` |
 | `W072` | Non-determinism — two+ transitions from one source with the same `accept` payload, none guarded |
 | `W073` | Missing initial — a single-region `StateDef` with substates has no `isInitial: true` substate |
 | `W074` | Multiple initial — more than one substate is `isInitial: true` |
