@@ -296,6 +296,7 @@ pub fn to_records(report: &RobotReport, elems: &[RawElement], utc_offset: &str) 
                 provenance: Some(Provenance { tool: report.tool.clone(), started_at: started, finished_at: finished, ..Default::default() }),
                 tc_hash: None,
                 req_hashes: Default::default(),
+                condition: Default::default(),
             });
             continue;
         }
@@ -313,6 +314,7 @@ pub fn to_records(report: &RobotReport, elems: &[RawElement], utc_offset: &str) 
                 provenance: Some(Provenance { tool: report.tool.clone(), ..Default::default() }),
                 tc_hash: None,
                 req_hashes: Default::default(),
+                condition: Default::default(),
             });
             if badness(verdict) > badness(slot.verdict) {
                 slot.verdict = verdict;

@@ -1353,7 +1353,7 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | W891 | Warning | a `TestCase`/`TestPlan` lists `requiresCapabilities` that none of its `runsOn` environments offers (case-insensitive) |
 | W892 | Warning | a non-draft `TestCase`/`TestPlan` runs on a `retired` `TestEnvironment` or one whose `calibrationStatus` is `expired` |
 
-## TestPlan (E600–E608, W610–W616)
+## TestPlan (E600–E608, W610–W617)
 
 | Code | Condition |
 |---|---|
@@ -1373,6 +1373,7 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | W614 | an `approved`/`active` plan demonstrates a `Requirement` that no member verifies (honours goal-closure) |
 | W615 | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them. For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
 | W616 | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant (one contains the other, or overlap ≥ 0.5) |
+| W617 | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
 
 A duplicate `TestPlan` `id` is the generic `E101`.
 
