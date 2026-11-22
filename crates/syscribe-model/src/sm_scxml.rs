@@ -188,7 +188,11 @@ impl Out {
             self.actions(m, depth + 1, &st.entry, None, &owner);
             for t in &arming {
                 match &t.trigger {
-                    Trigger::Timer { delay_seconds } => {
+                    Trigger::Timer { delay: Some(d), .. } => {
+                        // exported as `delayexpr` in a later slice of ADR-SYS-AFTER-001; until then it is reported, never dropped silently
+                        self.warnings.push(format!("transition t{}: the delay expression `{}` has no SCXML form yet and the timer is not exported", t.id, d.src));
+                    }
+                    Trigger::Timer { delay_seconds, .. } => {
                         if (delay_seconds * 1000.0).fract().abs() > 1e-9 {
                             self.warnings.push(format!("transition t{}: the delay {delay_seconds} s is rounded to whole milliseconds", t.id));
                         }

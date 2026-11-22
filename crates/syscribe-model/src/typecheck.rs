@@ -267,6 +267,15 @@ pub fn machine_diags(m: &Machine) -> Vec<Diag> {
         if let Trigger::Change { cond } = &t.trigger {
             check_bool(m, cond, &ctx, "`when`", &mut out);
         }
+        if let Trigger::Timer { delay: Some(d), .. } = &t.trigger {
+            let time = crate::expr::unit_scale("s").map(|(_, dim)| dim);
+            match infer_ir(m, d) {
+                Ok(Ty::Num(Some(dim))) if Some(dim) != time => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", d.src, Ty::Num(Some(dim)).describe()))),
+                Ok(Ty::Bool | Ty::Str) => out.push(("E935", format!("{ctx}: `after: {}` is {}, not a duration", d.src, infer_ir(m, d).map(|t| t.describe()).unwrap_or_default()))),
+                Err(why) => out.push(("E935", format!("{ctx}: `after:` {why}"))),
+                _ => {}
+            }
+        }
         check_actions(m, &t.actions, &ctx, &mut out);
     }
     out

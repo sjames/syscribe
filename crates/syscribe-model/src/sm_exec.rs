@@ -239,9 +239,14 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
                         kinds += 1;
                         let src = text(v).unwrap_or_default();
                         let want = expr::unit_scale("s").map(|(_, d)| d);
-                        match expr::parse(&src).and_then(|e| e.eval(&|_: &str| None)) {
-                            Ok(Value::Num(q)) if Some(q.dim) == want && q.v >= 0.0 => {}
-                            Ok(_) => out.push(("E882", format!("{label}: `after: {src}` is not a non-negative duration"))),
+                        match expr::parse(&src) {
+                            // an expression over variables is typed (E935) and evaluated when the timer is armed
+                            Ok(ast) if !ast.names().is_empty() => {}
+                            Ok(ast) => match ast.eval(&|_: &str| None) {
+                                Ok(Value::Num(q)) if Some(q.dim) == want && q.v >= 0.0 => {}
+                                Ok(_) => out.push(("E882", format!("{label}: `after: {src}` is not a non-negative duration"))),
+                                Err(e) => out.push(("E882", format!("{label}: `after: {src}` does not evaluate: {e}"))),
+                            },
                             Err(e) => out.push(("E882", format!("{label}: `after: {src}` does not evaluate: {e}"))),
                         }
                     }

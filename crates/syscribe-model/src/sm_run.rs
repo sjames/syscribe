@@ -1002,10 +1002,31 @@ impl<'m> Run<'m> {
         result
     }
 
+    /// The delay of the timer of transition `t`, in seconds: its constant, or its expression read now, as the timer is
+    /// armed (ADR-SYS-AFTER-001). An expression that is not a non-negative duration stops the run.
+    fn timer_delay(&self, t: usize) -> R<f64> {
+        let Trigger::Timer { delay_seconds, delay } = &self.m.transitions[t].trigger else { return Ok(0.0) };
+        let Some(e) = delay else { return Ok(*delay_seconds) };
+        let what = format!("transition t{t} `after`");
+        match self.eval(e, None, &what)? {
+            Value::Num(q) if Some(q.dim) == crate::expr::unit_scale("s").map(|(_, d)| d) => {
+                if q.v < 0.0 {
+                    Err(format!("{what}: `{}` is {}, a negative duration", e.src, format_value(&Value::Num(q))))
+                } else {
+                    Ok(q.v)
+                }
+            }
+            other => Err(format!("{what}: `{}` is a {}, not a duration", e.src, other.kind())),
+        }
+    }
+
     fn rearm(&mut self, t: usize) -> R<()> {
         let tr = &self.m.transitions[t];
         match &tr.trigger {
-            Trigger::Timer { delay_seconds } => self.timers.push((quantise(self.time + delay_seconds), t)),
+            Trigger::Timer { .. } => {
+                let secs = self.timer_delay(t)?;
+                self.timers.push((quantise(self.time + secs), t));
+            }
             Trigger::Change { cond } => {
                 let v = self.truth(cond, None, &format!("transition t{t} `when`"))?;
                 self.watches.push(Watch { trans: t, need_false: v, fired: false });
@@ -1083,7 +1104,10 @@ impl<'m> Run<'m> {
         for s in entered.iter().copied().filter(|s| self.active[*s]) {
         for tr in m.transitions.iter().filter(|t| t.source == s) {
             match &tr.trigger {
-                Trigger::Timer { delay_seconds } => self.timers.push((quantise(self.time + delay_seconds), tr.id)),
+                Trigger::Timer { .. } => {
+                    let secs = self.timer_delay(tr.id)?;
+                    self.timers.push((quantise(self.time + secs), tr.id));
+                }
                 Trigger::Change { cond } => {
                     // KerML ObserveChange: already true when the observation starts means the signal is sent at once.
                     let v = self.truth_rec(tr.id, 1, cond, None, &format!("transition t{} `when`", tr.id))?;

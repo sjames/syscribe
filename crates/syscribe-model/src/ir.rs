@@ -91,8 +91,14 @@ pub enum Trigger {
         #[serde(skip_serializing_if = "Option::is_none")]
         bind: Option<String>,
     },
+    /// `after:` — a constant duration (`delay_seconds`, `delay` absent, so a machine with only literal timers keeps its
+    /// hash), or an expression over the machine's variables read each time the timer is armed (ADR-SYS-AFTER-001).
     #[serde(rename_all = "camelCase")]
-    Timer { delay_seconds: f64 },
+    Timer {
+        delay_seconds: f64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        delay: Option<IrExpr>,
+    },
     Change { cond: IrExpr },
     Done { state: usize },
 }
@@ -473,15 +479,20 @@ pub fn lower_with(elements: &[RawElement], resolver: &Resolver, target: &str) ->
             Some(Y::String(s)) => Trigger::Event { name: s.clone(), bind: None },
             Some(Y::Mapping(a)) => {
                 if let Some(v) = field(a, "after") {
-                    let secs = text(v)
-                        .and_then(|s| expr::parse(&s).ok())
-                        .and_then(|e| e.eval(&|_: &str| None).ok())
-                        .and_then(|v| match v {
-                            Value::Num(q) => Some(q.v),
-                            _ => None,
-                        })
-                        .unwrap_or(0.0);
-                    Trigger::Timer { delay_seconds: secs }
+                    let src = text(v).unwrap_or_default();
+                    let constant = expr::parse(&src).ok().and_then(|e| e.eval(&|_: &str| None).ok()).and_then(|v| match v {
+                        Value::Num(q) => Some(q.v),
+                        _ => None,
+                    });
+                    match constant {
+                        Some(secs) => Trigger::Timer { delay_seconds: secs, delay: None },
+                        // not a constant: an expression over the machine's variables, evaluated when the timer is armed
+                        None if expr::parse(&src).is_ok_and(|e| !e.names().is_empty()) => match cx.expr(&src, &bound, &w) {
+                            Some(e) => Trigger::Timer { delay_seconds: 0.0, delay: Some(e) },
+                            None => return,
+                        },
+                        None => Trigger::Timer { delay_seconds: 0.0, delay: None },
+                    }
                 } else if let Some(v) = field(a, "when") {
                     let src = text(v).unwrap_or_default();
                     match cx.expr(&src, &bound, &w) {

@@ -13,7 +13,7 @@ trait IntoTimer {
 
 impl IntoTimer for Trigger {
     fn into_timer(self) -> Option<f64> {
-        if let Trigger::Timer { delay_seconds } = self { Some(delay_seconds) } else { None }
+        if let Trigger::Timer { delay_seconds, delay: None } = self { Some(delay_seconds) } else { None }
     }
 }
 use crate::sm_run::{Coverage, Options};
@@ -229,10 +229,10 @@ pub fn generate(m: &Machine) -> Vec<Mutant> {
             }
         }
         // timers
-        if let Trigger::Timer { delay_seconds } = tr.trigger.clone().into_timer().filter(|d| *d != 0.0).map(|d| Trigger::Timer { delay_seconds: d }).unwrap_or(Trigger::Eventless) {
+        if let Trigger::Timer { delay_seconds, .. } = tr.trigger.clone().into_timer().filter(|d| *d != 0.0).map(|d| Trigger::Timer { delay_seconds: d, delay: None }).unwrap_or(Trigger::Eventless) {
             for (f, label) in [(0.5, "0.5"), (2.0, "2")] {
                 let mut mm = m.clone();
-                mm.transitions[t].trigger = Trigger::Timer { delay_seconds: delay_seconds * f };
+                mm.transitions[t].trigger = Trigger::Timer { delay_seconds: delay_seconds * f, delay: None };
                 add("scale-after", format!("scale the delay of {d} by {label}"), origin.clone(), Elem::Transition(t), mm);
             }
         }

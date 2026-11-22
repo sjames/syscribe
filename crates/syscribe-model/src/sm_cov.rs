@@ -109,7 +109,8 @@ fn describe(m: &Machine, t: usize) -> String {
     let trig = match &tr.trigger {
         Trigger::Eventless => "eventless".to_string(),
         Trigger::Event { name, .. } => format!("on {name}"),
-        Trigger::Timer { delay_seconds } => format!("after {} s", crate::expr::format_number(*delay_seconds)),
+        Trigger::Timer { delay: Some(d), .. } => format!("after {}", d.src),
+        Trigger::Timer { delay_seconds, .. } => format!("after {} s", crate::expr::format_number(*delay_seconds)),
         Trigger::Change { cond } => format!("when {}", cond.src),
         Trigger::Done { state } => format!("done {}", m.states[*state].path),
     };
