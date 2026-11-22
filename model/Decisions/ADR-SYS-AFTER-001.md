@@ -2,7 +2,7 @@
 type: ADR
 id: ADR-SYS-AFTER-001
 name: "A timer's duration is an expression of the machine's variables, read when the timer is armed"
-status: proposed
+status: accepted
 tags:
   - state-machine
   - execution
