@@ -54,6 +54,10 @@ pub enum NodeKind {
         event: Option<String>,
         bind: Option<String>,
         after_seconds: Option<f64>,
+        /// `after:` as an expression over the action's variables and parameters, read when the accept starts waiting
+        /// (ADR-SYS-AFTER-001); absent for a constant, so the hash of an action with literal waits is unchanged.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after: Option<IrExpr>,
     },
     If {
         cond: IrExpr,
@@ -351,7 +355,15 @@ impl<'a> Cx<'a> {
                     Some(port) => format!("{port}/{p}"),
                     None => p.to_string(),
                 });
-                NodeKind::Accept { event, bind: field(m, "as").and_then(|v| v.as_str()).map(String::from), after_seconds }
+                let mut after = None;
+                if after_seconds.is_none() {
+                    if let Some(src) = field(m, "after").and_then(text) {
+                        if expr::parse(&src).is_ok_and(|e| !e.names().is_empty()) {
+                            after = expr_of(&src, sc, &w, &mut diags);
+                        }
+                    }
+                }
+                NodeKind::Accept { event, bind: field(m, "as").and_then(|v| v.as_str()).map(String::from), after_seconds, after }
             }
             "IfAction" => {
                 let cond = field(m, "condition").and_then(text).and_then(|c| expr_of(&c, sc, &w, &mut diags));

@@ -1149,7 +1149,7 @@ Executable state machines, actions, composites, in-process plants and fault inje
 
 | Code | Severity | Condition |
 |---|---|---|
-| E882 | Error | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is not a non-negative duration, a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
+| E882 | Error | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is a constant but not a non-negative duration (a variable or expression is typed by `E935` and read when the timer is armed), a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
 | E883 | Error | a `variables:` entry of a `StateDef` is malformed: not a mapping, no `name`, an invalid or duplicate name, or an initial `value` that does not evaluate (GH #277) |
 | E884 | Error | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
 | E885 | Error | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |

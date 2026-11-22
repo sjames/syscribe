@@ -443,3 +443,27 @@ fn a_performed_actions_stale_outputs_do_not_survive_a_second_call() {
     r.run();
     assert_eq!(r.status(), Status::Error, "d produced no y; the stale c.y must not be read");
 }
+
+#[test]
+fn a_timed_accept_reads_its_duration_from_a_parameter_when_it_starts_waiting() {
+    // GH #511 / ADR-SYS-AFTER-001, the ActionDef form
+    let p = program(&[("T", "parameters:\n  - {name: wait_for, direction: in, unit: \"SI::s\"}\nvariables:\n  - {name: v, value: \"0\"}\nsubActions:\n  - {name: wait, kind: AcceptAction, after: wait_for}\n  - {name: go, kind: AssignmentAction, assign: \"v := 1\"}\nsuccessionConnections:\n  - {after: wait, before: go}\n")], "T");
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.set_input("wait_for", val("3 s")).unwrap();
+    r.run();
+    r.advance(2.9);
+    assert_eq!(r.status(), Status::Waiting);
+    r.advance(0.2);
+    assert_eq!(r.status(), Status::Completed);
+    assert_eq!(num(&r, "v"), "1");
+}
+
+#[test]
+fn a_negative_accept_duration_is_a_run_error() {
+    let p = program(&[("T", "parameters:\n  - {name: wait_for, direction: in, unit: \"SI::s\"}\nsubActions:\n  - {name: wait, kind: AcceptAction, after: wait_for}\n")], "T");
+    let mut r = ActRun::new(&p, ActOptions::default());
+    r.set_input("wait_for", val("0 s - 1 s")).unwrap();
+    r.run();
+    assert_eq!(r.status(), Status::Error);
+    assert!(r.error().unwrap_or("").contains("negative"), "{:?}", r.error());
+}

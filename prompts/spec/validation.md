@@ -303,7 +303,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E718` | An `Argument.evidence` entry is not a scalar reference (expected a string id/qname — e.g. a `PlanningItem`-style `{ref:, path:}` mapping on an `Argument`) |
 | `W040` | A `claim`/`strategy` `Argument` has neither `supports` nor `evidence` (orphan GSN node) |
 | `E881` | An `Argument` is part of a cycle — it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning; GH #217) |
-| `E882` | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is not a non-negative duration, a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
+| `E882` | a state-machine transition's `accept:` has more than one trigger kind, an unknown trigger key, `via`/`as` without a `payload`, an `after` that is a constant but not a non-negative duration (a variable or expression is typed by `E935` and read when the timer is armed), a `when` that does not parse, or a `done` naming no state of the machine (GH #277) |
 | `E883` | a `variables:` entry of a `StateDef` is malformed: not a mapping, no `name`, an invalid or duplicate name, or an initial `value` that does not evaluate (GH #277) |
 | `E884` | a transition's or `initialEffect`'s `assign:` has a statement that is not `name := expression`, or assigns a name that is not a declared variable (GH #277) |
 | `E885` | `internal:` on a transition is not a boolean, or an internal transition has a `target:` (GH #277) |

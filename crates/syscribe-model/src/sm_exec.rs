@@ -230,6 +230,7 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
 
         // E882 — trigger.
         let mut when_src: Option<String> = None;
+        let mut after_src: Option<String> = None;
         if let Some(Y::Mapping(a)) = field(t, "accept") {
             let mut kinds = 0;
             for (k, v) in a {
@@ -238,6 +239,7 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
                     "after" => {
                         kinds += 1;
                         let src = text(v).unwrap_or_default();
+                        after_src = Some(src.clone());
                         let want = expr::unit_scale("s").map(|(_, d)| d);
                         match expr::parse(&src) {
                             // an expression over variables is typed (E935) and evaluated when the timer is armed
@@ -297,7 +299,7 @@ pub fn check(variables: Option<&[Y]>, initial_effect: Option<&Y>, subs: &[Y], to
         }
 
         // W933 — guard / when in the expression language, over known names.
-        for (what, src) in [("guard", field(t, "guard").and_then(text)), ("when", when_src)] {
+        for (what, src) in [("guard", field(t, "guard").and_then(text)), ("when", when_src), ("after", after_src)] {
             let Some(src) = src.filter(|s| !s.trim().is_empty()) else { continue };
             match expr::parse(&src) {
                 Err(_) => out.push(("W933", format!("{label}: `{what}: {src}` is not in the expression language, so the machine cannot be simulated"))),

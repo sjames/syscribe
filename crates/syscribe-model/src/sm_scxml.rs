@@ -189,8 +189,12 @@ impl Out {
             for t in &arming {
                 match &t.trigger {
                     Trigger::Timer { delay: Some(d), .. } => {
-                        // exported as `delayexpr` in a later slice of ADR-SYS-AFTER-001; until then it is reported, never dropped silently
-                        self.warnings.push(format!("transition t{}: the delay expression `{}` has no SCXML form yet and the timer is not exported", t.id, d.src));
+                        if t.internal {
+                            self.warnings.push(format!("transition t{}: an internal `after` transition is re-armed after it fires in syscribe, but the SCXML <send> is not repeated", t.id));
+                        }
+                        // the variables of the datamodel hold SI values, so seconds * 1000 is the CSS2 time in milliseconds
+                        let e = ecma(&d.ast, None, &mut self.warnings);
+                        self.line(depth + 1, &format!("<send id=\"timer_t{0}\" event=\"timer.t{0}\" delayexpr=\"{1}\"/>", t.id, esc(&format!("(({e}) * 1000) + 'ms'"))));
                     }
                     Trigger::Timer { delay_seconds, .. } => {
                         if (delay_seconds * 1000.0).fract().abs() > 1e-9 {
