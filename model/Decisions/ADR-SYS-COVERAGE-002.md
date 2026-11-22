@@ -22,12 +22,15 @@ missed plan silently keeps the smaller envelope and reports `pass`.
    no other element. Nothing existing is migrated.
 2. **A plan may instead reference shared axes.** `conditionSet: <ref>` names a
    `ConditionSet` element (`CS-*`, id-identified) that carries the same
-   `conditions:` shape as the inline form, with `minUnits`, `mode` and `points`
-   optional defaults.
-3. **Plans override, never merge axes.** A plan that sets both `conditionSet:`
-   and its own `conditions:` is an error: one source of axes per plan. The
-   plan's own `minUnits`, `mode` and `points` win over the set's defaults, so a
-   field plan can require more units without redefining the axes.
+   `conditions:` shape as the inline form and nothing else: the set is the
+   envelope only.
+3. **The set carries axes only; the plan carries the campaign.** `minUnits`,
+   `mode` and `points` stay on the plan, because how many units are tested and
+   how many combinations are run differ per campaign (bench, chamber, field)
+   over the same envelope, and an inherited default would be a hidden one. A
+   plan that sets both `conditionSet:` and its own `conditions:` is an error:
+   one source of axes per plan. `points:` is checked against the resolved axes
+   (E608).
 4. **The set is normative content.** Changing it changes the required coverage
    of every plan that references it. Plans use the ordinary suspect-link
    baseline (`traceBaselines:`), so W090 flags each plan for review, and
@@ -55,6 +58,3 @@ missed plan silently keeps the smaller envelope and reports `pass`.
 - A new element type, id prefix, template and help topic (discoverability
   checklist) and validation codes in both catalogues.
 - Requirement-level display (`trace`, worst over plans) is unaffected.
-- Decide before implementing: whether `ConditionSet` may name `unit` classes
-  (`minUnits` per set) or leaves units on the plan; this ADR leaves them as
-  plan-overridable defaults.
