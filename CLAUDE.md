@@ -337,6 +337,7 @@ Discover with `syscribe help <Type>`, `syscribe help --search <keyword>`, `syscr
 | TestPlan | `TP` | — | `syscribe -m model/ next-id TP-<AREA>` |
 | Configuration | `CONF` | — | `syscribe -m model/ next-id CONF-<AREA>` |
 | ADR | `ADR` | — | `syscribe -m model/ next-id ADR-<AREA>` |
+| ReviewRecord | `RR` | — | `syscribe -m model/ next-id RR-<AREA>` |
 | Zone | `ZN` | — | `syscribe -m model/ next-id ZN-<AREA>` |
 | Conduit | `CD` | — | `syscribe -m model/ next-id CD-<AREA>` |
 | FeatureDef | `FEAT` | — | `syscribe -m model/ next-id FEAT-<AREA>` |
@@ -349,6 +350,7 @@ Discover with `syscribe help <Type>`, `syscribe help --search <keyword>`, `syscr
 - **TestPlan** — status: draft · review · approved · active · retired; required: `type`, `id`, `name`; commands: `next-id`, `set`, `testplan`
 - **ADR** — status: proposed · accepted · deprecated · superseded; required: `id`, `name`, `status`; commands: `next-id`, `set`
 - **PlanningItem** — status: todo · in_progress · blocked · done; required: `id`, `name`, `status`; commands: `next-id`, `set`, `claim`, `release`, `steps`, `questions`, `next`, `done`
+- **ReviewRecord** — status: open · closed · waived; required: `type`, `id`, `name`; commands: `reviews`, `set`
 
 ### Before declaring work done
 
