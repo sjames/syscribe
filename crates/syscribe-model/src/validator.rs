@@ -3301,6 +3301,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error(code, &file, &msg));
                 }
             }
+            // W937 (GH #516): an effect ActionDef made of sends that is not executable sends nothing when run
+            if let Ok(m) = crate::ir::lower_with(machine_view, &resolver, &elem.qualified_name) {
+                for t in crate::ir::silent_sending_behaviors(&m, machine_view, &resolver) {
+                    findings.push(warning("W937", &file, &format!("`{t}` contains a SendAction but is not executable, so running this machine sends nothing from it; declare `variables: []` on the ActionDef to opt in (REQ-TRS-ACTSEND-001)")));
+                }
+            }
         }
 
         // E935 for an executable ActionDef (REQ-TRS-STYPE-002), the same way.

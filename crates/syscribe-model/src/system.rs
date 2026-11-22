@@ -478,8 +478,20 @@ fn walk_actions<'a>(m: &'a Machine, f: &mut dyn FnMut(&'a Action)) {
 fn traffic(m: &Machine) -> (BTreeSet<(Option<String>, String)>, BTreeSet<(String, String)>) {
     let mut sent = BTreeSet::new();
     walk_actions(m, &mut |a| {
-        if let Action::Send { event, via, .. } = a {
-            sent.insert((via.clone(), event.clone()));
+        match a {
+            Action::Send { event, via, .. } => {
+                sent.insert((via.clone(), event.clone()));
+            }
+            // an effect ActionDef's SendActions leave the machine too (GH #509)
+            Action::Behavior { target, .. } => {
+                for e in m.behaviors.get(target).into_iter().flat_map(|p| p.sent_events()) {
+                    sent.insert(match e.split_once('/') {
+                        Some((p, ev)) => (Some(p.to_string()), ev.to_string()),
+                        None => (None, e),
+                    });
+                }
+            }
+            _ => {}
         }
     });
     let mut accepted = BTreeSet::new();

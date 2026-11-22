@@ -7463,6 +7463,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `W933` | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | `W935` | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
 | `W936` | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| `W937` | Warning | a state machine runs an `ActionDef` that contains a `SendAction` but is not executable (no `variables:`, nothing assigned), so it sends nothing; declare `variables: []` to opt in (GH #516, REQ-TRS-ACTSEND-001) |
 | `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.
