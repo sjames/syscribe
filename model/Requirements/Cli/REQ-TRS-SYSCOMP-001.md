@@ -13,6 +13,7 @@ amendments:
     by: claude
     reason: 'GH #513, owner go-ahead on the proposed rule: a plain accept receives a port message when the part has exactly one in port; several in ports still need via:, and W936 says so'
     kind: scope-change
+    ref: RR-TRS-001
 ---
 
 A composite `Part`/`PartDef` whose parts carry behaviour shall be executable as a system (GH #297, part of #272): every part runs its own state machine, messages travel along the port connections the model already declares, values travel along binding connections, and all of it runs on one deterministic virtual clock. Rationale and algorithm: `docs/design/system-composition.md`.
