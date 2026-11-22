@@ -14,7 +14,9 @@ Mutation operators: negate a guard or `when`; replace a relational operator (`<`
 retarget a transition to another state of the target's region; remove a transition; remove
 an action (assign or effect, transition or state entry/exit); assign a variable to itself
 instead of its expression; scale an `after` delay by 0.5 and 2; swap two transitions of one
-source with the same trigger.
+source with the same trigger; lose a `SendAction` inside an `ActionDef` that a transition or
+state runs (`remove-send`, attributed to whatever runs the activity: in a composite these sends
+are the messages between machines).
 
 A mutant is **killed** when any scenario then fails or errors, **survived** when none does,
 and **equivalent-suspect** when its traces are identical to the original's and the mutated

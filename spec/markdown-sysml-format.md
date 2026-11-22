@@ -2138,6 +2138,7 @@ When `subActions` entries have `kind: SendAction` or `kind: AcceptAction`, the f
 | `payload` | string | Qualified name of the item/message being sent or accepted |
 | `via` | string | Feature chain to the port through which the send/accept occurs |
 | `to` | string | For `SendAction` — feature chain naming the receiver (`send x via p to t`) |
+| `parameters` | list of `{name, value}` | For `SendAction` — the values of the payload's fields, each an expression over the action's parameters and variables evaluated when the send fires (`{name: phase, value: "3"}`). It is the only form; `arguments:`, `values:` and a mapping as `payload:` are not fields of a `SendAction` and raise `W938` |
 | `trigger` | map | For `AcceptAction` — trigger specification; see 8.7.7. A time or change trigger has no `payload` (`accept after 5;`, `accept when c;`, `accept at t;`) |
 
 When `subActions` entries have `kind: IfAction`, the following additional sub-fields apply:
@@ -7463,6 +7464,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `W933` | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | `W935` | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
 | `W936` | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| `W938` | Warning | a sub-action of an `ActionDef` carries a key its kind does not define (it is ignored), or a `SendAction`/`AcceptAction` has a `payload:` that is not a type name; a payload's field values are bound with `parameters: [{name, value}]` (GH #508) |
 | `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.

@@ -3182,6 +3182,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 findings.push(error("E011", &file, "TestCase body has no ```gherkin fenced block"));
             }
 
+        // W938 (GH #508): keys on a sub-action that its kind does not define are ignored, so say so.
+        if matches!(fm.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) {
+            for (code, msg) in crate::act_exec::unknown_keys(fm.sub_actions.as_deref().unwrap_or(&[])) {
+                findings.push(warning(code, &file, &msg));
+            }
+        }
+
         // E883/E884/E887/W935: the executable action-flow schema (REQ-TRS-ACTSCHEMA-001). Dormant unless the
         // action declares `variables:` or uses `assign:`.
         if matches!(fm.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) && fm.status.as_deref() != Some("draft") {
