@@ -214,6 +214,10 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `scope` | string | `unit`·`smoke`·`integration`·`hil`·`certification`·`security`·`regression` (`W610` if other) |
 | `testCases` | string or list | Explicit member TestCases (id/qname) |
 | `selection` | map | Additive query `{testLevels, domains, tags}` unioned with `testCases` |
+| `conditions` | map | TestPlan required coverage: axis → list of points `{name, value?}` (`E607`) |
+| `minUnits` | integer | TestPlan: distinct units that must pass at each required point (≥ 1, `E607`) |
+| `mode` | `each` \| `product` | TestPlan: how `conditions:` axes combine (default `each`) |
+| `points` | list of map | TestPlan: explicit required coordinate sets `{axis: point}`; replaces `mode` (`E608` on an undeclared name) |
 | `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic |
 | `demonstrates` | list | Goals/requirements this plan is evidence for |
 

@@ -258,6 +258,27 @@ pub fn generate(m: &Machine) -> Vec<Mutant> {
             }
         }
     }
+    // the sends inside an activity a transition or state runs are the messages between machines (GH #510): losing one
+    // is the interesting fault, and it belongs to whatever runs the activity
+    let mut lose_sends = |what: String, origin: &Origin, elem: Elem, acts: &[Action]| {
+        for a in acts {
+            let Action::Behavior { target, .. } = a else { continue };
+            let Some(prog) = m.behaviors.get(target) else { continue };
+            for (uid, name, event) in prog.sends() {
+                let mut mm = m.clone();
+                mm.behaviors.insert(target.clone(), prog.without_send(uid));
+                add("remove-send", format!("lose the send `{name}` ({event}) of `{target}`, run by {what}"), origin.clone(), elem, mm);
+            }
+        }
+    };
+    for tr in &m.transitions {
+        let d = format!("t{} {} → {}", tr.id, m.states[tr.source].path, tr.target.map(|x| m.states[x].path.as_str()).unwrap_or("(internal)"));
+        lose_sends(d, &tr.origin, Elem::Transition(tr.id), &tr.actions);
+    }
+    for s in &m.states {
+        lose_sends(format!("the entry of {}", s.path), &s.origin, Elem::State(s.id), &s.entry);
+        lose_sends(format!("the exit of {}", s.path), &s.origin, Elem::State(s.id), &s.exit);
+    }
     // state entry / exit actions
     for s in &m.states {
         for (which, list) in [("entry", &s.entry), ("exit", &s.exit)] {
@@ -325,7 +346,7 @@ pub struct MutReport {
     pub score: f64,
     pub killed: usize,
     pub survived: usize,
-    pub equivalent_suspect: usize,
+    pub not_exercised: usize,
     pub mutants: Vec<MutantResult>,
     pub uncovered: Uncovered,
 }
@@ -369,7 +390,7 @@ pub fn analyse(m: &Machine, scenarios: &[Scenario], opts: &Options) -> Result<Mu
             }
             None if closest.is_none() && !covered(mu.elem) => {
                 equiv += 1;
-                ("equivalentSuspect", None, None)
+                ("notExercised", None, None)
             }
             None => {
                 survived += 1;
@@ -386,7 +407,7 @@ pub fn analyse(m: &Machine, scenarios: &[Scenario], opts: &Options) -> Result<Mu
         score,
         killed,
         survived,
-        equivalent_suspect: equiv,
+        not_exercised: equiv,
         mutants: results,
         uncovered: Uncovered {
             states: m.states.iter().filter(|s| !cov.states.contains(&s.id)).map(|s| s.path.clone()).collect(),

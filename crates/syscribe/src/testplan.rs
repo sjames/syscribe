@@ -274,6 +274,100 @@ pub(crate) fn plan_verdict(
     resolver: &Resolver,
     results: Option<&ResultsData>,
 ) -> &'static str {
+    let base = plan_verdict_base(plan, elements, resolver, results);
+    if matches!(base, "fail" | "empty") {
+        return base;
+    }
+    // Required coverage (ADR-SYS-COVERAGE-001): a plan passes only when every required cell has a pass.
+    match plan_gaps(plan, elements, resolver, results) {
+        g if g.is_empty() => base,
+        g if g.iter().any(|x| x.reason == syscribe_model::plan_coverage::GapReason::Failed) => "fail",
+        _ => "incomplete",
+    }
+}
+
+/// The cells of a plan's declared coverage that have no pass (empty when it declares none).
+pub(crate) fn plan_gaps(
+    plan: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+) -> Vec<syscribe_model::plan_coverage::Gap> {
+    let Ok(Some(cov)) = syscribe_model::plan_coverage::parse(&plan.frontmatter.extra) else { return Vec::new() };
+    let configs = lib::plan_configs(plan, elements, resolver);
+    let pkg = variability::package_conditions(elements);
+    let feat_alias = variability::feature_id_to_qname(elements);
+    let members: Vec<String> = lib::effective_testcases(plan, elements, resolver)
+        .iter()
+        .filter(|tc| lib::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
+        .map(|tc| syscribe_model::result_join::canonical(tc))
+        .collect();
+    let envs = syscribe_model::result_join::runs_on_ids(plan, elements, resolver);
+    let unhealthy = syscribe_model::result_join::unhealthy_environments(elements);
+    syscribe_model::plan_coverage::gaps(&cov, &members, &envs, &unhealthy, results)
+}
+
+/// One plan's required-coverage standing for a set of verifying TestCases.
+pub(crate) struct PlanStanding {
+    pub plan: String,
+    /// `pass | incomplete | fail`
+    pub verdict: &'static str,
+    pub gaps: Vec<syscribe_model::plan_coverage::Gap>,
+}
+
+/// The standing of a requirement under required coverage: every non-retired plan that declares coverage and has
+/// one of `verifiers` as a member, judged on those members only. The requirement's own standing is the worst of
+/// them (`fail` > `incomplete` > `pass`); `None` when no plan declares coverage over its verifiers, so a model
+/// that does not use plan coverage reads as before (ADR-SYS-COVERAGE-001).
+pub(crate) fn requirement_plan_standing(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+    verifiers: &[String],
+) -> Option<(&'static str, Vec<PlanStanding>)> {
+    let mut rows: Vec<PlanStanding> = Vec::new();
+    for plan in elements.iter().filter(|e| Resolver::is_test_plan(e)) {
+        if plan.frontmatter.status.as_deref() == Some("retired") {
+            continue;
+        }
+        if !matches!(syscribe_model::plan_coverage::parse(&plan.frontmatter.extra), Ok(Some(_))) {
+            continue;
+        }
+        let members: BTreeSet<String> = lib::effective_testcases(plan, elements, resolver).iter().map(|t| syscribe_model::result_join::canonical(t)).collect();
+        let mine: BTreeSet<&String> = verifiers.iter().filter(|v| members.contains(*v)).collect();
+        if mine.is_empty() {
+            continue;
+        }
+        let gaps: Vec<_> = plan_gaps(plan, elements, resolver, results).into_iter().filter(|g| mine.contains(&g.test)).collect();
+        let verdict = if gaps.iter().any(|g| g.reason == syscribe_model::plan_coverage::GapReason::Failed) {
+            "fail"
+        } else if gaps.is_empty() {
+            "pass"
+        } else {
+            "incomplete"
+        };
+        rows.push(PlanStanding { plan: disp_id(plan), verdict, gaps });
+    }
+    if rows.is_empty() {
+        return None;
+    }
+    rows.sort_by(|a, b| a.plan.cmp(&b.plan));
+    let worst = if rows.iter().any(|r| r.verdict == "fail") {
+        "fail"
+    } else if rows.iter().any(|r| r.verdict == "incomplete") {
+        "incomplete"
+    } else {
+        "pass"
+    };
+    Some((worst, rows))
+}
+
+fn plan_verdict_base(
+    plan: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+) -> &'static str {
     let members = lib::effective_testcases(plan, elements, resolver);
     if members.is_empty() {
         return "empty";
@@ -475,6 +569,8 @@ pub fn cmd_testplan_detail(
 
     let demonstrates: Vec<String> =
         plan.frontmatter.demonstrates.clone().unwrap_or_default();
+    let declared = syscribe_model::plan_coverage::parse(&plan.frontmatter.extra).ok().flatten();
+    let gaps = plan_gaps(plan, elements, &resolver, results);
 
     if json {
         let members_json: Vec<_> = member_rows
@@ -505,6 +601,21 @@ pub fn cmd_testplan_detail(
             "inScopeRequirements": in_scope,
             "coverage": cov_map,
             "verdict": verdict,
+            "requiredCoverage": declared.as_ref().map(|c| json!({
+                "minUnits": c.min_units,
+                "requiredPoints": c.required().iter().map(|k| k.iter().map(|(a, p)| json!({"axis": a, "point": p})).collect::<Vec<_>>()).collect::<Vec<_>>(),
+                "gaps": gaps.iter().map(|g| json!({
+                    "testCase": g.test,
+                    "environment": g.env,
+                    "condition": g.coordinate.iter().map(|(a, p)| json!({"axis": a, "point": p})).collect::<Vec<_>>(),
+                    "reason": match &g.reason {
+                        syscribe_model::plan_coverage::GapReason::Missing => "missing",
+                        syscribe_model::plan_coverage::GapReason::Failed => "failed",
+                        syscribe_model::plan_coverage::GapReason::Units { .. } => "units",
+                    },
+                    "units": match &g.reason { syscribe_model::plan_coverage::GapReason::Units { have, need } => Some(json!({"have": have, "need": need})), _ => None },
+                })).collect::<Vec<_>>(),
+            })),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
         return 0;
@@ -538,6 +649,23 @@ pub fn cmd_testplan_detail(
         }
     }
     println!();
+
+    if let Some(c) = &declared {
+        println!("## Required coverage");
+        println!();
+        let pts: Vec<String> = c.required().iter().map(|k| k.iter().map(|(a, p)| format!("{a}={p}")).collect::<Vec<_>>().join(", ")).collect();
+        println!("- Points: {}", if pts.is_empty() { "—".to_string() } else { pts.join(" · ") });
+        println!("- Minimum units per point: {}", c.min_units.map_or("—".to_string(), |u| u.to_string()));
+        if gaps.is_empty() {
+            println!("- Gaps: none");
+        } else {
+            println!("- Gaps ({}):", gaps.len());
+            for g in &gaps {
+                println!("  - {}", g.describe());
+            }
+        }
+        println!();
+    }
 
     println!("## In-Scope Requirements ({})", in_scope.len());
     println!();

@@ -1,7 +1,7 @@
 # mutate — judge the quality of a machine's scenarios by seeding faults
 
 ## SYNOPSIS
-    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--config <C>] [--json]
+    syscribe mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--config <C>] [--strict] [--json]
 
 ## DESCRIPTION
 Seeds one fault at a time into the machine's IR (the model files are never touched) and
@@ -14,12 +14,18 @@ Mutation operators: negate a guard or `when`; replace a relational operator (`<`
 retarget a transition to another state of the target's region; remove a transition; remove
 an action (assign or effect, transition or state entry/exit); assign a variable to itself
 instead of its expression; scale an `after` delay by 0.5 and 2; swap two transitions of one
-source with the same trigger.
+source with the same trigger; lose a `SendAction` inside an `ActionDef` that a transition or
+state runs (`remove-send`, attributed to whatever runs the activity: in a composite these sends
+are the messages between machines).
 
 A mutant is **killed** when any scenario then fails or errors, **survived** when none does,
-and **equivalent-suspect** when its traces are identical to the original's and the mutated
-element was never covered (reported separately, not counted). Score = killed / (killed +
-survived). Survivors are listed with the mutation, its source location and the scenario that
+and **not exercised** when its traces are identical to the original's and no scenario ever
+reaches the mutated element (reported separately and never counted: a property-style suite
+that touches little of a machine therefore does not drown its real survivors). Score = killed
+/ (killed + survived), i.e. over the exercised mutants. The text report gives the count of
+not-exercised mutants and the transitions no scenario takes; `--json` lists every mutant with
+its fate. `--strict` runs every scenario in strict mode, so removing a deliberate ignore
+transition makes an unhandled event an error and the mutant is killed. Survivors are listed with the mutation, its source location and the scenario that
 came closest to killing it. The scenarios must all pass on the unmutated machine.
 
 For an executable `ActionDef` the operators act on the action graph: negate a guard or

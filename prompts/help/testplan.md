@@ -51,6 +51,17 @@ A plan with `runsOn:` is judged on each listed TestEnvironment alone, using the 
 `incomplete`, results from other rigs are ignored, and results from a retired or out-of-calibration rig do
 not count. Without `runsOn:` a failure on any rig fails the plan.
 
+## REQUIRED COVERAGE
+A plan may declare what it requires (ADR-SYS-COVERAGE-001): `conditions:` (axes of named points), `minUnits:`
+(distinct units per point), `mode: each|product` or an explicit `points:` list. `validate` checks the declaration
+(`E607` malformed, `E608` a `points:` name `conditions:` does not declare). The plan then passes only when every
+cell of the grid — each member, each `runsOn:` rig (any rig when none), each required condition point — has a
+pass, on at least `minUnits` distinct named units when that is set. A record counts toward a point when its
+`condition` includes it (`ingest-results --condition`, `--unit`); results from a retired or out-of-calibration rig
+count for nothing. A failure at any cell fails the plan; a cell with no pass leaves it `incomplete`, and `testplan
+TP-X` lists the gaps as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)`. For an `approved` plan with
+results, `W617` lists the same gaps.
+
 ## SEE ALSO
     matrix, audit, verification-depth, coverage tree (each accepts the `--plan TP-X` lens),
     ingest-results

@@ -108,6 +108,15 @@ written with the zone you state, `--utc-offset +02:00` (default `Z`). The build,
 file: pass `--build-commit`, `--environment` and `--operator`. `--artefact <file>` (repeatable) references a
 file, such as Robot's log, by its blake3 hash; the file is never copied.
 
+### Condition and unit (ADR-SYS-COVERAGE-001)
+A record may name the condition it exercised, `"condition": {"ambient": "hot"}` (axis → point, the names a
+TestPlan's `conditions:` declare), and the unit it ran on, `"provenance": {"unit": {"id": "SN-0042", "of":
+"Product::Heater", "lot": "L-07"}}` (`of` must resolve to a part definition and is stored by qualified name).
+Both are part of the record's key with the test, scenario and rig, so a result at another condition or on another
+unit is kept beside the others and a later ingest supersedes only the same key. `--unit <id> [--unit-of <PartDef>]
+[--lot <lot>]` and repeatable `--condition <axis>=<point>` fill what a record leaves out (a record's own value is
+kept) for the records-like formats. A failure at any condition or on any unit still fails the TestCase.
+
 ### cucumber (Cucumber JSON)
 
 `--format cucumber` reads the report of Cucumber's classic `json` formatter (Cucumber-JVM, Cucumber.js,

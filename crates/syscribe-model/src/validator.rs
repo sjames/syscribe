@@ -350,6 +350,63 @@ fn transitions_from(
     edges
 }
 
+/// Machine-wide reachability facts for `W070`/`W071` (GH #515): a transition declared on an ancestor, or inside a
+/// descendant, counts for a state even though it is written at another level.
+#[derive(Default)]
+struct Reach {
+    /// Last segment of every transition target in the whole machine.
+    targets: HashSet<String>,
+    /// Every transition source in the whole machine.
+    sources: HashSet<String>,
+    /// A state's own name, its ancestors and its descendants.
+    family: HashMap<String, Vec<String>>,
+}
+
+impl Reach {
+    fn build(sub_states: &[serde_yaml::Value], edges: &[StateEdge]) -> Reach {
+        fn walk(subs: &[serde_yaml::Value], chain: &mut Vec<String>, family: &mut HashMap<String, Vec<String>>) {
+            for s in subs {
+                let Some(sm) = s.as_mapping() else { continue };
+                let Some(name) = yaml_field(sm, "name").and_then(|v| v.as_str()) else { continue };
+                family.entry(name.to_string()).or_default().extend(chain.iter().cloned());
+                for a in chain.iter() {
+                    family.entry(a.clone()).or_default().push(name.to_string());
+                }
+                family.entry(name.to_string()).or_default().push(name.to_string());
+                if let Some(serde_yaml::Value::Sequence(inner)) = yaml_field(sm, "subStates") {
+                    chain.push(name.to_string());
+                    walk(inner, chain, family);
+                    chain.pop();
+                }
+            }
+        }
+        let mut r = Reach::default();
+        walk(sub_states, &mut Vec::new(), &mut r.family);
+        for e in edges {
+            if let Some(t) = e.target.as_deref() {
+                r.targets.insert(last_segment(t).to_string());
+            }
+            if let Some(src) = e.source.as_deref() {
+                r.sources.insert(last_segment(src).to_string());
+            }
+        }
+        r
+    }
+    fn entered(&self, name: &str) -> bool {
+        self.targets.contains(name)
+    }
+    fn left(&self, name: &str) -> bool {
+        match self.family.get(name) {
+            Some(f) => f.iter().any(|n| self.sources.contains(n)),
+            None => self.sources.contains(name),
+        }
+    }
+}
+
+fn last_segment(path: &str) -> &str {
+    path.rsplit(|c| c == '.' || c == ':').next().unwrap_or(path)
+}
+
 /// Run the SysMLv2 flat-completeness checks over **one region** — a substate roster
 /// plus the edge set scoped to it. `region` labels the parallel region for messages
 /// (`None` for a top-level single-region machine). `W073`/`W074` (initial cardinality)
@@ -360,6 +417,7 @@ fn check_state_region(
     region: Option<&str>,
     sub_states: &[serde_yaml::Value],
     edges: &[StateEdge],
+    reach: &Reach,
     file: &str,
     findings: &mut Vec<Finding>,
 ) {
@@ -401,29 +459,15 @@ fn check_state_region(
     // W070/W071/W072 over this level's substates, treating composite substates as
     // single nodes; their interiors are checked by the recursive walk.
     let names: HashSet<&str> = roster.iter().map(|s| s.name.as_str()).collect();
-    let mut indeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
-    let mut outdeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
-    for e in edges {
-        if let Some(src) = e.source.as_deref() {
-            if let Some(d) = outdeg.get_mut(src) {
-                *d += 1;
-            }
-        }
-        if let Some(tgt) = e.target.as_deref() {
-            if let Some(d) = indeg.get_mut(tgt) {
-                *d += 1;
-            }
-        }
-    }
     for s in &roster {
-        if !s.is_initial && indeg.get(s.name.as_str()) == Some(&0) {
+        if !s.is_initial && !reach.entered(&s.name) {
             findings.push(warning(
                 "W070",
                 file,
                 &format!("dead state '{}'{} — no incoming transition and not `isInitial`", s.name, suffix),
             ));
         }
-        if !s.is_final && outdeg.get(s.name.as_str()) == Some(&0) {
+        if !s.is_final && !reach.left(&s.name) {
             findings.push(warning(
                 "W071",
                 file,
@@ -587,6 +631,7 @@ fn check_state_node(
     sub_states: &[serde_yaml::Value],
     sibling_top: Option<&[serde_yaml::Value]>,
     is_parallel: bool,
+    reach: &Reach,
     file: &str,
     findings: &mut Vec<Finding>,
 ) {
@@ -617,7 +662,7 @@ fn check_state_node(
                             .or_insert(rlabel.map(String::from));
                     }
                 }
-                check_state_node(rlabel, rsubs, None, r_parallel, file, findings);
+                check_state_node(rlabel, rsubs, None, r_parallel, reach, file, findings);
                 all_edges.extend(transitions_from(Some(rsubs), None));
             }
         }
@@ -636,13 +681,13 @@ fn check_state_node(
         }
     } else {
         let edges = transitions_from(Some(sub_states), sibling_top);
-        check_state_region(label, sub_states, &edges, file, findings);
+        check_state_region(label, sub_states, &edges, reach, file, findings);
         for s in sub_states {
             let Some(sm) = s.as_mapping() else { continue };
             if let Some(serde_yaml::Value::Sequence(inner)) = yaml_field(sm, "subStates") {
                 let slabel = yaml_field(sm, "name").and_then(|v| v.as_str());
                 let s_parallel = yaml_field(sm, "isParallel") == Some(&serde_yaml::Value::Bool(true));
-                check_state_node(slabel, inner, None, s_parallel, file, findings);
+                check_state_node(slabel, inner, None, s_parallel, reach, file, findings);
             }
         }
     }
@@ -1374,6 +1419,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.checks.is_some() && !matches!(fm.element_type, Some(ElementType::MetadataDef)) {
             unknown_keys.push("checks");
         }
+        // The required-coverage keys are schema fields only on a TestPlan (ADR-SYS-COVERAGE-001): on any other
+        // type they stay unrecognised, so drop them from the exemption below.
+        if matches!(fm.element_type, Some(ElementType::TestPlan)) {
+            unknown_keys.retain(|k| !crate::plan_coverage::KEYS.contains(k));
+        }
         // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
         if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
             unknown_keys.push("amendments");
@@ -1993,6 +2043,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
 
+            // E607/E608: required-coverage declarations (`conditions:`, `minUnits:`, `mode:`, `points:`;
+            // ADR-SYS-COVERAGE-001).
+            if let Err(errs) = crate::plan_coverage::parse(&fm.extra) {
+                for (code, msg) in errs {
+                    findings.push(error(code, &file, &msg));
+                }
+            }
+
             // W610: scope outside the recommended vocabulary (free-form accepted).
             if let Some(scope) = &fm.scope {
                 const SCOPES: &[&str] = &[
@@ -2290,6 +2348,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 more
                             ),
                         ));
+                    }
+                    // W617: required coverage (ADR-SYS-COVERAGE-001) — a cell of the plan's declared grid (member ×
+                    // rig × condition point, on `minUnits` units) with no pass.
+                    if let Ok(Some(cov)) = crate::plan_coverage::parse(&fm.extra) {
+                        let pkg = crate::variability::package_conditions(elements);
+                        let feat_alias = crate::variability::feature_id_to_qname(elements);
+                        let ids: Vec<String> = members
+                            .iter()
+                            .filter(|tc| configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
+                            .map(|tc| crate::result_join::canonical(tc))
+                            .collect();
+                        let envs = crate::result_join::runs_on_ids(elem, elements, &resolver);
+                        let unhealthy = crate::result_join::unhealthy_environments(elements);
+                        let gaps = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(results));
+                        if !gaps.is_empty() {
+                            const SHOWN: usize = 10;
+                            let list = gaps.iter().take(SHOWN).map(|g| g.describe()).collect::<Vec<_>>().join("; ");
+                            let more = if gaps.len() > SHOWN { format!("; and {} more", gaps.len() - SHOWN) } else { String::new() };
+                            findings.push(warning(
+                                "W617",
+                                &file,
+                                &format!("approved TestPlan requires coverage that the ingested results do not show: {} cell(s) have no pass: {}{}", gaps.len(), list, more),
+                            ));
+                        }
                     }
                 }
             }
@@ -3181,6 +3263,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             && !elem.doc.contains("```gherkin") {
                 findings.push(error("E011", &file, "TestCase body has no ```gherkin fenced block"));
             }
+
+        // W938 (GH #508): keys on a sub-action that its kind does not define are ignored, so say so.
+        if matches!(fm.element_type, Some(ElementType::ActionDef) | Some(ElementType::Action)) {
+            for (code, msg) in crate::act_exec::unknown_keys(fm.sub_actions.as_deref().unwrap_or(&[])) {
+                findings.push(warning(code, &file, &msg));
+            }
+        }
 
         // E883/E884/E887/W935: the executable action-flow schema (REQ-TRS-ACTSCHEMA-001). Dormant unless the
         // action declares `variables:` or uses `assign:`.
@@ -4301,11 +4390,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(subs) = subs_opt {
                 // W070–W074 / W077 / W078 — recursive completeness over the state
                 // hierarchy (flat regions, parallel regions, and composite substates).
+                let reach = Reach::build(subs, &all_edges);
                 check_state_node(
                     None,
                     subs,
                     fm.transitions.as_deref(),
                     fm.is_parallel == Some(true),
+                    &reach,
                     &file,
                     &mut findings,
                 );

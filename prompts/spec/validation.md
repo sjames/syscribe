@@ -354,8 +354,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W070` | Dead state — a substate has no incoming transition and is not `isInitial: true` |
-| `W071` | Trap state — a substate has no outgoing transition and is not `isFinal: true` |
+| `W070` | Dead state — no transition anywhere in the machine (ancestor or nested declarations included) enters a substate and it is not `isInitial: true` |
+| `W071` | Trap state — neither a substate, its ancestors nor its descendants have an outgoing transition and it is not `isFinal: true` |
 | `W072` | Non-determinism — two+ transitions from one source with the same `accept` payload, none guarded |
 | `W073` | Missing initial — a single-region `StateDef` with substates has no `isInitial: true` substate |
 | `W074` | Multiple initial — more than one substate is `isInitial: true` |
@@ -794,7 +794,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W891` | A test or plan `requiresCapabilities` that none of its `runsOn` environments offers |
 | `W892` | A non-draft test or plan runs on a `retired` environment or one with `calibrationStatus: expired` |
 
-## TestPlan (E600–E606, W610–W616)
+## TestPlan (E600–E608, W610–W617)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -805,12 +805,15 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E604` | error | `status` is not one of `draft · review · approved · active · retired` |
 | `E605` | error | a `selection.domains` value is not one of `system`/`hardware`/`software` |
 | `E606` | error | a `configurations:` entry does not resolve to a `Configuration` |
+| `E607` | error | a required-coverage declaration is malformed: `conditions:` is not a map of axis → non-empty list of uniquely named points, `minUnits:` is below 1 or not an integer, `mode:` is not `each`/`product`, `points:` is not a list of maps, `points:` is given with `mode:`, or `mode:`/`points:` has no axis to apply to (ADR-SYS-COVERAGE-001, REQ-TRS-PLANCOV-001) |
+| `E608` | error | a `points:` entry names an axis or a point that `conditions:` does not declare (REQ-TRS-PLANCOV-001) |
 | `W610` | warning | `scope` is not in the recommended vocabulary (`unit·smoke·integration·hil·certification·security·regression`) |
 | `W611` | warning | a member `TestCase` is active in **none** of the plan's bound configurations (escaping member) |
 | `W612` | warning | the effective TestCase set is empty (no resolvable `testCases:` and no `selection:` match) |
 | `W613` | warning | a `TestCase` named explicitly in `testCases:` has status `draft`/`retired` |
 | `W614` | warning | an `approved`/`active` plan `demonstrates:` a `Requirement` that no member verifies (honours goal-closure — a member verifying a leaf of a demonstrated parent counts) |
 | `W615` | warning | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them (only when a results sidecar is loaded). For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
+| `W617` | warning | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
 | `W616` | warning | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant: one contains the other, or Jaccard overlap ≥ 0.5 (likely redundant) |
 
 A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
@@ -1026,7 +1029,8 @@ Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabula
 | `W934` | A malformed `[audit]` entry in `.syscribe.toml` (unknown key, a `fail_on` entry that is not a finding code, a `fail_on_asil` level outside A–D); the entry is ignored and the default policy kept (GH #216) |
 | `W933` | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | `W935` | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
-| `W936` | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| `W936` | traffic along a composite connection that the other end does not handle (a plain `accept: X` handles X from a part's only in port; with several in ports it must name one with `via:`): an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| `W938` | a sub-action of an `ActionDef` carries a key its kind does not define (it is ignored), or a `SendAction`/`AcceptAction` has a `payload:` that is not a type name; a payload's field values are bound with `parameters: [{name, value}]` (GH #508) |
 | `W640` | A `[cyber]` entry in `.syscribe.toml` is malformed (unknown key, bad `method`, unknown impact/feasibility/vector key, non-integer points, non-increasing attack-potential thresholds, bad `CALn`/level/value); that entry is ignored and the default applies |
 | `W641` | A `ThreatScenario`/`AttackStep` supplies some but not all five attack-potential factors (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment`); the partial set is ignored |
 | `W642` | A `ThreatScenario`/`AttackStep` declares an `attackFeasibility` that differs from the one its attack-potential factors compute to; the declared value is used |

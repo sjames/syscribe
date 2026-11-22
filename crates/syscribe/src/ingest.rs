@@ -101,6 +101,12 @@ pub struct RecordOpts<'a> {
     pub utc_offset: Option<&'a str>,
     /// Files to reference (by hash, never copied) from every record.
     pub artefacts: Vec<&'a str>,
+    /// The unit under test for every record that names none (`--unit`, with `--unit-of`/`--lot`).
+    pub unit: Option<&'a str>,
+    pub unit_of: Option<&'a str>,
+    pub lot: Option<&'a str>,
+    /// `axis=point` conditions for every record that does not name that axis itself.
+    pub conditions: Vec<&'a str>,
 }
 
 /// Read a Cucumber `json` formatter report and map its scenarios to records by tag against the model.
@@ -174,8 +180,9 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
     let robot = fmt == "robot";
     let cucumber = fmt == "cucumber";
     let records_like = fmt == "records" || plugin.is_some() || robot || cucumber;
-    if (replace || strict || environment.is_some() || opts.build_commit.is_some() || opts.operator.is_some() || !opts.artefacts.is_empty()) && !records_like {
-        eprintln!("ingest-results: --replace, --strict, --environment, --build-commit, --operator and --artefact apply to --format records, robot, cucumber and plugin:<alias> only; nothing was written.");
+    let unit_flags = opts.unit.is_some() || opts.unit_of.is_some() || opts.lot.is_some() || !opts.conditions.is_empty();
+    if (replace || strict || environment.is_some() || opts.build_commit.is_some() || opts.operator.is_some() || !opts.artefacts.is_empty() || unit_flags) && !records_like {
+        eprintln!("ingest-results: --replace, --strict, --environment, --build-commit, --operator, --artefact, --unit, --unit-of, --lot and --condition apply to --format records, robot, cucumber and plugin:<alias> only; nothing was written.");
         std::process::exit(1);
     }
     if opts.utc_offset.is_some() && !robot {
@@ -225,6 +232,36 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str, r
                 if b.commit.is_none() {
                     b.commit = Some(c.to_string());
                 }
+            }
+        }
+        // `--unit`/`--unit-of`/`--lot` name the unit for every record that names none; `--condition axis=point`
+        // names a condition point for every record that does not name that axis. A record's own value is kept.
+        if (opts.unit_of.is_some() || opts.lot.is_some()) && opts.unit.is_none() {
+            eprintln!("ingest-results: --unit-of and --lot describe a unit; give it with --unit <id>. Nothing was written.");
+            std::process::exit(1);
+        }
+        if let Some(id) = opts.unit {
+            for r in &mut data.records {
+                let p = r.provenance.get_or_insert_with(Default::default);
+                if p.unit.is_none() {
+                    p.unit = Some(syscribe_model::result_records::Unit { id: id.to_string(), of: opts.unit_of.map(str::to_string), lot: opts.lot.map(str::to_string) });
+                }
+            }
+        }
+        for c in &opts.conditions {
+            let Some((axis, point)) = c.split_once('=') else {
+                eprintln!("ingest-results: --condition '{c}' must be <axis>=<point>. Nothing was written.");
+                std::process::exit(1);
+            };
+            for r in &mut data.records {
+                r.condition.entry(axis.trim().to_string()).or_insert_with(|| point.trim().to_string());
+            }
+        }
+        if unit_flags {
+            // what the flags filled in is held to the same rules as what a record says itself
+            if let Err(e) = syscribe_model::result_records::validate_all(&mut data.records) {
+                eprintln!("Cannot parse records: {e}\nNothing was written.");
+                std::process::exit(1);
             }
         }
         // `--environment` names the rig for every record that does not name one itself; a record's own value is kept.

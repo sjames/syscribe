@@ -1143,7 +1143,7 @@ analysis silences `W034` for every pair of its `analyses`.
 | E892 | Error | a `sharedResources` entry is not a mapping, has no `resource`, has a `kind` outside `power`/`clock`/`memory`/`bus`/`software`/`other`, or a `couplingFactor` outside 0..1 |
 | W890 | Warning | an `approved` `DependentFailureAnalysis` has a shared resource with no `mitigation` |
 
-## Behaviour / executable models (E882–E889, E930–E939, E966, W933, W935, W936)
+## Behaviour / executable models (E882–E889, E930–E939, E966, W933, W935, W936, W938)
 
 Executable state machines, actions, composites, in-process plants and fault injection (GH #277–#306, #291; §8.8, §22.1). Several of these need the opt-in `fmi` Cargo feature (plants backed by an FMU).
 
@@ -1170,7 +1170,8 @@ Executable state machines, actions, composites, in-process plants and fault inje
 | E966 | Error | the FMU named by `fmu:` cannot be used (needs the `fmi` feature): the file is missing, remote or not an FMU, does not support Co-Simulation, its `fmiVersion` differs from its modelDescription.xml, or its hash differs from `sha256` (GH #291) |
 | W933 | Warning | in an executable state machine, a `guard:` or `when:` that is not in the expression language or uses a bare name that is not a declared variable (GH #277) |
 | W935 | Warning | in an executable `ActionDef`, a succession guard or `condition:` that is not in the expression language, or that uses a bare name which is not a parameter, a variable, an `as` binding or a sub-action (GH #276) |
-| W936 | Warning | traffic along a composite connection that the other end does not handle: an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| W936 | Warning | traffic along a composite connection that the other end does not handle (a plain `accept: X` handles X from a part's only in port; with several in ports it must name one with `via:`): an event sent via a port that the connected part never accepts, or accepted but never sent (draft-suppressed; GH #297) |
+| W938 | Warning | a sub-action of an `ActionDef` carries a key its kind does not define (it is ignored), or a `SendAction`/`AcceptAction` has a `payload:` that is not a type name; a payload's field values are bound with `parameters: [{name, value}]` (GH #508) |
 
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
@@ -1353,7 +1354,7 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | W891 | Warning | a `TestCase`/`TestPlan` lists `requiresCapabilities` that none of its `runsOn` environments offers (case-insensitive) |
 | W892 | Warning | a non-draft `TestCase`/`TestPlan` runs on a `retired` `TestEnvironment` or one whose `calibrationStatus` is `expired` |
 
-## TestPlan (E600–E606, W610–W616)
+## TestPlan (E600–E608, W610–W617)
 
 | Code | Condition |
 |---|---|
@@ -1364,6 +1365,8 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | E604 | `status` is not one of `draft · review · approved · active · retired` |
 | E605 | a `selection.domains` value is not one of `system`/`hardware`/`software` |
 | E606 | a `configurations:` entry does not resolve to a `Configuration` |
+| E607 | a required-coverage declaration is malformed: `conditions:` is not a map of axis → non-empty list of uniquely named points, `minUnits:` is below 1 or not an integer, `mode:` is not `each`/`product`, `points:` is not a list of maps, `points:` is given with `mode:`, or `mode:`/`points:` has no axis to apply to (ADR-SYS-COVERAGE-001) |
+| E608 | a `points:` entry names an axis or a point that `conditions:` does not declare |
 | W610 | `scope` is not in the recommended vocabulary (`unit·smoke·integration·hil·certification·security·regression`) |
 | W611 | a member `TestCase` is active in none of the plan's bound configurations (escaping member) |
 | W612 | the effective TestCase set is empty |
@@ -1371,6 +1374,7 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | W614 | an `approved`/`active` plan demonstrates a `Requirement` that no member verifies (honours goal-closure) |
 | W615 | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them. For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
 | W616 | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant (one contains the other, or overlap ≥ 0.5) |
+| W617 | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
 
 A duplicate `TestPlan` `id` is the generic `E101`.
 

@@ -935,10 +935,10 @@ Runs the `@invariant` scenarios of a composite under every single fault (the `in
 ## Mutation analysis (`mutate`)
 
 ```bash
-syscribe -m <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--json]
+syscribe -m <root> mutate <StateDef|TestCase|composite> [--part <name>] [--min-score <percent>] [--record] [--strict] [--json]
 ```
 
-Judges the quality of a machine's scenarios by seeding one fault at a time into its IR (GH #282): negated guards and `when`s, relational-operator and literal changes, retargeted and removed transitions, removed actions, an assignment replaced by a self-assignment, scaled `after` delays and swapped transition order. The model files are never modified. A mutant is killed when any scenario then fails or errors, survived when none does, and equivalent-suspect when its traces are identical and the mutated element was never covered (not counted). The score is killed ÷ (killed + survived); survivors are listed with the mutation, its location and the scenario that came closest; `--min-score` gates the exit code. It is the objective check on scenarios written by an LLM. See `syscribe help mutate`.
+Judges the quality of a machine's scenarios by seeding one fault at a time into its IR (GH #282): negated guards and `when`s, relational-operator and literal changes, retargeted and removed transitions, removed actions, an assignment replaced by a self-assignment, scaled `after` delays and swapped transition order. The model files are never modified. A mutant is killed when any scenario then fails or errors, survived when none does, and not exercised when its traces are identical and no scenario reaches the mutated element (counted and listed separately, never in the score). The score is killed ÷ (killed + survived) over the exercised mutants; `--strict` runs the scenarios in strict mode so removing a deliberate ignore transition is killed; survivors are listed with the mutation, its location and the scenario that came closest; `--min-score` gates the exit code. It is the objective check on scenarios written by an LLM. See `syscribe help mutate`.
 
 ## Executable evidence (`requirement-coverage`, `exec-coverage`)
 

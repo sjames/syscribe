@@ -90,6 +90,21 @@ pub fn join(records: Vec<ResultRecord>, elems: &[RawElement]) -> Result<Joined, 
                     }
                     (projection_hash(tc), reqs)
                 });
+                if let Some(u) = r.provenance.as_mut().and_then(|p| p.unit.as_mut()) {
+                    if let Some(of) = u.of.clone() {
+                        match resolver.resolve_ref(elems, &of) {
+                            Some(e) if matches!(e.frontmatter.element_type, Some(ElementType::PartDef | ElementType::Part)) => u.of = Some(e.qualified_name.clone()),
+                            Some(e) => {
+                                problems.push(format!("record '{}': unit.of '{of}' names {}, which is not a part definition", r.test_case, e.qualified_name));
+                                continue;
+                            }
+                            None => {
+                                problems.push(format!("record '{}': unit.of '{of}' does not resolve to any model element", r.test_case));
+                                continue;
+                            }
+                        }
+                    }
+                }
                 r.test_case = id;
                 r.tc_hash = Some(tc_hash.clone());
                 r.req_hashes = reqs.clone();

@@ -152,6 +152,80 @@ impl ActionProgram {
         out
     }
 
+    /// The `<port>/<payload>` (or bare payload) of every `SendAction` in the program, callees included.
+    pub fn sent_events(&self) -> Vec<String> {
+        fn walk(stmts: &[Stmt], out: &mut Vec<String>) {
+            for s in stmts {
+                match &s.kind {
+                    NodeKind::Send { event, .. } => out.push(event.clone()),
+                    NodeKind::If { then, els, .. } => {
+                        walk(then, out);
+                        walk(els, out);
+                    }
+                    NodeKind::Loop { body, .. } => walk(body, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for d in &self.defs {
+            for n in &d.nodes {
+                walk(std::slice::from_ref(&n.stmt), &mut out);
+            }
+        }
+        out
+    }
+
+    /// Every `SendAction` of the program, callees included: `(uid, statement name, event)`.
+    pub fn sends(&self) -> Vec<(usize, String, String)> {
+        fn walk(stmts: &[Stmt], out: &mut Vec<(usize, String, String)>) {
+            for s in stmts {
+                match &s.kind {
+                    NodeKind::Send { event, .. } => out.push((s.uid, s.name.clone(), event.clone())),
+                    NodeKind::If { then, els, .. } => {
+                        walk(then, out);
+                        walk(els, out);
+                    }
+                    NodeKind::Loop { body, .. } => walk(body, out),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for d in &self.defs {
+            for n in &d.nodes {
+                walk(std::slice::from_ref(&n.stmt), &mut out);
+            }
+        }
+        out
+    }
+
+    /// A copy in which the `SendAction` with this `uid` completes without sending (a lost message).
+    pub fn without_send(&self, uid: usize) -> ActionProgram {
+        fn walk(stmts: &mut [Stmt], uid: usize) {
+            for s in stmts {
+                if s.uid == uid && matches!(s.kind, NodeKind::Send { .. }) {
+                    s.kind = NodeKind::Action;
+                }
+                match &mut s.kind {
+                    NodeKind::If { then, els, .. } => {
+                        walk(then, uid);
+                        walk(els, uid);
+                    }
+                    NodeKind::Loop { body, .. } => walk(body, uid),
+                    _ => {}
+                }
+            }
+        }
+        let mut p = self.clone();
+        for d in &mut p.defs {
+            for n in &mut d.nodes {
+                walk(std::slice::from_mut(&mut n.stmt), uid);
+            }
+        }
+        p
+    }
+
     pub fn canonical_json(&self) -> String {
         let mut p = self.clone();
         p.hash = String::new();

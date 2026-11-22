@@ -32,7 +32,56 @@ pub fn is_executable(variables: Option<&[Y]>, subs: &[Y]) -> bool {
     }
     let mut all = Vec::new();
     walk(subs, &mut all);
-    all.iter().any(|m| field(m, "assign").is_some())
+    // a sub-action that assigns or sends does something when run, so an action of sends alone is executable (GH #516)
+    all.iter().any(|m| field(m, "assign").is_some() || kind_of(m) == "SendAction")
+}
+
+/// Keys a sub-action of the given `kind` may carry (spec §8.7.3–8.7.7). `None` for a kind the check does not know,
+/// which is then left alone.
+fn allowed_keys(kind: &str) -> Option<&'static [&'static str]> {
+    Some(match kind {
+        "SendAction" => &["name", "kind", "doc", "multiplicity", "payload", "via", "to", "parameters"],
+        "AcceptAction" => &["name", "kind", "doc", "multiplicity", "payload", "via", "to", "trigger", "after", "as"],
+        "AssignmentAction" => &["name", "kind", "doc", "multiplicity", "assign", "target", "referent", "value", "valueKind"],
+        "IfAction" => &["name", "kind", "doc", "multiplicity", "condition", "then", "else"],
+        "LoopAction" => &["name", "kind", "doc", "multiplicity", "loopKind", "condition", "body", "variable", "sequence"],
+        "PerformAction" | "Action" => &["name", "kind", "doc", "multiplicity", "typedBy", "parameters", "subActions"],
+        "TerminateAction" | "ForkNode" | "JoinNode" | "DecisionNode" | "MergeNode" => &["name", "kind", "doc", "multiplicity"],
+        _ => return None,
+    })
+}
+
+/// `W938` (GH #508): a key a sub-action's kind does not define, which would otherwise be silently ignored, and a
+/// `payload:` that is not a type name. A payload's field values are bound with `parameters: [{name, value}]`.
+pub fn unknown_keys(subs: &[Y]) -> Vec<Finding> {
+    let mut all = Vec::new();
+    walk(subs, &mut all);
+    let mut out = Vec::new();
+    for m in all {
+        let kind = kind_of(m);
+        let Some(allowed) = allowed_keys(kind) else { continue };
+        let name = field(m, "name").and_then(|n| n.as_str()).unwrap_or("?");
+        for (k, _) in m.iter() {
+            let Some(k) = k.as_str() else { continue };
+            if allowed.contains(&k) {
+                continue;
+            }
+            let hint = if kind == "SendAction" && matches!(k, "arguments" | "args" | "values" | "fields" | "attributes") {
+                "bind the payload's fields with `parameters: [{name: <field>, value: <expression>}]`".to_string()
+            } else {
+                format!("a {kind} accepts {}", allowed.join(", "))
+            };
+            out.push(("W938", format!("sub-action '{name}': `{k}:` is not a field of a {kind} and is ignored; {hint}")));
+        }
+        if kind == "SendAction" || kind == "AcceptAction" {
+            if let Some(p) = field(m, "payload") {
+                if !p.is_string() {
+                    out.push(("W938", format!("sub-action '{name}': `payload:` must be the qualified name of the message type; bind its field values with `parameters: [{{name: <field>, value: <expression>}}]`")));
+                }
+            }
+        }
+    }
+    out
 }
 
 fn chain_root(s: &str) -> &str {
