@@ -1099,6 +1099,34 @@ copied_values = true   # W095; must be true or false (anything else is W094 on .
 value and every stale copy in the elements that link to `Elem`; `lint-docs` applies `W095` (advisory)
 to external Markdown, whose links are its value-reference targets.
 
+**External documents** (REQ-TRS-DOCREF-001..003). A text document outside the model — LaTeX, Typst,
+AsciiDoc, HTML, plain text — uses the same reference, with other delimiters where `{{ }}` clashes
+with the document language:
+
+```toml
+[documents]
+paths = ["../doc"]              # files or directories (relative to the model root) that `refs` scans
+extensions = ["tex", "typ"]     # text types read beside .md; default tex, typ, adoc, html, txt
+
+[documents.delimiters]
+tex = ["<<", ">>"]              # punctuation only; `{{ }}` for a type with no entry
+```
+
+- `syscribe render <file> [--out <file>] [--escape latex|typst|html|markdown|none] [--open <s> --close <s>] [--config <C>]`
+  writes the document with each reference replaced by the value and unit, escaped for the target (by file
+  extension unless `--escape`): `150\,ms` and `120\,\textdegree{}C` for LaTeX. A reference may also name a
+  feature and one of its parameters; it takes the value of the `--config` Configuration, else the fixed,
+  derived or default value. `|value` after the path writes the bare value. A reference that does not resolve
+  is reported as `<file>:<line>: E331`, the command exits 1 and nothing is written. In Markdown a reference
+  inside code is left as written; in any other language every delimited `X.y` is a reference.
+- `lint-docs` reads the listed text types (and such a file named on the command line) with the checks that
+  read prose — `W099`, `W092`, `W094`, `W095` — and raises `W098` for a value reference that does not
+  resolve (a feature parameter that only lacks a value outside a Configuration is not reported).
+- `refs <Elem>.<attr>` adds the uses in the files under `paths` (*Uses in documents*, `documentUses` in
+  `--json`); `refs <Feature>.<param>` lists the uses of a feature parameter the same way.
+
+A malformed `[documents]` entry is printed as a warning by the command that reads it and ignored.
+
 ---
 
 ## 6 Multiplicity and Cardinality Syntax
@@ -6737,7 +6765,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E200`–`E251`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
-| `E331`, `W095`, `W096` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`) | §5.8 |
+| `E331`, `W095`, `W096`, `W098` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`), and in external documents (`W098`, `[documents]`) | §5.8 |
 | `E330`, `W324`, `W325` | Amendment records on accepted ADRs and confirmed requirements (`amendments:`, `[traceability] require_amendments`) | §8.17.5 |
 | `W329` | Minimum syscribe version (`[syscribe] minVersion`, GH #496) | catalogue; `syscribe policy` |
 | `W326`–`W328` | Code trace, the reverse of the implementation trace (`[traceCode]`, `syscribe trace-code`) | §12.8.1 |

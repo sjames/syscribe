@@ -25,6 +25,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Cite a planning question         write PI-X#Q3 in prose; check: check-ref PI-X#Q3
     Use a design value, not a copy   write {{Elem.attr}} in prose or a gherkin scenario (e.g. {{PolicydBounds.snapshotFixedBytes}}); show renders "47244 B"
     Find every use of a value        syscribe -m model/ refs UAV::Avionics::FlightController.flightMode   (uses, literal copies, stale copies; --json)
+    Use a value in a LaTeX/Typst doc write <<Elem.attr>> in the .tex file ([documents.delimiters] tex = ["<<", ">>"]) and build with: syscribe -m model/ render ch.tex --out build/ch.tex
+    Check an external document       syscribe -m model/ lint-docs doc/      (.md .svg .tex .typ .adoc .html .txt: stale ids, item refs, value references W098)
     Find copied values               [references] copied_values = true  ->  validate raises W095 for a literal equal to a linked attribute's value
     Find stale copies of a value     validate raises W096 for a literal equal to a previous value (git history); refs <Elem>.<attr> lists them
     Amend an accepted decision       edit the ADR text, then: syscribe -m model/ set <ADR-id> amendment.add kind=clarification|scope-change reason="…" [ref=<PI-id>#Q2] --by <you>

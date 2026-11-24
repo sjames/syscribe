@@ -1,4 +1,4 @@
-# lint-docs — scan external Markdown/SVG for unresolvable model references
+# lint-docs — scan external documents (Markdown, SVG, LaTeX, Typst, …) for unresolvable model references
 
 ## SYNOPSIS
     syscribe -m <root> lint-docs <path>... [--json] [--deny <CODES>]
@@ -20,11 +20,20 @@ With `[references] copied_values = true` it also flags a copied value (GH #452):
 an element the document references with a value reference `{{Elem.attr}}` — write the
 reference instead of the number. Values below 10 and years are ignored.
 
+Other text documents (GH #530) — `.tex`, `.typ`, `.adoc`, `.html` and `.txt` in a directory
+scan, or the list in `[documents] extensions`; a file named on the command line is read
+when it is one of those or `.htm`, `.rst`, `.sty`, `.cls` — get the checks that read prose:
+stable ids (`W099`), item and question references (`W092`, `W094`), copied values (`W095`),
+and `W098` for a value reference that does not resolve. References are read with the
+file type's delimiters from `[documents.delimiters]` (`tex = ["<<", ">>"]`), `{{ }}`
+otherwise. A reference to a feature parameter that only lacks a value outside a
+Configuration is not reported; `render --config` resolves it.
+
 It also flags a package `_index.md` that hand-enumerates its own members (`W103`,
 advisory): membership is generated from the directory by `show <package>`, the web UI
 and `export-html`, so a hand-maintained list only drifts.
 
-Exits non-zero if any unresolvable references are found (`W092`, `W099`–`W102`), enabling CI
+Exits non-zero if any unresolvable references are found (`W092`, `W098`–`W102`), enabling CI
 gating. `W094`, `W095` and `W103` alone never make it exit non-zero unless you opt in with `--deny`.
 
 Every path must exist: a nonexistent path is a usage error (each missing path is
@@ -32,30 +41,31 @@ named on stderr, nothing is scanned, exit 1), so a typo in a CI path cannot pass
 clean run.
 
 ## OPTIONS
-    <path>...    Files or directories to scan (.md and .svg).
+    <path>...    Files or directories to scan (.md, .svg and the `[documents]` text types).
     --json       Emit findings as a JSON array of {file, line, code, token|ref|path|detail}
-                 (`detail` carries the W103/W094/W095 message; `ref` the W092 reference).
+                 (`detail` carries the W103/W094/W095/W098 message; `ref` the W092 reference).
     --deny <CODES>
-                 Comma-separated lint-docs codes (W092, W094, W095, W099–W103; repeatable, or
-                 --deny=<CODES>) treated as failures. W092 and W099–W102 already fail the
+                 Comma-separated lint-docs codes (W092, W094, W095, W098–W103; repeatable, or
+                 --deny=<CODES>) treated as failures. W092 and W098–W102 already fail the
                  run, so this matters for the advisory W094/W095/W103: `--deny W103` makes it exit 1. Any other code, or an
                  unknown option, is a usage error (exit 1).
 
 ## EXAMPLES
     syscribe -m model/ lint-docs docs/
     syscribe -m model/ lint-docs docs/ --json
+    syscribe -m examples/doc-render/model/ lint-docs examples/doc-render/doc/chapter.tex
     syscribe -m model/ lint-docs docs/demo-model/PowerSystemIBD.svg
 
     # Also fail on package _index.md files that hand-enumerate their members
     syscribe -m model/ lint-docs model/ --deny W103
 
 ## EXIT CODES
-    0  no W092/W099–W102 finding (W094/W095/W103 are advisory unless denied)
-    1  a W092/W099–W102 finding, a finding whose code is in --deny, or a usage error
+    0  no W092/W098–W102 finding (W094/W095/W103 are advisory unless denied)
+    1  a W092/W098–W102 finding, a finding whose code is in --deny, or a usage error
        (nonexistent path, unknown --deny code, unknown option, no path)
 
 ## NOTES
-Findings (W092 and W099–W102 always fail the run; W094/W095/W103 only with `--deny`):
+Findings (W092 and W098–W102 always fail the run; W094/W095/W103 only with `--deny`):
 
 - **W092** — an item or question reference whose element resolves but whose anchor,
   item number or question does not exist (`REQ-X#gone`, `REQ-X#9` past the last item,
@@ -66,6 +76,8 @@ Findings (W092 and W099–W102 always fail the run; W094/W095/W103 only with `--
   equal to the current value of an attribute of an element the document references
   with `{{Elem.attr}}`; replace it with the reference the message suggests.
 
+- **W098** — a value reference in a non-Markdown document (`<<Rig.settle>>` in a `.tex`
+  file) that does not resolve; the message lists the attributes that have a value.
 - **W099** — an unresolvable stable-ID token (`REQ-*`, `TC-*`, …) in prose.
 - **W100** — a qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not
   resolve. (Qualified names in *prose* are deliberately not resolved — false-positive prone.)
@@ -84,4 +96,4 @@ Findings (W092 and W099–W102 always fail the run; W094/W095/W103 only with `--
   `_index.md` never raise it. Directory scans apply it too.
 
 ## SEE ALSO
-    validate, check-ref, refs, show
+    validate, check-ref, refs, render, show

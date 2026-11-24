@@ -1,0 +1,10 @@
+# The external documents that use the model's values (GH #530).
+[documents]
+paths = ["../doc"]
+
+# `{{ }}` clashes with braces in LaTeX, so .tex files write a reference as <<Elem.attr>>.
+[documents.delimiters]
+tex = ["<<", ">>"]
+
+[references]
+copied_values = true

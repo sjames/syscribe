@@ -28,6 +28,13 @@ value written as a number in the body of an element that links to `Elem` (W095 w
 previous value from the git history of the attribute's file (W096). Replace each copy
 with the reference. Values below 10 and years are never searched for.
 
+**Uses in external documents (GH #530).** When `.syscribe.toml` names documents
+(`[documents] paths = ["../doc"]`), `refs <Elem>.<attr>` adds *Uses in documents*: the
+file, line and reference of every use in those files (Markdown and the `[documents]`
+text types, read with each type's delimiters), so a changed value shows which document
+sections it touches. `refs <Feature>.<param>` lists the uses of a feature parameter the
+same way. See `help render`.
+
 ## OPTIONS
     --config <C>    Configuration lens (REQ-TRS-PROJ-001): answer over only the
                     elements active in configuration C (a stored Configuration
@@ -35,7 +42,7 @@ with the reference. Values below 10 and years are never searched for.
                     Inactive elements are omitted; if the start element itself
                     is inactive in C the command exits 1 naming it.
     --json          With <Elem>.<attr> only: one object {attribute, element, path,
-                    value, unit, file, uses, copies, stale}; each use/copy has
+                    value, unit, file, uses, copies, stale, documentUses}; each use/copy has
                     element, file and line, a stale copy also previous and commit.
 
 ## EXAMPLES

@@ -2738,8 +2738,11 @@ pub fn refs_value(elements: &[RawElement], resolver: &Resolver, model_root: &std
         stale.extend(st.into_iter().filter(|c| c.attr.path == attr.path).map(|c| (e, c)));
     }
     let who = |e: &RawElement| vr::label(e);
+    // GH #530: uses in the external documents `[documents] paths` names.
+    let doc_uses = crate::docrender::uses_in_documents(elements, model_root, &tlabel, &attr.path);
     if json {
         let v = serde_json::json!({
+            "documentUses": doc_uses.iter().map(|u| serde_json::json!({"file": u.file, "line": u.line, "raw": u.raw})).collect::<Vec<_>>(),
             "attribute": full,
             "element": tlabel,
             "path": attr.path,
@@ -2776,6 +2779,16 @@ pub fn refs_value(elements: &[RawElement], resolver: &Resolver, model_root: &std
         println!("|---|---|---|");
         for (e, line, _) in &uses {
             println!("| {} | {} | {line} |", who(e), tl(e.frontmatter.element_type.as_ref()));
+        }
+    }
+    if !doc_uses.is_empty() {
+        println!();
+        println!("## Uses in documents");
+        println!();
+        println!("| File | Line | Reference |");
+        println!("|---|---|---|");
+        for u in &doc_uses {
+            println!("| {} | {} | `{}` |", u.file, u.line, u.raw);
         }
     }
     println!();

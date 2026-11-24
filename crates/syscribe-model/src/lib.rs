@@ -55,6 +55,7 @@ pub mod mutate;
 pub mod constraints;
 pub mod expr;
 pub mod params;
+pub mod doc_render;
 pub mod placeholders;
 pub mod plant;
 pub mod plant_cfg;

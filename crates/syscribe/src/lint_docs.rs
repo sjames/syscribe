@@ -36,6 +36,8 @@ struct Ctx<'a> {
     markers: Vec<String>,
     /// `[references] copied_values` (GH #452), for `W095`.
     copied_values: bool,
+    /// `[documents]` (GH #530): the other file types read, and their reference delimiters.
+    documents: syscribe_model::doc_render::DocumentsConfig,
 }
 
 impl<'a> Ctx<'a> {
@@ -49,7 +51,8 @@ impl<'a> Ctx<'a> {
         let resolver = syscribe_model::resolver::Resolver::new(elements);
         let refs_cfg = model_root.map(syscribe_model::req_items::ReferencesConfig::load).unwrap_or_default();
         let markers = refs_cfg.markers();
-        Ctx { elements, package_index, resolver, markers, copied_values: refs_cfg.copied_values }
+        let documents = model_root.map(syscribe_model::doc_render::DocumentsConfig::load).unwrap_or_default();
+        Ctx { elements, package_index, resolver, markers, copied_values: refs_cfg.copied_values, documents }
     }
 }
 
@@ -314,6 +317,53 @@ fn item_ref_findings(path: &Path, content: &str, ctx: &Ctx, findings: &mut Vec<F
     }
 }
 
+/// A document in another text language (GH #530, `REQ-TRS-DOCREF-002`): LaTeX, Typst, AsciiDoc, HTML,
+/// plain text. The checks that read prose apply — stable ids (`W099`), item and question references
+/// (`W092`, `W094`), copied values (`W095`) — and `W098` for a value reference that does not resolve,
+/// read with the delimiters `[documents.delimiters]` gives the file type.
+fn scan_text(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
+    use syscribe_model::doc_render as dr;
+    let Ok(content) = std::fs::read_to_string(path) else { return };
+    let file = path.display().to_string();
+    item_ref_findings(path, &content, ctx, findings);
+    let delims = ctx.documents.delims_for(path);
+    let scope = dr::Scope { view: ctx.elements, full: ctx.elements, config: None };
+    let resolved = dr::resolve_all(&scope, &content, &delims, false);
+    for (r, q) in &resolved {
+        // A feature parameter with no value outside a Configuration is not a broken reference.
+        if let Err(why) = q {
+            if !why.contains("choose a Configuration") {
+                findings.push(Finding { file: file.clone(), line: r.line + 1, code: "W098", detail: format!("`{}`: {why}", r.raw) });
+            }
+        }
+    }
+    if ctx.copied_values {
+        // `copies_in` reads `{{…}}`; hand it the text with this file's references in that form.
+        let mut normal = String::with_capacity(content.len());
+        let mut last = 0;
+        for (r, _) in &resolved {
+            normal.push_str(&content[last..r.start]);
+            normal.push_str(&format!("{{{{{}.{}}}}}", r.elem, r.path));
+            last = r.end;
+        }
+        normal.push_str(&content[last..]);
+        // Line numbers are unchanged: a reference never spans lines.
+        let from = findings.len();
+        copied_value_findings(path, &normal, ctx, findings);
+        // The suggestion is written with this file's delimiters.
+        for f in &mut findings[from..] {
+            f.detail = f.detail.replace("{{", &delims.open).replace("}}", &delims.close);
+        }
+    }
+    for (line_no, line) in content.lines().enumerate() {
+        for token in extract_candidates(line) {
+            if is_stable_id(token) && !resolves(token, ctx.elements) {
+                findings.push(Finding { file: file.clone(), line: line_no + 1, code: "W099", detail: token.to_string() });
+            }
+        }
+    }
+}
+
 fn scan_svg(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
     let elements = ctx.elements;
     let Ok(content) = std::fs::read_to_string(path) else { return };
@@ -331,18 +381,28 @@ fn scan_svg(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
     }
 }
 
+/// Text file types read when named on the command line, beyond `[documents] extensions`.
+const NAMED_TEXT: &[&str] = &["tex", "typ", "adoc", "html", "htm", "txt", "rst", "sty", "cls"];
+
 fn scan_path(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
+    scan_path_at(path, ctx, findings, true)
+}
+
+/// `named`: the path was given on the command line, so a text file is read whatever `[documents]
+/// extensions` says; inside a directory only the configured types are.
+fn scan_path_at(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>, named: bool) {
     if path.is_dir() {
         let Ok(entries) = std::fs::read_dir(path) else { return };
         let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
         paths.sort();
         for p in paths {
-            scan_path(&p, ctx, findings);
+            scan_path_at(&p, ctx, findings, false);
         }
     } else {
         match path.extension().and_then(|e| e.to_str()) {
             Some("md") => scan_md(path, ctx, findings),
             Some("svg") => scan_svg(path, ctx, findings),
+            Some(ext) if ctx.documents.reads(ext) || (named && NAMED_TEXT.contains(&ext.to_ascii_lowercase().as_str())) => scan_text(path, ctx, findings),
             _ => {}
         }
     }
@@ -357,6 +417,7 @@ fn message(code: &str, detail: &str) -> String {
         "W092" => format!("dangling item/question reference: {}", detail),
         "W094" => format!("stale confirmation wording: {}", detail),
         "W095" => format!("copied value: {}", detail),
+        "W098" => format!("unresolvable value reference {}", detail),
         _ => format!("unresolvable ID token '{}' referenced in external doc", detail),
     }
 }
@@ -367,7 +428,7 @@ fn detail_key(code: &str) -> &'static str {
     match code {
         "W099" => "token",
         "W102" => "path",
-        "W103" | "W094" | "W095" => "detail",
+        "W103" | "W094" | "W095" | "W098" => "detail",
         "W092" => "ref",
         _ => "ref",
     }
@@ -395,7 +456,7 @@ pub fn lint_docs_findings(
 }
 
 /// Every code `lint-docs` can emit, i.e. the valid `--deny` values.
-pub const LINT_CODES: [&str; 8] = ["W092", "W094", "W095", "W099", "W100", "W101", "W102", "W103"];
+pub const LINT_CODES: [&str; 9] = ["W092", "W094", "W095", "W098", "W099", "W100", "W101", "W102", "W103"];
 
 /// Advisory codes: reported, but fail the run only when named by `--deny`.
 const ADVISORY: [&str; 3] = ["W094", "W095", "W103"];
