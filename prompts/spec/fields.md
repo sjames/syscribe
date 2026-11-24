@@ -218,7 +218,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `minUnits` | integer | TestPlan: distinct units that must pass at each required point (≥ 1, `E607`) |
 | `mode` | `each` \| `product` | TestPlan: how `conditions:` axes combine (default `each`) |
 | `points` | list of map | TestPlan: explicit required coordinate sets `{axis: point}`; replaces `mode` (`E608` on an undeclared name) |
-| `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic |
+| `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic. Results recorded per Configuration (`ingest-results --config`) are judged per listed Configuration; another Configuration's results are ignored |
 | `demonstrates` | list | Goals/requirements this plan is evidence for |
 
 ## ADR fields (§8.17)

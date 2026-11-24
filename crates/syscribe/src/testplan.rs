@@ -263,43 +263,100 @@ pub fn plan_lens(elements: &[RawElement], tp: &str) -> Vec<RawElement> {
 
 // ── verdict roll-up (REQ-TRS-PLAN-005) ──────────────────────────────────────
 
+/// A plan's standing on the results of one Configuration (or, with `config: None`, on the one view that
+/// stands for all of them — see [`lib::result_views`]).
+pub(crate) struct ConfigStanding {
+    pub config: Option<String>,
+    /// `pass | fail | incomplete | empty`
+    pub verdict: &'static str,
+    pub gaps: Vec<syscribe_model::plan_coverage::Gap>,
+}
+
+/// The plan judged once per result view (GH #528, REQ-TRS-PLANCFG-001): a plan that names its
+/// `configurations:` is judged on each of them, on that Configuration's own effective results, so evidence
+/// recorded for a Configuration it does not name never reaches it.
+pub(crate) fn plan_standings(
+    plan: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+) -> Vec<ConfigStanding> {
+    let configs = lib::plan_configs(plan, elements, resolver);
+    let one = |config: Option<String>, scope: &[&RawElement], res: Option<&ResultsData>| {
+        let base = plan_verdict_base(plan, elements, resolver, res, &configs, scope);
+        let mut gaps = gaps_in(plan, elements, resolver, res, scope);
+        for g in &mut gaps {
+            g.config = config.clone();
+        }
+        // Required coverage (ADR-SYS-COVERAGE-001): a plan passes only when every required cell has a pass.
+        let verdict = if matches!(base, "fail" | "empty") || gaps.is_empty() {
+            base
+        } else if gaps.iter().any(|x| x.reason == syscribe_model::plan_coverage::GapReason::Failed) {
+            "fail"
+        } else {
+            "incomplete"
+        };
+        ConfigStanding { config, verdict, gaps }
+    };
+    match results {
+        None => vec![one(None, &configs, None)],
+        Some(r) => lib::result_views(plan, &configs, r).iter().map(|v| one(v.config_id(), &v.configs, Some(&*v.results))).collect(),
+    }
+}
+
+/// `fail` over `incomplete` over `pass`; `empty` only when every part is.
+fn worst_verdict<'a>(vs: impl Iterator<Item = &'a str>) -> &'static str {
+    let vs: Vec<&str> = vs.collect();
+    if vs.iter().any(|v| *v == "fail") {
+        "fail"
+    } else if vs.iter().all(|v| *v == "empty") {
+        "empty"
+    } else if vs.iter().all(|v| *v == "pass") {
+        "pass"
+    } else {
+        "incomplete"
+    }
+}
+
 /// Plan verdict ∈ `pass | fail | incomplete | empty`, folded over the effective
 /// TestCase set within the plan's config projection, reusing the existing
 /// `tc_verdict` evidence fold. Empty effective set → `empty`. Any member Fail →
 /// `fail`. All members Pass → `pass`. Otherwise (missing / no results) →
-/// `incomplete`.
+/// `incomplete`. A plan that names several Configurations takes the worst of them.
 pub(crate) fn plan_verdict(
     plan: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,
     results: Option<&ResultsData>,
 ) -> &'static str {
-    let base = plan_verdict_base(plan, elements, resolver, results);
-    if matches!(base, "fail" | "empty") {
-        return base;
-    }
-    // Required coverage (ADR-SYS-COVERAGE-001): a plan passes only when every required cell has a pass.
-    match plan_gaps(plan, elements, resolver, results) {
-        g if g.is_empty() => base,
-        g if g.iter().any(|x| x.reason == syscribe_model::plan_coverage::GapReason::Failed) => "fail",
-        _ => "incomplete",
-    }
+    worst_verdict(plan_standings(plan, elements, resolver, results).iter().map(|s| s.verdict))
 }
 
-/// The cells of a plan's declared coverage that have no pass (empty when it declares none).
+/// The cells of a plan's declared coverage that have no pass (empty when it declares none), over every
+/// Configuration the plan is judged on.
 pub(crate) fn plan_gaps(
     plan: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,
     results: Option<&ResultsData>,
 ) -> Vec<syscribe_model::plan_coverage::Gap> {
+    plan_standings(plan, elements, resolver, results).into_iter().flat_map(|s| s.gaps).collect()
+}
+
+/// The gaps of one result view: members active in one of `scope`'s Configurations.
+fn gaps_in(
+    plan: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    results: Option<&ResultsData>,
+    scope: &[&RawElement],
+) -> Vec<syscribe_model::plan_coverage::Gap> {
     let Ok(Some(cov)) = syscribe_model::plan_coverage::parse(&plan.frontmatter.extra) else { return Vec::new() };
-    let configs = lib::plan_configs(plan, elements, resolver);
     let pkg = variability::package_conditions(elements);
     let feat_alias = variability::feature_id_to_qname(elements);
     let members: Vec<String> = lib::effective_testcases(plan, elements, resolver)
         .iter()
-        .filter(|tc| lib::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
+        .filter(|tc| lib::member_active_in_any_config(tc, scope, &pkg, &feat_alias))
         .map(|tc| syscribe_model::result_join::canonical(tc))
         .collect();
     let envs = syscribe_model::result_join::runs_on_ids(plan, elements, resolver);
@@ -367,12 +424,13 @@ fn plan_verdict_base(
     elements: &[RawElement],
     resolver: &Resolver,
     results: Option<&ResultsData>,
+    configs: &[&RawElement],
+    scope: &[&RawElement],
 ) -> &'static str {
     let members = lib::effective_testcases(plan, elements, resolver);
     if members.is_empty() {
         return "empty";
     }
-    let configs = lib::plan_configs(plan, elements, resolver);
     let pkg = variability::package_conditions(elements);
     let feat_alias = variability::feature_id_to_qname(elements);
 
@@ -386,8 +444,12 @@ fn plan_verdict_base(
     for tc in &members {
         // Members active in none of the plan's configs (escaping) are not part of
         // the executed scope for this projection; skip them from the fold.
-        if !lib::member_active_in_any_config(tc, &configs, &pkg, &feat_alias) {
+        if !lib::member_active_in_any_config(tc, configs, &pkg, &feat_alias) {
             all_pass = false;
+            continue;
+        }
+        // Judged per Configuration: a member that is not part of this one is judged in the others.
+        if !lib::member_active_in_any_config(tc, scope, &pkg, &feat_alias) {
             continue;
         }
         let verdict = match by_env {
@@ -565,12 +627,15 @@ pub fn cmd_testplan_detail(
     let scoped = plan_scoped_elements(plan, elements, &resolver);
     let coverage = Coverage::rollup(&scoped, results, false);
 
-    let verdict = plan_verdict(plan, elements, &resolver, results);
+    let standings = plan_standings(plan, elements, &resolver, results);
+    let verdict = worst_verdict(standings.iter().map(|s| s.verdict));
+    // Shown only when the plan is judged per Configuration.
+    let per_config: Vec<(&String, &'static str)> = standings.iter().filter_map(|s| s.config.as_ref().map(|c| (c, s.verdict))).collect();
 
     let demonstrates: Vec<String> =
         plan.frontmatter.demonstrates.clone().unwrap_or_default();
     let declared = syscribe_model::plan_coverage::parse(&plan.frontmatter.extra).ok().flatten();
-    let gaps = plan_gaps(plan, elements, &resolver, results);
+    let gaps: Vec<syscribe_model::plan_coverage::Gap> = standings.iter().flat_map(|s| s.gaps.iter().cloned()).collect();
 
     if json {
         let members_json: Vec<_> = member_rows
@@ -601,11 +666,13 @@ pub fn cmd_testplan_detail(
             "inScopeRequirements": in_scope,
             "coverage": cov_map,
             "verdict": verdict,
+            "verdictByConfiguration": (!per_config.is_empty()).then(|| per_config.iter().map(|(c, v)| json!({"configuration": c, "verdict": v})).collect::<Vec<_>>()),
             "requiredCoverage": declared.as_ref().map(|c| json!({
                 "minUnits": c.min_units,
                 "requiredPoints": c.required().iter().map(|k| k.iter().map(|(a, p)| json!({"axis": a, "point": p})).collect::<Vec<_>>()).collect::<Vec<_>>(),
                 "gaps": gaps.iter().map(|g| json!({
                     "testCase": g.test,
+                    "configuration": g.config,
                     "environment": g.env,
                     "condition": g.coordinate.iter().map(|(a, p)| json!({"axis": a, "point": p})).collect::<Vec<_>>(),
                     "reason": match &g.reason {
@@ -635,6 +702,11 @@ pub fn cmd_testplan_detail(
         if demonstrates.is_empty() { "—".to_string() } else { demonstrates.join(", ") }
     );
     println!("- Verdict: {verdict}");
+    if per_config.len() > 1 {
+        for (c, v) in &per_config {
+            println!("  - {c}: {v}");
+        }
+    }
     println!();
 
     println!("## Member TestCases ({})", member_rows.len());
