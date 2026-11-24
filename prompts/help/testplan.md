@@ -51,6 +51,15 @@ A plan with `runsOn:` is judged on each listed TestEnvironment alone, using the 
 `incomplete`, results from other rigs are ignored, and results from a retired or out-of-calibration rig do
 not count. Without `runsOn:` a failure on any rig fails the plan.
 
+## RESULTS PER CONFIGURATION
+A plan with `configurations:` is judged on the results of those Configurations only (`ingest-results --config`):
+each one on the results recorded without a Configuration overlaid with its own, and the plan takes the worst of
+them (`fail`, then `incomplete`, then `pass`). A result recorded for a Configuration the plan does not list never
+changes it, and a member is judged only in the Configurations it is active in. When a listed Configuration has
+results of its own, gaps read `<test> @ <rig> [axis=point] in <config> (…)`, and with several Configurations the
+detail lists each verdict (`verdictByConfiguration` in `--json`). A plan without `configurations:` is judged on
+the worst over everything recorded.
+
 ## REQUIRED COVERAGE
 A plan may declare what it requires (ADR-SYS-COVERAGE-001): `conditions:` (axes of named points), `minUnits:`
 (distinct units per point), `mode: each|product` or an explicit `points:` list. `validate` checks the declaration

@@ -2279,11 +2279,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // finding per plan listing the affected functions (GH #260); each root
             // cause is reported once, per TestCase, as W010.
             if status == "approved" {
-                if let Some(results) = &config.results {
+                if let Some(all_results) = &config.results {
                     use crate::results::FnVerdict;
                     let func_key = serde_yaml::Value::String("function".into());
                     let mut bad: Vec<(String, String, &str)> = Vec::new();
-                    for tc in &members {
+                    // GH #528: a plan that names its Configurations is judged on each one's own results.
+                    let views = crate::testplan::result_views(elem, &configs, all_results);
+                    let pkg = crate::variability::package_conditions(elements);
+                    let feat_alias = crate::variability::feature_id_to_qname(elements);
+                    for rv in &views {
+                    let results: &crate::results::ResultsData = &rv.results;
+                    let in_cfg = rv.config_id().map(|c| format!(" in {c}")).unwrap_or_default();
+                    let judged = |tc: &RawElement| rv.config.is_none() || crate::testplan::member_active_in_any_config(tc, &rv.configs, &pkg, &feat_alias);
+                    for tc in members.iter().filter(|t| judged(t)) {
                         let Some(fns) = &tc.frontmatter.test_functions else {
                             continue;
                         };
@@ -2302,7 +2310,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                             FnVerdict::Flaky => "flaky",
                                             _ => "missing",
                                         };
-                                        bad.push((tc_id.to_string(), func.clone(), what));
+                                        bad.push((tc_id.to_string(), format!("{func}{in_cfg}"), what));
                                     }
                                 }
                             }
@@ -2316,16 +2324,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         let unhealthy = crate::result_join::unhealthy_environments(elements);
                         for env in &envs {
                             let view = results.view_for_env(env, &unhealthy);
-                            for tc in members.iter().filter(|t| t.frontmatter.test_functions.as_ref().map_or(true, |f| f.is_empty())) {
+                            for tc in members.iter().filter(|t| judged(t) && t.frontmatter.test_functions.as_ref().map_or(true, |f| f.is_empty())) {
                                 let what = match crate::results::testcase_verdict(tc, Some(&view)) {
                                     crate::safety_case::Verdict::Fail => "FAILED",
                                     crate::safety_case::Verdict::Unknown => "missing",
                                     _ => continue,
                                 };
                                 let tc_id = tc.frontmatter.id.as_deref().unwrap_or(tc.qualified_name.as_str());
-                                bad.push((tc_id.to_string(), format!("@ {env}"), what));
+                                bad.push((tc_id.to_string(), format!("@ {env}{in_cfg}"), what));
                             }
                         }
+                    }
                     }
                     if !bad.is_empty() {
                         bad.sort();
@@ -2352,16 +2361,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     // W617: required coverage (ADR-SYS-COVERAGE-001) — a cell of the plan's declared grid (member ×
                     // rig × condition point, on `minUnits` units) with no pass.
                     if let Ok(Some(cov)) = crate::plan_coverage::parse(&fm.extra) {
-                        let pkg = crate::variability::package_conditions(elements);
-                        let feat_alias = crate::variability::feature_id_to_qname(elements);
-                        let ids: Vec<String> = members
-                            .iter()
-                            .filter(|tc| configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
-                            .map(|tc| crate::result_join::canonical(tc))
-                            .collect();
                         let envs = crate::result_join::runs_on_ids(elem, elements, &resolver);
                         let unhealthy = crate::result_join::unhealthy_environments(elements);
-                        let gaps = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(results));
+                        let mut gaps = Vec::new();
+                        for rv in &views {
+                            let ids: Vec<String> = members
+                                .iter()
+                                .filter(|tc| rv.configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &rv.configs, &pkg, &feat_alias))
+                                .map(|tc| crate::result_join::canonical(tc))
+                                .collect();
+                            let mut g = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(&*rv.results));
+                            for x in &mut g {
+                                x.config = rv.config_id();
+                            }
+                            gaps.extend(g);
+                        }
                         if !gaps.is_empty() {
                             const SHOWN: usize = 10;
                             let list = gaps.iter().take(SHOWN).map(|g| g.describe()).collect::<Vec<_>>().join("; ");

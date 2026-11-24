@@ -1311,6 +1311,8 @@ $ syscribe -m model/ testplan TP-TRS-MCP-001 --json
 
 **Verdict** ∈ `pass | fail | incomplete | empty`: `empty` when the effective set is empty; `fail` when any member's ingested verdict is `Fail`; `pass` when every member passes; otherwise `incomplete` (no/partial results). Load results with `ingest-results`.
 
+A plan with `configurations:` is judged on the results of those Configurations only (`ingest-results --config`), each on its own, and takes the worst of them; a result recorded for a Configuration the plan does not list never changes it. With several Configurations the detail lists the verdict of each, and a gap names its Configuration (`… in CONF-X`). A plan without `configurations:` is judged on the worst over everything recorded.
+
 ### `--plan TP-X` lens
 
 `matrix`, `verification-depth`, `audit` and `coverage tree` accept a `--plan TP-X` lens, symmetric to `--config`. On `matrix`/`verification-depth` it restricts the requirement rows to the plan's in-scope requirements and the TestCase universe to the plan's members. On `audit` it scopes the readiness verdict: validation runs over the **full** model (so no reference escaping the plan subset is mistaken for a defect) and only findings on the plan's in-scope elements count toward the verdict. It **composes** with `--config`, is dormant-safe, and exits `1` on an unknown plan id.

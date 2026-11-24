@@ -3129,7 +3129,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 | `name` | string | **Required** | One-line human-readable label — free prose. |
 | `status` | enum | **Required** | `draft`, `review`, `approved`, `active`, `retired`. |
 | `scope` | string | optional | Recommended vocabulary: `unit`, `smoke`, `integration`, `hil`, `certification`, `security`, `regression`. Free-form values are accepted but warn (`W610`). `scope` distinguishes multiple plans over the same configuration(s). |
-| `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). |
+| `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). With results recorded per Configuration, the plan is judged on each listed Configuration's own effective results and on no other's (REQ-TRS-PLANCFG-001); the verdict is the worst over them. |
 | `demonstrates` | list of id-or-qualname | optional | `Requirement` / `SafetyGoal` / `CybersecurityGoal` / `Argument` elements the plan is offered as evidence for (a safety-case leg). Not mandatory. Each must resolve (`E603`). |
 | `testCases` | list of `TC-*` refs | optional | Explicit members. Each must resolve to a `TestCase` (`E601`). |
 | `selection` | object | optional | Additive membership query (see below). |
