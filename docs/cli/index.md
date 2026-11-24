@@ -642,8 +642,26 @@ Exports native `Requirement` elements (and their packages) as a **ReqIF 1.2** XM
 ## Views (`view render`)
 
 ```bash
-syscribe -m model/ view render <View|ViewDef> [--format tree|table|json|mermaid]
+syscribe -m model/ view render <View|ViewDef> [--format tree|table|json|mermaid|latex|markdown|csv|html] [--config <CONF>] [--out <file>]
 ```
+
+**Table views for documents.** A view with `columns:` declares the table a document prints of it — which fields, under which headings, in which order — so a document generator needs no code per table:
+
+```yaml
+type: View
+name: OpenQuestions
+expose: [{target: "Planning::**", filter: "type == PlanningItem and tag == external-input"}]
+rows: questions            # one row per question, not per element
+where: "status == open"
+columns:
+  - {field: ref, heading: Question}
+  - {field: text, heading: Text, width: 6cm}
+  - {field: recommended, heading: Recommendation, empty: "—"}
+sort: [ref]
+caption: "Open questions"
+```
+
+`rows:` takes one row per entry of a list inside each element (`questions`, `parameters`, `parameterConstraints`, `features`, …); `where:` keeps the rows that match (`<field> == <value>`, `!=`, `and`/`or`/`not`); `sort:` orders them (`-field` descending); `nest: parent` indents children under their parent; `marks:` flags rows with a symbol and a note under the table. `--format latex` writes a `longtable` with a caption and a label (`tab:open-questions`), `markdown` a pipe table, `csv` RFC 4180 and `html` a `<table>`, each escaped for its target; `--config` gives parameter rows that Configuration's values. `validate` reports a malformed declaration (**E507**) and a column that names an unknown field (**W504**). The fields a row answers to are listed in `syscribe help view`.
 
 Materialises a `View`: the elements its `expose:` entries select — a name, `Pkg::*` (direct members) or `Pkg::**` (subtree), a `{target, isRecursive, filter}` map — narrowed by `filterCondition:` / `filter:` (`@MetadataName`, `not`, `and`, `or`; other clauses are reported and treated as true) and inherited through the `typedBy:` ViewDef. The default format follows the view's `rendering:` (`asTreeDiagram` → tree, `asTableView`/`asElementTable` → table, `asInterconnectionDiagram` → mermaid). Read-only.
 

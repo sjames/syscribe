@@ -3365,7 +3365,8 @@ Viewpoint addressing safety concerns from the safety engineer's perspective.
 | `satisfies` | list of strings | absent | Qualified names of ViewpointDefs satisfied by this view |
 | `expose` | list of expose maps | absent | Elements exposed by this view; see 8.14.3 |
 | `rendering` | string | absent | Qualified name of the RenderingDef applied to this view |
-| `filterCondition` | string | absent | Filter applied to everything the view exposes (`@MetadataName`, `not`, `and`, `or`) — the SysML `filter @M;` member; an `expose:` entry may add its own `filter:` |
+| `filterCondition` | string | absent | Filter applied to everything the view exposes (`@MetadataName`, a field comparison such as `type == PlanningItem`, `tag == external-input` or `status != draft`, `not`, `and`, `or`) — the SysML `filter @M;` member; an `expose:` entry may add its own `filter:` |
+| `columns`, `rows`, `where`, `sort`, `nest`, `marks`, `caption`, `label` | — | absent | The table a document prints of the view; see 8.14.3a |
 
 #### 8.14.3 Expose Schema
 
@@ -3391,6 +3392,60 @@ rendering: Views::FaultTreeRendering
 ---
 Safety view exposing all safety-annotated elements of the vehicle system.
 ```
+
+#### 8.14.3a Table views
+
+A `View` or `ViewDef` with `columns:` declares the table a document prints of the elements it exposes
+(REQ-TRS-VIEWTAB-001..003), so a document generator needs no code per table. The keys are schema
+fields on a `View`/`ViewDef` only (`W047` elsewhere).
+
+| Field | YAML type | Description |
+|---|---|---|
+| `columns` | list, required | The columns in order. Each is a field name, or a map: `field` (or `tagPrefix`), `heading` (default: the field name in words), `empty` (shown for a row with no value), `align` (`left`, `right`, `center`), `width` (a LaTeX length; the column wraps) |
+| `rows` | string | One row per entry of this list inside each exposed element — `questions`, `parameters`, `parameterConstraints`, `features`, `amendments`, any list — instead of one row per element |
+| `where` | string | Keep the rows that match a condition |
+| `sort` | string or list | Order by these fields, `-field` descending; digits compare as numbers. Default: qualified-name order, entries in file order |
+| `nest` | string | The field naming a row's parent element (`parent`): a child follows its parent, indented. Not with `rows:` |
+| `marks` | list of `{when, symbol, note}` | A row matching `when` (a condition) gets `symbol` after its first cell; `note` is printed once under the table |
+| `caption`, `label` | string | The caption, and the label a document refers to the table by (default `tab:<view-name-in-kebab-case>`) |
+
+**Fields.** An element row answers to its frontmatter fields (dotted for a nested map), `custom.<key>`,
+and `ref` (stable id, else qualified name), `id`, `qname`, `type`, `tag`, `file`, `summary` (first line of
+the body), `body` (value references rendered), `verifiedBy`, `satisfiedBy`, `derivedChildren`,
+`openQuestions`. A list row answers to the keys of its entry first, then to the element's fields;
+`element.<field>` names the element's outright. A `questions` row adds `ref` (`PI-X#Q1`); a `parameters`
+row adds `key` (`<feature>.<name>`), `effectiveValue` and `quantity` (the value in the `--config`
+Configuration, else the fixed, derived or default value; `quantity` with its unit); an entry with
+`value:`/`default:` and `unit:` answers `quantity`. A list value prints comma-separated. A
+`tagPrefix: phase-` column shows the rest of the element's first tag with that prefix.
+
+**Conditions** (`where:`, a mark's `when:`, and `expose:`/`filterCondition:` filters): `<field> == <value>`,
+`<field> != <value>`, `<field>` (it has a value), joined by `and`, `or`, `not`. A list field matches when
+one of its entries equals the value (`tag == external-input`).
+
+```yaml
+---
+type: View
+name: OpenQuestions
+expose: [{target: "Planning::**", filter: "type == PlanningItem and tag == external-input"}]
+rows: questions
+where: "status == open"
+columns:
+  - {field: ref, heading: Question}
+  - {field: text, heading: Text, width: 6cm}
+  - {field: recommended, heading: Recommendation, empty: "—"}
+sort: [ref]
+caption: "Open questions"
+---
+```
+
+`syscribe view render <View> --format latex|markdown|csv|html [--config <C>] [--out <file>]` writes it: a
+LaTeX `longtable` with `booktabs` rules (it breaks over pages and repeats its header, with `\caption` and
+`\label`), a Markdown pipe table, RFC 4180 CSV, or an HTML `<table>`; each escapes cell text for its
+target and sets a quantity the target's way. `table` prints the same columns for a terminal and `json` the
+table as data. A document format on a view with no `columns:` prints the element, type and name.
+A malformed declaration is `E507`; a column, sort key, `nest:` or condition naming a field no row can
+have is `W504`.
 
 #### 8.14.4 `RenderingDef`
 
@@ -6980,6 +7035,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W500` | A `View`'s `viewpoint:` does not resolve to a `ViewpointDef` |
 | `W501` | An `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | A `View`'s `expose:` entry does not resolve to any known element |
+| `W504` | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
 | `W600` | A `PartDef`/`Part` has an empty documentation body |
 | `W601` | An `ActionDef`/`Action` has an empty documentation body |
 | `W701` | A `Requirement` with `asilLevel: B`, `C` or `D` has no `verificationMethod:` |
@@ -7065,7 +7121,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
-#### Allocation resolution and declarative derive (E500–E506)
+#### Allocation resolution, declarative derive and table views (E500–E507)
 
 | Code | Condition |
 |---|---|
@@ -7076,6 +7132,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E504` | Cyclic dependency between `derive:` fields — a field reads itself directly or through other derived fields (`self.`, `elements["Q"].`, `children`/`parent` aggregates). Reported once per participating element, naming the cycle; the cyclic fields are not evaluated (REQ-TRS-DERIVE-004, §3.18) |
 | `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string (REQ-TRS-DERIVE-001/005) |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
+| `E507` | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
 
 The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
 

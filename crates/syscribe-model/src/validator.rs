@@ -1424,6 +1424,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::TestPlan)) {
             unknown_keys.retain(|k| !crate::plan_coverage::KEYS.contains(k));
         }
+        // GH #531: a View's table declaration (`columns:`, `rows:`, `where:`, `sort:`, …).
+        if crate::view_table::is_view(elem) {
+            unknown_keys.retain(|k| !crate::view_table::KEYS.contains(k));
+        }
         // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
         if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
             unknown_keys.push("amendments");
@@ -4882,6 +4886,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // is a name, an import pattern (`Pkg::*`, `Pkg::**`) or a `{target|ref, ...}` map,
         // resolved from the view's own scope (GH #205).
         if matches!(fm.element_type, Some(ElementType::View) | Some(ElementType::ViewDef)) {
+            // E507 / W504 (GH #531, REQ-TRS-VIEWTAB-003): the view's table declaration.
+            if crate::view_table::present(&fm.extra) {
+                let ex = crate::view_exposure::exposure(elements, &resolver, elem);
+                for (is_error, msg) in crate::view_table::findings(elements, elem, &ex.items) {
+                    if is_error {
+                        findings.push(error("E507", &file, &format!("malformed table view: {msg}")));
+                    } else {
+                        findings.push(warning("W504", &file, &format!("table view: {msg}")));
+                    }
+                }
+            }
             for entry in crate::view_exposure::expose_entries(elem) {
                 if crate::view_exposure::resolve_target(elements, &resolver, elem, &entry.target).is_none()
                     && !config.peer_resolves(&entry.target)

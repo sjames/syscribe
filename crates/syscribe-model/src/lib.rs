@@ -75,6 +75,7 @@ pub mod questions;
 pub mod amendments;
 pub mod req_items;
 pub mod value_refs;
+pub mod view_table;
 pub mod remote;
 pub mod plantuml;
 pub mod residual_risk;

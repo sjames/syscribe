@@ -1147,7 +1147,11 @@ fn main() {
             "view" => {
                 // GH #205 — materialise a View: the elements its `expose:` selects.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = view_render::cmd_view(&elems, &resolver, rest);
+                // GH #531: `--config` projects the model the view is evaluated in.
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let vres = Resolver::new(&view);
+                let code = view_render::cmd_view(&elems, &view, &vres, rest);
                 if code != 0 {
                     std::process::exit(code);
                 }

@@ -4901,6 +4901,13 @@ name: myView
 typedBy: Views::MyViewDef
 expose:
   - SomePackage::SomeElement
+# A table for a document (`syscribe help view`): uncomment and adapt.
+# columns:
+#   - {field: ref, heading: Element}
+#   - {field: name, heading: Name}
+#   - {field: status, heading: Status, empty: "—"}
+# sort: [ref]
+# caption: "Elements"
 ---
 
 Description of this view.

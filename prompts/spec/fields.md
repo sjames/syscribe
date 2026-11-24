@@ -295,6 +295,13 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 |---|---|---|
 | `expose` | ViewDef | list |
 | `rendering` | ViewDef | string |
+| `columns` | View, ViewDef | list | The table a document prints of the exposed elements: each a field name or `{field, heading, empty, align, width}` / `{tagPrefix, heading}` (`syscribe help view`) |
+| `rows` | View, ViewDef | string | One row per entry of this list inside each element (`questions`, `parameters`, `parameterConstraints`, `features`, …) instead of one per element |
+| `where` | View, ViewDef | string | Keep the rows that match: `<field> == <value>`, `<field> != <value>`, `<field>`, joined by `and`/`or`/`not` |
+| `sort` | View, ViewDef | string or list | Row order by field; `-field` descending |
+| `nest` | View, ViewDef | string | The field naming a row's parent element (`parent`): children follow it, indented |
+| `marks` | View, ViewDef | list | `{when, symbol, note}`: flag the rows that match `when` and print the note under the table |
+| `caption` / `label` | View, ViewDef | string | Table caption, and the label a document refers to it by (default `tab:<view-name>`) |
 | `satisfiedBy` | ViewpointDef | list |
 | `methods` | ViewpointDef | list |
 

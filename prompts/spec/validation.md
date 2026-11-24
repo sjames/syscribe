@@ -406,7 +406,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Catalogued but not currently emitted (the resolver computes it; no command surfaces it, so `--deny W050` has no effect). `E050` is in the parse-time table |
 
-## Allocation and derive errors, structural warnings (E500–E506, W500–W503, W930)
+## Allocation and derive errors, structural warnings (E500–E507, W500–W504, W930)
 
 | Code | Condition |
 |---|---|
@@ -417,9 +417,11 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E504` | Cyclic dependency between `derive:` fields (a field reads itself directly or via other derived fields); reported on each participating element naming the cycle; the cyclic fields are not evaluated |
 | `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element |
+| `E507` | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |
+| `W504` | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
 | `W930` | A `features:` entry on a non-`Allocation` element declares an allocation (`type: Allocation`, or `allocatedFrom:`/`allocatedTo:`) — only a `type: Allocation` element carries features-form allocations (§12.9), so it contributes no allocation edge; use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | The same allocation edge is declared by more than one form — `allocatedTo:` on the source, an `Allocation` element, a legacy authored `allocatedFrom:` on the target (redundant) |
 
