@@ -17,6 +17,7 @@ the element's documentation. Directory path encodes namespace ownership.
 | `syscribe spec behaviour` | Executable behaviour: state machines, action flows, plants (`PlantDef`, FMU), `models:`, verification composites |
 | `syscribe spec evidence` | Executable evidence: `simulate`, `@verifies`, `requirement-coverage`, `exec-coverage` |
 | `syscribe spec diagrams` | Diagram elements, derived views (`include:`, `style:`, `layout:`), context and actors, export |
+| `syscribe spec export` | Schema of `export` and `export --resolved` (bodies, effective parameter values, reverse links, build identity) |
 | `syscribe spec variability` | Feature models, `Configuration`, `appliesWhen:`, parameters and `{{Features::…param}}` placeholders |
 
 **Variability / product lines (§9, opt-in).** `FeatureDef` + `Configuration` + `appliesWhen:` model a product line (the 150% model). Tools: `matrix` (Requirement × Configuration coverage), `feature-check` / `feature-check --deep` (holistic + SAT-backed analysis), `configure` (assisted configuration), and the `--config` projection lens (`validate`/`list`/`export --config`, `validate --all-configs`, `diff`). Inert when no `FeatureDef` is present (no variability checks run); `--config` on such a model is a usage error unless it names a stored `Configuration`. See `spec fields` and `spec validation`.

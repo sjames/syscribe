@@ -56,6 +56,7 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Requirement verdicts             syscribe -m model/ requirement-coverage --config <CONF>
     Compare two variants             syscribe -m model/ diff --config <A> --config <B>
     Validate every variant (CI)      syscribe -m model/ validate --all-configs
+    Feed a document generator        syscribe -m model/ export --resolved [--config <CONF>]   (bodies, effective parameter values, reverse links, questions, commit; schema: syscribe spec export)
 
 ## Learn the tool
     What can I do with a type        syscribe help PlanningItem

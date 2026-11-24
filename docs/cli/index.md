@@ -425,9 +425,20 @@ syscribe -m model/ untyped     # elements missing a type: field
 syscribe -m model/ export             # single JSON document (default)
 syscribe -m model/ export --ndjson    # newline-delimited: one element per line
 syscribe -m model/ export --config CONF-X   # projected onto a configuration variant
+syscribe -m model/ export --resolved --config CONF-X   # input for a document generator
 ```
 
 `--ndjson` streams one element per line; the `--config` lens projects the export onto a single variant. A `Connection`/`Interface` record also carries `source`, `target` and `ends` (every end, with its `end` role when named) beside its `typedBy`, so a tool can read a connection's kind and endpoints from one record.
+
+`--resolved` adds what a document generator would otherwise re-derive from the files, so a report can be built from one call with no access to the model directory:
+
+- `body` on every element: the Markdown body `raw`, and `rendered` with each value reference `{{Elem.attr}}` replaced by its value and unit.
+- `computed.satisfiedBy` on a requirement and `computed.citedBy` (`[{by, ref}]`) on any element another body cites, by item (`REQ-X#slug`) or question (`PI-X#Q1`).
+- `questions` and `openQuestions` on a `PlanningItem`.
+- `effectiveParameters` on each `Configuration`: one row per parameter with `value`, `unit`, `range`, binding time, `source`, and the `expression` of a derived parameter beside its computed value.
+- A top-level `meta`: `commit`, `dirty`, `syscribeVersion`, `generatedAt`, `config`.
+
+With `--config <C>` the bodies hold that Configuration's parameter values and the top level carries its `effectiveParameters`. The plain export is unchanged. `syscribe spec export` documents every member; `schemaVersion` changes when a member changes meaning.
 
 ### Static HTML site (`export-html`)
 
@@ -1834,6 +1845,7 @@ syscribe spec behaviour        # state machines, action flows, plants, models:, 
 syscribe spec evidence         # simulate, @verifies, requirement-coverage, exec-coverage
 syscribe spec diagrams         # diagram elements, derived views, styles, context diagrams
 syscribe spec variability      # feature models, configurations, {{Features::…param}} placeholders
+syscribe spec export           # schema of export and export --resolved
 ```
 
 ---

@@ -1714,15 +1714,17 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let ndjson = rest.iter().any(|a| a == "--ndjson");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // GH #529: `--resolved` adds bodies, effective parameter values, reverse links and build identity.
+                let resolved = rest.iter().any(|a| a == "--resolved").then(|| export::Resolved { model_root: model_root.as_ref(), full: &elems, config });
                 match config {
-                    None => export::cmd_export(&elems, &vcfg, ndjson),
+                    None => export::cmd_export(&elems, &vcfg, ndjson, resolved.as_ref()),
                     Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            export::cmd_export(&elems, &vcfg, ndjson)
+                            export::cmd_export(&elems, &vcfg, ndjson, resolved.as_ref())
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            export::cmd_export(&view, &vcfg, ndjson);
+                            export::cmd_export(&view, &vcfg, ndjson, resolved.as_ref());
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");
