@@ -8,7 +8,9 @@ hand, so `refs` and `lint-docs` see every use.
   130 in `CONF-HTR-001`), a derived parameter `Heater.onTimeMs`, and an attribute `Rig.settle`.
 - `model/.syscribe.toml` — the `[documents]` table: where the documents are, and that `.tex`
   files write a reference as `<<Elem.attr>>` (braces clash with LaTeX).
-- `doc/chapter.tex` — the document.
+- `doc/chapter.tex` — a chapter that only needs values put in.
+- `doc/report.tex.tmpl` and `model/Documents/HeaterReport.md` — a whole report from a template:
+  a `Document` element names the template, and `doc build` renders it (GH #532).
 - `model/Views/` — two table views: the feature parameters and the requirements. A view with
   `columns:` declares the table a document prints, and `view render` writes it (GH #531).
 
@@ -36,6 +38,19 @@ syscribe -m examples/doc-render/model/ view render Views::Parameters --format la
 # The same table as Markdown or CSV
 syscribe -m examples/doc-render/model/ view render Views::Parameters --format markdown
 syscribe -m examples/doc-render/model/ view render Views::RequirementList --format csv
+```
+
+The whole report is built from its template, and checked for drift:
+
+```bash
+# Renders doc/report.tex.tmpl to doc/build/report.tex, with a manifest of what it used
+syscribe -m examples/doc-render/model/ doc build HeaterReport
+
+# For one variant
+syscribe -m examples/doc-render/model/ doc build HeaterReport --config CONF-HTR-001
+
+# Is it still up to date? (exit 2 lists what changed; the PDF is LaTeX's job, so it is reported missing)
+syscribe -m examples/doc-render/model/ doc build HeaterReport --check
 ```
 
 A reference that does not resolve stops the render with `<file>:<line>: E331: …`, and nothing

@@ -1367,7 +1367,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.profile.is_some() {
                 unknown_keys.push("profile");
             }
-            if fm.version.is_some() {
+            if fm.version.is_some() && !crate::document::is_document(elem) {
                 unknown_keys.push("version");
             }
             if fm.auto_apply.is_some() {
@@ -1423,6 +1423,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // type they stay unrecognised, so drop them from the exemption below.
         if matches!(fm.element_type, Some(ElementType::TestPlan)) {
             unknown_keys.retain(|k| !crate::plan_coverage::KEYS.contains(k));
+        }
+        // GH #532: a Document's declaration (`template:`, `outputs:`, …).
+        if crate::document::is_document(elem) {
+            unknown_keys.retain(|k| !crate::document::KEYS.contains(k));
         }
         // GH #531: a View's table declaration (`columns:`, `rows:`, `where:`, `sort:`, …).
         if crate::view_table::is_view(elem) {
@@ -4885,6 +4889,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // W502: expose entries on a View/ViewDef must resolve to known elements. An entry
         // is a name, an import pattern (`Pkg::*`, `Pkg::**`) or a `{target|ref, ...}` map,
         // resolved from the view's own scope (GH #205).
+        // E508 / W505 (GH #532, REQ-TRS-DOCGEN-002): a Document's declaration and its template.
+        if crate::document::is_document(elem) {
+            match crate::document::of(elem) {
+                Err(errs) => {
+                    for m in errs {
+                        findings.push(error("E508", &file, &format!("malformed Document: {m}")));
+                    }
+                }
+                Ok(d) => {
+                    if let crate::config::SourceLocation::Local(p) = config.classify_source(&d.template) {
+                        if !p.is_file() && fm.status.as_deref() != Some("draft") {
+                            findings.push(warning("W505", &file, &format!("Document template '{}' does not exist ({})", d.template, p.display())));
+                        }
+                    }
+                    if let Some(c) = &d.config {
+                        if !resolver.resolve_ref(elements, c).is_some_and(Resolver::is_configuration) {
+                            findings.push(error("E508", &file, &format!("malformed Document: `config: {c}` does not resolve to a Configuration")));
+                        }
+                    }
+                }
+            }
+        }
         if matches!(fm.element_type, Some(ElementType::View) | Some(ElementType::ViewDef)) {
             // E507 / W504 (GH #531, REQ-TRS-VIEWTAB-003): the view's table declaration.
             if crate::view_table::present(&fm.extra) {

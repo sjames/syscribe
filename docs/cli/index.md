@@ -739,6 +739,30 @@ syscribe -m model/ refs Rig.settle                                              
 
 A reference that does not resolve stops `render` with `<file>:<line>: E331: …` and nothing is written. See [Value references](../model-guide/value-references.md#in-external-documents).
 
+### Documents from templates (`doc`, `render --template`)
+
+```bash
+syscribe -m model/ doc list [--json]
+syscribe -m model/ doc build <Document>... | --all [--check] [--config <CONF>]
+syscribe -m model/ render --template <file> [--out <file>] [--config <CONF>] [--escape <target>]
+```
+
+A `Document` element (`type: Document`, `template:`, optional `rendered:`, `artefacts:`, `version:`, `audience:`, `config:`) declares a document that is mostly hand-written text with values, tables, element text and diagrams from the model at marked places. `doc build` renders its template and writes the rendered file plus `<rendered>.manifest.json`; `doc build --check` writes nothing and exits `2` naming what is out of date — a value that changed (shown with what it is now), an element, view or diagram that changed or no longer resolves, a changed template, a hand-edited rendered file, a missing or older artefact. syscribe writes text; LaTeX, Typst or pandoc make the PDF.
+
+The template engine is minijinja (Jinja syntax), strict: an unknown element, attribute, view or variable stops the render with `<template>:<line>: …` and nothing is written. A LaTeX result uses `<< >>`, `<% %>` and `<# #>`; other results Jinja's own delimiters.
+
+```latex
+\title{<< document.name >> \\ \large Version << document.version >>}
+The heater shall not exceed << value("Limits.maxTemp") >>.
+<< view("Views::Parameters") >>
+<% for r in elements(type="Requirement", where="status != draft") %>
+\subsection{<< r.id >>: << r.name >>}
+<< r | body >>
+<% endfor %>
+```
+
+Helpers: `value()`, `element()`, `elements()`, `view()`, `diagram()`, `selected()`; variables `meta`, `parameters`, `document`; filters `body`, `quantity`, `latex`, `typst`, `html`, `md`. The full list is `syscribe help doc`; the guide is [Documents](../model-guide/documents.md). Keep filtering and ordering in views, not in templates.
+
 ## Review records (`reviews`)
 
 ```bash

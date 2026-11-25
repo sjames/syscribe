@@ -5527,6 +5527,21 @@ appliesTo:
 A safety-related application condition (SRAC): a constraint the integrator must
 honour for the referenced goal/argument/requirement to hold.
 "#,
+        "document" => r#"---
+type: Document
+name: DesignDescription
+status: draft                             # a non-draft Document's template must exist (W505)
+template: repo:doc/main.tex.tmpl          # the template it is rendered from (`syscribe help doc`)
+# rendered: repo:doc/build/main.tex       # default: beside the template, its name without .tmpl
+# artefacts: [repo:doc/build/design-description.pdf]   # what LaTeX/Typst/pandoc make of it
+# version: "0.1"
+# audience: customer
+# config: CONF-PREFIX-001                 # when the document is for one variant
+---
+
+What this document is for and who reads it. Build it with `syscribe doc build DesignDescription`;
+`syscribe doc build DesignDescription --check` says when it is out of date.
+"#,
         "testenvironment" => r#"---
 type: TestEnvironment
 id: TE-PREFIX-001
@@ -5709,7 +5724,7 @@ fn template_group(name: &str) -> &'static str {
     match name {
         "Requirement" | "TestCase" | "TestPlan" | "ADR" | "Baseline" | "PlanningItem"
         | "ReviewRecord" | "TradeStudy" | "TestEnvironment" | "ResidualRisk" => "Native elements",
-        "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
+        "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" | "Document" => "Packages & views",
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"
         | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse"

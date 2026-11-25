@@ -798,7 +798,7 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
 | E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
-## Declarative derive errors (E504–E506) and table views (E507)
+## Declarative derive errors (E504–E506) table views (E507) and documents (E508)
 
 Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-TRS-DERIVE-004/005).
 
@@ -808,12 +808,13 @@ Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-T
 | E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"), the `derive:` value is not a mapping, or a formula value is not a string; the field is left unevaluated |
 | E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
 | E507 | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
+| E508 | A `Document` declaration is malformed (GH #532, REQ-TRS-DOCGEN-002): `template:` is missing; `template:`, `rendered:`, `version:`, `audience:` or `config:` is not a non-empty string; `artefacts:` is not a path or a list of paths; or `config:` does not resolve to a `Configuration`. `doc build` refuses the document |
 
 Derived fields evaluate in dependency order, so a field always sees the computed value of every derived field it reads. `derive:` is a recognised frontmatter field and never raises `W047` (GH #141).
 
 The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
 
-## Structural warnings (W500–W504, W930)
+## Structural warnings (W500–W505, W930)
 
 | Code | Condition |
 |---|---|
@@ -821,6 +822,7 @@ The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding 
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
 | W504 | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
+| W505 | A non-draft `Document` names a `template:` that does not exist on disk (GH #532, REQ-TRS-DOCGEN-002); paths resolve like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
 | W930 | A `features:` entry on a **non-`Allocation`** element declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). §12.9 recognises the features form only on a standalone `type: Allocation` element, so the entry contributes **no** allocation edge (not in `matrix --allocations`, `E314`, `W034`, the derived `allocatedFrom`); use `allocatedTo:` on the source or move it to an `Allocation` element (GH #142). Its endpoints are still resolution-checked (`E500`/`E501`) |
 | W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 

@@ -305,6 +305,16 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | `satisfiedBy` | ViewpointDef | list |
 | `methods` | ViewpointDef | list |
 
+## Documents (`type: Document`)
+
+| Field | Type | |
+|---|---|---|
+| `template` | string | **Required.** The template the document is rendered from; a source path (`repo:doc/main.tex.tmpl`, `model:…`, bare = model root) |
+| `rendered` | string | Where the rendered text is written. Default: beside the template, its name without `.tmpl`/`.j2`/`.jinja` |
+| `artefacts` | string or list | What a further tool makes of the rendered text (a PDF); `doc build --check` reports one that is missing or older |
+| `version` / `audience` | string | Shown to the template as `document.version` / `document.audience` |
+| `config` | string | The `Configuration` the document is for, when it is for one variant |
+
 ## Diagrams (`type: Diagram`)
 
 | Field | Applies to | Type | Notes |

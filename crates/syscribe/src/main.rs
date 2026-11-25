@@ -26,6 +26,7 @@ mod cyberrisk;
 mod connectivity;
 mod diagram_export;
 mod docrender;
+mod doctemplate;
 mod digest;
 mod discover;
 mod export;
@@ -1203,6 +1204,24 @@ fn main() {
                 // (REQ-TRS-VIS-009/010) — the one diagram subcommand after ADR-SYS-VIS-001.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let code = diagram_export::cmd_diagram(&elems, &resolver, model_root, &vcfg, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "doc" => {
+                // GH #532: Document elements — `doc list`, `doc build <Document> [--check]`.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = doctemplate::cmd_doc(&elems, &vcfg, model_root.as_ref(), rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "render" if subcommand_args.iter().any(|a| a == "--template") => {
+                // GH #532: a template rendered with the model as its data.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let code = doctemplate::cmd_render_template(&elems, view, &vcfg, model_root.as_ref(), rest);
                 if code != 0 {
                     std::process::exit(code);
                 }

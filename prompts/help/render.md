@@ -1,8 +1,9 @@
-# render — write a document with its value references replaced, or print a Diagram element
+# render — write a document from the model: value references replaced, or a template rendered
 
 ## SYNOPSIS
     syscribe -m <root> render <file> [--out <file>] [--escape <target>]
                               [--open <s> --close <s>] [--config <C>]
+    syscribe -m <root> render --template <file> [--out <file>] [--config <C>] [--escape <target>]
     syscribe -m <root> render <diagram-path>
 
 ## DOCUMENTS
@@ -44,6 +45,13 @@ written; in every other language each delimited `X.y` is a reference.
 
 A reference that does not resolve stops the render: each is printed as
 `<file>:<line>: E331: …`, nothing is written, exit 1.
+
+## TEMPLATES
+`render --template <file>` renders a template with the model as its data: loops over
+elements, tables from views, diagrams, conditionals (GH #532). The helpers, the
+delimiters and the strict mode are described in `syscribe help doc`; a `Document`
+element and `doc build` add a drift check. Use plain `render <file>` when a
+document only needs values put in.
 
 ## OPTIONS
     --out <file>      Write the result there (directories are created); stdout otherwise.
@@ -90,4 +98,4 @@ browser (Save companion SVG) or from `plantuml render`.
     syscribe -m model/ render model/Diagrams/RequirementTraceMermaid.md
 
 ## SEE ALSO
-    refs, lint-docs, export, plantuml
+    doc, view, refs, lint-docs, export, plantuml

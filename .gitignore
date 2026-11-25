@@ -6,3 +6,6 @@ site/
 
 # Local Claude Code plan scratch files (ephemeral, never committed)
 .claude/plans/
+
+# Documents built by the worked example (`syscribe doc build`)
+examples/doc-render/doc/build/

@@ -305,6 +305,27 @@ impl<'a> ResolvedIndex<'a> {
     }
 }
 
+/// The resolved export as one value — `{meta, effectiveParameters?, elements}` — for the template
+/// engine (GH #532), which hands it to a template as its data.
+pub fn resolved_document(elements: &[RawElement], config: &ValidateConfig, resolved: &Resolved<'_>) -> serde_json::Value {
+    let result = validator::validate_with_config(elements, config);
+    let endpoints = syscribe_model::connections::endpoint_index(elements);
+    let index = ResolvedIndex::new(elements, resolved);
+    let mut doc = index.top();
+    let items: Vec<serde_json::Value> = elements
+        .iter()
+        .map(|e| {
+            let mut v = element_json(e, &result, config, &endpoints);
+            if let Some(obj) = v.as_object_mut() {
+                index.extend(elements, e, obj);
+            }
+            v
+        })
+        .collect();
+    doc.insert("elements".into(), serde_json::Value::Array(items));
+    serde_json::Value::Object(doc)
+}
+
 /// `export` subcommand. `ndjson` switches from a single pretty JSON document to
 /// newline-delimited JSON (one header line, then one element per line).
 pub fn cmd_export(elements: &[RawElement], config: &ValidateConfig, ndjson: bool, resolved: Option<&Resolved<'_>>) {

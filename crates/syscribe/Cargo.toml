@@ -34,6 +34,7 @@ notify = { workspace = true }
 anyhow = { workspace = true }
 petgraph = { workspace = true }
 tower-lsp = "0.20.0"
+minijinja = { version = "3.1.0", default-features = false, features = ["serde", "builtins", "macros", "multi_template"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

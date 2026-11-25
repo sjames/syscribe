@@ -327,11 +327,46 @@ pub struct DocumentsConfig {
     pub extensions: Option<Vec<String>>,
     /// Extension → the delimiters its references use.
     pub delimiters: BTreeMap<String, Delims>,
+    /// Extension of the rendered file → the template delimiters (`[documents.templateSyntax.<ext>]`).
+    pub template_syntax: BTreeMap<String, TemplateSyntax>,
     /// Malformed entries (printed as warnings by the commands that read the table; the entry is ignored).
     pub problems: Vec<String>,
 }
 
+/// The delimiters of a template (GH #532): `variable` around an expression, `block` around a
+/// statement, `comment` around a comment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TemplateSyntax {
+    pub variable: (String, String),
+    pub block: (String, String),
+    pub comment: (String, String),
+}
+
+impl TemplateSyntax {
+    /// Jinja's own: `{{ }}`, `{% %}`, `{# #}`.
+    pub fn jinja() -> Self {
+        let p = |a: &str, b: &str| (a.to_string(), b.to_string());
+        TemplateSyntax { variable: p("{{", "}}"), block: p("{%", "%}"), comment: p("{#", "#}") }
+    }
+
+    /// For LaTeX, where braces and `%` belong to the document: `<< >>`, `<% %>`, `<# #>`.
+    pub fn latex() -> Self {
+        let p = |a: &str, b: &str| (a.to_string(), b.to_string());
+        TemplateSyntax { variable: p("<<", ">>"), block: p("<%", "%>"), comment: p("<#", "#>") }
+    }
+}
+
 impl DocumentsConfig {
+    /// The template delimiters for a rendered file: its `[documents.templateSyntax.<ext>]` entry, else
+    /// the LaTeX set for a LaTeX file and Jinja's own for anything else.
+    pub fn template_syntax_for(&self, rendered: &Path) -> TemplateSyntax {
+        let ext = rendered.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).unwrap_or_default();
+        self.template_syntax.get(&ext).cloned().unwrap_or_else(|| match Escape::for_path(rendered) {
+            Escape::Latex => TemplateSyntax::latex(),
+            _ => TemplateSyntax::jinja(),
+        })
+    }
+
     pub fn load(model_root: &Path) -> Self {
         let mut cfg = DocumentsConfig::default();
         let Some(root) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok().and_then(|t| toml::from_str::<toml::Value>(&t).ok()) else {
@@ -380,7 +415,27 @@ impl DocumentsConfig {
                     }
                     None => cfg.problems.push(format!("[documents] delimiters must be a table of <extension> = [\"<open>\", \"<close>\"], got {v}")),
                 },
-                other => cfg.problems.push(format!("[documents] has no key `{other}` (keys: paths, extensions, delimiters); it is ignored")),
+                "templateSyntax" | "template_syntax" => match v.as_table() {
+                    Some(t) => {
+                        for (ext, entry) in t {
+                            let pair = |k: &str| -> Option<(String, String)> {
+                                let a = entry.get(k)?.as_array()?;
+                                match (a.first()?.as_str(), a.get(1)?.as_str()) {
+                                    (Some(o), Some(c)) if a.len() == 2 && !o.is_empty() && !c.is_empty() => Some((o.to_string(), c.to_string())),
+                                    _ => None,
+                                }
+                            };
+                            match (pair("variable"), pair("block"), pair("comment")) {
+                                (Some(variable), Some(block), Some(comment)) => {
+                                    cfg.template_syntax.insert(ext.trim_start_matches('.').to_ascii_lowercase(), TemplateSyntax { variable, block, comment });
+                                }
+                                _ => cfg.problems.push(format!("[documents.templateSyntax.{ext}] needs variable, block and comment, each [\"<open>\", \"<close>\"]; the default delimiters are used")),
+                            }
+                        }
+                    }
+                    None => cfg.problems.push(format!("[documents] templateSyntax must be a table of <extension> = {{variable, block, comment}}, got {v}")),
+                },
+                other => cfg.problems.push(format!("[documents] has no key `{other}` (keys: paths, extensions, delimiters, templateSyntax); it is ignored")),
             }
         }
         cfg
@@ -427,7 +482,7 @@ impl DocumentsConfig {
 }
 
 /// `path` with `.` and `<dir>/..` components removed (lexically; nothing is read from disk).
-fn clean(path: &Path) -> PathBuf {
+pub fn clean(path: &Path) -> PathBuf {
     use std::path::Component;
     let mut out = PathBuf::new();
     for c in path.components() {

@@ -59,6 +59,8 @@ or `syscribe help --search <keyword>` to find a command by what it does.
     Compare two variants             syscribe -m model/ diff --config <A> --config <B>
     Validate every variant (CI)      syscribe -m model/ validate --all-configs
     A table for a document           declare `columns:` (and `rows:`, `where:`, `sort:`) on a View, then: syscribe -m model/ view render <View> --format latex|markdown|csv|html   (syscribe help view)
+    Build a document from a template  add a `type: Document` (syscribe template Document), then: syscribe -m model/ doc build <Document>   (helpers: syscribe help doc)
+    Is a built document out of date  syscribe -m model/ doc build --all --check   (exit 2 names what changed)
     Feed a document generator        syscribe -m model/ export --resolved [--config <CONF>]   (bodies, effective parameter values, reverse links, questions, commit; schema: syscribe spec export)
 
 ## Learn the tool

@@ -238,7 +238,8 @@ fn split_expr(expr: &str) -> Vec<Vec<(bool, &str)>> {
         .collect()
 }
 
-fn check_expr(expr: &str) -> Result<(), String> {
+/// Whether `expr` is a well-formed condition; `Err` names the clause that is not.
+pub fn check_expr(expr: &str) -> Result<(), String> {
     for (_, c) in split_expr(expr).into_iter().flatten() {
         if parse_clause(c).is_none() {
             return Err(format!("condition clause `{c}` is not `<field> == <value>`, `<field> != <value>` or `<field>` (joined by `and`, `or`, `not`)"));
@@ -296,6 +297,12 @@ pub fn element_clause(e: &RawElement, clause: &str) -> Option<bool> {
     c.cmp?;
     let fm = serde_json::to_value(&e.frontmatter).unwrap_or(J::Null);
     Some(clause_holds(&|f| own_field(e, &fm, f), &c))
+}
+
+/// A condition on an element's own fields (`status != draft and tag == safety`).
+pub fn element_holds(e: &RawElement, expr: &str) -> bool {
+    let fm = serde_json::to_value(&e.frontmatter).unwrap_or(J::Null);
+    holds(&|f| own_field(e, &fm, f), expr)
 }
 
 // ── fields ───────────────────────────────────────────────────────────────────

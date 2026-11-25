@@ -3447,6 +3447,49 @@ table as data. A document format on a view with no `columns:` prints the element
 A malformed declaration is `E507`; a column, sort key, `nest:` or condition naming a field no row can
 have is `W504`.
 
+#### 8.14.3b `Document`
+
+A `Document` (name-identified, REQ-TRS-DOCGEN-001..003) makes a document that is built from a template and
+the model — a design description, a status report, a release note — part of the model.
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `template` | string | **Required** | The template it is rendered from; a source path resolved like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
+| `rendered` | string | optional | Where the rendered text is written; default beside the template, its name without `.tmpl`/`.j2`/`.jinja` |
+| `artefacts` | string or list | optional | What a further tool makes of the rendered text (a PDF) |
+| `version`, `audience` | string | optional | Given to the template as `document.version`, `document.audience` |
+| `config` | string | optional | The `Configuration` the document is for |
+
+```yaml
+---
+type: Document
+name: DesignDescription
+status: draft
+template: repo:doc/main.tex.tmpl
+artefacts: [repo:doc/build/design-description.pdf]
+version: "0.2"
+audience: customer
+---
+```
+
+`syscribe doc build <Document>` renders the template with the model as its data and writes the rendered
+file and, beside it, `<rendered>.manifest.json` — the helper calls the template made, each with a hash of
+what it returned. `doc build --check` writes nothing and exits 2 when the document is out of date: a value,
+element, element list, view or diagram it used has changed or no longer resolves, the template or the
+Configuration changed, the rendered file is missing or was edited, or an artefact is missing or older than
+the rendered file. syscribe writes text; the PDF is made by the tool that owns that step.
+
+**Templates.** The engine is minijinja (Jinja syntax) in strict mode: an unknown element, attribute, view or
+variable stops the render with `<template>:<line>: <reason>` and nothing is written. A LaTeX result uses
+the delimiters `<< >>`, `<% %>`, `<# #>`; any other result Jinja's own; `[documents.templateSyntax.<ext>]`
+(`variable`, `block`, `comment`, each `[open, close]`) chooses others. Printed text is escaped for the
+result's language unless a helper or filter made it. Helpers: `value("Elem.attr", bare=false)`,
+`element("ref")`, `elements(type=, where=)`, `view("View", format=)`, `diagram("Diagram", format=)`,
+`selected("Feature")`; variables `meta`, `parameters`, `document`; filters `body`, `quantity`, `latex`,
+`typst`, `html`, `md`. An element has the shape of the resolved export (`syscribe spec export`).
+`syscribe render --template <file> [--out <file>] [--config <C>]` renders a template without a Document.
+A malformed declaration is `E508`; a missing template on a non-draft Document is `W505`.
+
 #### 8.14.4 `RenderingDef`
 
 ```yaml
@@ -7036,6 +7079,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W501` | An `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | A `View`'s `expose:` entry does not resolve to any known element |
 | `W504` | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
+| `W505` | A non-draft `Document` names a `template:` that does not exist on disk (GH #532, REQ-TRS-DOCGEN-002); paths resolve like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
 | `W600` | A `PartDef`/`Part` has an empty documentation body |
 | `W601` | An `ActionDef`/`Action` has an empty documentation body |
 | `W701` | A `Requirement` with `asilLevel: B`, `C` or `D` has no `verificationMethod:` |
@@ -7121,7 +7165,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
-#### Allocation resolution, declarative derive and table views (E500–E507)
+#### Allocation resolution, declarative derive, table views and documents (E500–E508)
 
 | Code | Condition |
 |---|---|
@@ -7133,6 +7177,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string (REQ-TRS-DERIVE-001/005) |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
 | `E507` | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
+| `E508` | A `Document` declaration is malformed (GH #532, REQ-TRS-DOCGEN-002): `template:` is missing; `template:`, `rendered:`, `version:`, `audience:` or `config:` is not a non-empty string; `artefacts:` is not a path or a list of paths; or `config:` does not resolve to a `Configuration`. `doc build` refuses the document |
 
 The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
 
