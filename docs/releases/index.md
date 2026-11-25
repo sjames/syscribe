@@ -2,6 +2,29 @@
 
 `RELEASES`
 
+## 0.63.0 — 2026-11-25
+
+**Documents from the model**
+
+A design description or a report can now be built from the model without a generator program per project. The four pieces work on their own or together; the guide is [Documents](../model-guide/documents.md) and the worked example `examples/doc-render/`.
+
+- **New:** `export --resolved` adds what a document generator would otherwise re-derive from the files (#529, REQ-TRS-EXPRES-001): each element's `body` (raw, and with value references rendered), a Configuration's `effectiveParameters` (value, unit, range, source, and the expression of a derived one), `computed.satisfiedBy` and `computed.citedBy`, a PlanningItem's `questions` and `openQuestions`, and a top-level `meta` (commit, dirty, version, time, config). With `--config` the bodies and the top-level parameters are that Configuration's. The plain export is unchanged; the schema is `syscribe spec export`.
+- **New:** `render <file>` writes a LaTeX, Typst, AsciiDoc, HTML or plain-text document with each value reference replaced by the current value and unit, escaped for the target: `<<Limits.maxTemp>>` becomes `120\,\textdegree{}C` (#530, REQ-TRS-DOCREF-001). Delimiters are chosen per call (`--open`, `--close`) or per file type in a new `[documents]` table of `.syscribe.toml`. A reference that does not resolve fails with file and line, and nothing is written.
+- **New:** `lint-docs` reads `.tex`, `.typ`, `.adoc`, `.html` and `.txt` files (#530, REQ-TRS-DOCREF-002), with the checks that read prose and `W098` for a value reference that does not resolve. `refs <Elem>.<attr>` lists the uses in the documents `[documents] paths` names (REQ-TRS-DOCREF-003).
+- **New:** table views (#531, REQ-TRS-VIEWTAB-001..003). A `View` declares `columns:`, `rows:` (one row per question, parameter or other list entry), `where:`, `sort:`, `nest:`, `marks:`, `caption:` and `label:`, and `view render --format latex|markdown|csv|html [--config] [--out]` writes it; LaTeX is a `longtable` with a caption and a label. `E507` is a malformed declaration, `W504` a column that names an unknown field.
+- **New:** templates and the `Document` element (#532, REQ-TRS-DOCGEN-001..003). `render --template` renders a Jinja template with the model as its data: `value()`, `element()`, `elements()`, `view()`, `diagram()`, `selected()`, and filters that write an element body or a quantity in the result's language. It is strict: an unknown element, attribute or view stops with the template file and line. A `type: Document` names its template, rendered file and artefacts (`E508`, `W505`); `doc build` renders it, and `doc build --check` reports what changed since, with exit 2. Syscribe writes text and SVG; the PDF is made by LaTeX, Typst or pandoc.
+
+**Results**
+
+- **Fixed:** a `TestPlan` with `configurations:` was failed by a result recorded for another Configuration (#528, REQ-TRS-PLANCFG-001). Its verdict, required-coverage gaps, `W615` and `W617` now read the results of the Configurations it names, each on its own; gaps name the Configuration (`… in CONF-X`), and `testplan TP-X` lists a verdict per Configuration.
+
+**Changed (behaviour)**
+
+- A plan that lists several Configurations is `incomplete` until each has a passing result, once any of them has results of its own (`ingest-results --config`). Before, a Configuration with nothing recorded was not counted (#528).
+- `expose:` filters and `filterCondition:` on a View now evaluate a field comparison (`type == PlanningItem`, `tag == external-input`, `status != draft`). Before, such a clause was reported as not evaluated and treated as true, so a view that already used one selects fewer elements (#531).
+- A text file named on the `lint-docs` command line (`.tex`, `.typ`, `.adoc`, `.html`, `.txt`, `.rst`) is now checked, and a directory scan reads those types too; before, only `.md` and `.svg` were read (#530).
+- `render <file>` on a file that is not a Diagram element renders it as a document. `render <diagram-path>` is unchanged.
+
 ## 0.62.0 — 2026-11-23
 
 **Required coverage on a TestPlan**

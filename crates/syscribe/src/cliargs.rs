@@ -184,7 +184,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--fail-on-unreviewed", Switch),
         ],
         // `--json` is a documented no-op spelling (export always emits JSON).
-        "export" => &[("--ndjson", Switch), ("--json", Switch), LENS],
+        "export" => &[("--ndjson", Switch), ("--json", Switch), ("--resolved", Switch), LENS],
         "trace-export" => &[LENS, ("--sort", Value), ("--out", Value)],
         "find" | "ls" => &[("--where", ValueOrEq)],
         "n2" => &[

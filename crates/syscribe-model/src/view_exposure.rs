@@ -3,7 +3,8 @@
 //! `expose:` entries are a qualified name or import pattern (`Pkg`, `Pkg::*`,
 //! `Pkg::**`), a `{target|ref, isRecursive, filter}` map; the view's own
 //! `filterCondition:` (and each entry's `filter:`) narrows the result. A filter
-//! understands `@MetadataName` (the element carries that metadata application),
+//! understands `@MetadataName` (the element carries that metadata application), a field
+//! comparison (`type == PlanningItem`, `tag == external-input`, `status != draft`),
 //! `not`, `and`, `or`; any other clause is reported in `notes` and treated as true.
 //! Exposure is inherited through `typedBy:`/`supertype:` ViewDefs.
 
@@ -99,8 +100,10 @@ fn eval_filter(e: &RawElement, expr: &str, notes: &mut Vec<String>) -> bool {
                 Some(m) if !m.contains(|ch: char| ch.is_whitespace() || "<>=!()".contains(ch)) => {
                     has_metadata(e, m)
                 }
+                // GH #531: a field comparison — `type == PlanningItem`, `tag == external-input`.
+                _ if crate::view_table::element_clause(e, c).is_some() => crate::view_table::element_clause(e, c).unwrap_or(true),
                 _ => {
-                    let n = format!("filter clause '{c}' is not evaluated (only `@Metadata`, `not`, `and`, `or`)");
+                    let n = format!("filter clause '{c}' is not evaluated (only `@Metadata`, `<field> == <value>`, `<field> != <value>`, `not`, `and`, `or`)");
                     if !notes.contains(&n) {
                         notes.push(n);
                     }

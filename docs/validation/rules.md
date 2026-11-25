@@ -709,7 +709,7 @@ A Requirement body's top-level numbered items are citable: by position (`REQ-X#5
 | `W093` | An element past draft cites a question that is still `open`. Answer the question, or move the element back to `draft` |
 | `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence (phrases configurable via `[references] open_markers`); also a malformed `[references]` table (including `copied_values` not `true`/`false`). Rewrite the sentence to state the answer. Advisory in `lint-docs` |
 
-## Value references (E331, W095, W096, GH #452)
+## Value references (E331, W095, W096, W098, GH #452)
 
 An element body may state a design value by reference, `{{Elem.attr}}`, instead of copying the
 number; `show` and `export-html` render the value and its unit. See
@@ -720,6 +720,7 @@ number; `show` and `export-html` render the value and its unit. See
 | `E331` | A value reference does not resolve: unknown element, a basic name several elements share (lists their qualified names), unknown attribute (the message lists the attributes with a value), or an attribute with no single scalar value. Fix the element (id or full qualified name) or the attribute name |
 | `W095` | Opt-in (`[references] copied_values = true`): a numeric literal in prose or a scenario equals the current value of an attribute of an element the holder links to. Whole tokens only; values below 10 and years ignored. Replace it with the suggested `{{Elem.attr}}`. Advisory in `lint-docs` |
 | `W096` | A non-draft element states a previous value (from the git history of the attribute's file, capped by `[agents] audit_limit`) of an attribute of an element it links to: a stale copy. Update it or replace it with `{{Elem.attr}}` |
+| `W098` | `lint-docs`: a value reference in an external document (`.tex`, `.typ`, `.adoc`, `.html`, `.txt`, read by `lint-docs` with the delimiters `[documents.delimiters]` gives the file type) does not resolve: unknown element, unknown attribute or feature parameter, or an attribute with no single value. A feature parameter that only lacks a value outside a Configuration is not reported. `render <file>` refuses the same reference as `E331` (GH #530, REQ-TRS-DOCREF-002) |
 
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 
@@ -797,7 +798,7 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
 | E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
-## Declarative derive errors (E504–E506)
+## Declarative derive errors (E504–E506) table views (E507) and documents (E508)
 
 Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-TRS-DERIVE-004/005).
 
@@ -806,18 +807,22 @@ Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-T
 | E504 | Cyclic dependency between `derive:` fields — a field reads itself directly (`a: self.a + 1`), through other entries of its block, or through other elements (`elements["Q"].f`, `children`/`parent` aggregates). Reported once on every participating element, naming the cycle ("derive: cyclic dependency X.a → Y.b → X.a"); the cyclic fields are not evaluated. Previously reserved and unimplemented (GH #141) |
 | E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"), the `derive:` value is not a mapping, or a formula value is not a string; the field is left unevaluated |
 | E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
+| E507 | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
+| E508 | A `Document` declaration is malformed (GH #532, REQ-TRS-DOCGEN-002): `template:` is missing; `template:`, `rendered:`, `version:`, `audience:` or `config:` is not a non-empty string; `artefacts:` is not a path or a list of paths; or `config:` does not resolve to a `Configuration`. `doc build` refuses the document |
 
 Derived fields evaluate in dependency order, so a field always sees the computed value of every derived field it reads. `derive:` is a recognised frontmatter field and never raises `W047` (GH #141).
 
 The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
 
-## Structural warnings (W500–W503, W930)
+## Structural warnings (W500–W505, W930)
 
 | Code | Condition |
 |---|---|
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
+| W504 | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
+| W505 | A non-draft `Document` names a `template:` that does not exist on disk (GH #532, REQ-TRS-DOCGEN-002); paths resolve like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
 | W930 | A `features:` entry on a **non-`Allocation`** element declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). §12.9 recognises the features form only on a standalone `type: Allocation` element, so the entry contributes **no** allocation edge (not in `matrix --allocations`, `E314`, `W034`, the derived `allocatedFrom`); use `allocatedTo:` on the source or move it to an `Allocation` element (GH #142). Its endpoints are still resolution-checked (`E500`/`E501`) |
 | W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
@@ -1372,9 +1377,9 @@ a `SafetyGoal`'s `ftti:` string counts as an `ftti` quantity.
 | W612 | the effective TestCase set is empty |
 | W613 | a `TestCase` named explicitly in `testCases:` is `draft`/`retired` |
 | W614 | an `approved`/`active` plan demonstrates a `Requirement` that no member verifies (honours goal-closure) |
-| W615 | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them. For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
+| W615 | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them. For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001). A plan with `configurations:` is judged on those Configurations' results only, and an entry found in one's own results ends `in <config>` (REQ-TRS-PLANCFG-001) |
 | W616 | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant (one contains the other, or overlap ≥ 0.5) |
-| W617 | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
+| W617 | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002); a plan with `configurations:` is judged on those Configurations' results only, and a cell then reads `… in <config> (…)` (REQ-TRS-PLANCFG-001) |
 
 A duplicate `TestPlan` `id` is the generic `E101`.
 

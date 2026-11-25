@@ -1105,7 +1105,7 @@ pub(crate) fn known_type_names() -> Vec<&'static str> {
         "EnumerationDef", "Enumeration", "AttributeDef", "RequirementDef", "UseCaseDef",
         "UseCase", "ViewDef", "View", "ViewpointDef", "MetadataDef", "Metadata",
         "VerificationCaseDef", "VerificationCase", "AnalysisCaseDef", "AnalysisCase",
-        "AllocationDef", "Allocation", "Diagram", "Package", "LibraryPackage", "Namespace",
+        "AllocationDef", "Allocation", "Diagram", "Document", "Package", "LibraryPackage", "Namespace",
         "Dependency", "FeatureDef", "FeatureModel", "Configuration", "Requirement", "TestCase", "TestPlan",
         "ADR",
     ];

@@ -1099,6 +1099,34 @@ copied_values = true   # W095; must be true or false (anything else is W094 on .
 value and every stale copy in the elements that link to `Elem`; `lint-docs` applies `W095` (advisory)
 to external Markdown, whose links are its value-reference targets.
 
+**External documents** (REQ-TRS-DOCREF-001..003). A text document outside the model — LaTeX, Typst,
+AsciiDoc, HTML, plain text — uses the same reference, with other delimiters where `{{ }}` clashes
+with the document language:
+
+```toml
+[documents]
+paths = ["../doc"]              # files or directories (relative to the model root) that `refs` scans
+extensions = ["tex", "typ"]     # text types read beside .md; default tex, typ, adoc, html, txt
+
+[documents.delimiters]
+tex = ["<<", ">>"]              # punctuation only; `{{ }}` for a type with no entry
+```
+
+- `syscribe render <file> [--out <file>] [--escape latex|typst|html|markdown|none] [--open <s> --close <s>] [--config <C>]`
+  writes the document with each reference replaced by the value and unit, escaped for the target (by file
+  extension unless `--escape`): `150\,ms` and `120\,\textdegree{}C` for LaTeX. A reference may also name a
+  feature and one of its parameters; it takes the value of the `--config` Configuration, else the fixed,
+  derived or default value. `|value` after the path writes the bare value. A reference that does not resolve
+  is reported as `<file>:<line>: E331`, the command exits 1 and nothing is written. In Markdown a reference
+  inside code is left as written; in any other language every delimited `X.y` is a reference.
+- `lint-docs` reads the listed text types (and such a file named on the command line) with the checks that
+  read prose — `W099`, `W092`, `W094`, `W095` — and raises `W098` for a value reference that does not
+  resolve (a feature parameter that only lacks a value outside a Configuration is not reported).
+- `refs <Elem>.<attr>` adds the uses in the files under `paths` (*Uses in documents*, `documentUses` in
+  `--json`); `refs <Feature>.<param>` lists the uses of a feature parameter the same way.
+
+A malformed `[documents]` entry is printed as a warning by the command that reads it and ignored.
+
 ---
 
 ## 6 Multiplicity and Cardinality Syntax
@@ -3129,7 +3157,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 | `name` | string | **Required** | One-line human-readable label — free prose. |
 | `status` | enum | **Required** | `draft`, `review`, `approved`, `active`, `retired`. |
 | `scope` | string | optional | Recommended vocabulary: `unit`, `smoke`, `integration`, `hil`, `certification`, `security`, `regression`. Free-form values are accepted but warn (`W610`). `scope` distinguishes multiple plans over the same configuration(s). |
-| `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). |
+| `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). With results recorded per Configuration, the plan is judged on each listed Configuration's own effective results and on no other's (REQ-TRS-PLANCFG-001); the verdict is the worst over them. |
 | `demonstrates` | list of id-or-qualname | optional | `Requirement` / `SafetyGoal` / `CybersecurityGoal` / `Argument` elements the plan is offered as evidence for (a safety-case leg). Not mandatory. Each must resolve (`E603`). |
 | `testCases` | list of `TC-*` refs | optional | Explicit members. Each must resolve to a `TestCase` (`E601`). |
 | `selection` | object | optional | Additive membership query (see below). |
@@ -3337,7 +3365,8 @@ Viewpoint addressing safety concerns from the safety engineer's perspective.
 | `satisfies` | list of strings | absent | Qualified names of ViewpointDefs satisfied by this view |
 | `expose` | list of expose maps | absent | Elements exposed by this view; see 8.14.3 |
 | `rendering` | string | absent | Qualified name of the RenderingDef applied to this view |
-| `filterCondition` | string | absent | Filter applied to everything the view exposes (`@MetadataName`, `not`, `and`, `or`) — the SysML `filter @M;` member; an `expose:` entry may add its own `filter:` |
+| `filterCondition` | string | absent | Filter applied to everything the view exposes (`@MetadataName`, a field comparison such as `type == PlanningItem`, `tag == external-input` or `status != draft`, `not`, `and`, `or`) — the SysML `filter @M;` member; an `expose:` entry may add its own `filter:` |
+| `columns`, `rows`, `where`, `sort`, `nest`, `marks`, `caption`, `label` | — | absent | The table a document prints of the view; see 8.14.3a |
 
 #### 8.14.3 Expose Schema
 
@@ -3363,6 +3392,103 @@ rendering: Views::FaultTreeRendering
 ---
 Safety view exposing all safety-annotated elements of the vehicle system.
 ```
+
+#### 8.14.3a Table views
+
+A `View` or `ViewDef` with `columns:` declares the table a document prints of the elements it exposes
+(REQ-TRS-VIEWTAB-001..003), so a document generator needs no code per table. The keys are schema
+fields on a `View`/`ViewDef` only (`W047` elsewhere).
+
+| Field | YAML type | Description |
+|---|---|---|
+| `columns` | list, required | The columns in order. Each is a field name, or a map: `field` (or `tagPrefix`), `heading` (default: the field name in words), `empty` (shown for a row with no value), `align` (`left`, `right`, `center`), `width` (a LaTeX length; the column wraps) |
+| `rows` | string | One row per entry of this list inside each exposed element — `questions`, `parameters`, `parameterConstraints`, `features`, `amendments`, any list — instead of one row per element |
+| `where` | string | Keep the rows that match a condition |
+| `sort` | string or list | Order by these fields, `-field` descending; digits compare as numbers. Default: qualified-name order, entries in file order |
+| `nest` | string | The field naming a row's parent element (`parent`): a child follows its parent, indented. Not with `rows:` |
+| `marks` | list of `{when, symbol, note}` | A row matching `when` (a condition) gets `symbol` after its first cell; `note` is printed once under the table |
+| `caption`, `label` | string | The caption, and the label a document refers to the table by (default `tab:<view-name-in-kebab-case>`) |
+
+**Fields.** An element row answers to its frontmatter fields (dotted for a nested map), `custom.<key>`,
+and `ref` (stable id, else qualified name), `id`, `qname`, `type`, `tag`, `file`, `summary` (first line of
+the body), `body` (value references rendered), `verifiedBy`, `satisfiedBy`, `derivedChildren`,
+`openQuestions`. A list row answers to the keys of its entry first, then to the element's fields;
+`element.<field>` names the element's outright. A `questions` row adds `ref` (`PI-X#Q1`); a `parameters`
+row adds `key` (`<feature>.<name>`), `effectiveValue` and `quantity` (the value in the `--config`
+Configuration, else the fixed, derived or default value; `quantity` with its unit); an entry with
+`value:`/`default:` and `unit:` answers `quantity`. A list value prints comma-separated. A
+`tagPrefix: phase-` column shows the rest of the element's first tag with that prefix.
+
+**Conditions** (`where:`, a mark's `when:`, and `expose:`/`filterCondition:` filters): `<field> == <value>`,
+`<field> != <value>`, `<field>` (it has a value), joined by `and`, `or`, `not`. A list field matches when
+one of its entries equals the value (`tag == external-input`).
+
+```yaml
+---
+type: View
+name: OpenQuestions
+expose: [{target: "Planning::**", filter: "type == PlanningItem and tag == external-input"}]
+rows: questions
+where: "status == open"
+columns:
+  - {field: ref, heading: Question}
+  - {field: text, heading: Text, width: 6cm}
+  - {field: recommended, heading: Recommendation, empty: "—"}
+sort: [ref]
+caption: "Open questions"
+---
+```
+
+`syscribe view render <View> --format latex|markdown|csv|html [--config <C>] [--out <file>]` writes it: a
+LaTeX `longtable` with `booktabs` rules (it breaks over pages and repeats its header, with `\caption` and
+`\label`), a Markdown pipe table, RFC 4180 CSV, or an HTML `<table>`; each escapes cell text for its
+target and sets a quantity the target's way. `table` prints the same columns for a terminal and `json` the
+table as data. A document format on a view with no `columns:` prints the element, type and name.
+A malformed declaration is `E507`; a column, sort key, `nest:` or condition naming a field no row can
+have is `W504`.
+
+#### 8.14.3b `Document`
+
+A `Document` (name-identified, REQ-TRS-DOCGEN-001..003) makes a document that is built from a template and
+the model — a design description, a status report, a release note — part of the model.
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `template` | string | **Required** | The template it is rendered from; a source path resolved like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
+| `rendered` | string | optional | Where the rendered text is written; default beside the template, its name without `.tmpl`/`.j2`/`.jinja` |
+| `artefacts` | string or list | optional | What a further tool makes of the rendered text (a PDF) |
+| `version`, `audience` | string | optional | Given to the template as `document.version`, `document.audience` |
+| `config` | string | optional | The `Configuration` the document is for |
+
+```yaml
+---
+type: Document
+name: DesignDescription
+status: draft
+template: repo:doc/main.tex.tmpl
+artefacts: [repo:doc/build/design-description.pdf]
+version: "0.2"
+audience: customer
+---
+```
+
+`syscribe doc build <Document>` renders the template with the model as its data and writes the rendered
+file and, beside it, `<rendered>.manifest.json` — the helper calls the template made, each with a hash of
+what it returned. `doc build --check` writes nothing and exits 2 when the document is out of date: a value,
+element, element list, view or diagram it used has changed or no longer resolves, the template or the
+Configuration changed, the rendered file is missing or was edited, or an artefact is missing or older than
+the rendered file. syscribe writes text; the PDF is made by the tool that owns that step.
+
+**Templates.** The engine is minijinja (Jinja syntax) in strict mode: an unknown element, attribute, view or
+variable stops the render with `<template>:<line>: <reason>` and nothing is written. A LaTeX result uses
+the delimiters `<< >>`, `<% %>`, `<# #>`; any other result Jinja's own; `[documents.templateSyntax.<ext>]`
+(`variable`, `block`, `comment`, each `[open, close]`) chooses others. Printed text is escaped for the
+result's language unless a helper or filter made it. Helpers: `value("Elem.attr", bare=false)`,
+`element("ref")`, `elements(type=, where=)`, `view("View", format=)`, `diagram("Diagram", format=)`,
+`selected("Feature")`; variables `meta`, `parameters`, `document`; filters `body`, `quantity`, `latex`,
+`typst`, `html`, `md`. An element has the shape of the resolved export (`syscribe spec export`).
+`syscribe render --template <file> [--out <file>] [--config <C>]` renders a template without a Document.
+A malformed declaration is `E508`; a missing template on a non-draft Document is `W505`.
 
 #### 8.14.4 `RenderingDef`
 
@@ -6737,7 +6863,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E200`–`E251`, `W011`–`W027`, `W048`, `W239`–`W240`, `W245`–`W246`, `W248` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W092`–`W094` | Item and question references in prose (`REQ-X#slug`, `PI-Y#Qn`) | §5.7, §8.11.6 |
-| `E331`, `W095`, `W096` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`) | §5.8 |
+| `E331`, `W095`, `W096`, `W098` | Value references in prose and scenarios (`{{Elem.attr}}`, `[references] copied_values`), and in external documents (`W098`, `[documents]`) | §5.8 |
 | `E330`, `W324`, `W325` | Amendment records on accepted ADRs and confirmed requirements (`amendments:`, `[traceability] require_amendments`) | §8.17.5 |
 | `W329` | Minimum syscribe version (`[syscribe] minVersion`, GH #496) | catalogue; `syscribe policy` |
 | `W326`–`W328` | Code trace, the reverse of the implementation trace (`[traceCode]`, `syscribe trace-code`) | §12.8.1 |
@@ -6952,6 +7078,8 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W500` | A `View`'s `viewpoint:` does not resolve to a `ViewpointDef` |
 | `W501` | An `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | A `View`'s `expose:` entry does not resolve to any known element |
+| `W504` | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
+| `W505` | A non-draft `Document` names a `template:` that does not exist on disk (GH #532, REQ-TRS-DOCGEN-002); paths resolve like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
 | `W600` | A `PartDef`/`Part` has an empty documentation body |
 | `W601` | An `ActionDef`/`Action` has an empty documentation body |
 | `W701` | A `Requirement` with `asilLevel: B`, `C` or `D` has no `verificationMethod:` |
@@ -7037,7 +7165,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
-#### Allocation resolution and declarative derive (E500–E506)
+#### Allocation resolution, declarative derive, table views and documents (E500–E508)
 
 | Code | Condition |
 |---|---|
@@ -7048,6 +7176,8 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E504` | Cyclic dependency between `derive:` fields — a field reads itself directly or through other derived fields (`self.`, `elements["Q"].`, `children`/`parent` aggregates). Reported once per participating element, naming the cycle; the cyclic fields are not evaluated (REQ-TRS-DERIVE-004, §3.18) |
 | `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string (REQ-TRS-DERIVE-001/005) |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
+| `E507` | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
+| `E508` | A `Document` declaration is malformed (GH #532, REQ-TRS-DOCGEN-002): `template:` is missing; `template:`, `rendered:`, `version:`, `audience:` or `config:` is not a non-empty string; `artefacts:` is not a path or a list of paths; or `config:` does not resolve to a `Configuration`. `doc build` refuses the document |
 
 The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
 

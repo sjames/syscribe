@@ -256,6 +256,8 @@ pub struct Gap {
     pub env: Option<String>,
     pub coordinate: Coordinate,
     pub reason: GapReason,
+    /// The Configuration whose results show the gap, when the plan is judged per Configuration (GH #528).
+    pub config: Option<String>,
 }
 
 impl Gap {
@@ -268,6 +270,9 @@ impl Gap {
         if !self.coordinate.is_empty() {
             let c: Vec<String> = self.coordinate.iter().map(|(a, p)| format!("{a}={p}")).collect();
             s.push_str(&format!(" [{}]", c.join(", ")));
+        }
+        if let Some(c) = &self.config {
+            s.push_str(&format!(" in {c}"));
         }
         match &self.reason {
             GapReason::Missing => s.push_str(" (missing)"),
@@ -339,7 +344,7 @@ pub fn gaps(
                     }
                 };
                 if let Some(reason) = reason {
-                    out.push(Gap { test: tc.clone(), env: rig.map(|e| (*e).clone()), coordinate: coord.clone(), reason });
+                    out.push(Gap { test: tc.clone(), env: rig.map(|e| (*e).clone()), coordinate: coord.clone(), reason, config: None });
                 }
             }
         }

@@ -1367,7 +1367,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.profile.is_some() {
                 unknown_keys.push("profile");
             }
-            if fm.version.is_some() {
+            if fm.version.is_some() && !crate::document::is_document(elem) {
                 unknown_keys.push("version");
             }
             if fm.auto_apply.is_some() {
@@ -1423,6 +1423,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // type they stay unrecognised, so drop them from the exemption below.
         if matches!(fm.element_type, Some(ElementType::TestPlan)) {
             unknown_keys.retain(|k| !crate::plan_coverage::KEYS.contains(k));
+        }
+        // GH #532: a Document's declaration (`template:`, `outputs:`, …).
+        if crate::document::is_document(elem) {
+            unknown_keys.retain(|k| !crate::document::KEYS.contains(k));
+        }
+        // GH #531: a View's table declaration (`columns:`, `rows:`, `where:`, `sort:`, …).
+        if crate::view_table::is_view(elem) {
+            unknown_keys.retain(|k| !crate::view_table::KEYS.contains(k));
         }
         // `amendments:` is a schema field only on an ADR or a Requirement (GH #454).
         if fm.amendments.is_some() && !crate::amendments::hosts(fm.element_type.as_ref()) {
@@ -2279,11 +2287,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // finding per plan listing the affected functions (GH #260); each root
             // cause is reported once, per TestCase, as W010.
             if status == "approved" {
-                if let Some(results) = &config.results {
+                if let Some(all_results) = &config.results {
                     use crate::results::FnVerdict;
                     let func_key = serde_yaml::Value::String("function".into());
                     let mut bad: Vec<(String, String, &str)> = Vec::new();
-                    for tc in &members {
+                    // GH #528: a plan that names its Configurations is judged on each one's own results.
+                    let views = crate::testplan::result_views(elem, &configs, all_results);
+                    let pkg = crate::variability::package_conditions(elements);
+                    let feat_alias = crate::variability::feature_id_to_qname(elements);
+                    for rv in &views {
+                    let results: &crate::results::ResultsData = &rv.results;
+                    let in_cfg = rv.config_id().map(|c| format!(" in {c}")).unwrap_or_default();
+                    let judged = |tc: &RawElement| rv.config.is_none() || crate::testplan::member_active_in_any_config(tc, &rv.configs, &pkg, &feat_alias);
+                    for tc in members.iter().filter(|t| judged(t)) {
                         let Some(fns) = &tc.frontmatter.test_functions else {
                             continue;
                         };
@@ -2302,7 +2318,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                             FnVerdict::Flaky => "flaky",
                                             _ => "missing",
                                         };
-                                        bad.push((tc_id.to_string(), func.clone(), what));
+                                        bad.push((tc_id.to_string(), format!("{func}{in_cfg}"), what));
                                     }
                                 }
                             }
@@ -2316,16 +2332,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         let unhealthy = crate::result_join::unhealthy_environments(elements);
                         for env in &envs {
                             let view = results.view_for_env(env, &unhealthy);
-                            for tc in members.iter().filter(|t| t.frontmatter.test_functions.as_ref().map_or(true, |f| f.is_empty())) {
+                            for tc in members.iter().filter(|t| judged(t) && t.frontmatter.test_functions.as_ref().map_or(true, |f| f.is_empty())) {
                                 let what = match crate::results::testcase_verdict(tc, Some(&view)) {
                                     crate::safety_case::Verdict::Fail => "FAILED",
                                     crate::safety_case::Verdict::Unknown => "missing",
                                     _ => continue,
                                 };
                                 let tc_id = tc.frontmatter.id.as_deref().unwrap_or(tc.qualified_name.as_str());
-                                bad.push((tc_id.to_string(), format!("@ {env}"), what));
+                                bad.push((tc_id.to_string(), format!("@ {env}{in_cfg}"), what));
                             }
                         }
+                    }
                     }
                     if !bad.is_empty() {
                         bad.sort();
@@ -2352,16 +2369,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     // W617: required coverage (ADR-SYS-COVERAGE-001) — a cell of the plan's declared grid (member ×
                     // rig × condition point, on `minUnits` units) with no pass.
                     if let Ok(Some(cov)) = crate::plan_coverage::parse(&fm.extra) {
-                        let pkg = crate::variability::package_conditions(elements);
-                        let feat_alias = crate::variability::feature_id_to_qname(elements);
-                        let ids: Vec<String> = members
-                            .iter()
-                            .filter(|tc| configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &configs, &pkg, &feat_alias))
-                            .map(|tc| crate::result_join::canonical(tc))
-                            .collect();
                         let envs = crate::result_join::runs_on_ids(elem, elements, &resolver);
                         let unhealthy = crate::result_join::unhealthy_environments(elements);
-                        let gaps = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(results));
+                        let mut gaps = Vec::new();
+                        for rv in &views {
+                            let ids: Vec<String> = members
+                                .iter()
+                                .filter(|tc| rv.configs.is_empty() || crate::testplan::member_active_in_any_config(tc, &rv.configs, &pkg, &feat_alias))
+                                .map(|tc| crate::result_join::canonical(tc))
+                                .collect();
+                            let mut g = crate::plan_coverage::gaps(&cov, &ids, &envs, &unhealthy, Some(&*rv.results));
+                            for x in &mut g {
+                                x.config = rv.config_id();
+                            }
+                            gaps.extend(g);
+                        }
                         if !gaps.is_empty() {
                             const SHOWN: usize = 10;
                             let list = gaps.iter().take(SHOWN).map(|g| g.describe()).collect::<Vec<_>>().join("; ");
@@ -4867,7 +4889,40 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // W502: expose entries on a View/ViewDef must resolve to known elements. An entry
         // is a name, an import pattern (`Pkg::*`, `Pkg::**`) or a `{target|ref, ...}` map,
         // resolved from the view's own scope (GH #205).
+        // E508 / W505 (GH #532, REQ-TRS-DOCGEN-002): a Document's declaration and its template.
+        if crate::document::is_document(elem) {
+            match crate::document::of(elem) {
+                Err(errs) => {
+                    for m in errs {
+                        findings.push(error("E508", &file, &format!("malformed Document: {m}")));
+                    }
+                }
+                Ok(d) => {
+                    if let crate::config::SourceLocation::Local(p) = config.classify_source(&d.template) {
+                        if !p.is_file() && fm.status.as_deref() != Some("draft") {
+                            findings.push(warning("W505", &file, &format!("Document template '{}' does not exist ({})", d.template, p.display())));
+                        }
+                    }
+                    if let Some(c) = &d.config {
+                        if !resolver.resolve_ref(elements, c).is_some_and(Resolver::is_configuration) {
+                            findings.push(error("E508", &file, &format!("malformed Document: `config: {c}` does not resolve to a Configuration")));
+                        }
+                    }
+                }
+            }
+        }
         if matches!(fm.element_type, Some(ElementType::View) | Some(ElementType::ViewDef)) {
+            // E507 / W504 (GH #531, REQ-TRS-VIEWTAB-003): the view's table declaration.
+            if crate::view_table::present(&fm.extra) {
+                let ex = crate::view_exposure::exposure(elements, &resolver, elem);
+                for (is_error, msg) in crate::view_table::findings(elements, elem, &ex.items) {
+                    if is_error {
+                        findings.push(error("E507", &file, &format!("malformed table view: {msg}")));
+                    } else {
+                        findings.push(warning("W504", &file, &format!("table view: {msg}")));
+                    }
+                }
+            }
             for entry in crate::view_exposure::expose_entries(elem) {
                 if crate::view_exposure::resolve_target(elements, &resolver, elem, &entry.target).is_none()
                     && !config.peer_resolves(&entry.target)

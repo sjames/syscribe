@@ -211,3 +211,47 @@ pub fn member_active_in_any_config(
         projection::is_active_canon(tc, &sel, pkg, alias)
     })
 }
+
+/// One view of the ingested results a plan is judged on, and the Configuration it is for.
+pub struct ResultView<'a, 'r> {
+    /// The Configuration this view judges; `None` when the plan is judged once, over all of `configs`.
+    pub config: Option<&'a RawElement>,
+    /// The plan Configurations a member must be active in to be judged in this view.
+    pub configs: Vec<&'a RawElement>,
+    pub results: std::borrow::Cow<'r, crate::results::ResultsData>,
+}
+
+impl ResultView<'_, '_> {
+    /// The id of the Configuration this view is for.
+    pub fn config_id(&self) -> Option<String> {
+        self.config.map(|c| c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone()))
+    }
+}
+
+/// The results a plan is judged on (GH #528, `REQ-TRS-PLANCFG-001`). A plan that names its `configurations:`
+/// is judged on the evidence of those Configurations only — each on its own effective results
+/// ([`ResultsData::for_config`](crate::results::ResultsData::for_config): the global sections overlaid with
+/// its own), one view per Configuration, so evidence recorded for a Configuration the plan does not name never
+/// reaches it. When none of the plan's Configurations has evidence of its own they all see the same global
+/// results and one view stands for them. A plan without `configurations:` keeps the conservative reading over
+/// everything recorded (`REQ-TRS-CFGRES-001`).
+pub fn result_views<'a, 'r>(
+    plan: &RawElement,
+    configs: &[&'a RawElement],
+    results: &'r crate::results::ResultsData,
+) -> Vec<ResultView<'a, 'r>> {
+    use std::borrow::Cow;
+    let named = plan.frontmatter.configurations.as_ref().is_some_and(|c| !c.is_empty()) && !configs.is_empty();
+    if !named || results.by_config.is_empty() {
+        return vec![ResultView { config: None, configs: configs.to_vec(), results: Cow::Borrowed(results) }];
+    }
+    let id = |c: &RawElement| c.frontmatter.id.clone().unwrap_or_else(|| c.qualified_name.clone());
+    if !configs.iter().any(|c| results.by_config.contains_key(&id(c))) {
+        // Only other Configurations have evidence of their own: the plan's all read the global sections.
+        return vec![ResultView { config: None, configs: configs.to_vec(), results: Cow::Owned(results.for_config("")) }];
+    }
+    configs
+        .iter()
+        .map(|c| ResultView { config: Some(*c), configs: vec![*c], results: Cow::Owned(results.for_config(&id(c))) })
+        .collect()
+}

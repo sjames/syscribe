@@ -25,6 +25,8 @@ mod mechanisms;
 mod cyberrisk;
 mod connectivity;
 mod diagram_export;
+mod docrender;
+mod doctemplate;
 mod digest;
 mod discover;
 mod export;
@@ -1146,7 +1148,11 @@ fn main() {
             "view" => {
                 // GH #205 — materialise a View: the elements its `expose:` selects.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let code = view_render::cmd_view(&elems, &resolver, rest);
+                // GH #531: `--config` projects the model the view is evaluated in.
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let vres = Resolver::new(&view);
+                let code = view_render::cmd_view(&elems, &view, &vres, rest);
                 if code != 0 {
                     std::process::exit(code);
                 }
@@ -1184,6 +1190,8 @@ fn main() {
                         std::process::exit(1);
                     }
                     query::cmd_refs(&view, &vres, key);
+                    // GH #530: a feature parameter's uses in the external documents.
+                    docrender::print_parameter_uses(&view, model_root.as_ref(), key);
                 }
             }
             "plantuml" => {
@@ -1200,12 +1208,42 @@ fn main() {
                     std::process::exit(code);
                 }
             }
+            "doc" => {
+                // GH #532: Document elements — `doc list`, `doc build <Document> [--check]`.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = doctemplate::cmd_doc(&elems, &vcfg, model_root.as_ref(), rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "render" if subcommand_args.iter().any(|a| a == "--template") => {
+                // GH #532: a template rendered with the model as its data.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let code = doctemplate::cmd_render_template(&elems, view, &vcfg, model_root.as_ref(), rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
             "render" => {
                 if key.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> render <diagram_path>");
+                    eprintln!("{}", docrender::USAGE);
                     std::process::exit(1);
                 }
-                render::cmd_render(&elems, &resolver, key, &vcfg);
+                // GH #530: a file that is not a Diagram element is an external document whose value
+                // references are replaced; the Diagram form is unchanged.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                if docrender::is_document_call(&elems, key, rest) {
+                    let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                    let view = projected_elements(&elems, config);
+                    let code = docrender::cmd_render_document(&elems, &view, model_root.as_ref(), rest);
+                    if code != 0 {
+                        std::process::exit(code);
+                    }
+                } else {
+                    render::cmd_render(&elems, &resolver, key, &vcfg);
+                }
             }
             "validate" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -1714,15 +1752,17 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let ndjson = rest.iter().any(|a| a == "--ndjson");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // GH #529: `--resolved` adds bodies, effective parameter values, reverse links and build identity.
+                let resolved = rest.iter().any(|a| a == "--resolved").then(|| export::Resolved { model_root: model_root.as_ref(), full: &elems, config });
                 match config {
-                    None => export::cmd_export(&elems, &vcfg, ndjson),
+                    None => export::cmd_export(&elems, &vcfg, ndjson, resolved.as_ref()),
                     Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            export::cmd_export(&elems, &vcfg, ndjson)
+                            export::cmd_export(&elems, &vcfg, ndjson, resolved.as_ref())
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            export::cmd_export(&view, &vcfg, ndjson);
+                            export::cmd_export(&view, &vcfg, ndjson, resolved.as_ref());
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");

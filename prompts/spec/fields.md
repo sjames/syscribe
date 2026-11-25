@@ -218,7 +218,7 @@ Derived-diagram view fields (`type: Diagram`, spec §8.16.10): `include` (a map 
 | `minUnits` | integer | TestPlan: distinct units that must pass at each required point (≥ 1, `E607`) |
 | `mode` | `each` \| `product` | TestPlan: how `conditions:` axes combine (default `each`) |
 | `points` | list of map | TestPlan: explicit required coordinate sets `{axis: point}`; replaces `mode` (`E608` on an undeclared name) |
-| `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic |
+| `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic. Results recorded per Configuration (`ingest-results --config`) are judged per listed Configuration; another Configuration's results are ignored |
 | `demonstrates` | list | Goals/requirements this plan is evidence for |
 
 ## ADR fields (§8.17)
@@ -295,8 +295,25 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 |---|---|---|
 | `expose` | ViewDef | list |
 | `rendering` | ViewDef | string |
+| `columns` | View, ViewDef | list | The table a document prints of the exposed elements: each a field name or `{field, heading, empty, align, width}` / `{tagPrefix, heading}` (`syscribe help view`) |
+| `rows` | View, ViewDef | string | One row per entry of this list inside each element (`questions`, `parameters`, `parameterConstraints`, `features`, …) instead of one per element |
+| `where` | View, ViewDef | string | Keep the rows that match: `<field> == <value>`, `<field> != <value>`, `<field>`, joined by `and`/`or`/`not` |
+| `sort` | View, ViewDef | string or list | Row order by field; `-field` descending |
+| `nest` | View, ViewDef | string | The field naming a row's parent element (`parent`): children follow it, indented |
+| `marks` | View, ViewDef | list | `{when, symbol, note}`: flag the rows that match `when` and print the note under the table |
+| `caption` / `label` | View, ViewDef | string | Table caption, and the label a document refers to it by (default `tab:<view-name>`) |
 | `satisfiedBy` | ViewpointDef | list |
 | `methods` | ViewpointDef | list |
+
+## Documents (`type: Document`)
+
+| Field | Type | |
+|---|---|---|
+| `template` | string | **Required.** The template the document is rendered from; a source path (`repo:doc/main.tex.tmpl`, `model:…`, bare = model root) |
+| `rendered` | string | Where the rendered text is written. Default: beside the template, its name without `.tmpl`/`.j2`/`.jinja` |
+| `artefacts` | string or list | What a further tool makes of the rendered text (a PDF); `doc build --check` reports one that is missing or older |
+| `version` / `audience` | string | Shown to the template as `document.version` / `document.audience` |
+| `config` | string | The `Configuration` the document is for, when it is for one variant |
 
 ## Diagrams (`type: Diagram`)
 

@@ -1,0 +1,26 @@
+<# The report of the heater. Values, tables and requirement text come from the model;
+   this file says where they go. Delimiters are << >> and <% %>, since braces and
+   percent signs belong to LaTeX. #>
+\documentclass{article}
+\usepackage{longtable,booktabs,textcomp,hyperref}
+\title{<< document.name >> \\ \large Version << document.version >>}
+\date{Commit << meta.commit[:8] if meta.commit else "uncommitted" >><% if meta.config %>, variant << meta.config >><% endif %>}
+\begin{document}
+\maketitle
+
+\section{Limits}
+The heater shall not exceed << value("Limits.maxTemp") >>.
+It is switched on for << value("Heater.onTimeMs") >> and the rig settles within << value("Rig.settle") >>.
+
+\section{Parameters}
+<< view("Views::Parameters") >>
+
+\section{Requirements}
+<% for r in elements(type="Requirement") %>
+\subsection{<< r.id >>: << r.name >>}
+<< r | body >>
+
+<% if r.computed.satisfiedBy %>Satisfied by: << r.computed.satisfiedBy | join(", ") >>.<% endif %>
+
+<% endfor %>
+\end{document}

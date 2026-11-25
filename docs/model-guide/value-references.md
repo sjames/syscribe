@@ -129,3 +129,55 @@ syscribe -m <root> refs PolicydBounds.snapshotFixedBytes --json
 prints the value and three sections — *Uses* (every `{{…}}`), *Literal copies of the current
 value* and *Stale copies of previous values* (with the previous value and the commit that held
 it) — over the elements that link to `PolicydBounds`. Replace each copy with the reference.
+
+## In external documents
+
+A document outside the model — a LaTeX report, a Typst or AsciiDoc file, an HTML page — uses
+the same reference, and `render` writes the file with each one replaced:
+
+```
+syscribe -m <root> render doc/chapter.tex --out build/chapter.tex [--config <CONF>]
+```
+
+```latex
+The heater shall not exceed <<Limits.maxTemp>> and settles within <<Rig.settle>>.
+```
+
+becomes `The heater shall not exceed 120\,\textdegree{}C and settles within 150\,ms.`
+
+- **Delimiters.** `{{ }}` clashes with braces in LaTeX. Choose others per file type in
+  `.syscribe.toml` (`[documents.delimiters]`, below) or for one call with
+  `--open '<<' --close '>>'`. Delimiters are punctuation only.
+- **Escaping and units.** The value is escaped for the target and the unit set as the target
+  writes a quantity: `latex` (`150\,ms`, `120\,\textdegree{}C`, `50\%`), `typst` (`150~ms`),
+  `html` (`150&#8239;ms`, `120&#8239;&deg;C`), `markdown` and `none` (`150 ms`). The target
+  follows the file extension; `--escape` overrides it. `<<Elem.attr|value>>` writes the bare
+  value, for a macro that formats the unit itself.
+- **Feature parameters.** A reference may name a feature and one of its parameters
+  (`<<Limits.maxTemp>>`, `<<FEAT-LIMITS.maxTemp>>`). It takes the value bound in the
+  `--config` Configuration; without one, the fixed, derived or default value.
+- **Strict.** A reference that does not resolve stops the render: `<file>:<line>: E331: …`
+  for each, nothing written, exit 1. In Markdown a reference inside code is left as written;
+  in other languages every delimited `X.y` is a reference.
+
+```toml
+[documents]
+paths = ["../doc"]              # files or directories, relative to the model root
+extensions = ["tex", "typ"]     # text types read beside .md (default: tex, typ, adoc, html, txt)
+
+[documents.delimiters]
+tex = ["<<", ">>"]
+```
+
+With the table in place the documents take part in the checks:
+
+- `lint-docs doc/` reads the listed file types: stale ids (`W099`), item and question
+  references (`W092`, `W094`), copied values (`W095`, with `[references] copied_values`), and
+  `W098` for a value reference that does not resolve.
+- `refs <Elem>.<attr>` adds *Uses in documents*: the file and line of every use under
+  `paths`, so a changed value shows which document sections it touches. `refs
+  <Feature>.<param>` does the same for a feature parameter.
+
+A malformed entry of the table is reported as a warning by the command that reads it, and ignored.
+
+Worked example: `examples/doc-render/`.

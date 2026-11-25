@@ -125,9 +125,11 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ untyped` | List elements with no `type:` field set |
 | `syscribe -m model/ topics [--top N]` / `clusters [--k N]` / `summarize [--scope <q>] [--depth N]` | Large-model overview: distinctive keywords per package (TF-IDF), topical clusters, hierarchical content digest |
 | `syscribe -m model/ sysml [--json]` | Inspect the SysMLv2 submodels (`sysmlSubmodel:`) ingested into the model |
-| `syscribe -m model/ view render <View\|ViewDef> [--format tree\|table\|json\|mermaid]` | Materialise a `View`: the elements its `expose:` selects |
+| `syscribe -m model/ view render <View\|ViewDef> [--format tree\|table\|json\|mermaid\|latex\|markdown\|csv\|html]` | Materialise a `View`: the elements its `expose:` selects; a view with `columns:` is a table for a document (`syscribe help view`) |
+| `syscribe -m model/ doc build <Document> [--check]` | Build a `Document` element from its template; `--check` reports one that is out of date (`syscribe help doc`) |
 | `syscribe -m model/ export [--ndjson] [--config <C>]` | The structured model graph as JSON / NDJSON |
 | `syscribe -m model/ render <diagram-path>` | Print a hand-authored `Diagram` with element links injected |
+| `syscribe -m model/ render <file> [--out <file>]` | Write an external document (`.tex`, `.typ`, `.adoc`, `.html`) with its value references replaced; `--template` renders a template |
 | `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
 | `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it); `refs REQ-X#slug` / `PI-X#Q3` lists who cites that item or question; `refs <Elem>.<attr>` lists the uses, literal copies and stale copies of an attribute value |
 | `syscribe -m model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |

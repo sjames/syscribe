@@ -406,7 +406,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Catalogued but not currently emitted (the resolver computes it; no command surfaces it, so `--deny W050` has no effect). `E050` is in the parse-time table |
 
-## Allocation and derive errors, structural warnings (E500–E506, W500–W503, W930)
+## Allocation and derive errors, structural warnings (E500–E508, W500–W505, W930)
 
 | Code | Condition |
 |---|---|
@@ -417,9 +417,13 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E504` | Cyclic dependency between `derive:` fields (a field reads itself directly or via other derived fields); reported on each participating element naming the cycle; the cyclic fields are not evaluated |
 | `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element |
+| `E507` | A `View`/`ViewDef` table declaration is malformed (GH #531, REQ-TRS-VIEWTAB-003): `columns:` is missing, empty or not a list; a column is neither a field name nor a map with exactly one of `field:`/`tagPrefix:`, or has an unknown key or `align`; `rows:`, `where:`, `caption:`, `label:` or `nest:` is not a non-empty string; `sort:` is not a field name or a list of them; a `marks:` entry lacks `when:`/`symbol:`; a `where:`/`when:` clause is not `<field> == <value>`, `<field> != <value>` or `<field>`; or `nest:` is combined with `rows:`. `view render` refuses the view |
+| `E508` | A `Document` declaration is malformed (GH #532, REQ-TRS-DOCGEN-002): `template:` is missing; `template:`, `rendered:`, `version:`, `audience:` or `config:` is not a non-empty string; `artefacts:` is not a path or a list of paths; or `config:` does not resolve to a `Configuration`. `doc build` refuses the document |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |
+| `W504` | A `View`/`ViewDef` table declaration names a field no row can have (GH #531, REQ-TRS-VIEWTAB-003): a column, a `sort:` key, `nest:`, or a field of a `where:`/`marks:` condition that is not a frontmatter field, `custom.<key>`, a computed field (`ref`, `qname`, `summary`, `body`, `verifiedBy`, `satisfiedBy`, `derivedChildren`, `openQuestions`) or, with `rows:`, a key of the list's entries; also a `rows:` list that none of the exposed elements carries |
+| `W505` | A non-draft `Document` names a `template:` that does not exist on disk (GH #532, REQ-TRS-DOCGEN-002); paths resolve like a TestCase's `sourceFile` (`repo:`, `model:`, bare = model root) |
 | `W930` | A `features:` entry on a non-`Allocation` element declares an allocation (`type: Allocation`, or `allocatedFrom:`/`allocatedTo:`) — only a `type: Allocation` element carries features-form allocations (§12.9), so it contributes no allocation edge; use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | The same allocation edge is declared by more than one form — `allocatedTo:` on the source, an `Allocation` element, a legacy authored `allocatedFrom:` on the target (redundant) |
 
@@ -594,7 +598,7 @@ A `Configuration` may declare `subConfigurations:` naming one or more other `Con
 
 ## Documentation linting (W099–W103, `lint-docs`)
 
-The `lint-docs` command scans external `.md`/`.svg` docs for references that no longer resolve.
+The `lint-docs` command scans external `.md`/`.svg` docs, and the other text file types of `[documents]` (`.tex`, `.typ`, `.adoc`, `.html`, `.txt` by default), for references that no longer resolve.
 
 | Code | Condition |
 |---|---|
@@ -812,8 +816,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W612` | warning | the effective TestCase set is empty (no resolvable `testCases:` and no `selection:` match) |
 | `W613` | warning | a `TestCase` named explicitly in `testCases:` has status `draft`/`retired` |
 | `W614` | warning | an `approved`/`active` plan `demonstrates:` a `Requirement` that no member verifies (honours goal-closure — a member verifying a leaf of a demonstrated parent counts) |
-| `W615` | warning | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them (only when a results sidecar is loaded). For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001) |
-| `W617` | warning | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002) |
+| `W615` | warning | results-gated: an `approved` plan has members whose ingested verdict is Fail, flaky or Missing — one finding per plan listing them (only when a results sidecar is loaded). For a plan with `runsOn:` and recorded results (`ingest-results --format records`), a member without `testFunctions:` is judged on each listed environment: a failure there, or no passing result there, is listed as `<test> @ <environment>` (REQ-TRS-RESENV-001). A plan with `configurations:` is judged on those Configurations' results only, and an entry found in one's own results ends `in <config>` (REQ-TRS-PLANCFG-001) |
+| `W617` | warning | an `approved` plan declares required coverage (`conditions:`/`points:`, `minUnits:`, `runsOn:`; ADR-SYS-COVERAGE-001) and a cell of the grid — member × rig × condition point — has no pass in the ingested results (missing, failed, or on fewer than `minUnits` distinct units); one finding per plan lists the cells as `<test> @ <rig> [axis=point] (missing|FAILED|n of m units)` (results-gated, REQ-TRS-PLANCOV-002); a plan with `configurations:` is judged on those Configurations' results only, and a cell then reads `… in <config> (…)` (REQ-TRS-PLANCFG-001) |
 | `W616` | warning | two plans share an identical `(configurations, scope)` pair and their effective member sets are redundant: one contains the other, or Jaccard overlap ≥ 0.5 (likely redundant) |
 
 A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
@@ -969,13 +973,14 @@ Dormant unless `.syscribe.toml` declares `[bindingTimes]`; the built-in vocabula
 | `W093` | An element whose status is past draft (anything but none, `draft`, `proposed`, `todo`, `in_progress`, `blocked`, `open`, or a retiring status such as `deprecated`/`superseded`/`retired`) cites a PlanningItem question `PI-Y#Qn` that is still `open` — it relies on an undecided point. A PlanningItem citing its own question is exempt (`W317` covers `done`). Fix: answer the question (`set PI-Y question.answer Qn text=…`) and state the answer in the text, or move the citing element back to `draft` |
 | `W094` | An `answered` question is cited with "to confirm"-style wording in the same sentence ("to confirm", "to be confirmed", "TBC", "pending confirmation", "awaiting"; case-insensitive, whole words; replace the list with `[references] open_markers = [...]` in `.syscribe.toml`, an empty list disables the check). Also raised against `.syscribe.toml` for a malformed `[references]` entry (unknown key, `open_markers` not a list of strings, or `copied_values` not `true`/`false`), which is then ignored. Fix: rewrite the sentence to state the recorded answer (`check-ref PI-Y#Qn` prints it). Heuristic and advisory in `lint-docs` |
 
-## Value references (E331, W095, W096, GH #452)
+## Value references (E331, W095, W096, W098, GH #452)
 
 | Code | Condition |
 |---|---|
 | `E331` | A value reference `{{Elem.attr}}` in an element body does not resolve (GH #452): its element part names no element (by stable id, exact qualified name, or a basic name — the last qualified-name segment — that exactly one element has) or a basic name several elements share (the message lists their qualified names), its attribute path names no attribute of that element, or the attribute holds no single scalar value (a list, a map, or a `features:` entry with neither `value:` nor `default:`, such as a port). The message lists the element's attributes that have a value. References are read outside code (inline code spans and fenced blocks stay literal) but inside fenced `gherkin`/`feature` scenario blocks. Not a value reference, so never `E331`: an element part that resolves to a `FeatureDef`, a `::` path or `FEAT-` id that resolves to nothing (a feature-parameter placeholder, `E240`/`E241`), an unresolved bare name starting with a lowercase letter (`{{ user.name }}`, template text). Fix: name the element by id or full qualified name and pick an attribute from the list (`syscribe -m <root> show <Elem>` shows them), or give the attribute a `value:` |
 | `W095` | Opt-in, `[references] copied_values = true` (GH #452): an element body (prose or a scenario) states, as a numeric literal, the current value of an attribute of an element it links to — any outgoing reference (`satisfies`, `verifies`, `verifiesElement`, `derivedFrom`, `refines`, `allocatedTo`/`allocatedFrom`, `typedBy`, `supertype`, `achieves`, `evidence` `ref:`, user-defined `links:`) or the element of one of its own `{{…}}` references. Noise filter: the literal must be a whole token (not part of an id such as `TC-47244`, a version, a date, a time or a word; a unit right after it, `10ms`, is allowed); thousands separators (space, `,`, `_`, `'`) are read; values below 10 and integers from 1900 to 2100 (years) are ignored; code is skipped. A value written as a plain number with an optional unit word is compared by magnitude (the unit is not converted). Advisory in `lint-docs`, where a document's links are its `{{…}}` targets. Fix: replace the literal with the reference the message suggests (`{{Elem.attr}}`); `refs Elem.attr` lists every copy |
 | `W096` | A stale copy (GH #452): a non-draft element's body states, as a numeric literal, a previous value of an attribute of an element it links to or references (the links and noise filter of `W095`), different from the attribute's current value and from every current value of the linked elements' attributes. Previous values come from the committed versions of the file that holds the attribute (`git log --follow` plus one `git cat-file --batch` per file, at most `[agents] audit_limit` commits, default 200). Independent of `copied_values`; no git, or no repository: nothing is reported. Fix: update the literal to the current value, or better replace it with the reference the message suggests (`{{Elem.attr}}`); `refs Elem.attr` lists every stale copy |
+| `W098` | `lint-docs`: a value reference in an external document (`.tex`, `.typ`, `.adoc`, `.html`, `.txt`, read by `lint-docs` with the delimiters `[documents.delimiters]` gives the file type) does not resolve: unknown element, unknown attribute or feature parameter, or an attribute with no single value. A feature parameter that only lacks a value outside a Configuration is not reported. `render <file>` refuses the same reference as `E331` (GH #530, REQ-TRS-DOCREF-002) |
 
 ## Stale results (W091, REQ-TRS-RESJOIN-001)
 

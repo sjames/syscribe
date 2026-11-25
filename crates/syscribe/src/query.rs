@@ -2738,8 +2738,11 @@ pub fn refs_value(elements: &[RawElement], resolver: &Resolver, model_root: &std
         stale.extend(st.into_iter().filter(|c| c.attr.path == attr.path).map(|c| (e, c)));
     }
     let who = |e: &RawElement| vr::label(e);
+    // GH #530: uses in the external documents `[documents] paths` names.
+    let doc_uses = crate::docrender::uses_in_documents(elements, model_root, &tlabel, &attr.path);
     if json {
         let v = serde_json::json!({
+            "documentUses": doc_uses.iter().map(|u| serde_json::json!({"file": u.file, "line": u.line, "raw": u.raw})).collect::<Vec<_>>(),
             "attribute": full,
             "element": tlabel,
             "path": attr.path,
@@ -2776,6 +2779,16 @@ pub fn refs_value(elements: &[RawElement], resolver: &Resolver, model_root: &std
         println!("|---|---|---|");
         for (e, line, _) in &uses {
             println!("| {} | {} | {line} |", who(e), tl(e.frontmatter.element_type.as_ref()));
+        }
+    }
+    if !doc_uses.is_empty() {
+        println!();
+        println!("## Uses in documents");
+        println!();
+        println!("| File | Line | Reference |");
+        println!("|---|---|---|");
+        for u in &doc_uses {
+            println!("| {} | {} | `{}` |", u.file, u.line, u.raw);
         }
     }
     println!();
@@ -4888,6 +4901,13 @@ name: myView
 typedBy: Views::MyViewDef
 expose:
   - SomePackage::SomeElement
+# A table for a document (`syscribe help view`): uncomment and adapt.
+# columns:
+#   - {field: ref, heading: Element}
+#   - {field: name, heading: Name}
+#   - {field: status, heading: Status, empty: "—"}
+# sort: [ref]
+# caption: "Elements"
 ---
 
 Description of this view.
@@ -5507,6 +5527,21 @@ appliesTo:
 A safety-related application condition (SRAC): a constraint the integrator must
 honour for the referenced goal/argument/requirement to hold.
 "#,
+        "document" => r#"---
+type: Document
+name: DesignDescription
+status: draft                             # a non-draft Document's template must exist (W505)
+template: repo:doc/main.tex.tmpl          # the template it is rendered from (`syscribe help doc`)
+# rendered: repo:doc/build/main.tex       # default: beside the template, its name without .tmpl
+# artefacts: [repo:doc/build/design-description.pdf]   # what LaTeX/Typst/pandoc make of it
+# version: "0.1"
+# audience: customer
+# config: CONF-PREFIX-001                 # when the document is for one variant
+---
+
+What this document is for and who reads it. Build it with `syscribe doc build DesignDescription`;
+`syscribe doc build DesignDescription --check` says when it is out of date.
+"#,
         "testenvironment" => r#"---
 type: TestEnvironment
 id: TE-PREFIX-001
@@ -5689,7 +5724,7 @@ fn template_group(name: &str) -> &'static str {
     match name {
         "Requirement" | "TestCase" | "TestPlan" | "ADR" | "Baseline" | "PlanningItem"
         | "ReviewRecord" | "TradeStudy" | "TestEnvironment" | "ResidualRisk" => "Native elements",
-        "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
+        "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" | "Document" => "Packages & views",
         "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
         "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"
         | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse"
